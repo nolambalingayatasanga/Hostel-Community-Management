@@ -1,0 +1,9 @@
+.dateRangePickerContainer {
+  display: inline-flex;
+}
+
+.dateRangePicker {
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
+}

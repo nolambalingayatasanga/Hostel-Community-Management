@@ -1,0 +1,50 @@
+// Centralized Backend Error Handler Middleware
+
+const errorHandler = (err, req, res, next) => {
+  console.error('Error stack:', err);
+
+  let statusCode = err.statusCode || 500;
+  let message = err.message || 'Internal Server Error';
+  let errors = [];
+
+  // Handle Mongoose duplicate key error (code 11000)
+  if (err.code === 11000) {
+    statusCode = 400;
+    const field = Object.keys(err.keyValue)[0];
+    message = `Duplicate field value entered: ${field}. An account with this ${field} already exists.`;
+  }
+
+  // Handle Mongoose ValidationError
+  if (err.name === 'ValidationError') {
+    statusCode = 400;
+    errors = Object.values(err.errors).map(el => el.message);
+    message = `Invalid input: ${errors.join(', ')}`;
+  }
+
+  // Handle Mongoose CastError (invalid ObjectId)
+  if (err.name === 'CastError') {
+    statusCode = 404;
+    message = `Resource not found with id of ${err.value}`;
+  }
+
+  // Handle JSON Web Token Error
+  if (err.name === 'JsonWebTokenError') {
+    statusCode = 401;
+    message = 'Invalid authentication token. Please log in again.';
+  }
+
+  // Handle TokenExpiredError
+  if (err.name === 'TokenExpiredError') {
+    statusCode = 401;
+    message = 'Authentication token has expired. Please log in again.';
+  }
+
+  res.status(statusCode).json({
+    success: false,
+    message,
+    ...(errors.length > 0 && { errors }),
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  });
+};
+
+module.exports = errorHandler;
