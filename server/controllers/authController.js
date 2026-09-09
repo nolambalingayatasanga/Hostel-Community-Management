@@ -42,7 +42,10 @@ exports.register = async (req, res, next) => {
       dob,
       password,
       role,
+      gender,
+      registrationNumber,
       college,
+      course,
       startYear,
       endYear
     } = req.body;
@@ -51,7 +54,7 @@ exports.register = async (req, res, next) => {
     if (!name || !email || !phone || !adhaar || !dob || !password || !role) {
       return res.status(400).json({
         success: false,
-        message: 'All fields (Name, Email, Phone, Aadhaar, Date of Birth, and Password) are mandatory.'
+        message: 'Please provide all mandatory fields (Name, Email, Phone, Aadhaar, DOB, Password, Role).'
       });
     }
 
@@ -85,6 +88,7 @@ exports.register = async (req, res, next) => {
     // Determine final role & education fields
     let finalRole = role.toUpperCase();
     const educationData = {};
+    let memberInfoData = undefined;
 
     if (finalRole === 'STUDENT' || finalRole === 'ALUMNI') {
       if (!college || !startYear || !endYear) {
@@ -109,10 +113,16 @@ exports.register = async (req, res, next) => {
       finalRole = gradYearNum < currentYear ? 'ALUMNI' : 'STUDENT';
 
       educationData.college = college.trim();
+      if (course && course.trim()) {
+        educationData.course = course.trim();
+      }
       educationData.startYear = startYearNum;
       educationData.endYear = gradYearNum;
     } else if (finalRole === 'MEMBER') {
       finalRole = 'MEMBER';
+      if (registrationNumber && registrationNumber.trim()) {
+        memberInfoData = { registrationNo: registrationNumber.trim() };
+      }
     } else {
       return res.status(400).json({
         success: false,
@@ -142,12 +152,25 @@ exports.register = async (req, res, next) => {
       });
     }
 
+    // Calculate age from DOB
+    let calculatedAge = null;
+    if (dob) {
+      const diffMs = Date.now() - new Date(dob).getTime();
+      const a = Math.floor(diffMs / (365.25 * 24 * 60 * 60 * 1000));
+      if (!isNaN(a) && a >= 0) calculatedAge = a;
+    }
+
     const newUser = await User.create({
       name: name.trim(),
       email: normalizedEmail,
       phone: normalizedPhone,
       adhaar: cleanAdhaar,
+      gender: gender ? gender.toUpperCase() : undefined,
+      registrationNumber: registrationNumber ? registrationNumber.trim() : undefined,
+      ...(memberInfoData && { memberInfo: memberInfoData }),
       dob: new Date(dob),
+      dateOfBirth: new Date(dob),
+      age: calculatedAge,
       passwordHash: password, // Pre-save hook hashes this
       role: finalRole,
       ...(Object.keys(educationData).length > 0 && { education: educationData }),

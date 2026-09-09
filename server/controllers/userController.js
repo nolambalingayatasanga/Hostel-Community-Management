@@ -375,8 +375,8 @@ exports.uploadProfilePhoto = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    // Store reference to previous image publicId if it exists
-    const oldPublicId = user.profilePhoto?.publicId;
+    // Store reference to previous image identifier if it exists
+    const oldMedia = user.profilePhoto?.publicId || user.profilePhoto?.url;
 
     // Upload new image first
     const uploadResult = await uploadImage(req.file.buffer, 'hostel-community/profiles', req.file.mimetype);
@@ -390,11 +390,11 @@ exports.uploadProfilePhoto = async (req, res, next) => {
     await user.save();
 
     // Delete previous image from Cloudinary ONLY after new image is successfully added and saved
-    if (oldPublicId) {
+    if (oldMedia) {
       try {
-        await deleteImage(oldPublicId);
+        await deleteImage(oldMedia);
       } catch (deleteError) {
-        console.error(`Failed to delete old profile photo (${oldPublicId}) from Cloudinary:`, deleteError);
+        console.error(`Failed to delete old profile photo (${oldMedia}) from Cloudinary:`, deleteError);
       }
     }
 
@@ -725,8 +725,8 @@ exports.adminDeleteUser = async (req, res, next) => {
     }
 
     // Delete photo from Cloudinary first if it exists
-    if (user.profilePhoto && user.profilePhoto.publicId) {
-      await deleteImage(user.profilePhoto.publicId);
+    if (user.profilePhoto && (user.profilePhoto.publicId || user.profilePhoto.url)) {
+      await deleteImage(user.profilePhoto.publicId || user.profilePhoto.url);
     }
 
     // Remove from database

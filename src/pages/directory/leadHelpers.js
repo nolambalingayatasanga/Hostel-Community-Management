@@ -103,6 +103,15 @@ export const toRow = (lead) => {
   const receipt = lead.receiptNo || lead.memberInfo?.receiptNo || "";
   const slNoVal = lead.memberInfo?.slNo != null ? String(lead.memberInfo.slNo) : "";
 
+  // Auto-compute age from DOB if missing
+  let computedAge = lead.age;
+  const dobVal = lead.dob || lead.dateOfBirth;
+  if ((computedAge == null || computedAge === "") && dobVal) {
+    const diff = Date.now() - new Date(dobVal).getTime();
+    const a = Math.floor(diff / (365.25 * 24 * 60 * 60 * 1000));
+    if (!isNaN(a) && a >= 0) computedAge = a;
+  }
+
   return {
     id: String(lead._id || lead.id),
     raw: lead,
@@ -113,6 +122,9 @@ export const toRow = (lead) => {
     statusId: refId(lead.status),
     statusName: lead.status?.name || lead.status || "",
     gender: lead.gender || "",
+    age: computedAge != null && computedAge !== "" ? String(computedAge) : "",
+    dob: dobVal || "",
+    dateOfBirth: dobVal || "",
     joiningDate: lead.joiningDate || lead.memberInfo?.registeredDate || "",
     profilePhoto: lead.profilePhoto,
     adhaar: lead.adhaar || "",

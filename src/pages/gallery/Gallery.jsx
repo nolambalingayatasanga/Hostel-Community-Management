@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box,
   Typography,
   Grid,
   Card,
-  CardMedia,
   Button,
   Dialog,
   DialogTitle,
@@ -16,7 +15,21 @@ import {
   Alert,
   Tooltip,
   Modal,
-  Checkbox
+  Checkbox,
+  Tabs,
+  Tab,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  Breadcrumbs,
+  Link,
+  FormControl,
+  InputLabel,
+  Select,
+  Chip,
+  Avatar,
+  Skeleton
 } from '@mui/material';
 import {
   AddPhotoAlternate as AddIcon,
@@ -26,59 +39,295 @@ import {
   CloudUpload as UploadIcon,
   Check as CheckIcon,
   PlayArrow as PlayArrowIcon,
-  GetApp as DownloadIcon
+  GetApp as DownloadIcon,
+  Folder as FolderIcon,
+  CreateNewFolder as CreateNewFolderIcon,
+  MoreVert as MoreVertIcon,
+  ArrowBack as ArrowBackIcon,
+  Edit as EditIcon,
+  Collections as CollectionsIcon,
+  Image as ImageIcon,
+  FolderOpen as FolderOpenIcon
 } from '@mui/icons-material';
 import API from '../../api';
 import { useAuth } from '../../context/AuthContext';
 import { useSnackbar } from 'notistack';
 
+const FOLDER_COLORS = [
+  '#0F9D58', '#0088ff', '#EA4335', '#FBBC04', 
+  '#8B5CF6', '#EC4899', '#6366F1', '#14B8A6'
+];
+
 const Gallery = () => {
   const { user } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
+
+  // Tab State: 'all' | 'folders'
+  const [activeTab, setActiveTab] = useState('all');
+  
+  // Active Folder State (null if viewing root folders list)
+  const [currentFolder, setCurrentFolder] = useState(null);
+
+  // Photos & Infinite Scroll Pagination State
   const [photos, setPhotos] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [photosLoading, setPhotosLoading] = useState(false);
+  const [photosLoadingMore, setPhotosLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [totalPhotos, setTotalPhotos] = useState(0);
+
+  // Folders State
+  const [folders, setFolders] = useState([]);
+  const [foldersLoading, setFoldersLoading] = useState(false);
+
+  // Selection & UI State
+  const [selectedIds, setSelectedIds] = useState([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [selectedIds, setSelectedIds] = useState([]);
 
-  // Upload dialog state
+  // Upload Dialog State
   const [uploadOpen, setUploadOpen] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [filePreviews, setFilePreviews] = useState([]);
-
-  // Delete confirmation state
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [deleteTargetId, setDeleteTargetId] = useState(null); // null means bulk delete
+  const [uploadFolderId, setUploadFolderId] = useState('');
   const [uploading, setUploading] = useState(false);
 
-  // Lightbox Modal state
+  // Folder Dialog State (Create / Edit) - No description input as requested
+  const [folderDialogOpen, setFolderDialogOpen] = useState(false);
+  const [folderDialogMode, setFolderDialogMode] = useState('create'); // 'create' | 'edit'
+  const [editingFolderId, setEditingFolderId] = useState(null);
+  const [folderName, setFolderName] = useState('');
+  const [folderColor, setFolderColor] = useState('#0F9D58');
+  const [folderSubmitting, setFolderSubmitting] = useState(false);
+
+  // Folder Action Menu State
+  const [folderMenuAnchor, setFolderMenuAnchor] = useState(null);
+  const [activeMenuFolder, setActiveMenuFolder] = useState(null);
+
+  // Delete Confirmation State
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null); // { type: 'photo'|'bulk-photos'|'folder', id: string, name?: string }
+  const [deleting, setDeleting] = useState(false);
+
+  // Lightbox Modal State
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [activePhoto, setActivePhoto] = useState(null);
 
+  // Sentinel for Infinite Scrolling
+  const observerTarget = useRef(null);
+
   const isAdminOrChairperson = ['ADMIN', 'CHAIRPERSON'].includes(user?.role);
 
-
-
-  // Fetch photos
-  const fetchPhotos = async () => {
+  // -------------------------------------------------------------
+  // 1. Fetch Folders
+  // -------------------------------------------------------------
+  const fetchFolders = async () => {
     try {
-      setLoading(true);
-      const res = await API.get('/gallery');
+      setFoldersLoading(true);
+      const res = await API.get('/gallery/folders');
       if (res.data?.success) {
-        setPhotos(res.data.data.photos);
+        setFolders(res.data.data.folders || []);
       }
     } catch (err) {
-      setError('Failed to fetch gallery photos.');
+      enqueueSnackbar('Failed to fetch folders.', { variant: 'error' });
     } finally {
-      setLoading(false);
+      setFoldersLoading(false);
     }
   };
 
+  // -------------------------------------------------------------
+  // 2. Fetch Photos (with 30-item pagination & folder scoping)
+  // -------------------------------------------------------------
+  const fetchPhotos = useCallback(async (pageNum = 1, folderId = null, append = false) => {
+    try {
+      if (pageNum === 1) {
+        setPhotosLoading(true);
+      } else {
+        setPhotosLoadingMore(true);
+      }
+
+      const params = {
+        page: pageNum,
+        limit: 30
+      };
+
+      if (folderId) {
+        params.folderId = folderId;
+      }
+
+      const res = await API.get('/gallery', { params });
+      if (res.data?.success) {
+        const { photos: fetchedPhotos, pagination } = res.data.data;
+        
+        if (append) {
+          setPhotos(prev => [...prev, ...fetchedPhotos]);
+        } else {
+          setPhotos(fetchedPhotos || []);
+        }
+
+        setPage(pagination.page);
+        setHasMore(pagination.hasMore);
+        setTotalPhotos(pagination.total);
+      }
+    } catch (err) {
+      enqueueSnackbar('Failed to load gallery photos.', { variant: 'error' });
+    } finally {
+      setPhotosLoading(false);
+      setPhotosLoadingMore(false);
+    }
+  }, [enqueueSnackbar]);
+
+  // Initial load & Tab / Folder change triggers
   useEffect(() => {
-    fetchPhotos();
+    fetchFolders();
   }, []);
 
-  // Handle file select (multiple files support)
+  useEffect(() => {
+    setSelectedIds([]);
+    setPage(1);
+    setHasMore(true);
+
+    if (activeTab === 'all') {
+      fetchPhotos(1, null, false);
+    } else if (activeTab === 'folders') {
+      if (currentFolder) {
+        fetchPhotos(1, currentFolder._id, false);
+      } else {
+        fetchFolders();
+      }
+    }
+  }, [activeTab, currentFolder, fetchPhotos]);
+
+  // -------------------------------------------------------------
+  // 3. Infinite Scroll Intersection Observer
+  // -------------------------------------------------------------
+  useEffect(() => {
+    if (activeTab === 'folders' && !currentFolder) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !photosLoading && !photosLoadingMore) {
+          const nextPage = page + 1;
+          const targetFolderId = currentFolder ? currentFolder._id : null;
+          fetchPhotos(nextPage, targetFolderId, true);
+        }
+      },
+      { threshold: 0.1, rootMargin: '200px' }
+    );
+
+    const currentElem = observerTarget.current;
+    if (currentElem) {
+      observer.observe(currentElem);
+    }
+
+    return () => {
+      if (currentElem) {
+        observer.unobserve(currentElem);
+      }
+    };
+  }, [hasMore, photosLoading, photosLoadingMore, page, activeTab, currentFolder, fetchPhotos]);
+
+  // -------------------------------------------------------------
+  // 4. Folder Navigation Handlers
+  // -------------------------------------------------------------
+  const handleOpenFolder = (folder) => {
+    setCurrentFolder(folder);
+  };
+
+  const handleBackToFolders = () => {
+    setCurrentFolder(null);
+    fetchFolders();
+  };
+
+  const handleTabChange = (event, newTab) => {
+    setActiveTab(newTab);
+    if (newTab === 'folders') {
+      setCurrentFolder(null);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // 5. Folder CRUD Dialog & Actions (No description field)
+  // -------------------------------------------------------------
+  const handleOpenCreateFolderDialog = () => {
+    setFolderDialogMode('create');
+    setFolderName('');
+    setFolderColor('#0F9D58');
+    setEditingFolderId(null);
+    setFolderDialogOpen(true);
+  };
+
+  const handleOpenEditFolderDialog = (folder) => {
+    setFolderDialogMode('edit');
+    setEditingFolderId(folder._id);
+    setFolderName(folder.name || '');
+    setFolderColor(folder.color || '#0F9D58');
+    setFolderMenuAnchor(null);
+    setFolderDialogOpen(true);
+  };
+
+  const handleFolderSubmit = async (e) => {
+    e.preventDefault();
+    if (!folderName.trim()) {
+      enqueueSnackbar('Please enter a folder name.', { variant: 'warning' });
+      return;
+    }
+
+    try {
+      setFolderSubmitting(true);
+      if (folderDialogMode === 'create') {
+        const res = await API.post('/gallery/folders', {
+          name: folderName.trim(),
+          color: folderColor
+        });
+        if (res.data?.success) {
+          enqueueSnackbar('Folder created successfully!', { variant: 'success' });
+          setFolders(prev => [res.data.data.folder, ...prev]);
+          setFolderDialogOpen(false);
+        }
+      } else {
+        const res = await API.put(`/gallery/folders/${editingFolderId}`, {
+          name: folderName.trim(),
+          color: folderColor
+        });
+        if (res.data?.success) {
+          enqueueSnackbar('Folder updated successfully!', { variant: 'success' });
+          const updated = res.data.data.folder;
+          setFolders(prev => prev.map(f => (f._id === updated._id ? { ...f, ...updated } : f)));
+          if (currentFolder && currentFolder._id === updated._id) {
+            setCurrentFolder(prev => ({ ...prev, ...updated }));
+          }
+          setFolderDialogOpen(false);
+        }
+      }
+    } catch (err) {
+      const errMsg = err.response?.data?.message || 'Failed to save folder.';
+      enqueueSnackbar(errMsg, { variant: 'error' });
+    } finally {
+      setFolderSubmitting(false);
+    }
+  };
+
+  const handleDeleteFolderClick = (folder) => {
+    setFolderMenuAnchor(null);
+    setDeleteTarget({ type: 'folder', id: folder._id, name: folder.name, count: folder.itemCount || 0 });
+    setDeleteConfirmOpen(true);
+  };
+
+  // -------------------------------------------------------------
+  // 6. Media Uploading (Supports Folder Association)
+  // -------------------------------------------------------------
+  const handleOpenUpload = () => {
+    setSelectedFiles([]);
+    setFilePreviews([]);
+    if (currentFolder) {
+      setUploadFolderId(currentFolder._id);
+    } else {
+      setUploadFolderId('');
+    }
+    setUploadOpen(true);
+  };
+
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
     if (files.length > 0) {
@@ -88,7 +337,6 @@ const Gallery = () => {
     }
   };
 
-  // Remove a file from the selected list
   const handleRemoveFileAt = (index) => {
     setSelectedFiles(prev => prev.filter((_, idx) => idx !== index));
     setFilePreviews(prev => {
@@ -97,7 +345,6 @@ const Gallery = () => {
     });
   };
 
-  // Handle Photo Upload (multiple files in parallel)
   const handleUploadSubmit = async (e) => {
     e.preventDefault();
     if (selectedFiles.length === 0) {
@@ -110,9 +357,14 @@ const Gallery = () => {
       setError('');
       setSuccess('');
 
+      const targetFolder = uploadFolderId || (currentFolder ? currentFolder._id : null);
+
       const uploadPromises = selectedFiles.map(async (file) => {
         const formData = new FormData();
         formData.append('photo', file);
+        if (targetFolder) {
+          formData.append('folderId', targetFolder);
+        }
         
         const res = await API.post('/gallery', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
@@ -126,13 +378,19 @@ const Gallery = () => {
 
       if (successfulUploads.length > 0) {
         const successMsg = failedCount > 0
-          ? `Successfully uploaded ${successfulUploads.length} item(s). Failed to upload ${failedCount} item(s).`
-          : `Successfully uploaded all ${successfulUploads.length} item(s) to the gallery!`;
+          ? `Uploaded ${successfulUploads.length} item(s). Failed: ${failedCount}.`
+          : `Successfully uploaded all ${successfulUploads.length} item(s)!`;
         
         enqueueSnackbar(successMsg, { variant: 'success' });
-        setPhotos(prev => [...successfulUploads, ...prev]);
+
+        if (activeTab === 'all' || (activeTab === 'folders' && currentFolder && targetFolder === currentFolder._id)) {
+          setPhotos(prev => [...successfulUploads, ...prev]);
+          setTotalPhotos(prev => prev + successfulUploads.length);
+        }
+
+        fetchFolders();
+
         setUploadOpen(false);
-        // Clear state
         filePreviews.forEach(url => URL.revokeObjectURL(url));
         setSelectedFiles([]);
         setFilePreviews([]);
@@ -147,55 +405,51 @@ const Gallery = () => {
     }
   };
 
-  // Trigger delete confirmation for a single photo
-  const handleDeletePhoto = (id) => {
-    setDeleteTargetId(id);
+  // -------------------------------------------------------------
+  // 7. Media Deletion & Bulk Deletion
+  // -------------------------------------------------------------
+  const handleDeletePhotoClick = (id) => {
+    setDeleteTarget({ type: 'photo', id });
     setDeleteConfirmOpen(true);
   };
 
-  // Trigger delete confirmation for all selected photos
-  const handleDeleteSelected = () => {
+  const handleDeleteSelectedPhotosClick = () => {
     if (selectedIds.length === 0) return;
-    setDeleteTargetId(null);
+    setDeleteTarget({ type: 'bulk-photos', ids: selectedIds });
     setDeleteConfirmOpen(true);
   };
 
-  // Execute the delete operation (single or bulk)
   const executeDelete = async () => {
-    setDeleteConfirmOpen(false);
-    
-    if (deleteTargetId) {
-      // Single photo delete
-      const id = deleteTargetId;
-      try {
-        setError('');
-        const res = await API.delete(`/gallery/${id}`);
+    if (!deleteTarget) return;
+
+    try {
+      setDeleting(true);
+      if (deleteTarget.type === 'folder') {
+        const res = await API.delete(`/gallery/folders/${deleteTarget.id}`);
+        if (res.data?.success) {
+          enqueueSnackbar('Folder and its media deleted successfully.', { variant: 'success' });
+          setFolders(prev => prev.filter(f => f._id !== deleteTarget.id));
+          if (currentFolder && currentFolder._id === deleteTarget.id) {
+            setCurrentFolder(null);
+          }
+        }
+      } else if (deleteTarget.type === 'photo') {
+        const res = await API.delete(`/gallery/${deleteTarget.id}`);
         if (res.data?.success) {
           enqueueSnackbar('Media item deleted successfully.', { variant: 'success' });
-          setPhotos(prev => prev.filter(p => p._id !== id));
-          setSelectedIds(prev => prev.filter(item => item !== id));
+          setPhotos(prev => prev.filter(p => p._id !== deleteTarget.id));
+          setSelectedIds(prev => prev.filter(id => id !== deleteTarget.id));
+          setTotalPhotos(prev => Math.max(0, prev - 1));
+          fetchFolders();
         }
-      } catch (err) {
-        setError('Failed to delete item.');
-        enqueueSnackbar('Failed to delete media item.', { variant: 'error' });
-      } finally {
-        setDeleteTargetId(null);
-      }
-    } else {
-      // Bulk delete
-      if (selectedIds.length === 0) return;
-      try {
-        setError('');
-        setLoading(true);
-        
-        const deletePromises = selectedIds.map(id => 
+      } else if (deleteTarget.type === 'bulk-photos') {
+        const idsToDelete = deleteTarget.ids || [];
+        const deletePromises = idsToDelete.map(id =>
           API.delete(`/gallery/${id}`)
             .then(() => ({ id, success: true }))
-            .catch(err => {
-              return { id, success: false };
-            })
+            .catch(() => ({ id, success: false }))
         );
-        
+
         const results = await Promise.all(deletePromises);
         const successfulIds = results.filter(r => r.success).map(r => r.id);
         const failedCount = results.length - successfulIds.length;
@@ -203,24 +457,28 @@ const Gallery = () => {
         if (successfulIds.length > 0) {
           setPhotos(prev => prev.filter(p => !successfulIds.includes(p._id)));
           setSelectedIds(prev => prev.filter(id => !successfulIds.includes(id)));
-          
+          setTotalPhotos(prev => Math.max(0, prev - successfulIds.length));
+          fetchFolders();
+
           if (failedCount > 0) {
             enqueueSnackbar(`Deleted ${successfulIds.length} items. Failed to delete ${failedCount} items.`, { variant: 'warning' });
           } else {
             enqueueSnackbar(`Successfully deleted ${successfulIds.length} media item(s).`, { variant: 'success' });
           }
-        } else {
-          enqueueSnackbar('Failed to delete selected media items.', { variant: 'error' });
         }
-      } catch (err) {
-        setError('Failed to delete selected items.');
-        enqueueSnackbar('Failed to delete selected items.', { variant: 'error' });
-      } finally {
-        setLoading(false);
       }
+      setDeleteConfirmOpen(false);
+    } catch (err) {
+      enqueueSnackbar('Failed to delete item(s).', { variant: 'error' });
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
     }
   };
 
+  // -------------------------------------------------------------
+  // 8. Selection & Bulk Download
+  // -------------------------------------------------------------
   const handleSelectAll = (e) => {
     if (e.target.checked) {
       setSelectedIds(photos.map(p => p._id));
@@ -236,42 +494,43 @@ const Gallery = () => {
     );
   };
 
-
   const handleDownloadSelected = async () => {
     if (selectedIds.length === 0) return;
-    
     try {
+      let index = 1;
       for (const id of selectedIds) {
         const photo = photos.find(p => p._id === id);
         if (!photo) continue;
-        
+
+        const extension = photo.resourceType === 'video' ? 'mp4' : 'jpg';
+        const filename = selectedIds.length > 1 ? `KSH_Gallery_${index}.${extension}` : `KSH_Gallery.${extension}`;
+        index++;
+
         try {
           const response = await fetch(photo.url, { mode: 'cors' });
           const blob = await response.blob();
           const url = window.URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          const extension = photo.resourceType === 'video' ? 'mp4' : 'jpg';
-          a.download = photo.caption ? `${photo.caption}.${extension}` : `gallery_${id}.${extension}`;
+          a.download = filename;
           document.body.appendChild(a);
           a.click();
           window.URL.revokeObjectURL(url);
           document.body.removeChild(a);
         } catch (corsErr) {
-          // Fallback if browser CORS rejects fetch: open url in new tab
           const a = document.createElement('a');
           a.href = photo.url;
           a.target = '_blank';
-          a.download = photo.caption || `gallery_${id}`;
+          a.download = filename;
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
         }
       }
-      setSuccess(`Triggered download for ${selectedIds.length} items.`);
+      enqueueSnackbar(`Downloaded ${selectedIds.length} item(s).`, { variant: 'success' });
       setSelectedIds([]);
     } catch (err) {
-      setError('An error occurred during download.');
+      enqueueSnackbar('An error occurred during download.', { variant: 'error' });
     }
   };
 
@@ -280,431 +539,854 @@ const Gallery = () => {
     setLightboxOpen(true);
   };
 
+  const formatShortDate = (dateString) => {
+    if (!dateString) return 'Recent';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short'
+    });
+  };
+
+  const formatFullDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
   return (
-    <Box sx={{ flexGrow: 1 }}>
-      {/* Header section */}
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mb: 4 }}>
-        
-        {selectedIds.length > 0 && (
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mr: 2 }}>
-            <Button
-              variant="outlined"
-              color="primary"
-              startIcon={<DownloadIcon />}
-              onClick={handleDownloadSelected}
+    <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 120px)', pb: 4 }}>
+      {/* ------------------------------------------------------------- */}
+      {/* Top Header & Navigation Bar */}
+      {/* ------------------------------------------------------------- */}
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          flexWrap: 'wrap',
+          gap: 2,
+          mb: 3 
+        }}
+      >
+        {/* Left Side: Tabs or Folder Breadcrumbs */}
+        {activeTab === 'folders' && currentFolder ? (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <IconButton 
+              onClick={handleBackToFolders}
+              sx={{ 
+                bgcolor: '#F1F5F9', 
+                color: '#1E293B',
+                '&:hover': { bgcolor: '#E2E8F0' } 
+              }}
+              size="small"
+            >
+              <ArrowBackIcon fontSize="small" />
+            </IconButton>
+
+            <Breadcrumbs separator="/" aria-label="breadcrumb">
+              <Link
+                component="button"
+                variant="h6"
+                onClick={handleBackToFolders}
+                underline="hover"
+                sx={{ 
+                  color: '#64748B', 
+                  fontWeight: 600, 
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5
+                }}
+              >
+                <FolderIcon sx={{ fontSize: 20 }} />
+                Folders
+              </Link>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography 
+                  variant="h6" 
+                  sx={{ 
+                    fontWeight: 700, 
+                    color: '#1E293B',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.75
+                  }}
+                >
+                  <Box 
+                    sx={{ 
+                      width: 12, 
+                      height: 12, 
+                      borderRadius: '4px', 
+                      bgcolor: currentFolder.color || '#0F9D58' 
+                    }} 
+                  />
+                  {currentFolder.name}
+                </Typography>
+                <Chip 
+                  label={`${totalPhotos} items`} 
+                  size="small" 
+                  sx={{ 
+                    fontWeight: 600, 
+                    bgcolor: '#F1F5F9', 
+                    color: '#475569',
+                    fontSize: '12px' 
+                  }} 
+                />
+              </Box>
+            </Breadcrumbs>
+          </Box>
+        ) : (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Tabs
+              value={activeTab}
+              onChange={handleTabChange}
               sx={{
-                borderRadius: '24px',
-                textTransform: 'none',
-                fontWeight: 600,
-                borderColor: '#D0D5DD',
-                color: '#344054',
-                '&:hover': { borderColor: '#D0D5DD', backgroundColor: '#F9FAFB' }
+                minHeight: '44px',
+                bgcolor: '#F1F5F9',
+                p: '4px',
+                borderRadius: '16px',
+                '& .MuiTabs-indicator': {
+                  display: 'none'
+                }
               }}
             >
-              Download selected ({selectedIds.length})
-            </Button>
+              <Tab
+                value="all"
+                label={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <CollectionsIcon sx={{ fontSize: 18 }} />
+                    <span>All Media</span>
+                  </Box>
+                }
+                sx={{
+                  minHeight: '36px',
+                  borderRadius: '12px',
+                  fontWeight: 600,
+                  fontSize: '14px',
+                  textTransform: 'none',
+                  color: '#64748B',
+                  px: 2.5,
+                  transition: 'all 0.2s',
+                  '&.Mui-selected': {
+                    bgcolor: '#FFFFFF',
+                    color: '#0088ff',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+                  }
+                }}
+              />
+              <Tab
+                value="folders"
+                label={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <FolderIcon sx={{ fontSize: 18 }} />
+                    <span>Folders</span>
+                    {folders.length > 0 && (
+                      <Chip
+                        label={folders.length}
+                        size="small"
+                        sx={{
+                          height: '20px',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          bgcolor: activeTab === 'folders' ? 'rgba(0, 136, 255, 0.1)' : '#E2E8F0',
+                          color: activeTab === 'folders' ? '#0088ff' : '#64748B'
+                        }}
+                      />
+                    )}
+                  </Box>
+                }
+                sx={{
+                  minHeight: '36px',
+                  borderRadius: '12px',
+                  fontWeight: 600,
+                  fontSize: '14px',
+                  textTransform: 'none',
+                  color: '#64748B',
+                  px: 2.5,
+                  transition: 'all 0.2s',
+                  '&.Mui-selected': {
+                    bgcolor: '#FFFFFF',
+                    color: '#0088ff',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+                  }
+                }}
+              />
+            </Tabs>
+          </Box>
+        )}
 
-            {isAdminOrChairperson && (
+        {/* Right Side: Action Buttons */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+          {selectedIds.length > 0 && (
+            <>
               <Button
                 variant="outlined"
-                color="error"
-                startIcon={<DeleteIcon />}
-                onClick={handleDeleteSelected}
-                sx={{ borderRadius: '24px', textTransform: 'none', fontWeight: 600 }}
+                color="primary"
+                startIcon={<DownloadIcon />}
+                onClick={handleDownloadSelected}
+                sx={{
+                  borderRadius: '24px',
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  borderColor: '#D0D5DD',
+                  color: '#344054',
+                  '&:hover': { borderColor: '#D0D5DD', backgroundColor: '#F9FAFB' }
+                }}
               >
-                Delete selected ({selectedIds.length})
+                Download ({selectedIds.length})
               </Button>
-            )}
-          </Box>
-        )}
 
-        {isAdminOrChairperson && (
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setUploadOpen(true)}
-            sx={{
-              background: '#0088ff',
-              color: '#fff',
-              borderRadius: '24px',
-              px: 3,
-              py: 1,
-              fontWeight: 600,
-              textTransform: 'none',
-              boxShadow: 'none',
-              '&:hover': {
-                background: '#0077ee',
-                boxShadow: 'none'
-              }
-            }}
-          >
-            Add photos
-          </Button>
-        )}
-      </Box>
-
-      {success && <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess('')}>{success}</Alert>}
-      {error && <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>{error}</Alert>}
-
-      {/* Top action bar: Select All */}
-      {photos.length > 0 && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-          <Checkbox
-            checked={photos.length > 0 && selectedIds.length === photos.length}
-            indeterminate={selectedIds.length > 0 && selectedIds.length < photos.length}
-            onChange={handleSelectAll}
-            sx={{ color: '#667085', '&.Mui-checked': { color: '#0088ff' } }}
-          />
-          <Typography variant="body1" sx={{ fontWeight: 500, color: '#344054' }}>
-            Select all
-          </Typography>
-        </Box>
-      )}
-
-      {/* Gallery Grid */}
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-          <CircularProgress sx={{ color: '#0088ff' }} />
-        </Box>
-      ) : photos.length === 0 ? (
-        <Card
-          sx={{
-            p: 6,
-            textAlign: 'center',
-            backgroundColor: '#ffffff',
-            border: '1px dashed #E2E8F0',
-            borderRadius: '24px',
-            boxShadow: '0 8px 30px rgba(0, 0, 0, 0.02)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            maxWidth: 600,
-            mx: 'auto',
-            my: 4,
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            position: 'relative',
-            overflow: 'hidden',
-            '&::before': {
-              content: '""',
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '4px',
-         
-              opacity: 0,
-              transition: 'opacity 0.3s ease',
-            },
-            '&:hover': {
-              transform: 'translateY(-4px)',
-      
-              boxShadow: '0 12px 40px rgba(0, 136, 255, 0.08)',
-              '&::before': {
-                opacity: 1,
-              },
-              '& .illustration-container': {
-                transform: 'scale(1.08) rotate(3deg)',
-                borderColor: 'rgba(0, 136, 255, 0.25)',
-              },
-              '& .icon-glow': {
-                filter: 'drop-shadow(0 0 12px rgba(0, 136, 255, 0.4))',
-              }
-            }
-          }}
-        >
-          {/* Illustration Container */}
-          <Box
-            className="illustration-container"
-            sx={{
-              width: 100,
-              height: 100,
-              borderRadius: '28px',
-              border: '2px solid #F1F5F9',
-              background: 'linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              mb: 3,
-              position: 'relative',
-              transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
-            }}
-          >
-            {/* Soft decorative background circles */}
-            <Box
-              sx={{
-                position: 'absolute',
-                width: 140,
-                height: 140,
-                borderRadius: '50%',
-                border: '1px dashed rgba(0, 136, 255, 0.15)',
-                animation: 'spin 20s linear infinite',
-                pointerEvents: 'none',
-                '@keyframes spin': {
-                  '0%': { transform: 'rotate(0deg)' },
-                  '100%': { transform: 'rotate(360deg)' }
-                }
-              }}
-            />
-            
-            {/* Secondary overlapping icon card for depth */}
-            <Box
-              sx={{
-                position: 'absolute',
-                bottom: -8,
-                right: -8,
-                width: 36,
-                height: 36,
-                borderRadius: '12px',
-                bgcolor: '#0088ff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(0, 136, 255, 0.3)',
-                color: '#fff',
-              }}
-            >
-              <CameraIcon sx={{ fontSize: 18 }} />
-            </Box>
-
-            <AddIcon
-              className="icon-glow"
-              sx={{
-                fontSize: 42,
-                color: '#0088ff',
-                transition: 'all 0.3s ease',
-              }}
-            />
-          </Box>
-
-          <Typography
-            variant="h5"
-            sx={{
-              fontWeight: 700,
-              color: '#1E293B',
-              mb: 1.5,
-              letterSpacing: '-0.025em'
-            }}
-          >
-            No Media Found
-          </Typography>
-
-         
+              {isAdminOrChairperson && (
+                <Button
+                  variant="outlined"
+                  color="error"
+                  startIcon={<DeleteIcon />}
+                  onClick={handleDeleteSelectedPhotosClick}
+                  sx={{ borderRadius: '24px', textTransform: 'none', fontWeight: 600 }}
+                >
+                  Delete ({selectedIds.length})
+                </Button>
+              )}
+            </>
+          )}
 
           {isAdminOrChairperson && (
-            <Button
-              variant="contained"
-              startIcon={<UploadIcon />}
-              onClick={() => setUploadOpen(true)}
-              sx={{
-                borderRadius: '12px',
-                textTransform: 'none',
-                fontWeight: 600,
-                px: 4,
-                py: 1.5,
-                fontSize: '15px',
-                background: "#0088ff",
-                transition: 'all 0.2s ease',
-                '&:hover': {
-                  background: '#0077ee',
-            
-                  transform: 'translateY(-2px)',
-                },
-                '&:active': {
-                  transform: 'translateY(0)',
-                }
-              }}
-            >
-              Upload  Media
-            </Button>
+            <>
+              {/* If on Folders tab (root), show "New folder" */}
+              {activeTab === 'folders' && !currentFolder && (
+                <Button
+                  variant="outlined"
+                  startIcon={<CreateNewFolderIcon />}
+                  onClick={handleOpenCreateFolderDialog}
+                  sx={{
+                    borderRadius: '8px',
+                    borderColor: '#0088ff',
+                    color: '#0088ff',
+                    fontWeight: 600,
+                    textTransform: 'none',
+                    px: 2.5,
+                    py: 0.9,
+                    '&:hover': {
+                      borderColor: '#0077ee',
+                      backgroundColor: 'rgba(0, 136, 255, 0.04)'
+                    }
+                  }}
+                >
+                  New folder
+                </Button>
+              )}
+
+              {/* Add photos button */}
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={handleOpenUpload}
+                sx={{
+                  background: '#0088ff',
+                  color: '#fff',
+                  borderRadius: '8px',
+                  px: 3,
+                  py: 1,
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  boxShadow: 'none',
+                  '&:hover': {
+                    background: '#0077ee',
+                    boxShadow: 'none'
+                  }
+                }}
+              >
+Add photos
+              </Button>
+            </>
           )}
-        </Card>
-      ) : (
-        <Grid container spacing={3}>
-          {photos.map((photo) => {
-            const isSelected = selectedIds.includes(photo._id);
-            return (
-              <Grid size={{ xs: 12, sm: 6, md: 3 }} key={photo._id}>
-                <Box sx={{ width: '100%', position: 'relative', pb: '75%' /* 4:3 Aspect Ratio matching reference image */ }}>
-                  <Card
-                    sx={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: '100%',
-                      overflow: 'hidden',
-                      borderRadius: '12px', // Smoother rounded corners matching image
-                      cursor: 'pointer',
-                      backgroundColor: '#F8FAFC',
-                      border: '1px solid #EAECF0',
-                      boxShadow: '0 1px 3px rgba(16, 24, 40, 0.1)',
-                      transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                      '&:hover': {
-                        transform: 'scale(1.02)',
-                        boxShadow: '0 10px 15px -3px rgba(16,24,40,0.1), 0 4px 6px -2px rgba(16,24,40,0.05)',
-                        '& .hover-overlay': { opacity: 1 }
-                      }
-                    }}
-                  >
-                    {/* Media Content */}
-                    <Box
-                      onClick={() => handleOpenLightbox(photo)}
-                      sx={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                      }}
-                    >
-                      {photo.resourceType === 'video' ? (
-                        <Box sx={{ width: '100%', height: '100%', position: 'relative' }}>
-                          <video
-                            src={photo.url}
-                            preload="metadata"
-                            style={{
-                              width: '100%',
-                              height: '100%',
-                              objectFit: 'cover',
-                              display: 'block'
-                            }}
-                          />
-                          {/* Centered Play Button Icon Overlay */}
-                          <Box
-                            sx={{
-                              position: 'absolute',
-                              top: '50%',
-                              left: '50%',
-                              transform: 'translate(-50%, -50%)',
-                              width: 54,
-                              height: 54,
-                              borderRadius: '50%',
-                              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: '#FFFFFF',
-                              backdropFilter: 'blur(2px)',
-                              border: '1px solid rgba(255, 255, 255, 0.25)',
-                              boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.2)',
-                              transition: 'all 0.2s ease',
-                            }}
-                          >
-                            <PlayArrowIcon sx={{ fontSize: 32 }} />
-                          </Box>
-                        </Box>
-                      ) : (
-                        <img
-                          src={photo.url}
-                          alt={photo.caption || 'Gallery item'}
-                          style={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover',
-                            display: 'block'
-                          }}
-                        />
-                      )}
-                    </Box>
+        </Box>
+      </Box>
 
-                    {/* Hover Overlay: Uploader Name and Date */}
-                    <Box
-                      className="hover-overlay"
-                      onClick={() => handleOpenLightbox(photo)}
-                      sx={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 60%)',
-                        opacity: 0,
-                        transition: 'opacity 0.2s ease',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'flex-end',
-                        p: 2,
-                        pointerEvents: 'none'
-                      }}
-                    >
-                     
-                      <Typography variant="caption" sx={{ color: '#ccc', mt: 0.5, pointerEvents: 'none' }}>
-                        {new Date(photo.createdAt).toLocaleDateString(undefined, {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric'
-                        })}
-                      </Typography>
-                    </Box>
+      {/* ------------------------------------------------------------- */}
+      {/* TAB 1: ALL MEDIA (Infinite Scroll Pagination: 30 items) */}
+      {/* ------------------------------------------------------------- */}
+      {activeTab === 'all' && (
+        <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+          {/* Top selection bar */}
+          {photos.length > 0 && (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Checkbox
+                  checked={photos.length > 0 && selectedIds.length === photos.length}
+                  indeterminate={selectedIds.length > 0 && selectedIds.length < photos.length}
+                  onChange={handleSelectAll}
+                  sx={{ color: '#667085', '&.Mui-checked': { color: '#0088ff' } }}
+                />
+                <Typography variant="body2" sx={{ fontWeight: 600, color: '#344054' }}>
+                  Select all ({photos.length})
+                </Typography>
+              </Box>
+              <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 500 }}>
+                Showing {photos.length} of {totalPhotos} media assets
+              </Typography>
+            </Box>
+          )}
 
-                    {/* Delete button - Top Right */}
-                    {isAdminOrChairperson && (
-                      <IconButton
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeletePhoto(photo._id);
-                        }}
-                        sx={{
-                          position: 'absolute',
-                          top: 12,
-                          right: 12,
-                          zIndex: 2,
-                          backgroundColor: 'rgba(0, 0, 0, 0.4)',
-                          color: '#FFFFFF',
-                          '&:hover': {
-                            backgroundColor: 'rgba(211, 47, 47, 0.9)'
-                          },
-                          width: 32,
-                          height: 32,
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                          transition: 'all 0.2s ease'
-                        }}
-                        size="small"
-                      >
-                        <DeleteIcon sx={{ fontSize: 18 }} />
-                      </IconButton>
-                    )}
-
-                    {/* Selection Circle indicator - Bottom Right (Matches reference image style) */}
-                    <Box
-                      onClick={(e) => handleToggleSelect(photo._id, e)}
-                      sx={{
-                        position: 'absolute',
-                        bottom: 16,
-                        right: 16,
-                        zIndex: 2,
-                        width: 24,
-                        height: 24,
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                        border: isSelected ? 'none' : '2px solid rgba(255, 255, 255, 0.8)',
-                        backgroundColor: isSelected ? '#0088ff' : 'rgba(0, 0, 0, 0.2)',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
-                        transition: 'all 0.2s ease',
-                        '&:hover': {
-                          transform: 'scale(1.1)',
-                          borderColor: '#FFFFFF',
-                          backgroundColor: isSelected ? '#0088ff' : 'rgba(0, 0, 0, 0.35)',
-                        }
-                      }}
-                    >
-                      {isSelected && (
-                        <CheckIcon sx={{ color: '#FFFFFF', fontSize: 16 }} />
-                      )}
-                    </Box>
-                  </Card>
-                </Box>
+          {/* Photos Grid Container */}
+          <Box sx={{ flex: 1 }}>
+            {photosLoading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 12 }}>
+                <CircularProgress sx={{ color: '#0088ff' }} />
+              </Box>
+            ) : photos.length === 0 ? (
+              <EmptyGalleryCard 
+                isAdmin={isAdminOrChairperson} 
+                onUpload={handleOpenUpload} 
+                title="No Media Found"
+                subtitle="Upload photos and videos to share them with the hostel community."
+              />
+            ) : (
+              <Grid container spacing={2.5}>
+                {photos.map((photo) => renderPhotoCard(photo))}
               </Grid>
-            );
-          })}
-        </Grid>
+            )}
+          </Box>
+
+          {/* Infinite Scroll Bottom Sentinel & Loader (Pushed to bottom of page) */}
+          <Box ref={observerTarget} sx={{ mt: 'auto', pt: 6, pb: 2, display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' }}>
+            {photosLoadingMore && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: '#0088ff' }}>
+                <CircularProgress size={22} color="inherit" />
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  Loading more assets...
+                </Typography>
+              </Box>
+            )}
+            {!hasMore && photos.length > 0 && !photosLoading && (
+              <Typography variant="body2" sx={{ color: '#94A3B8', fontWeight: 500, textAlign: 'center' }}>
+                You've reached the end of the gallery.
+              </Typography>
+            )}
+          </Box>
+        </Box>
       )}
 
-      {/* Upload Dialog */}
+      {/* ------------------------------------------------------------- */}
+      {/* TAB 2: FOLDERS (Exact Google Drive Layout) */}
+      {/* ------------------------------------------------------------- */}
+      {activeTab === 'folders' && (
+        <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+          {/* View 2A: Root Folders Grid */}
+          {!currentFolder ? (
+            <Box sx={{ flex: 1 }}>
+              {foldersLoading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 12 }}>
+                  <CircularProgress sx={{ color: '#0088ff' }} />
+                </Box>
+              ) : folders.length === 0 ? (
+                <EmptyGalleryCard
+                  isAdmin={isAdminOrChairperson}
+                  onUpload={handleOpenCreateFolderDialog}
+                  buttonLabel="Create Folder"
+                  title="No Folders Yet"
+                  subtitle="Organize your hostel events and memories by creating Google Drive-style folders."
+                  icon={<FolderIcon sx={{ fontSize: 44, color: '#0F9D58' }} />}
+                />
+              ) : (
+                <Grid container spacing={3}>
+                  {folders.map((folder) => {
+                    const folderColorHex = folder.color || '#0F9D58';
+                    const creatorName = folder.createdBy?.name || 'Administrator';
+                    const isSelf = user?._id === folder.createdBy?._id;
+                    const shortDateText = formatShortDate(folder.updatedAt || folder.createdAt);
+                    const fullDateText = formatFullDate(folder.createdAt);
+
+                    return (
+                      <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={folder._id}>
+                        <Card
+                          onClick={() => handleOpenFolder(folder)}
+                          sx={{
+                            p: 2,
+                            borderRadius: '18px',
+                            cursor: 'pointer',
+                            backgroundColor: '#EFF4FA', // Google Drive exact card background
+                            border: '1px solid rgba(0, 0, 0, 0.05)',
+                            boxShadow: 'none',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 1.5,
+                            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                            '&:hover': {
+                              transform: 'translateY(-2px)',
+                              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.08)',
+                              backgroundColor: '#E7EEF8',
+                              '& .preview-media-content': {
+                                filter: 'blur(5px) brightness(0.85)',
+                                transform: 'scale(1.05)'
+                              },
+                              '& .folder-preview-overlay': {
+                                opacity: 1
+                              }
+                            }
+                          }}
+                        >
+                          {/* 1. Header: Folder Color Badge + Title + 3-Dots Menu */}
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0, flex: 1 }}>
+                              {/* Selected Color Badge instead of generic icon */}
+                              <Box
+                                sx={{
+                                  width: 26,
+                                  height: 26,
+                                  borderRadius: '6px',
+                                  bgcolor: folderColorHex,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  flexShrink: 0,
+                                  boxShadow: `0 2px 6px ${folderColorHex}40`
+                                }}
+                              >
+                                <FolderIcon sx={{ color: '#FFFFFF', fontSize: 16 }} />
+                              </Box>
+
+                              {/* Title */}
+                              <Typography
+                                variant="subtitle1"
+                                noWrap
+                                sx={{
+                                  fontWeight: 600,
+                                  color: '#1F1F1F',
+                                  fontSize: '15px',
+                                  letterSpacing: '-0.01em'
+                                }}
+                              >
+                                {folder.name}
+                              </Typography>
+                            </Box>
+
+                            {isAdminOrChairperson && (
+                              <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveMenuFolder(folder);
+                                  setFolderMenuAnchor(e.currentTarget);
+                                }}
+                                sx={{
+                                  color: '#444746',
+                                  p: 0.5,
+                                  ml: 0.5,
+                                  '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.06)' }
+                                }}
+                              >
+                                <MoreVertIcon fontSize="small" />
+                              </IconButton>
+                            )}
+                          </Box>
+
+                          {/* 2. Middle Inset Preview Box with Hover Overlay */}
+                          <Box
+                            sx={{
+                              width: '100%',
+                              height: 155,
+                              backgroundColor: '#FFFFFF',
+                              borderRadius: '12px',
+                              overflow: 'hidden',
+                              border: '1px solid rgba(0, 0, 0, 0.04)',
+                              position: 'relative'
+                            }}
+                          >
+                            {/* Inner Preview Content (Blurs on Hover) */}
+                            <Box
+                              className="preview-media-content"
+                              sx={{
+                                width: '100%',
+                                height: '100%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                              }}
+                            >
+                              {folder.coverUrl ? (
+                                folder.coverResourceType === 'video' ? (
+                                  <Box sx={{ width: '100%', height: '100%', position: 'relative' }}>
+                                    <video
+                                      src={folder.coverUrl}
+                                      preload="metadata"
+                                      style={{
+                                        width: '100%',
+                                        height: '100%',
+                                        objectFit: 'cover',
+                                        display: 'block'
+                                      }}
+                                    />
+                                    <Box
+                                      sx={{
+                                        position: 'absolute',
+                                        top: '50%',
+                                        left: '50%',
+                                        transform: 'translate(-50%, -50%)',
+                                        width: 40,
+                                        height: 40,
+                                        borderRadius: '50%',
+                                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: '#FFFFFF'
+                                      }}
+                                    >
+                                      <PlayArrowIcon sx={{ fontSize: 24 }} />
+                                    </Box>
+                                  </Box>
+                                ) : (
+                                  <img
+                                    src={folder.coverUrl}
+                                    alt={folder.name}
+                                    loading="lazy"
+                                    style={{
+                                      width: '100%',
+                                      height: '100%',
+                                      objectFit: 'cover',
+                                      display: 'block'
+                                    }}
+                                  />
+                                )
+                              ) : (
+                                /* Preload Skeleton of Media when no image uploaded */
+                                <Box 
+                                  sx={{ 
+                                    width: '100%', 
+                                    height: '100%', 
+                                    p: 2, 
+                                    display: 'flex', 
+                                    flexDirection: 'column', 
+                                    justifyContent: 'space-between',
+                                    bgcolor: '#FAFAFA'
+                                  }}
+                                >
+                                  <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+                                    <Skeleton variant="rounded" width={36} height={36} sx={{ borderRadius: '8px', bgcolor: '#EBEFF5' }} />
+                                    <Box sx={{ flex: 1 }}>
+                                      <Skeleton variant="text" width="70%" height={16} sx={{ bgcolor: '#EBEFF5' }} />
+                                      <Skeleton variant="text" width="40%" height={12} sx={{ bgcolor: '#F0F4F8' }} />
+                                    </Box>
+                                  </Box>
+                                  
+                                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                    <Skeleton variant="rectangular" width="100%" height={8} sx={{ borderRadius: '4px', bgcolor: '#F0F4F8' }} />
+                                    <Skeleton variant="rectangular" width="85%" height={8} sx={{ borderRadius: '4px', bgcolor: '#F0F4F8' }} />
+                                    <Skeleton variant="rectangular" width="60%" height={8} sx={{ borderRadius: '4px', bgcolor: '#F0F4F8' }} />
+                                  </Box>
+
+                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <Skeleton variant="text" width={50} height={12} sx={{ bgcolor: '#EBEFF5' }} />
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, opacity: 0.4 }}>
+                                      <ImageIcon sx={{ fontSize: 16, color: folderColorHex }} />
+                                      <Typography variant="caption" sx={{ fontSize: '10px', color: '#64748B', fontWeight: 600 }}>
+                                        Empty
+                                      </Typography>
+                                    </Box>
+                                  </Box>
+                                </Box>
+                              )}
+                            </Box>
+
+                            {/* Hover Overlay Above Blurred Preview */}
+                            <Box
+                              className="folder-preview-overlay"
+                              sx={{
+                                position: 'absolute',
+                                inset: 0,
+                                zIndex: 3,
+                                bgcolor: 'rgba(15, 23, 42, 0.65)',
+                                backdropFilter: 'blur(2px)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                p: 2,
+                                textAlign: 'center',
+                                opacity: 0,
+                                transition: 'opacity 0.25s ease',
+                                pointerEvents: 'none'
+                              }}
+                            >
+                              <Typography
+                                variant="subtitle2"
+                                sx={{
+                                  fontWeight: 700,
+                                  color: '#FFFFFF',
+                                  fontSize: '14px',
+                                  textShadow: '0 2px 4px rgba(0,0,0,0.6)',
+                                  mb: 0.5,
+                                  lineHeight: 1.3
+                                }}
+                              >
+                                Created by {creatorName}
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color: 'rgba(255, 255, 255, 0.9)',
+                                  fontSize: '12px',
+                                  fontWeight: 500,
+                                  textShadow: '0 1px 3px rgba(0,0,0,0.6)'
+                                }}
+                              >
+                                {fullDateText}
+                              </Typography>
+                            </Box>
+                          </Box>
+
+                          {/* 3. Footer: Avatar + Date Info */}
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, pt: 0.25, minHeight: '28px' }}>
+                            <Avatar
+                              src={folder.createdBy?.profilePhoto?.url || ''}
+                              sx={{
+                                width: 26,
+                                height: 26,
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                bgcolor: folderColorHex,
+                                color: '#FFFFFF'
+                              }}
+                            >
+                              {creatorName.charAt(0).toUpperCase()}
+                            </Avatar>
+
+                            <Typography
+                              variant="body2"
+                              noWrap
+                              sx={{
+                                fontSize: '13px',
+                                color: '#444746',
+                                fontWeight: 400
+                              }}
+                            >
+                              {isSelf ? 'You opened' : creatorName} • {shortDateText}
+                            </Typography>
+                          </Box>
+                        </Card>
+                      </Grid>
+                    );
+                  })}
+                </Grid>
+              )}
+            </Box>
+          ) : (
+            /* View 2B: Inside Folder Photos View */
+            <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+              {photos.length > 0 && (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Checkbox
+                      checked={photos.length > 0 && selectedIds.length === photos.length}
+                      indeterminate={selectedIds.length > 0 && selectedIds.length < photos.length}
+                      onChange={handleSelectAll}
+                      sx={{ color: '#667085', '&.Mui-checked': { color: '#0088ff' } }}
+                    />
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#344054' }}>
+                      Select all
+                    </Typography>
+                  </Box>
+                  <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 500 }}>
+                    Showing {photos.length} of {totalPhotos} items
+                  </Typography>
+                </Box>
+              )}
+
+              {/* Photos Grid inside Folder */}
+              <Box sx={{ flex: 1 }}>
+                {photosLoading ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 12 }}>
+                    <CircularProgress sx={{ color: '#0088ff' }} />
+                  </Box>
+                ) : photos.length === 0 ? (
+                  <EmptyGalleryCard
+                    isAdmin={isAdminOrChairperson}
+                    onUpload={handleOpenUpload}
+                    title={`Folder "${currentFolder.name}" is Empty`}
+                    subtitle="Add photos and videos directly into this folder."
+                    buttonLabel="Upload to Folder"
+                  />
+                ) : (
+                  <Grid container spacing={2.5}>
+                    {photos.map((photo) => renderPhotoCard(photo))}
+                  </Grid>
+                )}
+              </Box>
+
+              {/* Infinite Scroll Sentinel inside Folder (Pushed to bottom of page) */}
+              <Box ref={observerTarget} sx={{ mt: 'auto', pt: 6, pb: 2, display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' }}>
+                {photosLoadingMore && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: '#0088ff' }}>
+                    <CircularProgress size={22} color="inherit" />
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      Loading more items in {currentFolder.name}...
+                    </Typography>
+                  </Box>
+                )}
+                {!hasMore && photos.length > 0 && !photosLoading && (
+                  <Typography variant="body2" sx={{ color: '#94A3B8', fontWeight: 500, textAlign: 'center' }}>
+                    All items in this folder loaded.
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+          )}
+        </Box>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* Folder Action Context Menu */}
+      {/* ------------------------------------------------------------- */}
+      <Menu
+        anchorEl={folderMenuAnchor}
+        open={Boolean(folderMenuAnchor)}
+        onClose={() => setFolderMenuAnchor(null)}
+        PaperProps={{
+          sx: {
+            borderRadius: '12px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+            minWidth: 160
+          }
+        }}
+      >
+        <MenuItem
+          onClick={() => {
+            if (activeMenuFolder) handleOpenEditFolderDialog(activeMenuFolder);
+          }}
+        >
+          <ListItemIcon>
+            <EditIcon fontSize="small" sx={{ color: '#475569' }} />
+          </ListItemIcon>
+          <ListItemText primary="Edit Folder" />
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            if (activeMenuFolder) handleDeleteFolderClick(activeMenuFolder);
+          }}
+          sx={{ color: '#EF4444' }}
+        >
+          <ListItemIcon>
+            <DeleteIcon fontSize="small" sx={{ color: '#EF4444' }} />
+          </ListItemIcon>
+          <ListItemText primary="Delete Folder" />
+        </MenuItem>
+      </Menu>
+
+      {/* ------------------------------------------------------------- */}
+      {/* Create / Edit Folder Dialog (No description input) */}
+      {/* ------------------------------------------------------------- */}
+      <Dialog
+        open={folderDialogOpen}
+        onClose={() => !folderSubmitting && setFolderDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: '20px',
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.1)',
+            overflow: 'hidden'
+          }
+        }}
+      >
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 3, pt: 3, pb: 1 }}>
+          <Typography variant="h6" sx={{ fontWeight: 800, color: '#1E293B', letterSpacing: '-0.02em' }}>
+            {folderDialogMode === 'create' ? 'New Folder' : 'Edit Folder'}
+          </Typography>
+          <IconButton 
+            onClick={() => !folderSubmitting && setFolderDialogOpen(false)}
+            size="small"
+            sx={{ bgcolor: '#F1F5F9' }}
+          >
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </Box>
+
+        <form onSubmit={handleFolderSubmit}>
+          <DialogContent sx={{ px: 3, py: 2 }}>
+            <TextField
+              label="Folder Name"
+              fullWidth
+              autoFocus
+              required
+              value={folderName}
+              onChange={(e) => setFolderName(e.target.value)}
+              placeholder="e.g. Side bar"
+              sx={{ mb: 3 }}
+            />
+
+            <Typography variant="caption" sx={{ fontWeight: 600, color: '#475569', display: 'block', mb: 1.5 }}>
+              Folder Color
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+              {FOLDER_COLORS.map((col) => (
+                <Box
+                  key={col}
+                  onClick={() => setFolderColor(col)}
+                  sx={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: '8px',
+                    bgcolor: col,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: folderColor === col ? '3px solid #1E293B' : '2px solid transparent',
+                    boxShadow: folderColor === col ? `0 4px 10px ${col}60` : 'none',
+                    transition: 'all 0.15s ease',
+                    '&:hover': { transform: 'scale(1.15)' }
+                  }}
+                >
+                  {folderColor === col && <CheckIcon sx={{ color: '#fff', fontSize: 18 }} />}
+                </Box>
+              ))}
+            </Box>
+          </DialogContent>
+
+          <DialogActions sx={{ p: 3, display: 'flex', gap: 1.5 }}>
+            <Button
+              onClick={() => setFolderDialogOpen(false)}
+              color="inherit"
+              disabled={folderSubmitting}
+              sx={{ textTransform: 'none', fontWeight: 600, borderRadius: '10px' }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={folderSubmitting || !folderName.trim()}
+              sx={{
+                background: '#0088ff',
+                fontWeight: 600,
+                textTransform: 'none',
+                borderRadius: '10px',
+                px: 3,
+                '&:hover': { background: '#0077ee' }
+              }}
+            >
+              {folderSubmitting ? (
+                <CircularProgress size={20} sx={{ color: '#fff' }} />
+              ) : folderDialogMode === 'create' ? (
+                'Create Folder'
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
+
+      {/* ------------------------------------------------------------- */}
+      {/* Upload Media Dialog */}
+      {/* ------------------------------------------------------------- */}
       <Dialog
         open={uploadOpen}
         onClose={() => !uploading && setUploadOpen(false)}
@@ -715,44 +1397,59 @@ const Gallery = () => {
             backgroundColor: '#ffffff',
             borderRadius: '24px',
             boxShadow: '0 20px 40px rgba(0, 0, 0, 0.1)',
-            border: 'none',
             overflow: 'hidden'
           }
         }}
       >
-        {/* Header with Title and Close button */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 3, pt: 3, pb: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 3, pt: 3, pb: 1 }}>
           <Typography variant="h6" sx={{ fontWeight: 800, color: '#1E293B', letterSpacing: '-0.02em' }}>
-            Upload New Media
+            Upload Media
           </Typography>
           <IconButton 
             onClick={() => !uploading && setUploadOpen(false)}
             disabled={uploading}
-            sx={{ 
-              color: '#64748B', 
-              bgcolor: '#F1F5F9',
-              '&:hover': { bgcolor: '#E2E8F0', color: '#1E293B' },
-              transition: 'all 0.2s'
-            }}
             size="small"
+            sx={{ bgcolor: '#F1F5F9' }}
           >
             <CloseIcon fontSize="small" />
           </IconButton>
         </Box>
 
         <form onSubmit={handleUploadSubmit}>
-          <DialogContent sx={{ px: 3, py: 1 }}>
-            
-            {/* File Drag and Drop Box */}
+          <DialogContent sx={{ px: 3, py: 2 }}>
+            {/* Target Folder Selector */}
+            <FormControl fullWidth sx={{ mb: 2.5 }} size="small">
+              <InputLabel id="upload-folder-select-label">Destination Folder</InputLabel>
+              <Select
+                labelId="upload-folder-select-label"
+                value={uploadFolderId}
+                label="Destination Folder"
+                onChange={(e) => setUploadFolderId(e.target.value)}
+              >
+                <MenuItem value="">
+                  <em>General Gallery (No specific folder)</em>
+                </MenuItem>
+                {folders.map((f) => (
+                  <MenuItem key={f._id} value={f._id}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box sx={{ width: 10, height: 10, borderRadius: '3px', bgcolor: f.color || '#0F9D58' }} />
+                      <span>{f.name}</span>
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {/* File Drag/Select Box */}
             <Box
               sx={{
                 display: 'block',
                 border: '2px dashed #D0D5DD',
                 borderRadius: '16px',
-                p: 4,
+                p: 3.5,
                 textAlign: 'center',
                 backgroundColor: '#F8FAFC',
-                mb: 3,
+                mb: 2,
                 position: 'relative',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease-in-out',
@@ -768,17 +1465,23 @@ const Gallery = () => {
               }}
               component="label"
             >
-              <input type="file" accept="image/*,video/*" multiple style={{ display: 'none' }} onChange={handleFileChange} disabled={uploading} />
+              <input 
+                type="file" 
+                accept="image/*,video/*" 
+                multiple 
+                style={{ display: 'none' }} 
+                onChange={handleFileChange} 
+                disabled={uploading} 
+              />
               
               {filePreviews.length > 0 ? (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {/* Grid / Row of Previews */}
                   <Box
                     sx={{
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))',
                       gap: 1.5,
-                      maxHeight: '260px',
+                      maxHeight: '240px',
                       overflowY: 'auto',
                       p: 1,
                       border: '1px solid #E2E8F0',
@@ -797,12 +1500,8 @@ const Gallery = () => {
                             paddingBottom: '100%',
                             borderRadius: '8px',
                             overflow: 'hidden',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                            border: '1px solid #E2E8F0',
                             bgcolor: '#000',
-                            '&:hover .remove-preview-btn': {
-                              opacity: 1
-                            }
+                            border: '1px solid #E2E8F0'
                           }}
                         >
                           {isVideo ? (
@@ -831,9 +1530,7 @@ const Gallery = () => {
                               }}
                             />
                           )}
-                          {/* Close / Remove button on preview */}
                           <IconButton
-                            className="remove-preview-btn"
                             size="small"
                             onClick={(e) => {
                               e.preventDefault();
@@ -845,85 +1542,68 @@ const Gallery = () => {
                               top: 4,
                               right: 4,
                               color: '#fff',
-                              backgroundColor: 'rgba(0,0,0,0.5)',
+                              backgroundColor: 'rgba(0,0,0,0.6)',
                               p: 0.5,
-                              opacity: { xs: 1, sm: 0 },
-                              transition: 'opacity 0.2s',
-                              '&:hover': {
-                                backgroundColor: 'rgba(0,0,0,0.8)',
-                                transform: 'scale(1.1)'
-                              }
+                              '&:hover': { backgroundColor: 'rgba(0,0,0,0.9)' }
                             }}
                           >
-                            <CloseIcon sx={{ fontSize: 14 }} />
+                            <CloseIcon sx={{ fontSize: 13 }} />
                           </IconButton>
                         </Box>
                       );
                     })}
                   </Box>
 
-                  {/* Upload summary & Add More option */}
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569' }}>
                       {selectedFiles.length} file(s) selected
                     </Typography>
-                    
                     <Button
                       variant="text"
                       size="small"
                       component="span"
-                      sx={{ textTransform: 'none', fontWeight: 600, borderRadius: '8px' }}
+                      sx={{ textTransform: 'none', fontWeight: 600 }}
                     >
-                      Add more files
+                      + Add more
                     </Button>
                   </Box>
                 </Box>
               ) : (
-                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 2 }}>
-                  {/* Styled Icon Wrapper */}
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 1.5 }}>
                   <Box
                     className="upload-icon-box"
                     sx={{
-                      width: 56,
-                      height: 56,
+                      width: 52,
+                      height: 52,
                       borderRadius: '50%',
                       bgcolor: '#F1F5F9',
                       color: '#475569',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      mb: 2,
-                      transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                      mb: 1.5,
+                      transition: 'all 0.2s ease'
                     }}
                   >
-                    <UploadIcon sx={{ fontSize: 28 }} />
+                    <UploadIcon sx={{ fontSize: 26 }} />
                   </Box>
-
                   <Typography variant="body1" sx={{ fontWeight: 600, color: '#334155', mb: 0.5 }}>
-                    Click to Upload Media
+                    Click to select files
                   </Typography>
                   <Typography variant="caption" sx={{ color: '#94A3B8' }}>
-                    Supports multiple files selection
+                    Images & Videos (Supports bulk upload)
                   </Typography>
                 </Box>
               )}
             </Box>
-
           </DialogContent>
 
-          {/* Dialog Actions / Buttons */}
           <DialogActions sx={{ p: 3, display: 'flex', gap: 1.5 }}>
             <Button 
               onClick={() => setUploadOpen(false)} 
               color="inherit" 
               disabled={uploading}
-              sx={{ 
-                textTransform: 'none', 
-                fontWeight: 600, 
-                borderRadius: '10px',
-                px: 2.5,
-                py: 1
-              }}
+              sx={{ textTransform: 'none', fontWeight: 600, borderRadius: '10px' }}
             >
               Cancel
             </Button>
@@ -932,65 +1612,59 @@ const Gallery = () => {
               variant="contained"
               disabled={uploading || selectedFiles.length === 0}
               sx={{
-                background: 'linear-gradient(135deg, #0088ff 0%, #0066cc 100%)',
+                background: '#0088ff',
                 fontWeight: 600,
                 textTransform: 'none',
                 borderRadius: '10px',
                 px: 3,
                 py: 1,
-                boxShadow: '0 4px 12px rgba(0, 136, 255, 0.2)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #0077ee 0%, #0055aa 100%)',
-                  boxShadow: '0 6px 16px rgba(0, 136, 255, 0.3)',
-                }
+                '&:hover': { background: '#0077ee' }
               }}
             >
               {uploading ? (
                 <CircularProgress size={20} sx={{ color: '#fff' }} />
               ) : (
-                'Upload Media'
+                `Upload ${selectedFiles.length > 0 ? `(${selectedFiles.length})` : ''}`
               )}
             </Button>
           </DialogActions>
         </form>
       </Dialog>
 
+      {/* ------------------------------------------------------------- */}
       {/* Delete Confirmation Dialog */}
+      {/* ------------------------------------------------------------- */}
       <Dialog
         open={deleteConfirmOpen}
-        onClose={() => setDeleteConfirmOpen(false)}
+        onClose={() => !deleting && setDeleteConfirmOpen(false)}
         maxWidth="xs"
         fullWidth
         PaperProps={{
           sx: {
             borderRadius: '20px',
             boxShadow: '0 20px 40px rgba(0, 0, 0, 0.1)',
-            border: 'none',
             overflow: 'hidden'
           }
         }}
       >
         <DialogTitle sx={{ fontWeight: 800, color: '#1E293B', letterSpacing: '-0.02em', pt: 3 }}>
-          Confirm Delete
+          {deleteTarget?.type === 'folder' ? 'Delete Folder?' : 'Confirm Delete'}
         </DialogTitle>
         <DialogContent sx={{ pb: 1 }}>
           <Typography variant="body1" sx={{ color: '#64748B', lineHeight: 1.5 }}>
-            {deleteTargetId
-              ? 'Are you sure you want to permanently delete this item from the gallery? This action cannot be undone.'
-              : `Are you sure you want to permanently delete the ${selectedIds.length} selected items from the gallery? This action cannot be undone.`}
+            {deleteTarget?.type === 'folder'
+              ? `Are you sure you want to delete folder "${deleteTarget.name}"? All ${deleteTarget.count || 0} media assets inside this folder will also be permanently deleted.`
+              : deleteTarget?.type === 'bulk-photos'
+              ? `Are you sure you want to delete the ${deleteTarget.ids?.length} selected media assets?`
+              : 'Are you sure you want to permanently delete this media item? This action cannot be undone.'}
           </Typography>
         </DialogContent>
         <DialogActions sx={{ p: 3, display: 'flex', gap: 1.5 }}>
           <Button
             onClick={() => setDeleteConfirmOpen(false)}
             color="inherit"
-            sx={{
-              textTransform: 'none',
-              fontWeight: 600,
-              borderRadius: '10px',
-              px: 2.5,
-              py: 1
-            }}
+            disabled={deleting}
+            sx={{ textTransform: 'none', fontWeight: 600, borderRadius: '10px' }}
           >
             Cancel
           </Button>
@@ -998,24 +1672,27 @@ const Gallery = () => {
             onClick={executeDelete}
             variant="contained"
             color="error"
+            disabled={deleting}
             sx={{
               fontWeight: 600,
               textTransform: 'none',
               borderRadius: '10px',
               px: 3,
-              py: 1,
-              boxShadow: '0 4px 12px rgba(211, 47, 47, 0.2)',
-              '&:hover': {
-                boxShadow: '0 6px 16px rgba(211, 47, 47, 0.3)',
-              }
+              minWidth: 80
             }}
           >
-            Delete
+            {deleting ? (
+              <CircularProgress size={20} sx={{ color: '#fff' }} />
+            ) : (
+              'Delete'
+            )}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Fullscreen Lightbox Modal */}
+      {/* ------------------------------------------------------------- */}
+      {/* Lightbox Modal with Fixed Top-Right Close Button */}
+      {/* ------------------------------------------------------------- */}
       <Modal
         open={lightboxOpen}
         onClose={() => setLightboxOpen(false)}
@@ -1023,41 +1700,60 @@ const Gallery = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: 'rgba(0, 0, 0, 0.95)',
-          backdropFilter: 'blur(5px)'
+          backgroundColor: 'rgba(0, 0, 0, 0.94)',
+          backdropFilter: 'blur(8px)',
+          p: 2
         }}
       >
-        <Box sx={{ position: 'relative', maxWidth: '95vw', maxHeight: '90vh', outline: 'none' }}>
-          {/* Close button */}
+        <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', outline: 'none' }}>
+          {/* Always Fixed in Top Right of Screen */}
           <IconButton
             onClick={() => setLightboxOpen(false)}
             sx={{
-              position: 'absolute',
-              top: -45,
-              right: 0,
-              color: '#fff',
-              backgroundColor: 'rgba(255,255,255,0.1)',
+              position: 'fixed',
+              top: 24,
+              right: 24,
+              zIndex: 1600,
+              color: '#FFFFFF',
+              backgroundColor: 'rgba(255, 255, 255, 0.15)',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255, 255, 255, 0.25)',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+              width: 44,
+              height: 44,
+              transition: 'all 0.2s ease',
               '&:hover': {
-                backgroundColor: 'rgba(255,255,255,0.2)'
+                backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                transform: 'scale(1.08)'
               }
             }}
           >
-            <CloseIcon />
+            <CloseIcon sx={{ fontSize: 24 }} />
           </IconButton>
 
           {activePhoto && (
-            <Box>
+            <Box
+              onClick={(e) => e.stopPropagation()}
+              sx={{
+                maxWidth: '92vw',
+                maxHeight: '88vh',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                outline: 'none'
+              }}
+            >
               {activePhoto.resourceType === 'video' ? (
                 <video
                   src={activePhoto.url}
                   controls
                   autoPlay
                   style={{
-                    maxWidth: '95vw',
-                    maxHeight: '90vh',
-                    borderRadius: '8px',
+                    maxWidth: '92vw',
+                    maxHeight: '88vh',
+                    borderRadius: '12px',
                     display: 'block',
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                    boxShadow: '0 12px 48px rgba(0,0,0,0.6)'
                   }}
                 />
               ) : (
@@ -1065,12 +1761,12 @@ const Gallery = () => {
                   src={activePhoto.url}
                   alt={activePhoto.caption || 'Lightbox'}
                   style={{
-                    maxWidth: '95vw',
-                    maxHeight: '90vh',
+                    maxWidth: '92vw',
+                    maxHeight: '88vh',
                     objectFit: 'contain',
-                    borderRadius: '8px',
+                    borderRadius: '12px',
                     display: 'block',
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                    boxShadow: '0 12px 48px rgba(0,0,0,0.6)'
                   }}
                 />
               )}
@@ -1080,6 +1776,290 @@ const Gallery = () => {
       </Modal>
     </Box>
   );
+
+  // -------------------------------------------------------------
+  // Helper Component: Render Single Photo Card
+  // -------------------------------------------------------------
+  function renderPhotoCard(photo) {
+    const isSelected = selectedIds.includes(photo._id);
+    return (
+      <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={photo._id}>
+        <Box sx={{ width: '100%', position: 'relative', pb: '75%' }}>
+          <Card
+            sx={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              overflow: 'hidden',
+              borderRadius: '12px',
+              cursor: 'pointer',
+              backgroundColor: '#F8FAFC',
+              border: '1px solid #EAECF0',
+              boxShadow: '0 1px 3px rgba(16, 24, 40, 0.1)',
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+              '&:hover': {
+                transform: 'scale(1.02)',
+                boxShadow: '0 10px 15px -3px rgba(16,24,40,0.1), 0 4px 6px -2px rgba(16,24,40,0.05)',
+                '& .hover-overlay': { opacity: 1 }
+              }
+            }}
+          >
+            {/* Media Content */}
+            <Box
+              onClick={() => handleOpenLightbox(photo)}
+              sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%'
+              }}
+            >
+              {photo.resourceType === 'video' ? (
+                <Box sx={{ width: '100%', height: '100%', position: 'relative' }}>
+                  <video
+                    src={photo.url}
+                    preload="metadata"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      display: 'block'
+                    }}
+                  />
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      width: 48,
+                      height: 48,
+                      borderRadius: '50%',
+                      backgroundColor: 'rgba(0, 0, 0, 0.55)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#FFFFFF',
+                      backdropFilter: 'blur(2px)',
+                      border: '1px solid rgba(255, 255, 255, 0.25)'
+                    }}
+                  >
+                    <PlayArrowIcon sx={{ fontSize: 28 }} />
+                  </Box>
+                </Box>
+              ) : (
+                <img
+                  src={photo.url}
+                  alt={photo.caption || 'Gallery item'}
+                  loading="lazy"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    display: 'block'
+                  }}
+                />
+              )}
+            </Box>
+
+            {/* Folder badge if in "All" view and photo belongs to a folder */}
+            {activeTab === 'all' && photo.folder && (
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: 10,
+                  left: 10,
+                  zIndex: 2,
+                  bgcolor: 'rgba(0, 0, 0, 0.65)',
+                  backdropFilter: 'blur(4px)',
+                  color: '#fff',
+                  px: 1,
+                  py: 0.3,
+                  borderRadius: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  pointerEvents: 'none'
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: '2px',
+                    bgcolor: photo.folder.color || '#0F9D58'
+                  }}
+                />
+                <span style={{ maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {photo.folder.name}
+                </span>
+              </Box>
+            )}
+
+            {/* Hover Overlay: Date & Uploader */}
+            <Box
+              className="hover-overlay"
+              onClick={() => handleOpenLightbox(photo)}
+              sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 60%)',
+                opacity: 0,
+                transition: 'opacity 0.2s ease',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'flex-end',
+                p: 2,
+                pointerEvents: 'none'
+              }}
+            >
+              <Typography variant="caption" sx={{ color: '#ccc', pointerEvents: 'none' }}>
+                {new Date(photo.createdAt).toLocaleDateString(undefined, {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric'
+                })}
+              </Typography>
+            </Box>
+
+            {/* Delete button - Top Right */}
+            {isAdminOrChairperson && (
+              <IconButton
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeletePhotoClick(photo._id);
+                }}
+                sx={{
+                  position: 'absolute',
+                  top: 10,
+                  right: 10,
+                  zIndex: 2,
+                  backgroundColor: 'rgba(0, 0, 0, 0.45)',
+                  color: '#FFFFFF',
+                  '&:hover': {
+                    backgroundColor: 'rgba(211, 47, 47, 0.9)'
+                  },
+                  width: 30,
+                  height: 30
+                }}
+                size="small"
+              >
+                <DeleteIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            )}
+
+            {/* Selection Circle indicator - Bottom Right */}
+            <Box
+              onClick={(e) => handleToggleSelect(photo._id, e)}
+              sx={{
+                position: 'absolute',
+                bottom: 12,
+                right: 12,
+                zIndex: 2,
+                width: 24,
+                height: 24,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                border: isSelected ? 'none' : '2px solid rgba(255, 255, 255, 0.85)',
+                backgroundColor: isSelected ? '#0088ff' : 'rgba(0, 0, 0, 0.25)',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                transition: 'all 0.15s ease',
+                '&:hover': {
+                  transform: 'scale(1.1)',
+                  borderColor: '#FFFFFF',
+                  backgroundColor: isSelected ? '#0088ff' : 'rgba(0, 0, 0, 0.45)'
+                }
+              }}
+            >
+              {isSelected && <CheckIcon sx={{ color: '#FFFFFF', fontSize: 16 }} />}
+            </Box>
+          </Card>
+        </Box>
+      </Grid>
+    );
+  }
 };
+
+// -------------------------------------------------------------
+// Helper Component: Empty State Card
+// -------------------------------------------------------------
+function EmptyGalleryCard({ isAdmin, onUpload, title, subtitle, buttonLabel = 'Upload Media', icon }) {
+  return (
+    <Card
+      sx={{
+        p: 6,
+        textAlign: 'center',
+        backgroundColor: '#ffffff',
+        border: '1px dashed #E2E8F0',
+        borderRadius: '24px',
+        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.02)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        maxWidth: 560,
+        mx: 'auto',
+        my: 4
+      }}
+    >
+      <Box
+        sx={{
+          width: 88,
+          height: 88,
+          borderRadius: '24px',
+          border: '2px solid #F1F5F9',
+          background: 'linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          mb: 2.5
+        }}
+      >
+        {icon || <CameraIcon sx={{ fontSize: 38, color: '#0088ff' }} />}
+      </Box>
+
+      <Typography variant="h6" sx={{ fontWeight: 700, color: '#1E293B', mb: 1 }}>
+        {title}
+      </Typography>
+
+      <Typography variant="body2" sx={{ color: '#64748B', maxWidth: 400, mb: 3 }}>
+        {subtitle}
+      </Typography>
+
+      {isAdmin && (
+        <Button
+          variant="contained"
+          startIcon={<UploadIcon />}
+          onClick={onUpload}
+          sx={{
+            borderRadius: '12px',
+            textTransform: 'none',
+            fontWeight: 600,
+            px: 3.5,
+            py: 1.2,
+            fontSize: '14px',
+            background: '#0088ff',
+            '&:hover': {
+              background: '#0077ee'
+            }
+          }}
+        >
+          {buttonLabel}
+        </Button>
+      )}
+    </Card>
+  );
+}
 
 export default Gallery;

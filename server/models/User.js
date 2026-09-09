@@ -99,7 +99,13 @@ const UserSchema = new mongoose.Schema({
     type: String,
     enum: ['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY']
   },
+  age: {
+    type: Number
+  },
   dob: {
+    type: Date
+  },
+  dateOfBirth: {
     type: Date
   },
   adhaar: {
@@ -158,6 +164,10 @@ const UserSchema = new mongoose.Schema({
   lastLoginAt: {
     type: Date
   },
+  lastActive: {
+    type: Date,
+    default: Date.now
+  },
   resetPasswordToken: String,
   resetPasswordExpires: Date,
   createdBy: {
@@ -174,8 +184,26 @@ const UserSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// Pre-save hook: Hash password if modified (Mongoose 8/9 async hook)
+// Pre-save hook: Hash password if modified & compute age from DOB (Mongoose 8/9 async hook)
 UserSchema.pre('save', async function () {
+  // Sync dob and dateOfBirth fields
+  if (this.dob && !this.dateOfBirth) {
+    this.dateOfBirth = this.dob;
+  }
+  if (this.dateOfBirth && !this.dob) {
+    this.dob = this.dateOfBirth;
+  }
+
+  // Calculate age automatically from birth date
+  const birthDate = this.dob || this.dateOfBirth;
+  if (birthDate) {
+    const diffMs = Date.now() - new Date(birthDate).getTime();
+    const calculatedAge = Math.floor(diffMs / (365.25 * 24 * 60 * 60 * 1000));
+    if (!isNaN(calculatedAge) && calculatedAge >= 0) {
+      this.age = calculatedAge;
+    }
+  }
+
   if (!this.isModified('passwordHash')) return;
   if (!this.passwordHash) return; // Skip if no password set
   const salt = await bcrypt.genSalt(10);

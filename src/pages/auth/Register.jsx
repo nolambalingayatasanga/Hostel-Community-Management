@@ -22,7 +22,8 @@ import {
   Divider,
   Stack,
   Chip,
-  Autocomplete
+  Autocomplete,
+  MenuItem
 } from '@mui/material';
 import {
   PersonOutlined as PersonIcon,
@@ -37,7 +38,10 @@ import {
   SupervisorAccountOutlined as MemberIcon,
   ArrowBack as ArrowBackIcon,
   ArrowForward as ArrowForwardIcon,
-  AccountBalanceOutlined as CollegeIcon
+  AccountBalanceOutlined as CollegeIcon,
+  WcOutlined as GenderIcon,
+  MenuBookOutlined as CourseIcon,
+  AssignmentIndOutlined as RegNoIcon
 } from '@mui/icons-material';
 
 const DRAFT_KEY = 'hostel_register_draft';
@@ -106,10 +110,42 @@ const POPULAR_COLLEGES = [
   'Indian Institute of Management (IIM), Bangalore'
 ];
 
+// Popular degree / course options for quick predictive completion
+const POPULAR_COURSES = [
+  'B.E. Computer Science and Engineering',
+  'B.E. Information Science and Engineering',
+  'B.E. Electronics and Communication',
+  'B.E. Mechanical Engineering',
+  'B.E. Civil Engineering',
+  'B.E. Artificial Intelligence & Machine Learning',
+  'B.E. Data Science',
+  'B.Tech Electrical & Electronics Engineering',
+  'B.Tech Biotechnology',
+  'MBBS',
+  'BDS',
+  'B.Sc Nursing',
+  'B.Pharm',
+  'Pharm D',
+  'BCA (Bachelor of Computer Applications)',
+  'BBA (Bachelor of Business Administration)',
+  'B.Com (Bachelor of Commerce)',
+  'B.Sc (Bachelor of Science)',
+  'BA (Bachelor of Arts)',
+  'BA LLB / BBA LLB (Law)',
+  'B.Arch (Architecture)',
+  'MCA (Master of Computer Applications)',
+  'MBA (Master of Business Administration)',
+  'M.Tech Computer Science',
+  'M.Tech VLSI & Embedded Systems',
+  'M.Sc (Master of Science)',
+  'M.Com (Master of Commerce)',
+  'MD General Medicine',
+  'MS General Surgery'
+];
+
 const Register = () => {
   const { register } = useAuth();
   const navigate = useNavigate();
-  const formRef = useRef(null);
 
   // Load initial draft from localStorage to prevent loss on refresh
   const getSavedDraft = () => {
@@ -130,12 +166,17 @@ const Register = () => {
   const [email, setEmail] = useState(initialDraft.email || '');
   const [phone, setPhone] = useState(initialDraft.phone || '');
   const [adhaar, setAdhaar] = useState(initialDraft.adhaar || '');
+  const [gender, setGender] = useState(initialDraft.gender || 'MALE');
   const [dob, setDob] = useState(initialDraft.dob || ''); // stores YYYY-MM-DD
+  const [registrationNumber, setRegistrationNumber] = useState(initialDraft.registrationNumber || '');
   const [password, setPassword] = useState(initialDraft.password || '');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Student / Alumni specific mandatory fields
   const [college, setCollege] = useState(initialDraft.college || '');
+  const [course, setCourse] = useState(initialDraft.course || '');
   const [startYear, setStartYear] = useState(initialDraft.startYear || '');
   const [endYear, setEndYear] = useState(initialDraft.endYear || '');
 
@@ -156,9 +197,12 @@ const Register = () => {
           email,
           phone,
           adhaar,
+          gender,
           dob,
+          registrationNumber,
           password,
           college,
+          course,
           startYear,
           endYear
         })
@@ -166,7 +210,7 @@ const Register = () => {
     } catch (err) {
       console.error('Failed to save register draft:', err);
     }
-  }, [step, role, name, email, phone, adhaar, dob, password, college, startYear, endYear]);
+  }, [step, role, name, email, phone, adhaar, gender, dob, registrationNumber, password, college, course, startYear, endYear]);
 
   // Dynamic preview of assigned role for student/alumni based on graduation year
   const computedRole = useMemo(() => {
@@ -181,26 +225,41 @@ const Register = () => {
   // Explicit element refs to guarantee seamless Enter-key navigation across all fields
   const nameRef = useRef(null);
   const emailRef = useRef(null);
-  const phoneRef = useRef(null);
+  const genderRef = useRef(null);
+  const regNoRef = useRef(null);
   const aadhaarRef = useRef(null);
+  const phoneRef = useRef(null);
   const dobRef = useRef(null);
-  const passwordRef = useRef(null);
   const collegeRef = useRef(null);
+  const courseRef = useRef(null);
   const startYearRef = useRef(null);
   const endYearRef = useRef(null);
+  const passwordRef = useRef(null);
+  const confirmPasswordRef = useRef(null);
 
   // Dynamic word-predictive filtering for college suggestions (only show when typing)
   const collegeSuggestions = useMemo(() => {
     const query = college.trim().toLowerCase();
     if (!query || query.length < 2) return [];
     
-    // Score colleges by prefix and word boundary matches
-    return POPULAR_COLLEGES.filter((name) => {
-      const lower = name.toLowerCase();
+    return POPULAR_COLLEGES.filter((cName) => {
+      const lower = cName.toLowerCase();
       const words = lower.split(/[\s,()/-]+/);
       return words.some((word) => word.startsWith(query)) || lower.includes(query);
-    }).slice(0, 8); // Top 8 predictive suggestions
+    }).slice(0, 8);
   }, [college]);
+
+  // Dynamic word-predictive filtering for course suggestions (only show when typing)
+  const courseSuggestions = useMemo(() => {
+    const query = course.trim().toLowerCase();
+    if (!query || query.length < 1) return [];
+
+    return POPULAR_COURSES.filter((cName) => {
+      const lower = cName.toLowerCase();
+      const words = lower.split(/[\s,()/-]+/);
+      return words.some((word) => word.startsWith(query)) || lower.includes(query);
+    }).slice(0, 8);
+  }, [course]);
 
   // Handle Phone input (prevent negative values & non-digits)
   const handlePhoneChange = (e) => {
@@ -234,17 +293,12 @@ const Register = () => {
     if (!email.trim()) { setError('Email Address is mandatory.'); return; }
     if (!phone.trim()) { setError('Phone Number is mandatory.'); return; }
     if (!adhaar.trim()) { setError('Aadhaar Number is mandatory.'); return; }
+    if (!gender) { setError('Gender is mandatory.'); return; }
     if (!dob) { setError('Date of Birth is mandatory (DD/MM/YYYY).'); return; }
-    if (!password) { setError('Password is mandatory.'); return; }
 
     const cleanAdhaar = adhaar.replace(/\s+/g, '');
     if (cleanAdhaar.length !== 12 || !/^\d{12}$/.test(cleanAdhaar)) {
       setError('Aadhaar Number must be exactly 12 digits.');
-      return;
-    }
-
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
       return;
     }
 
@@ -254,6 +308,7 @@ const Register = () => {
 
     if (role === 'STUDENT' || role === 'ALUMNI') {
       if (!college.trim()) { setError('College / University Name is mandatory.'); return; }
+      if (!course.trim()) { setError('Course / Degree is mandatory.'); return; }
       if (!startYear) { setError('College Joining Date is mandatory (DD/MM/YYYY).'); return; }
       if (!endYear) { setError('Graduation Date is mandatory (DD/MM/YYYY).'); return; }
 
@@ -277,16 +332,41 @@ const Register = () => {
       eYearStr = String(endParsed.year());
     }
 
+    if (role === 'MEMBER') {
+      if (!registrationNumber.trim()) {
+        setError('Registration Number is mandatory for Community Members.');
+        return;
+      }
+    }
+
+    // Password validations at the end
+    if (!password) { setError('Password is mandatory.'); return; }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+    if (!confirmPassword) {
+      setError('Please confirm your password.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
     setLoading(true);
     const result = await register({
       name: name.trim(),
       email: email.trim(),
       phone: phone.trim(),
       adhaar: cleanAdhaar,
+      gender,
       dob,
+      registrationNumber: registrationNumber.trim(),
       password,
       role,
       college: college.trim(),
+      course: course.trim(),
       startYear: sYearStr,
       endYear: eYearStr
     });
@@ -294,7 +374,7 @@ const Register = () => {
 
     if (result?.success) {
       // Clear draft on successful registration
-      try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+      try { localStorage.removeItem(DRAFT_KEY); } catch (err) {}
       navigate('/profile');
     } else {
       setError(result?.message || 'Registration failed. Please check your credentials.');
@@ -319,7 +399,7 @@ const Register = () => {
         <Card
           sx={{
             width: '100%',
-            maxWidth: { xs: '100%', sm: step === 1 ? 460 : 660, md: step === 1 ? 480 : 740 },
+            maxWidth: { xs: '100%', sm: step === 1 ? 460 : 720, md: step === 1 ? 480 : 890 },
             bgcolor: '#FFFFFF',
             borderRadius: '24px',
             p: { xs: 3, sm: 4, md: 4.5 },
@@ -341,7 +421,7 @@ const Register = () => {
                 mb: 0.5
               }}
             >
-              Create Account
+            {role === 'MEMBER' ? 'Create Member Account' : 'Create Student/Alumni Account'}
             </Typography>
           </Box>
 
@@ -362,17 +442,7 @@ const Register = () => {
           {step === 1 ? (
             /* STEP 1: CHOOSE ROLE */
             <Box>
-              <Typography
-                sx={{
-                  fontWeight: 600,
-                  color: '#1E293B',
-                  fontSize: '13.5px',
-                  mb: 2,
-                  textAlign: 'center'
-                }}
-              >
-                What type of member are you?
-              </Typography>
+            
 
               <Stack spacing={2} sx={{ mb: 3.5 }}>
                 {/* Option 1: Student / Alumni */}
@@ -487,7 +557,7 @@ const Register = () => {
               </Button>
             </Box>
           ) : (
-            /* STEP 2: 2-COLUMN BALANCED CSS GRID FORM WITH ENTER-KEY NAVIGATION */
+            /* STEP 2: 3-COLUMN RESPONSIVE CSS GRID FORM WITH ENTER-KEY NAVIGATION */
             <form onSubmit={handleSubmit}>
               {/* Header with Selected Role & Change Role Action */}
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
@@ -515,15 +585,15 @@ const Register = () => {
                 </Button>
               </Box>
 
-              {/* Form Inputs Grid (2 Inputs Per Row) */}
+              {/* Form Inputs Grid (3 Inputs Per Row on Desktop/Tablet) */}
               <Box
                 sx={{
                   display: 'grid',
-                  gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                  gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)' },
                   gap: 2
                 }}
               >
-                {/* Row 1: Full Name (Left) & Email Address (Right) */}
+                {/* Row 1: Full Name, Email Address, Gender (3 fields) */}
                 <Box>
                   <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
                     Full Name <span style={{ color: '#EF4444' }}>*</span>
@@ -569,7 +639,7 @@ const Register = () => {
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
-                        phoneRef.current?.focus();
+                        genderRef.current?.focus();
                       }
                     }}
                     placeholder="Enter Email Address"
@@ -586,38 +656,78 @@ const Register = () => {
                   />
                 </Box>
 
-                {/* Row 2: Phone Number (Left) & Aadhaar Number (Right) */}
                 <Box>
                   <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                    Phone Number <span style={{ color: '#EF4444' }}>*</span>
+                    Gender <span style={{ color: '#EF4444' }}>*</span>
                   </Typography>
                   <TextField
+                    select
                     fullWidth
                     size="small"
-                    inputRef={phoneRef}
-                    value={phone}
-                    onChange={handlePhoneChange}
+                    inputRef={genderRef}
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
-                        aadhaarRef.current?.focus();
+                        if (role === 'MEMBER') {
+                          regNoRef.current?.focus();
+                        } else {
+                          aadhaarRef.current?.focus();
+                        }
                       }
                     }}
-                    placeholder="Enter 10-digit Phone Number"
                     slotProps={{
-                      htmlInput: { inputMode: 'numeric', maxLength: 10 },
                       input: {
                         startAdornment: (
                           <InputAdornment position="start">
-                            <PhoneIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                            <GenderIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
                           </InputAdornment>
                         ),
                       }
                     }}
                     sx={inputStyle}
-                  />
+                  >
+                    <MenuItem value="MALE">Male</MenuItem>
+                    <MenuItem value="FEMALE">Female</MenuItem>
+                    <MenuItem value="OTHER">Other</MenuItem>
+                  </TextField>
                 </Box>
 
+                {/* Community Member Specific Field: Registration Number right after Gender */}
+                {role === 'MEMBER' && (
+                  <Box>
+                    <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
+                      Registration Number <span style={{ color: '#EF4444' }}>*</span>
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      inputRef={regNoRef}
+                      value={registrationNumber}
+                      onChange={(e) => setRegistrationNumber(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          aadhaarRef.current?.focus();
+                        }
+                      }}
+                      placeholder="Enter Reg Number"
+                      slotProps={{
+                        input: {
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <RegNoIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                            </InputAdornment>
+                          ),
+                        }
+                      }}
+                      sx={inputStyle}
+                    />
+                  </Box>
+                )}
+
+                {/* Common Fields: Aadhaar Number, Phone Number, Date of Birth */}
                 <Box>
                   <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
                     Aadhaar Number <span style={{ color: '#EF4444' }}>*</span>
@@ -631,7 +741,7 @@ const Register = () => {
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
-                        dobRef.current?.focus();
+                        phoneRef.current?.focus();
                       }
                     }}
                     placeholder="XXXX XXXX XXXX"
@@ -649,7 +759,37 @@ const Register = () => {
                   />
                 </Box>
 
-                {/* Row 3: Date of Birth (DD/MM/YYYY Format) & Password with Toggle Icon */}
+                <Box>
+                  <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
+                    Phone Number <span style={{ color: '#EF4444' }}>*</span>
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    inputRef={phoneRef}
+                    value={phone}
+                    onChange={handlePhoneChange}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        dobRef.current?.focus();
+                      }
+                    }}
+                    placeholder="Enter 10-digit Phone Number"
+                    slotProps={{
+                      htmlInput: { inputMode: 'numeric', maxLength: 10 },
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <PhoneIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                          </InputAdornment>
+                        ),
+                      }
+                    }}
+                    sx={inputStyle}
+                  />
+                </Box>
+
                 <Box>
                   <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
                     Date of Birth <span style={{ color: '#EF4444' }}>*</span>
@@ -673,7 +813,11 @@ const Register = () => {
                         onKeyDown: (e) => {
                           if (e.key === 'Enter') {
                             e.preventDefault();
-                            passwordRef.current?.focus();
+                            if (role === 'STUDENT' || role === 'ALUMNI') {
+                              collegeRef.current?.focus();
+                            } else {
+                              passwordRef.current?.focus();
+                            }
                           }
                         },
                         sx: inputStyle
@@ -682,57 +826,10 @@ const Register = () => {
                   />
                 </Box>
 
-                <Box>
-                  <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                    Password <span style={{ color: '#EF4444' }}>*</span>
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    inputRef={passwordRef}
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        if (role === 'STUDENT' || role === 'ALUMNI') {
-                          e.preventDefault();
-                          collegeRef.current?.focus();
-                        }
-                      }
-                    }}
-                    placeholder="Enter Minimum 6 characters"
-                    slotProps={{
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <LockIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
-                          </InputAdornment>
-                        ),
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <IconButton
-                              size="small"
-                              onClick={() => setShowPassword(!showPassword)}
-                              edge="end"
-                              sx={{ color: '#64748B', p: 0.5 }}
-                              title={showPassword ? "Hide password" : "Show password"}
-                            >
-                              {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
-                            </IconButton>
-                          </InputAdornment>
-                        ),
-                      }
-                    }}
-                    sx={inputStyle}
-                  />
-                </Box>
-
-                {/* Student / Alumni Specific Fields */}
+                {/* Student / Alumni Specific Fields (College, Course, Joining Date, Graduation Date) */}
                 {(role === 'STUDENT' || role === 'ALUMNI') && (
                   <>
-                    {/* Row 4: College Name with Predictive Word Completion (Spans 2 columns) */}
-                    <Box sx={{ gridColumn: { xs: 'span 1', sm: 'span 2' } }}>
+                    <Box>
                       <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
                         College / University Name <span style={{ color: '#EF4444' }}>*</span>
                       </Typography>
@@ -753,7 +850,7 @@ const Register = () => {
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
                                 e.preventDefault();
-                                startYearRef.current?.focus();
+                                courseRef.current?.focus();
                               }
                             }}
                             placeholder="Enter college name"
@@ -776,7 +873,50 @@ const Register = () => {
                       />
                     </Box>
 
-                    {/* Row 5: Joining Date & Graduation Date (Same full DatePicker as DOB: day, month, year) */}
+                    <Box>
+                      <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
+                        Course / Degree <span style={{ color: '#EF4444' }}>*</span>
+                      </Typography>
+                      <Autocomplete
+                        freeSolo
+                        openOnFocus={false}
+                        options={courseSuggestions}
+                        value={course}
+                        onInputChange={(event, newInputValue) => {
+                          setCourse(newInputValue || '');
+                        }}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            fullWidth
+                            size="small"
+                            inputRef={courseRef}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                startYearRef.current?.focus();
+                              }
+                            }}
+                            placeholder="B.E., B.Tech., MBBS, BCA"
+                            slotProps={{
+                              input: {
+                                ...(params.InputProps || {}),
+                                startAdornment: (
+                                  <>
+                                    <InputAdornment position="start">
+                                      <CourseIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                                    </InputAdornment>
+                                    {params.InputProps?.startAdornment}
+                                  </>
+                                ),
+                              }
+                            }}
+                            sx={inputStyle}
+                          />
+                        )}
+                      />
+                    </Box>
+
                     <Box>
                       <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
                         College Joining Date <span style={{ color: '#EF4444' }}>*</span>
@@ -831,7 +971,8 @@ const Register = () => {
                             placeholder: 'DD/MM/YYYY',
                             onKeyDown: (e) => {
                               if (e.key === 'Enter') {
-                                handleSubmit(e);
+                                e.preventDefault();
+                                passwordRef.current?.focus();
                               }
                             },
                             sx: inputStyle
@@ -841,6 +982,94 @@ const Register = () => {
                     </Box>
                   </>
                 )}
+
+                {/* Password & Confirm Password (Placed at the very end of the form) */}
+                <Box>
+                  <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
+                    Password <span style={{ color: '#EF4444' }}>*</span>
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    inputRef={passwordRef}
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        confirmPasswordRef.current?.focus();
+                      }
+                    }}
+                    placeholder="Enter Password"
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <LockIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                          </InputAdornment>
+                        ),
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              size="small"
+                              onClick={() => setShowPassword(!showPassword)}
+                              edge="end"
+                              sx={{ color: '#64748B', p: 0.5 }}
+                              title={showPassword ? "Hide password" : "Show password"}
+                            >
+                              {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      }
+                    }}
+                    sx={inputStyle}
+                  />
+                </Box>
+
+                <Box>
+                  <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
+                    Confirm Password <span style={{ color: '#EF4444' }}>*</span>
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    inputRef={confirmPasswordRef}
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSubmit(e);
+                      }
+                    }}
+                    placeholder="Re-enter password"
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <LockIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                          </InputAdornment>
+                        ),
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              size="small"
+                              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                              edge="end"
+                              sx={{ color: '#64748B', p: 0.5 }}
+                              title={showConfirmPassword ? "Hide password" : "Show password"}
+                            >
+                              {showConfirmPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      }
+                    }}
+                    sx={inputStyle}
+                  />
+                </Box>
               </Box>
 
               {/* Submit Button */}
@@ -849,6 +1078,7 @@ const Register = () => {
                 size="large"
                 type="submit"
                 variant="contained"
+                endIcon={<ArrowForwardIcon />}
                 disabled={loading}
                 sx={{
                   mt: 3.5,
@@ -868,9 +1098,9 @@ const Register = () => {
                   }
                 }}
               >
-                {loading ? <CircularProgress size={22} sx={{ color: '#FFFFFF' }} /> : 'Create Account'}
+                {loading ? <CircularProgress size={22} sx={{ color: '#FFFFFF' }} /> : `Create`}
               </Button>
-            </form>
+            </form> 
           )}
 
           {/* Divider */}
@@ -916,4 +1146,5 @@ const Register = () => {
 };
 
 export default Register;
+
 

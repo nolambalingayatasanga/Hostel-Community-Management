@@ -19,6 +19,11 @@ const GalleryPhotoSchema = new mongoose.Schema({
     enum: ['image', 'video'],
     default: 'image'
   },
+  folder: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'GalleryFolder',
+    default: null
+  },
   uploadedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -28,4 +33,8 @@ const GalleryPhotoSchema = new mongoose.Schema({
   timestamps: true
 });
 
+GalleryPhotoSchema.index({ folder: 1, createdAt: -1 });
+GalleryPhotoSchema.index({ createdAt: -1 });
+
 module.exports = mongoose.model('GalleryPhoto', GalleryPhotoSchema);
+

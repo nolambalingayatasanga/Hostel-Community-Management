@@ -387,11 +387,11 @@ export default function DirectoryList() {
     } else {
       updateData = { [key]: value };
     }
-    update.mutate({ id: leadId, data: updateData });
+    return update.mutateAsync({ id: leadId, data: updateData });
   };
 
   const handleChangeField = (leadId, fieldId, value) => {
-    updateField.mutate({ id: leadId, field: fieldId, value });
+    return updateField.mutateAsync({ id: leadId, field: fieldId, value });
   };
 
   const handleExport = async () => {

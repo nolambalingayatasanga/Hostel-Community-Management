@@ -1,5 +1,5 @@
 const Event = require('../models/Event');
-const { uploadImage, deleteImage } = require('../config/cloudinary');
+const { uploadImage, deleteImage, deleteMultipleMedia } = require('../config/cloudinary');
 
 /**
  * Get all events with filtering and sorting
@@ -227,9 +227,9 @@ exports.updateEvent = async (req, res, next) => {
 
     // Check if cover image file needs to be replaced
     if (req.file) {
-      // Delete old image
-      if (event.coverImage && event.coverImage.publicId) {
-        await deleteImage(event.coverImage.publicId);
+      // Delete old image from Cloudinary first
+      if (event.coverImage && (event.coverImage.publicId || event.coverImage.url)) {
+        await deleteImage(event.coverImage.publicId || event.coverImage.url);
       }
       
       // Upload new image
@@ -265,7 +265,7 @@ exports.updateEvent = async (req, res, next) => {
 };
 
 /**
- * Delete event (restricted to Admin)
+ * Delete event (restricted to Admin) - deletes all Cloudinary media first
  */
 exports.deleteEvent = async (req, res, next) => {
   try {
@@ -276,18 +276,17 @@ exports.deleteEvent = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Event not found.' });
     }
 
-    // Delete cover image from Cloudinary
-    if (event.coverImage && event.coverImage.publicId) {
-      await deleteImage(event.coverImage.publicId);
+    // 1. Delete cover image from Cloudinary first
+    if (event.coverImage && (event.coverImage.publicId || event.coverImage.url)) {
+      await deleteImage(event.coverImage.publicId || event.coverImage.url);
     }
 
-    // Delete supplementary gallery images
+    // 2. Delete supplementary gallery images from Cloudinary first
     if (event.additionalImages && event.additionalImages.length > 0) {
-      for (const img of event.additionalImages) {
-        if (img.publicId) await deleteImage(img.publicId);
-      }
+      await deleteMultipleMedia(event.additionalImages);
     }
 
+    // 3. Delete event record from Database
     await Event.findByIdAndDelete(id);
 
     res.status(200).json({

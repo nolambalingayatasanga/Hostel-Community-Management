@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
-import { Box, Select, MenuItem, TextField, Typography, Tooltip } from "@mui/material";
+import { Box, Select, MenuItem, TextField, Typography, Tooltip, CircularProgress } from "@mui/material";
 import {
   KeyboardArrowDown as ChevronDownIcon,
 } from "@mui/icons-material";
+import debounce from "lodash/debounce";
 
 // Clean message bubble icon matching the reference design
 const ChatIcon = (props) => (
@@ -77,6 +78,103 @@ const getStatusBadge = (statusName) => {
   return { bg: "#F8F9FA", text: "#344054", border: "1px solid #EAECF0" };
 };
 
+// Debounced Inline Text Editor component with live auto-save
+function InlineTextEditor({
+  initialValue,
+  type,
+  onSave,
+  onStopEdit,
+  inputSx,
+}) {
+  const [val, setVal] = useState(initialValue === "—" ? "" : (initialValue || ""));
+  const [isSaving, setIsSaving] = useState(false);
+  const lastSavedRef = useRef(initialValue === "—" ? "" : (initialValue || ""));
+
+  // Debounced auto-save handler triggered after user pauses typing (700ms)
+  const debouncedSave = useMemo(
+    () =>
+      debounce(async (newVal) => {
+        if (newVal !== lastSavedRef.current) {
+          setIsSaving(true);
+          try {
+            await onSave(newVal);
+            lastSavedRef.current = newVal;
+          } catch (err) {
+            console.error("Failed to auto-save field:", err);
+          } finally {
+            setIsSaving(false);
+          }
+        }
+      }, 700),
+    [onSave]
+  );
+
+  useEffect(() => {
+    return () => {
+      debouncedSave.cancel();
+    };
+  }, [debouncedSave]);
+
+  const handleChange = (e) => {
+    const nextVal = e.target.value;
+    setVal(nextVal);
+    debouncedSave(nextVal);
+  };
+
+  const handleBlur = async () => {
+    debouncedSave.cancel();
+    if (val !== lastSavedRef.current) {
+      setIsSaving(true);
+      try {
+        await onSave(val);
+        lastSavedRef.current = val;
+      } catch (err) {
+        console.error("Failed to save field on blur:", err);
+      } finally {
+        setIsSaving(false);
+      }
+    }
+    onStopEdit();
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.target.blur();
+    }
+    if (e.key === "Escape") {
+      debouncedSave.cancel();
+      onStopEdit();
+    }
+  };
+
+  return (
+    <TextField
+      fullWidth
+      size="small"
+      autoFocus
+      type={type}
+      value={val}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+      slotProps={{
+        input: {
+          endAdornment: isSaving ? (
+            <CircularProgress size={14} sx={{ color: "#0088FF", mr: 0.5, flexShrink: 0 }} />
+          ) : null,
+        },
+      }}
+      sx={{
+        ...inputSx,
+        "& .MuiOutlinedInput-root": {
+          ...inputSx["& .MuiOutlinedInput-root"],
+          borderColor: isSaving ? "#0088FF" : undefined,
+        },
+      }}
+    />
+  );
+}
+
 export default function LeadCell({
   field,
   row,
@@ -128,7 +226,16 @@ export default function LeadCell({
     if (isRole) return row.role || "";
     if (isStatus) return meta.statusById.get(row.statusId)?.name || row.statusName || "";
     if (isGender) return row.gender || "";
-    if (isAge) return row.age != null ? String(row.age) : "";
+    if (isAge) {
+      if (row.age != null && row.age !== "") return String(row.age);
+      const dobVal = row.dob || row.dateOfBirth || row.raw?.dob || row.raw?.dateOfBirth;
+      if (dobVal) {
+        const diff = Date.now() - new Date(dobVal).getTime();
+        const a = Math.floor(diff / (365.25 * 24 * 60 * 60 * 1000));
+        if (!isNaN(a) && a >= 0) return String(a);
+      }
+      return "";
+    }
     if (isJoiningDate) return formatLeadDate(row.joiningDate) || "";
 
     // Handle any other schema-mapped fields
@@ -461,32 +568,22 @@ export default function LeadCell({
     );
   }
 
-  // Default editable text/number input
+  // Default editable text/number input with real-time debounce auto-save
   const stored = isInternal ? displayValue(true) : leadFieldValue(row.raw, field._id);
 
   return wrap(
-    <TextField
-      fullWidth
-      size="small"
-      autoFocus
+    <InlineTextEditor
+      initialValue={stored}
       type={field.type === "number" || isAge ? "number" : "text"}
-      defaultValue={stored === "—" ? "" : stored}
-      onBlur={(e) => {
-        const val = e.target.value;
-        if (val !== (stored === "—" ? "" : stored)) {
-          if (isInternal) {
-            onChangeRef(row.id, field.slug, val);
-          } else {
-            onChangeField(row.id, field._id, val);
-          }
+      onSave={(newVal) => {
+        if (isInternal) {
+          return onChangeRef(row.id, field.slug, newVal);
+        } else {
+          return onChangeField(row.id, field._id, newVal);
         }
-        onStopEdit();
       }}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") e.target.blur();
-        if (e.key === "Escape") onStopEdit();
-      }}
-      sx={inputSx}
+      onStopEdit={onStopEdit}
+      inputSx={inputSx}
     />
   );
 }
