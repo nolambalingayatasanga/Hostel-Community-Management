@@ -171,9 +171,11 @@ const Register = () => {
   // Dynamic preview of assigned role for student/alumni based on graduation year
   const computedRole = useMemo(() => {
     if (role === 'MEMBER') return 'Community Member';
-    if (!endYear || isNaN(parseInt(endYear, 10))) return 'Student / Alumni';
-    const gradYearNum = parseInt(endYear, 10);
-    return gradYearNum < currentYear ? `Alumni (Class of ${gradYearNum})` : `Student (Expected ${gradYearNum})`;
+    if (!endYear) return 'Student / Alumni';
+    const parsed = dayjs(endYear);
+    const gradYearNum = parsed.isValid() ? parsed.year() : parseInt(endYear, 10);
+    if (!gradYearNum || isNaN(gradYearNum)) return 'Student / Alumni';
+    return gradYearNum < currentYear ? `Alumni (Graduated in ${gradYearNum})` : `Student (Expected in ${gradYearNum})`;
   }, [role, endYear, currentYear]);
 
   // Explicit element refs to guarantee seamless Enter-key navigation across all fields
@@ -218,18 +220,6 @@ const Register = () => {
     setAdhaar(formatted);
   };
 
-  // Handle Joining Year manual typing & picker update
-  const handleStartYearChange = (e) => {
-    const digitsOnly = (e.target?.value || '').replace(/\D/g, '').slice(0, 4);
-    setStartYear(digitsOnly);
-  };
-
-  // Handle Graduation Year manual typing & picker update
-  const handleEndYearChange = (e) => {
-    const digitsOnly = (e.target?.value || '').replace(/\D/g, '').slice(0, 4);
-    setEndYear(digitsOnly);
-  };
-
   const handleNextStep = () => {
     setError('');
     setStep(2);
@@ -259,26 +249,32 @@ const Register = () => {
     }
 
     // Role-specific validations
+    let sYearStr = '';
+    let eYearStr = '';
+
     if (role === 'STUDENT' || role === 'ALUMNI') {
       if (!college.trim()) { setError('College / University Name is mandatory.'); return; }
-      if (!startYear || startYear.length !== 4) { setError('Please enter a valid 4-digit Joining Year (e.g. 2022).'); return; }
-      if (!endYear || endYear.length !== 4) { setError('Please enter a valid 4-digit Graduation Year (e.g. 2026).'); return; }
+      if (!startYear) { setError('College Joining Date is mandatory (DD/MM/YYYY).'); return; }
+      if (!endYear) { setError('Graduation Date is mandatory (DD/MM/YYYY).'); return; }
 
-      const sYear = parseInt(startYear, 10);
-      const eYear = parseInt(endYear, 10);
+      const startParsed = dayjs(startYear);
+      const endParsed = dayjs(endYear);
 
-      if (isNaN(sYear) || sYear < 1950 || sYear > currentYear + 1) {
-        setError('Please enter a valid Joining Year (between 1950 and current year).');
+      if (!startParsed.isValid()) {
+        setError('Please enter a valid Joining Date (DD/MM/YYYY).');
         return;
       }
-      if (isNaN(eYear) || eYear < 1950 || eYear > currentYear + 15) {
-        setError('Please enter a valid Graduation Year (e.g. 2026).');
+      if (!endParsed.isValid()) {
+        setError('Please enter a valid Graduation Date (DD/MM/YYYY).');
         return;
       }
-      if (eYear < sYear) {
-        setError('Graduation Year cannot be earlier than Joining Year.');
+      if (endParsed.isBefore(startParsed)) {
+        setError('Graduation Date cannot be earlier than Joining Date.');
         return;
       }
+
+      sYearStr = String(startParsed.year());
+      eYearStr = String(endParsed.year());
     }
 
     setLoading(true);
@@ -291,8 +287,8 @@ const Register = () => {
       password,
       role,
       college: college.trim(),
-      startYear: String(startYear),
-      endYear: String(endYear)
+      startYear: sYearStr,
+      endYear: eYearStr
     });
     setLoading(false);
 
@@ -661,6 +657,7 @@ const Register = () => {
                   <DatePicker
                     format="DD/MM/YYYY"
                     views={['year', 'month', 'day']}
+                    closeOnSelect={true}
                     value={dob ? dayjs(dob) : null}
                     onChange={(newValue) => {
                       const formatted = newValue && newValue.isValid() ? newValue.format('YYYY-MM-DD') : '';
@@ -679,16 +676,7 @@ const Register = () => {
                             passwordRef.current?.focus();
                           }
                         },
-                        sx: inputStyle,
-                        slotProps: {
-                          input: {
-                            startAdornment: (
-                              <InputAdornment position="start">
-                                <DateIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
-                              </InputAdornment>
-                            ),
-                          }
-                        }
+                        sx: inputStyle
                       }
                     }}
                   />
@@ -768,7 +756,7 @@ const Register = () => {
                                 startYearRef.current?.focus();
                               }
                             }}
-                            placeholder="Type keywords (e.g. RV, BMS, PES, Engi, Bangalore, VTU...)"
+                            placeholder="Enter college name"
                             slotProps={{
                               input: {
                                 ...(params.InputProps || {}),
@@ -788,41 +776,34 @@ const Register = () => {
                       />
                     </Box>
 
-                    {/* Row 5: Joining Year & Graduation Year (Direct Typing + Year Picker Icon) */}
+                    {/* Row 5: Joining Date & Graduation Date (Same full DatePicker as DOB: day, month, year) */}
                     <Box>
                       <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                        College Joining Year <span style={{ color: '#EF4444' }}>*</span>
+                        College Joining Date <span style={{ color: '#EF4444' }}>*</span>
                       </Typography>
                       <DatePicker
-                        views={['year']}
-                        openTo="year"
-                        format="YYYY"
-                        value={startYear ? dayjs(`${startYear}-01-01`) : null}
+                        format="DD/MM/YYYY"
+                        views={['year', 'month', 'day']}
+                        closeOnSelect={true}
+                        value={startYear ? dayjs(startYear) : null}
                         onChange={(newValue) => {
-                          if (newValue && newValue.isValid()) {
-                            setStartYear(newValue.format('YYYY'));
-                          }
+                          const formatted = newValue && newValue.isValid() ? newValue.format('YYYY-MM-DD') : '';
+                          setStartYear(formatted);
                         }}
-                        minDate={dayjs('1950-01-01')}
                         maxDate={dayjs().add(5, 'year')}
                         slotProps={{
                           textField: {
                             fullWidth: true,
                             size: 'small',
                             inputRef: startYearRef,
-                            placeholder: 'e.g. 2022',
-                            onChange: handleStartYearChange,
+                            placeholder: 'DD/MM/YYYY',
                             onKeyDown: (e) => {
                               if (e.key === 'Enter') {
                                 e.preventDefault();
                                 endYearRef.current?.focus();
                               }
                             },
-                            sx: inputStyle,
-                            slotProps: {
-                              htmlInput: { inputMode: 'numeric', maxLength: 4 },
-                            
-                            }
+                            sx: inputStyle
                           }
                         }}
                       />
@@ -830,37 +811,30 @@ const Register = () => {
 
                     <Box>
                       <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                        Graduation Year <span style={{ color: '#EF4444' }}>*</span>
+                        Graduation Date <span style={{ color: '#EF4444' }}>*</span>
                       </Typography>
                       <DatePicker
-                        views={['year']}
-                        openTo="year"
-                        format="YYYY"
-                        value={endYear ? dayjs(`${endYear}-01-01`) : null}
+                        format="DD/MM/YYYY"
+                        views={['year', 'month', 'day']}
+                        closeOnSelect={true}
+                        value={endYear ? dayjs(endYear) : null}
                         onChange={(newValue) => {
-                          if (newValue && newValue.isValid()) {
-                            setEndYear(newValue.format('YYYY'));
-                          }
+                          const formatted = newValue && newValue.isValid() ? newValue.format('YYYY-MM-DD') : '';
+                          setEndYear(formatted);
                         }}
-                        minDate={dayjs('1950-01-01')}
                         maxDate={dayjs().add(15, 'year')}
                         slotProps={{
                           textField: {
                             fullWidth: true,
                             size: 'small',
                             inputRef: endYearRef,
-                            placeholder: 'e.g. 2026',
-                            onChange: handleEndYearChange,
+                            placeholder: 'DD/MM/YYYY',
                             onKeyDown: (e) => {
                               if (e.key === 'Enter') {
                                 handleSubmit(e);
                               }
                             },
-                            sx: inputStyle,
-                            slotProps: {
-                              htmlInput: { inputMode: 'numeric', maxLength: 4 },
-                           
-                            }
+                            sx: inputStyle
                           }
                         }}
                       />

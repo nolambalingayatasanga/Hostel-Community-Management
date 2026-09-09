@@ -174,17 +174,12 @@ const UserSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// Pre-save hook: Hash password if modified
-UserSchema.pre('save', async function (next) {
-  if (!this.isModified('passwordHash')) return next();
-  if (!this.passwordHash) return next(); // Skip if no password set
-  try {
-    const salt = await bcrypt.genSalt(10);
-    this.passwordHash = await bcrypt.hash(this.passwordHash, salt);
-    next();
-  } catch (error) {
-    next(error);
-  }
+// Pre-save hook: Hash password if modified (Mongoose 8/9 async hook)
+UserSchema.pre('save', async function () {
+  if (!this.isModified('passwordHash')) return;
+  if (!this.passwordHash) return; // Skip if no password set
+  const salt = await bcrypt.genSalt(10);
+  this.passwordHash = await bcrypt.hash(this.passwordHash, salt);
 });
 
 // Instance method to verify password

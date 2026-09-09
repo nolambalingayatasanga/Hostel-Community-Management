@@ -52,10 +52,14 @@ app.use(async (req, res, next) => {
   next();
 });
 
+// Trust proxy for Vercel / serverless deployments
+app.set('trust proxy', 1);
+
 // Setup rate limiter for authentication endpoints
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per windowMs
+  validate: { xForwardedForHeader: false, default: true },
   message: {
     success: false,
     message: 'Too many requests from this IP, please try again after 15 minutes.'
