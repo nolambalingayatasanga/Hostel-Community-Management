@@ -9,7 +9,6 @@ const sendEmail = async (options) => {
   if (!isEmailConfigured) {
     console.log('\n==================================================');
     console.log('WARNING: Nodemailer SMTP settings are not configured.');
-    console.log('Password reset request caught locally:');
     console.log(`To: ${options.email}`);
     console.log(`Subject: ${options.subject}`);
     console.log(`Message:\n${options.message}`);
@@ -17,26 +16,36 @@ const sendEmail = async (options) => {
     return;
   }
 
-  // Create transporter
-  const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST,
-    port: process.env.EMAIL_PORT || 2525,
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD
-    }
-  });
+  const isGmail = (process.env.EMAIL_HOST || '').toLowerCase().includes('gmail');
 
-  // Define email options
+  const transportConfig = isGmail
+    ? {
+        service: 'gmail',
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASSWORD
+        }
+      }
+    : {
+        host: process.env.EMAIL_HOST,
+        port: parseInt(process.env.EMAIL_PORT, 10) || 587,
+        secure: parseInt(process.env.EMAIL_PORT, 10) === 465,
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASSWORD
+        }
+      };
+
+  const transporter = nodemailer.createTransport(transportConfig);
+
   const mailOptions = {
-    from: `"Hostel Community" <no-reply@hostelcomm.org>`,
+    from: `"Hostel Community" <${process.env.EMAIL_USER || 'no-reply@hostelcomm.org'}>`,
     to: options.email,
     subject: options.subject,
     text: options.message,
     html: options.html || `<p>${options.message}</p>`
   };
 
-  // Send the actual email
   await transporter.sendMail(mailOptions);
 };
 

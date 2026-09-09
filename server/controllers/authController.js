@@ -278,6 +278,13 @@ exports.forgotPassword = async (req, res, next) => {
       });
     }
 
+    if (!user.email) {
+      return res.status(400).json({
+        success: false,
+        message: 'This account does not have an email address registered. Please contact an administrator to reset your password.'
+      });
+    }
+
     // Generate random reset token
     const resetToken = crypto.randomBytes(32).toString('hex');
 
@@ -290,8 +297,9 @@ exports.forgotPassword = async (req, res, next) => {
 
     await user.save({ validateBeforeSave: false });
 
-    // Send reset URL
-    const resetURL = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password/${resetToken}`;
+    // Send reset URL (dynamically uses request origin if FRONTEND_URL is not set)
+    const clientBaseUrl = req.headers.origin || process.env.FRONTEND_URL || 'http://localhost:5173';
+    const resetURL = `${clientBaseUrl}/reset-password/${resetToken}`;
     
     const message = `Forgot your password? Please open this link to reset it: ${resetURL}\nIf you did not request this, please ignore this message.`;
 
@@ -302,10 +310,11 @@ exports.forgotPassword = async (req, res, next) => {
         message,
         html: `
           <h3>Password Reset Request</h3>
-          <p>You requested a password reset. Please click the button below to reset your password:</p>
-          <a href="${resetURL}" style="display:inline-block;padding:10px 20px;background-color:#1976d2;color:white;text-decoration:none;border-radius:4px;">Reset Password</a>
-          <p>Or copy this link: <a href="${resetURL}">${resetURL}</a></p>
-          <p><em>This link is valid for 60 minutes. If you did not request a reset, please ignore this.</em></p>
+          <p>You requested a password reset for your Hostel Community Management account.</p>
+          <p>Please click the button below to reset your password:</p>
+          <a href="${resetURL}" style="display:inline-block;padding:12px 24px;background-color:#1877F2;color:white;text-decoration:none;border-radius:6px;font-weight:bold;">Reset Password</a>
+          <p style="margin-top:20px;">Or copy this link: <a href="${resetURL}">${resetURL}</a></p>
+          <p><em>This link is valid for 60 minutes. If you did not request a reset, you can safely ignore this email.</em></p>
         `
       });
 
@@ -314,14 +323,14 @@ exports.forgotPassword = async (req, res, next) => {
         message: 'Password reset link sent successfully.'
       });
     } catch (err) {
+      console.error('Send Email Error:', err);
       user.resetPasswordToken = undefined;
       user.resetPasswordExpires = undefined;
       await user.save({ validateBeforeSave: false });
       
       return res.status(500).json({
         success: false,
-        message: 'Error sending email. Please try again later.',
-        error: err.message
+        message: 'Error sending email: ' + (err.message || 'SMTP service error. Please check server logs.')
       });
     }
   } catch (error) {
