@@ -4,7 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node dev.js",
+    "dev:client": "vite",
+    "dev:frontend": "vite",
+    "dev:server": "npm run dev --prefix server",
     "server": "npm run dev --prefix server",
     "seed": "npm run seed --prefix server",
     "build": "vite build",

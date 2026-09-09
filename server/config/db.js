@@ -9,9 +9,11 @@ const connectDB = async () => {
     try {
       const CustomField = require('../models/CustomField');
       const schemaFields = [
-        { name: 'Adhaar', slug: 'adhaar', type: 'text', isInternal: true },
+        { name: 'SL NO', slug: 'slNo', type: 'number', isInternal: true },
         { name: 'Registration Number', slug: 'registrationNumber', type: 'text', isInternal: true },
+        { name: 'Receipt No', slug: 'receiptNo', type: 'text', isInternal: true },
         { name: 'Local Language Details', slug: 'localLanguageDetails', type: 'text', isInternal: true },
+        { name: 'Adhaar', slug: 'adhaar', type: 'text', isInternal: true },
         
         { name: 'Street', slug: 'address.street', type: 'text', isInternal: true },
         { name: 'Area', slug: 'address.area', type: 'text', isInternal: true },

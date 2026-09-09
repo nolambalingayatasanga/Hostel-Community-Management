@@ -628,9 +628,7 @@ const Gallery = () => {
                         pointerEvents: 'none'
                       }}
                     >
-                      <Typography variant="subtitle2" sx={{ color: '#fff', fontWeight: 600, pointerEvents: 'none' }}>
-                        {photo.uploadedBy?.name || 'Anonymous'}
-                      </Typography>
+                     
                       <Typography variant="caption" sx={{ color: '#ccc', mt: 0.5, pointerEvents: 'none' }}>
                         {new Date(photo.createdAt).toLocaleDateString(undefined, {
                           year: 'numeric',

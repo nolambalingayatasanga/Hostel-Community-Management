@@ -28,7 +28,17 @@ import {
 import { useCustomFieldMutations } from "./crmHooks";
 import AddFieldForm from "./AddFieldForm";
 
-export default function ColumnSelectorPanel({ open, onClose, customFields, canManage }) {
+export default function ColumnSelectorPanel({
+  open,
+  onClose,
+  customFields,
+  canManage,
+  activeTabId,
+  activeTabName,
+  currentTabOrder,
+  currentTabHidden,
+  onSaveTabLayout
+}) {
   const { saveLayout, create, remove, fetchUsage } = useCustomFieldMutations();
 
   const [draft, setDraft] = useState([]);
@@ -39,29 +49,35 @@ export default function ColumnSelectorPanel({ open, onClose, customFields, canMa
 
   useEffect(() => {
     if (!open) return;
-    setDraft(
-      [...(customFields || [])]
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-        .map((f) => ({ ...f })),
-    );
+    const all = [...(customFields || [])];
+    const orderMap = currentTabOrder && currentTabOrder.length > 0
+      ? new Map(currentTabOrder.map((id, index) => [String(id), index]))
+      : null;
+    const hiddenSet = new Set(currentTabHidden || []);
+
+    const sorted = all.map(f => ({
+      ...f,
+      isVisible: hiddenSet.has(String(f._id)) ? false : (f.isVisible !== false)
+    })).sort((a, b) => {
+      if (orderMap) {
+        const idxA = orderMap.has(String(a._id)) ? orderMap.get(String(a._id)) : 9999 + (a.order ?? 0);
+        const idxB = orderMap.has(String(b._id)) ? orderMap.get(String(b._id)) : 9999 + (b.order ?? 0);
+        return idxA - idxB;
+      }
+      return (a.order ?? 0) - (b.order ?? 0);
+    });
+
+    setDraft(sorted);
     setSearch("");
     setAdding(false);
-  }, [open, customFields]);
-
-  const dirty = useMemo(() => {
-    const original = [...(customFields || [])].sort(
-      (a, b) => (a.order ?? 0) - (b.order ?? 0),
-    );
-    if (original.length !== draft.length) return true;
-    return draft.some(
-      (f, i) =>
-        String(f._id) !== String(original[i]?._id) ||
-        Boolean(f.isVisible) !== Boolean(original[i]?.isVisible),
-    );
-  }, [draft, customFields]);
+  }, [open, customFields, currentTabOrder, currentTabHidden]);
 
   const handleClose = () => {
-    if (dirty && canManage) {
+    if (onSaveTabLayout && activeTabId) {
+      const orderIds = draft.map((f) => String(f._id));
+      const hiddenIds = draft.filter((f) => !f.isVisible).map((f) => String(f._id));
+      onSaveTabLayout(activeTabId, orderIds, hiddenIds);
+    } else if (canManage) {
       saveLayout.mutate(draft.map((f, index) => ({ ...f, order: index })));
     }
     onClose();

@@ -26,4 +26,8 @@ router.put('/statuses/reorder', restrictTo('ADMIN', 'CHAIRPERSON'), crmControlle
 router.put('/statuses/:id', restrictTo('ADMIN', 'CHAIRPERSON'), crmController.updateStatus);
 router.delete('/statuses/:id', restrictTo('ADMIN', 'CHAIRPERSON'), crmController.deleteStatus);
 
+// Independent per-tab table layout routes
+router.get('/layouts', crmController.getTabLayouts);
+router.put('/layouts/:tabId', crmController.saveTabLayout);
+
 module.exports = router;

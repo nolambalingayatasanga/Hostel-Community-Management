@@ -1,37 +1,27 @@
+import React from "react";
 import PropTypes from "prop-types";
-import { Box, Select, MenuItem, TextField, Typography } from "@mui/material";
-import { KeyboardArrowDown as ChevronDownIcon } from "@mui/icons-material";
+import { Box, Select, MenuItem, TextField, Typography, Tooltip } from "@mui/material";
+import {
+  KeyboardArrowDown as ChevronDownIcon,
+} from "@mui/icons-material";
 
-import { INTERNAL_SLUGS, leadFieldValue, formatLeadDate } from "./leadHelpers";
+// Clean message bubble icon matching the reference design
+const ChatIcon = (props) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    <path d="M8 9h8" strokeWidth="2" strokeLinecap="round" />
+    <path d="M8 13h5" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
+import { INTERNAL_SLUGS, leadFieldValue, formatLeadDate, formatLeadDateTime, isFieldNonEditable } from "./leadHelpers";
 import { useAuth } from "../../context/AuthContext";
-
-const formatPhoneWithFlag = (phone) => {
-  if (!phone) return "";
-  const clean = phone.replace(/\D/g, "");
-  
-  if (clean.length === 10 && /^[6-9]/.test(clean)) {
-    return `🇮🇳 +91 ${clean}`;
-  }
-  if (clean.length === 12 && clean.startsWith("91")) {
-    return `🇮🇳 +91 ${clean.slice(2)}`;
-  }
-  if (clean.length === 11 && clean.startsWith("0") && /^[6-9]/.test(clean.slice(1))) {
-    return `🇮🇳 +91 ${clean.slice(1)}`;
-  }
-  if (phone.includes("+91") || phone.startsWith("91")) {
-    const num = phone.replace("+91", "").replace(/\s/g, "");
-    return `🇮🇳 +91 ${num}`;
-  }
-  if (clean.length === 10) {
-    return `🇮🇳 +91 ${clean}`;
-  }
-  return phone;
-};
 
 const inputSx = {
   "& .MuiOutlinedInput-root": {
     borderRadius: "8px",
     backgroundColor: "#FFFFFF",
+    minHeight: 38,
     "& fieldset": { borderColor: "#EAECF0" },
     "&:hover fieldset": { borderColor: "#D0D5DD" },
   },
@@ -40,26 +30,52 @@ const inputSx = {
 const selectSx = {
   borderRadius: "8px",
   backgroundColor: "#FFFFFF",
+  minHeight: 38,
   "& .MuiOutlinedInput-notchedOutline": { borderColor: "#EAECF0" },
   "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#D0D5DD" },
 };
 
-const readSx = (editable) => ({
+const readSx = (editable, isLocked = false) => ({
   display: "flex",
   alignItems: "center",
-  minHeight: 36,
+  minHeight: 38,
   width: "100%",
   minWidth: 0,
   boxSizing: "border-box",
-  borderRadius: "6px",
+  borderRadius: "8px",
   px: 1.5,
-  py: 0.75,
-  border: "1px solid #EAECF0",
-  backgroundColor: "#FFFFFF",
-  cursor: editable ? "pointer" : "default",
-  transition: "border-color 0.15s ease",
-  ...(editable && { "&:hover": { borderColor: "#D0D5DD" } }),
+  py: 0.5,
+  border: isLocked ? "1px solid #D0D5DD" : "1px solid #EAECF0",
+  backgroundColor: isLocked ? "#fbfbfbff" : "#FFFFFF",
+  cursor: isLocked ? "not-allowed" : editable ? "pointer" : "default",
+  transition: "all 0.15s ease",
+  ...(editable && {
+    "&:hover": {
+      borderColor: "#98A2B3",
+      backgroundColor: "#FDFDFD",
+    },
+  }),
+  ...(isLocked && {
+    userSelect: "none",
+  }),
 });
+
+const getStatusBadge = (statusName) => {
+  const s = (statusName || "").toLowerCase();
+  if (s.includes("active") || s.includes("joined") || s.includes("paid")) {
+    return { bg: "#ECFDF3", text: "#027A48", border: "1px solid #ABEFC6" };
+  }
+  if (s.includes("new") || s.includes("pending") || s.includes("lead") || s.includes("inquiry")) {
+    return { bg: "#FFFAEB", text: "#B54708", border: "1px solid #FEDF89" };
+  }
+  if (s.includes("inactive") || s.includes("left") || s.includes("dropped") || s.includes("reject") || s.includes("expired")) {
+    return { bg: "#FEF3F2", text: "#B42318", border: "1px solid #FECDCA" };
+  }
+  if (s.includes("student") || s.includes("member") || s.includes("alumni")) {
+    return { bg: "#EFF8FF", text: "#175CD3", border: "1px solid #B2DDFF" };
+  }
+  return { bg: "#F8F9FA", text: "#344054", border: "1px solid #EAECF0" };
+};
 
 export default function LeadCell({
   field,
@@ -71,43 +87,44 @@ export default function LeadCell({
   onStopEdit,
   onChangeRef,
   onChangeField,
+  onOpenProfile,
 }) {
   const width = field.width;
   const wrap = (children) => (
-    <Box sx={{ width, minWidth: width === "auto" ? 140 : width, flexShrink: 0, px: 2 }}>{children}</Box>
+    <Box sx={{ width, minWidth: width === "auto" ? 140 : width, flexShrink: 0, px: 1.5 }}>
+      {children}
+    </Box>
   );
 
   const isInternal = field.isInternal;
-  const isName = field.slug === INTERNAL_SLUGS.NAME;
-  const isEmail = field.slug === INTERNAL_SLUGS.EMAIL;
-  const isPhone = field.slug === INTERNAL_SLUGS.PHONE;
-  const isRole = field.slug === INTERNAL_SLUGS.ROLE;
-  const isStatus = field.slug === INTERNAL_SLUGS.STATUS;
-  const isGender = field.slug === INTERNAL_SLUGS.GENDER;
-  const isAge = field.slug === INTERNAL_SLUGS.AGE;
-  const isJoiningDate = field.slug === INTERNAL_SLUGS.JOINING_DATE;
+  const isName = field.slug === INTERNAL_SLUGS.NAME || (field.slug || "").toLowerCase() === "name";
+  const isEmail = field.slug === INTERNAL_SLUGS.EMAIL || (field.slug || "").toLowerCase() === "email";
+  const isPhone = field.slug === INTERNAL_SLUGS.PHONE || (field.slug || "").toLowerCase() === "phone";
+  const isRole = field.slug === INTERNAL_SLUGS.ROLE || (field.slug || "").toLowerCase() === "role";
+  const isStatus = field.slug === INTERNAL_SLUGS.STATUS || (field.slug || "").toLowerCase() === "status";
+  const isGender = field.slug === INTERNAL_SLUGS.GENDER || (field.slug || "").toLowerCase() === "gender";
+  const isAge = field.slug === INTERNAL_SLUGS.AGE || (field.slug || "").toLowerCase() === "age";
+  const isJoiningDate = (field.slug || "").toLowerCase().includes("joiningdate") || (field.slug || "").toLowerCase().includes("registereddate");
 
   const { user } = useAuth();
   const currentViewerRole = user?.role;
-  const isViewerAdmin = currentViewerRole === 'ADMIN';
-  const isViewerChairperson = currentViewerRole === 'CHAIRPERSON';
+  const isViewerAdmin = currentViewerRole === "ADMIN";
+  const isViewerChairperson = currentViewerRole === "CHAIRPERSON";
 
-  const editable = !disabled && (!isRole || isViewerAdmin || isViewerChairperson);
+  // Strict check: Joining Date, Registration Number, Receipt NO, and SL No are non-editable by ANY user (even admin)
+  const isLocked = isFieldNonEditable(field);
+  const editable = !disabled && !isLocked && (!isRole || isViewerAdmin || isViewerChairperson);
 
   const hasPicker =
     (isRole && (isViewerAdmin || isViewerChairperson)) ||
     isStatus ||
     isGender ||
-    isJoiningDate ||
     field.type === "select";
 
   const displayValue = (forEdit = false) => {
     if (isName) return row.name || "";
     if (isEmail) return row.email || "";
-    if (isPhone) {
-      const rawPhone = row.phone || "";
-      return forEdit ? rawPhone : formatPhoneWithFlag(rawPhone);
-    }
+    if (isPhone) return row.phone || "";
     if (isRole) return row.role || "";
     if (isStatus) return meta.statusById.get(row.statusId)?.name || row.statusName || "";
     if (isGender) return row.gender || "";
@@ -116,7 +133,13 @@ export default function LeadCell({
 
     // Handle any other schema-mapped fields
     if (field.isInternal && field.slug) {
-      const val = row[field.slug];
+      let val = row[field.slug];
+      if (val === undefined || val === null || val === "") {
+        val = row[field.slug.toLowerCase()];
+      }
+      if (val === undefined || val === null || val === "") {
+        val = row.raw?.[field.slug] ?? row.raw?.memberInfo?.[field.slug];
+      }
       if (field.slug === "dateOfBirth" && val) {
         return formatLeadDate(val);
       }
@@ -127,32 +150,200 @@ export default function LeadCell({
     return leadFieldValue(row.raw, field._id) || "";
   };
 
+  // 1. Stacked Name + Joined Date View
+  if (isName && !isEditing) {
+    return wrap(
+      <Box
+        onClick={() => onOpenProfile && onOpenProfile(row)}
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          minHeight: 44,
+          cursor: onOpenProfile ? "pointer" : "default",
+          py: 0.5,
+        }}
+      >
+        <Typography
+          variant="body2"
+          sx={{
+            fontWeight: 700,
+            fontSize: "0.875rem",
+            color: "#101828",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            lineHeight: 1.3,
+            "&:hover": onOpenProfile ? { color: "#0088FF" } : {},
+          }}
+        >
+          {row.name || "—"}
+        </Typography>
+        <Typography
+          variant="caption"
+          sx={{
+            color: "#667085",
+            fontSize: "0.75rem",
+            fontWeight: 400,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            lineHeight: 1.3,
+            mt: 0.25,
+          }}
+        >
+          {formatLeadDateTime(row.joiningDate) || "—"}
+        </Typography>
+      </Box>
+    );
+  }
+
+  // 2. Phone + Message Action View
+  if (isPhone && !isEditing) {
+    const rawPhone = row.phone || "";
+    return wrap(
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, width: "100%" }}>
+        <Box
+          onClick={editable ? onStartEdit : undefined}
+          sx={{
+            ...readSx(editable),
+            flex: 1,
+            justifyContent: "flex-start",
+          }}
+          title={rawPhone}
+        >
+          <Typography
+            variant="body2"
+            sx={{
+              color: rawPhone ? "#101828" : "#98A2B3",
+              fontSize: "0.875rem",
+              fontWeight: 500,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {rawPhone || "-"}
+          </Typography>
+        </Box>
+        <Tooltip title="Send WhatsApp Message" arrow>
+          <Box
+            component="a"
+            href={rawPhone ? `https://wa.me/${rawPhone.replace(/\D/g, "")}` : undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!rawPhone) e.preventDefault();
+            }}
+            sx={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 38,
+              height: 38,
+              borderRadius: "8px",
+              border: "1px solid #EAECF0",
+              backgroundColor: "#FFFFFF",
+              color: "#039855",
+              textDecoration: "none",
+              flexShrink: 0,
+              cursor: rawPhone ? "pointer" : "default",
+              transition: "all 0.15s ease",
+              "&:hover": rawPhone
+                ? {
+                    backgroundColor: "#ECFDF3",
+                    borderColor: "#A6F4C5",
+                    transform: "scale(1.05)",
+                  }
+                : {},
+            }}
+          >
+            <ChatIcon style={{ color: rawPhone ? "#12B76A" : "#D0D5DD" }} />
+          </Box>
+        </Tooltip>
+      </Box>
+    );
+  }
+
+  // 3. Status Badge View
+  if (isStatus && !isEditing) {
+    const currentStatusName = meta.statusById.get(row.statusId)?.name || row.statusName || "";
+    const badgeStyle = getStatusBadge(currentStatusName);
+    return wrap(
+      <Box
+        onClick={editable ? onStartEdit : undefined}
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          minHeight: 38,
+          width: "100%",
+          borderRadius: "8px",
+          px: 1.5,
+          border: "1px solid #EAECF0",
+          backgroundColor: "#FFFFFF",
+          cursor: editable ? "pointer" : "default",
+          transition: "border-color 0.15s ease",
+          ...(editable && { "&:hover": { borderColor: "#D0D5DD" } }),
+        }}
+        title={currentStatusName}
+      >
+        {currentStatusName ? (
+          <Box
+            sx={{
+              backgroundColor: badgeStyle.bg,
+              color: badgeStyle.text,
+              border: badgeStyle.border,
+              borderRadius: "16px",
+              px: 1.5,
+              py: 0.25,
+              fontSize: "0.75rem",
+              fontWeight: 600,
+              display: "inline-flex",
+              alignItems: "center",
+            }}
+          >
+            {currentStatusName}
+          </Box>
+        ) : (
+          <Typography variant="body2" sx={{ color: "#98A2B3" }}>
+            -
+          </Typography>
+        )}
+        {editable && <ChevronDownIcon sx={{ width: 18, height: 18, color: "#98A2B3", ml: "auto" }} />}
+      </Box>
+    );
+  }
+
+  // 4. Default Read View for other columns
   if (!isEditing) {
     const shown = displayValue();
     return wrap(
       <Box
         onClick={editable ? onStartEdit : undefined}
-        sx={readSx(editable)}
-        title={shown}
+        sx={readSx(editable, isLocked)}
+        title={isLocked ? `${shown} (Read-only / Non-editable)` : shown}
       >
         <Typography
           variant="body2"
           sx={{
             flex: 1,
             minWidth: 0,
-            color: shown === "" ? "#98A2B3" : "#101828",
-            fontWeight: isStatus || isName ? 600 : 400,
+            color: shown === "" ? "#98A2B3" : isLocked ? "#475467" : "#101828",
+            fontWeight: isLocked ? 500 : 400,
+            fontSize: "0.875rem",
             whiteSpace: "nowrap",
             overflow: "hidden",
-            textOverflow: "ellipsis"
+            textOverflow: "ellipsis",
           }}
         >
-          {shown}
+          {shown === "" ? "-" : shown}
         </Typography>
         {hasPicker && editable && (
           <ChevronDownIcon sx={{ width: 18, height: 18, color: "#98A2B3", flexShrink: 0 }} />
         )}
-      </Box>,
+      </Box>
     );
   }
 
@@ -175,8 +366,8 @@ export default function LeadCell({
     }
 
     const allowedRoles = isViewerAdmin
-      ? ['ADMIN', 'CHAIRPERSON', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI']
-      : ['MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'];
+      ? ["ADMIN", "CHAIRPERSON", "MEMBER", "STAFF", "STUDENT", "ALUMNI"]
+      : ["MEMBER", "STAFF", "STUDENT", "ALUMNI"];
 
     return wrap(
       <Select
@@ -194,7 +385,7 @@ export default function LeadCell({
             {role}
           </MenuItem>
         ))}
-      </Select>,
+      </Select>
     );
   }
 
@@ -215,7 +406,7 @@ export default function LeadCell({
             {status.name}
           </MenuItem>
         ))}
-      </Select>,
+      </Select>
     );
   }
 
@@ -231,12 +422,12 @@ export default function LeadCell({
         onClose={onStopEdit}
         sx={selectSx}
       >
-        {['MALE', 'FEMALE', 'OTHER'].map((g) => (
+        {["MALE", "FEMALE", "OTHER"].map((g) => (
           <MenuItem key={g} value={g}>
             {g}
           </MenuItem>
         ))}
-      </Select>,
+      </Select>
     );
   }
 
@@ -266,7 +457,7 @@ export default function LeadCell({
             {opt}
           </MenuItem>
         ))}
-      </Select>,
+      </Select>
     );
   }
 
@@ -296,7 +487,7 @@ export default function LeadCell({
         if (e.key === "Escape") onStopEdit();
       }}
       sx={inputSx}
-    />,
+    />
   );
 }
 
@@ -310,4 +501,5 @@ LeadCell.propTypes = {
   onStopEdit: PropTypes.func.isRequired,
   onChangeRef: PropTypes.func.isRequired,
   onChangeField: PropTypes.func.isRequired,
+  onOpenProfile: PropTypes.func,
 };

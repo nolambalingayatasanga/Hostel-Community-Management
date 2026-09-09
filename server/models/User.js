@@ -12,6 +12,29 @@ const AddressSchema = new mongoose.Schema({
   pincode: { type: String, trim: true }
 }, { _id: false });
 
+// Stores parsed relation/family info extracted from the combined Name+Address field
+const RelationSchema = new mongoose.Schema({
+  relationshipType: {
+    type: String,
+    enum: ['w/o', 's/o', 'd/o', 'h/o', 'f/o', 'other'],
+    trim: true
+  },
+  relatedPersonName: { type: String, trim: true } // Name of the related person (spouse/parent/sibling)
+}, { _id: false });
+
+// Member-specific fields populated during Excel import
+const MemberInfoSchema = new mongoose.Schema({
+  slNo: { type: Number },                             // SL NO column (sequential: 1, 2, 3...)
+  registrationNo: { type: String, trim: true },       // SL NO IN REG column (actual reg number, stored as string to handle e.g. '287(A)')
+  receiptNo: { type: String, trim: true },            // RECEIPT NO column
+  isExpired: { type: Boolean, default: false },       // EXPIRED column
+  sourceSheet: { type: String, trim: true },          // Excel sheet name e.g. 'ANEKAL-72'
+  rawNameAddress: { type: String, trim: true },       // Original English combined Name+Address field
+  rawNameAddressKannada: { type: String, trim: true },// Kannada version of the same field
+  registeredDate: { type: Date },                     // DATE column (member registration date)
+  additionalPhones: [{ type: String, trim: true }]    // Extra phone numbers beyond the primary one
+}, { _id: false });
+
 const UserSchema = new mongoose.Schema({
   role: {
     type: String,
@@ -42,22 +65,23 @@ const UserSchema = new mongoose.Schema({
     required: [true, 'Please provide a full name'],
     trim: true
   },
+  // Email is optional for imported members (phone is used as login identifier)
   email: {
     type: String,
-    required: [true, 'Please provide an email address'],
     unique: true,
+    sparse: true,   // Allows multiple documents with no email (null is not considered duplicate)
     lowercase: true,
     trim: true
   },
+  // Phone is optional structurally but filled for all imported members
+  // Not unique because: (a) members may share phones, (b) many have no phone (null)
   phone: {
     type: String,
-    required: [true, 'Please provide a phone number'],
-    unique: true,
     trim: true
   },
+  // Password is optional; imported members use phone as default password
   passwordHash: {
-    type: String,
-    required: [true, 'Please provide a password']
+    type: String
   },
   profilePhoto: {
     url: { type: String, default: '' },
@@ -81,6 +105,20 @@ const UserSchema = new mongoose.Schema({
     default: ''
   },
   address: { type: AddressSchema },
+
+  // Family/relation info parsed from the combined Name+Address field
+  relation: { type: RelationSchema },
+
+  // Receipt number from the Excel RECEIPT NO column (top-level for easy display)
+  receiptNo: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+
+  // Member-specific fields populated during Excel import
+  memberInfo: { type: MemberInfoSchema },
+
   // Education fields (used by STUDENT, ALUMNI)
   education: {
     college: { type: String, trim: true },
@@ -92,8 +130,8 @@ const UserSchema = new mongoose.Schema({
   },
   // Employment fields (used by ALUMNI, and occupation details for STAFF/MEMBER/CHAIRPERSON/ADMIN)
   employment: {
-    occupation: { type: String, trim: true }, // Occupation or job title
-    organization: { type: String, trim: true }, // Company or organization
+    occupation: { type: String, trim: true },     // Occupation or job title
+    organization: { type: String, trim: true },   // Company or organization
     industry: { type: String, trim: true },
     workLocation: { type: String, trim: true },
     employmentStatus: {
@@ -136,6 +174,7 @@ const UserSchema = new mongoose.Schema({
 // Pre-save hook: Hash password if modified
 UserSchema.pre('save', async function (next) {
   if (!this.isModified('passwordHash')) return next();
+  if (!this.passwordHash) return next(); // Skip if no password set
   try {
     const salt = await bcrypt.genSalt(10);
     this.passwordHash = await bcrypt.hash(this.passwordHash, salt);
@@ -147,6 +186,7 @@ UserSchema.pre('save', async function (next) {
 
 // Instance method to verify password
 UserSchema.methods.comparePassword = async function (candidatePassword) {
+  if (!this.passwordHash) return false;
   return await bcrypt.compare(candidatePassword, this.passwordHash);
 };
 
@@ -160,6 +200,7 @@ UserSchema.index({ 'education.endYear': 1 });
 UserSchema.index({ 'education.endMonth': 1 });
 UserSchema.index({ 'employment.occupation': 1 });
 UserSchema.index({ 'employment.organization': 1 });
-UserSchema.index({ 'address.city': 1 });
+UserSchema.index({ 'memberInfo.registrationNo': 1 }, { sparse: true });
+UserSchema.index({ registrationNumber: 1 }, { sparse: true });
 
 module.exports = mongoose.model('User', UserSchema);

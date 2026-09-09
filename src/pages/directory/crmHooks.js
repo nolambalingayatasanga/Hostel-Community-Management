@@ -256,3 +256,34 @@ export function useLeadMutations() {
 
   return { update, updateField, createLead, deleteLead };
 }
+
+// Hook to fetch user's saved table layouts across all tabs
+export function useTabLayouts() {
+  return useQuery(["crm-table-layouts"], async () => {
+    const response = await API.get("/crm/layouts");
+    return response.data.data;
+  }, {
+    staleTime: 60000,
+    keepPreviousData: true
+  });
+}
+
+// Hook to persist individual tab column order and visibility to the backend
+export function useTabLayoutMutations() {
+  const queryClient = useQueryClient();
+
+  const saveTabLayout = useMutation(
+    async ({ tabId, columnOrder, hiddenColumns }) => {
+      const response = await API.put(`/crm/layouts/${tabId}`, { columnOrder, hiddenColumns });
+      return response.data.data;
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(["crm-table-layouts"]);
+        queryClient.invalidateQueries(crmKeys.metadata);
+      },
+    }
+  );
+
+  return { saveTabLayout };
+}

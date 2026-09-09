@@ -7,8 +7,10 @@ export const INTERNAL_SLUGS = {
   GENDER: "gender",
   JOINING_DATE: "joiningdate",
   ADHAAR: "adhaar",
+  SL_NO: "slNo",
   REGISTRATION_NUMBER: "registrationNumber",
   LOCAL_LANGUAGE_DETAILS: "localLanguageDetails",
+  RECEIPT_NO: "receiptNo",
   STREET: "address.street",
   AREA: "address.area",
   LANDMARK: "address.landmark",
@@ -33,26 +35,29 @@ export const INTERNAL_SLUGS = {
 };
 
 export const columnWidth = (field) => {
-  if (field.slug === INTERNAL_SLUGS.NAME) return 220;
-  if (field.slug === INTERNAL_SLUGS.EMAIL) return 260;
-  if (field.slug === INTERNAL_SLUGS.PHONE) return 210;
-  if (field.slug === INTERNAL_SLUGS.ROLE) return 170;
-  if (field.slug === INTERNAL_SLUGS.STATUS) return 200;
-  if (field.slug === INTERNAL_SLUGS.GENDER) return 130;
-  if (field.slug === INTERNAL_SLUGS.JOINING_DATE) return 160;
-  if (field.slug === INTERNAL_SLUGS.ADHAAR) return 190;
-  if (field.slug === INTERNAL_SLUGS.REGISTRATION_NUMBER) return 190;
-  if (field.slug === INTERNAL_SLUGS.LOCAL_LANGUAGE_DETAILS) return 260;
-  if (field.slug?.endsWith("street")) return 180;
-  if (field.slug?.endsWith("area")) return 150;
-  if (field.slug?.endsWith("landmark")) return 150;
-  if (field.slug?.endsWith("location")) return 180;
-  if (field.slug?.endsWith("city")) return 130;
-  if (field.slug?.endsWith("district")) return 130;
-  if (field.slug?.endsWith("taluk")) return 130;
-  if (field.slug?.endsWith("pincode")) return 100;
-  if (field.slug?.includes("address")) return 300;
-  if (field.slug?.includes("college") || field.slug?.includes("organization") || field.slug?.includes("institution")) return 220;
+  const slug = (field.slug || "").toLowerCase();
+  if (slug === "name") return 220;
+  if (slug === "email") return 260;
+  if (slug === "phone") return 210;
+  if (slug === "role") return 170;
+  if (slug === "status") return 200;
+  if (slug === "gender") return 130;
+  if (slug === "joiningdate") return 160;
+  if (slug === "adhaar") return 190;
+  if (slug === "slno") return 100;
+  if (slug === "registrationnumber") return 190;
+  if (slug === "receiptno") return 150;
+  if (slug === "locallanguagedetails") return 320;
+  if (slug.endsWith("street")) return 260;
+  if (slug.endsWith("area")) return 150;
+  if (slug.endsWith("landmark")) return 150;
+  if (slug.endsWith("location")) return 180;
+  if (slug.endsWith("city")) return 130;
+  if (slug.endsWith("district")) return 140;
+  if (slug.endsWith("taluk")) return 140;
+  if (slug.endsWith("pincode")) return 100;
+  if (slug.includes("address")) return 300;
+  if (slug.includes("college") || slug.includes("organization") || slug.includes("institution")) return 220;
   return 150;
 };
 
@@ -92,43 +97,73 @@ const formatAddress = (addr) => {
   return parts.join(", ");
 };
 
-export const toRow = (lead) => ({
-  id: String(lead._id || lead.id),
-  raw: lead,
-  name: lead.name,
-  email: lead.email,
-  phone: lead.phone,
-  role: lead.role,
-  statusId: refId(lead.status),
-  statusName: lead.status?.name || lead.status || "",
-  gender: lead.gender,
-  joiningDate: lead.joiningDate,
-  profilePhoto: lead.profilePhoto,
-  adhaar: lead.adhaar,
-  registrationNumber: lead.registrationNumber,
-  localLanguageDetails: lead.localLanguageDetails,
-  "address.street": lead.address?.street || "",
-  "address.area": lead.address?.area || "",
-  "address.landmark": lead.address?.landmark || "",
-  "address.location": lead.address?.location || "",
-  "address.city": lead.address?.city || "",
-  "address.district": lead.address?.district || "",
-  "address.taluk": lead.address?.taluk || "",
-  "address.pincode": lead.address?.pincode || "",
-  "education.college": lead.education?.college,
-  "education.course": lead.education?.course,
-  "education.startMonth": lead.education?.startMonth,
-  "education.startYear": lead.education?.startYear,
-  "education.endMonth": lead.education?.endMonth,
-  "education.endYear": lead.education?.endYear,
-  "employment.occupation": lead.employment?.occupation,
-  "employment.organization": lead.employment?.organization,
-  "employment.industry": lead.employment?.industry,
-  "employment.workLocation": lead.employment?.workLocation,
-  "employment.employmentStatus": lead.employment?.employmentStatus,
-  "employment.businessName": lead.employment?.businessName,
-  "employment.businessType": lead.employment?.businessType
-});
+export const toRow = (lead) => {
+  const regNo = lead.registrationNumber || lead.memberInfo?.registrationNo || "";
+  const localDetails = lead.localLanguageDetails || lead.memberInfo?.rawNameAddressKannada || "";
+  const receipt = lead.receiptNo || lead.memberInfo?.receiptNo || "";
+  const slNoVal = lead.memberInfo?.slNo != null ? String(lead.memberInfo.slNo) : "";
+
+  return {
+    id: String(lead._id || lead.id),
+    raw: lead,
+    name: lead.name || "",
+    email: lead.email || "",
+    phone: lead.phone || "",
+    role: lead.role || "",
+    statusId: refId(lead.status),
+    statusName: lead.status?.name || lead.status || "",
+    gender: lead.gender || "",
+    joiningDate: lead.joiningDate || lead.memberInfo?.registeredDate || "",
+    profilePhoto: lead.profilePhoto,
+    adhaar: lead.adhaar || "",
+
+    // Sl No (sequential)
+    slNo: slNoVal,
+    slno: slNoVal,
+
+    // Registration Number
+    registrationNumber: regNo,
+    registrationnumber: regNo,
+
+    // Receipt Number
+    receiptNo: receipt,
+    receiptno: receipt,
+
+    // Local Language (Kannada)
+    localLanguageDetails: localDetails,
+    locallanguagedetails: localDetails,
+
+    "address.street": lead.address?.street || "",
+    "address.area": lead.address?.area || "",
+    "address.landmark": lead.address?.landmark || "",
+    "address.location": lead.address?.location || "",
+    "address.city": lead.address?.city || "",
+    "address.district": lead.address?.district || lead.memberInfo?.sourceSheet?.replace(/-\d+$/, '') || "",
+    "address.taluk": lead.address?.taluk || "",
+    "address.pincode": lead.address?.pincode || "",
+    "education.college": lead.education?.college || "",
+    "education.course": lead.education?.course || "",
+    "education.startMonth": lead.education?.startMonth,
+    "education.startmonth": lead.education?.startMonth,
+    "education.startYear": lead.education?.startYear,
+    "education.startyear": lead.education?.startYear,
+    "education.endMonth": lead.education?.endMonth,
+    "education.endmonth": lead.education?.endMonth,
+    "education.endYear": lead.education?.endYear,
+    "education.endyear": lead.education?.endYear,
+    "employment.occupation": lead.employment?.occupation || "",
+    "employment.organization": lead.employment?.organization || "",
+    "employment.industry": lead.employment?.industry || "",
+    "employment.workLocation": lead.employment?.workLocation || "",
+    "employment.worklocation": lead.employment?.workLocation || "",
+    "employment.employmentStatus": lead.employment?.employmentStatus || "",
+    "employment.employmentstatus": lead.employment?.employmentStatus || "",
+    "employment.businessName": lead.employment?.businessName || "",
+    "employment.businessname": lead.employment?.businessName || "",
+    "employment.businessType": lead.employment?.businessType || "",
+    "employment.businesstype": lead.employment?.businessType || ""
+  };
+};
 
 export const formatLeadDate = (value) => {
   if (!value) return "";
@@ -140,3 +175,48 @@ export const formatLeadDate = (value) => {
     year: "numeric",
   });
 };
+
+export const formatLeadDateTime = (value) => {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  
+  const day = String(d.getDate()).padStart(2, "0");
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"];
+  const month = months[d.getMonth()] || "Jan";
+  const year = d.getFullYear();
+  
+  const hours = d.getHours();
+  const minutes = d.getMinutes();
+  const pad = (n) => String(n).padStart(2, "0");
+  
+  const ampm = hours >= 12 ? "pm" : "am";
+  const h12 = hours % 12 || 12;
+  const timeStr = `${pad(h12)}:${pad(minutes)} ${ampm}`;
+  
+  return `${day} ${month} ${year}, ${timeStr}`;
+};
+
+export const isFieldNonEditable = (field) => {
+  if (!field) return false;
+  const slug = (field.slug || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const name = (field.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  
+  const nonEditableKeys = [
+    "joiningdate",
+    "registereddate",
+    "joindate",
+    "registrationnumber",
+    "registrationno",
+    "regno",
+    "receiptno",
+    "receiptnumber",
+    "slno",
+    "serialno",
+  ];
+  
+  return nonEditableKeys.some(
+    (key) => slug.includes(key) || name.includes(key) || slug === key || name === key
+  );
+};
+

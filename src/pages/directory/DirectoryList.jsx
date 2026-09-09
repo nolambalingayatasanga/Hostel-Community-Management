@@ -22,9 +22,19 @@ import {
   Settings as SettingsIcon,
   Download as DownloadIcon,
   Search as SearchIcon,
+  ChevronLeft as ChevronLeftIcon,
+  ChevronRight as ChevronRightIcon,
 } from "@mui/icons-material";
 
-import { useCrmMeta, useLeads, useLeadMutations, useCustomFieldMutations, useStatusGroupMutations } from "./crmHooks";
+import {
+  useCrmMeta,
+  useLeads,
+  useLeadMutations,
+  useCustomFieldMutations,
+  useStatusGroupMutations,
+  useTabLayouts,
+  useTabLayoutMutations
+} from "./crmHooks";
 import LeadCell from "./LeadCell";
 import AddLeadDialog from "./AddLeadDialog";
 import LeadDetailsDialog from "./LeadDetailsDialog";
@@ -45,6 +55,8 @@ export default function DirectoryList() {
   const { update, updateField, createLead } = useLeadMutations();
   const { saveLayout } = useCustomFieldMutations();
   const { reorderGroups } = useStatusGroupMutations();
+  const { saveTabLayout } = useTabLayoutMutations();
+  const tabLayoutsQuery = useTabLayouts();
 
   const [activeTabId, setActiveTabId] = useState(ALL_TAB);
   const [searchTerm, setSearchTerm] = useState("");
@@ -80,78 +92,66 @@ export default function DirectoryList() {
   };
 
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [addOpen, setAddOpen] = useState(false);
   const [editingCell, setEditingCell] = useState(null);
   const [detailLead, setDetailLead] = useState(null);
   const [columnsOpen, setColumnsOpen] = useState(false);
-  const [dragOrder, setDragOrder] = useState(null);
-  const [accumulatedLeads, setAccumulatedLeads] = useState([]);
+  const getStoredTabColumnOrder = (userId, tabId) => {
+    try {
+      const raw = localStorage.getItem(`tab_col_order_${userId || "default"}_${tabId}`);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const getStoredTabHiddenCols = (userId, tabId) => {
+    try {
+      const raw = localStorage.getItem(`tab_col_hidden_${userId || "default"}_${tabId}`);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const [tabColOrders, setTabColOrders] = useState({});
+  const [tabHiddenCols, setTabHiddenCols] = useState({});
   const scrollContainerRef = useRef(null);
   const [joinDateMin, setJoinDateMin] = useState(null);
   const [joinDateMax, setJoinDateMax] = useState(null);
 
-  // Define rows first to avoid reference before initialization in columns calculation
-  const filteredLeads = useMemo(() => {
-    return (accumulatedLeads || []).filter((lead) => {
-      if (user?.role === "STUDENT") {
-        return !["ADMIN", "CHAIRPERSON"].includes(lead.role);
-      }
-      return true;
-    });
-  }, [accumulatedLeads, user?.role]);
-
-  const rows = useMemo(() => (filteredLeads || []).map(toRow), [filteredLeads]);
-
-  const columns = useMemo(() => {
-    const allFields = (meta.data?.customFields || [])
-      .filter((f) => f.isVisible)
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-
-    const ordered = dragOrder
-      ? dragOrder
-        .map((id) => allFields.find((f) => String(f._id) === id))
-        .filter(Boolean)
-      : allFields;
-
-    // Only show education fields in Students and Alumni status groups
-    const activeGroup = (meta.data?.statusGroups || []).find(
-      (g) => String(g._id) === activeTabId
-    );
-    const activeGroupName = activeGroup ? activeGroup.name.toLowerCase() : "";
-    const showEducation = activeGroupName === "students" || activeGroupName === "alumni";
-
-    const filtered = ordered.filter((field) => {
-      if (field.slug && field.slug.startsWith("education.")) {
-        return showEducation;
-      }
-      return true;
-    });
-
-    return filtered.map((field) => {
-      // Find the longest text value in this column across all rows
-      let maxLength = field.name.length;
-      rows.forEach(row => {
-        let val = "";
-        if (field.isInternal) {
-          val = row[field.slug];
-          if (field.slug === "dateOfBirth" && val) {
-            val = formatLeadDate(val);
+  // Initialize tab layouts directly from backend MongoDB database
+  useEffect(() => {
+    const backendLayouts = tabLayoutsQuery.data || meta.data?.tableLayouts || [];
+    if (backendLayouts.length > 0) {
+      const orderMap = {};
+      const hiddenMap = {};
+      backendLayouts.forEach(l => {
+        if (l.tabId) {
+          if (l.columnOrder && l.columnOrder.length > 0) {
+            orderMap[l.tabId] = l.columnOrder;
           }
-        } else {
-          val = leadFieldValue(row.raw, field._id);
-        }
-        const strVal = val ? String(val) : "";
-        if (strVal.length > maxLength) {
-          maxLength = strVal.length;
+          if (l.hiddenColumns && l.hiddenColumns.length > 0) {
+            hiddenMap[l.tabId] = l.hiddenColumns;
+          }
         }
       });
-      // Keep all columns same default width, and extend if text length is more
-      const defaultWidth = 180;
-      const calculatedWidth = Math.max(defaultWidth, maxLength * 9 + 48);
+      setTabColOrders(prev => ({ ...prev, ...orderMap }));
+      setTabHiddenCols(prev => ({ ...prev, ...hiddenMap }));
+    }
+  }, [tabLayoutsQuery.data, meta.data?.tableLayouts]);
 
-      return { ...field, width: calculatedWidth };
-    });
-  }, [meta.data?.customFields, dragOrder, rows, activeTabId, meta.data?.statusGroups]);
+  useEffect(() => {
+    const savedOrder = getStoredTabColumnOrder(user?._id, activeTabId);
+    const savedHidden = getStoredTabHiddenCols(user?._id, activeTabId);
+    if (savedOrder && !tabColOrders[activeTabId]) {
+      setTabColOrders((prev) => ({ ...prev, [activeTabId]: savedOrder }));
+    }
+    if (savedHidden && !tabHiddenCols[activeTabId]) {
+      setTabHiddenCols((prev) => ({ ...prev, [activeTabId]: savedHidden }));
+    }
+  }, [activeTabId, user?._id]);
 
   const filters = useMemo(() => {
     const next = {};
@@ -168,23 +168,92 @@ export default function DirectoryList() {
   const queryParams = useMemo(
     () => ({
       page,
-      limit: 25,
+      limit: pageSize,
       filters: JSON.stringify(filters),
       searchQuery: debouncedSearch || undefined,
     }),
-    [page, filters, debouncedSearch],
+    [page, pageSize, filters, debouncedSearch],
   );
 
   const { data, isLoading, isFetching, isError, error } = useLeads(queryParams);
 
+  const leads = useMemo(() => data?.leads || data?.data || [], [data?.leads, data?.data]);
+
+  const rows = useMemo(() => leads.map(toRow), [leads]);
+
+  const columns = useMemo(() => {
+    const allFields = meta.data?.customFields || [];
+    const activeOrder = tabColOrders[activeTabId] || getStoredTabColumnOrder(user?._id, activeTabId);
+    const activeHidden = tabHiddenCols[activeTabId] || getStoredTabHiddenCols(user?._id, activeTabId) || [];
+
+    const visibleFields = allFields.filter((f) => {
+      if (activeHidden.includes(String(f._id))) return false;
+      return f.isVisible !== false;
+    });
+
+    let ordered;
+    if (activeOrder && activeOrder.length > 0) {
+      const orderMap = new Map(activeOrder.map((id, index) => [String(id), index]));
+      ordered = [...visibleFields].sort((a, b) => {
+        const idxA = orderMap.has(String(a._id)) ? orderMap.get(String(a._id)) : 9999 + (a.order ?? 0);
+        const idxB = orderMap.has(String(b._id)) ? orderMap.get(String(b._id)) : 9999 + (b.order ?? 0);
+        return idxA - idxB;
+      });
+    } else {
+      ordered = [...visibleFields].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    }
+
+    // Only show education fields in Students and Alumni status groups
+    const activeGroup = (meta.data?.statusGroups || []).find(
+      (g) => String(g._id) === activeTabId
+    );
+    const activeGroupName = activeGroup ? activeGroup.name.toLowerCase() : "";
+    const showEducation = activeGroupName === "students" || activeGroupName === "alumni";
+
+    const filtered = ordered.filter((field) => {
+      if (field.slug && field.slug.startsWith("education.")) {
+        return showEducation;
+      }
+      return true;
+    });
+
+    return filtered.map((field) => {
+      let maxLength = field.name.length;
+      rows.forEach(row => {
+        let val = "";
+        if (field.isInternal) {
+          val = row[field.slug];
+          if (field.slug === "dateOfBirth" && val) {
+            val = formatLeadDate(val);
+          }
+        } else {
+          val = leadFieldValue(row.raw, field._id);
+        }
+        const strVal = val ? String(val) : "";
+        if (strVal.length > maxLength) {
+          maxLength = strVal.length;
+        }
+      });
+      const defaultWidth = 180;
+      const calculatedWidth = Math.max(defaultWidth, maxLength * 9 + 48);
+
+      return { ...field, width: calculatedWidth };
+    });
+  }, [meta.data?.customFields, tabColOrders, tabHiddenCols, rows, activeTabId, meta.data?.statusGroups, user?._id]);
+
   useEffect(() => {
     setPage(1);
-    setAccumulatedLeads([]);
     setEditingCell(null);
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = 0;
     }
-  }, [activeTabId, debouncedSearch, joinDateMin, joinDateMax]);
+  }, [activeTabId, debouncedSearch, joinDateMin, joinDateMax, pageSize]);
+
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
+  }, [page]);
 
   useEffect(() => {
     const isPrivileged = ["ADMIN", "CHAIRPERSON"].includes(user?.role);
@@ -226,30 +295,8 @@ export default function DirectoryList() {
     return list;
   }, [meta.data?.statusGroups, user?.role, tabOrder]);
 
-  useEffect(() => {
-    if (data?.leads) {
-      if (page === 1) {
-        setAccumulatedLeads(data.leads);
-      } else {
-        setAccumulatedLeads((prev) => {
-          const existingIds = new Set(prev.map((item) => String(item._id || item.id)));
-          const newLeads = data.leads.filter((item) => !existingIds.has(String(item._id || item.id)));
-          return [...prev, ...newLeads];
-        });
-      }
-    }
-  }, [data?.leads, page]);
   const totalLeads = data?.totalLeads ?? 0;
-  const totalPages = data?.totalPages ?? 1;
-
-  const handleScroll = (e) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.target;
-    if (scrollHeight - scrollTop - clientHeight < 50) {
-      if (page < totalPages && !isFetching && !isLoading) {
-        setPage((prev) => prev + 1);
-      }
-    }
-  };
+  const totalPages = data?.totalPages ?? Math.max(1, Math.ceil(totalLeads / pageSize));
 
   const reorder = (list, startIndex, endIndex) => {
     const result = Array.from(list);
@@ -261,20 +308,30 @@ export default function DirectoryList() {
   const handleColumnDragEnd = (result) => {
     if (!result.destination) return;
 
+    const currentIds = columns.map((c) => String(c._id));
     const nextIds = reorder(
-      columns.map((c) => String(c._id)),
+      currentIds,
       result.source.index,
       result.destination.index,
     );
-    setDragOrder(nextIds);
 
-    const visibleSet = new Set(nextIds);
-    const byId = new Map((meta.data?.customFields || []).map((f) => [String(f._id), f]));
-    const ordered = [
-      ...nextIds.map((id) => byId.get(id)).filter(Boolean),
-      ...(meta.data?.customFields || []).filter((f) => !visibleSet.has(String(f._id))),
-    ];
-    saveLayout.mutate(ordered.map((field, index) => ({ ...field, order: index })));
+    // Optimistic UI update
+    setTabColOrders((prev) => ({ ...prev, [activeTabId]: nextIds }));
+
+    // Persist to MongoDB backend database
+    saveTabLayout.mutate({
+      tabId: activeTabId,
+      columnOrder: nextIds,
+      hiddenColumns: tabHiddenCols[activeTabId] || []
+    });
+
+    // Save local cache fallback
+    try {
+      localStorage.setItem(
+        `tab_col_order_${user?._id || "default"}_${activeTabId}`,
+        JSON.stringify(nextIds),
+      );
+    } catch { /* ignore */ }
   };
 
   const handleTabDragEnd = (result) => {
@@ -609,7 +666,6 @@ export default function DirectoryList() {
         {/* Spreadsheet Data Grid */}
         <Box
           ref={scrollContainerRef}
-          onScroll={handleScroll}
           sx={{
             width: "100%",
             overflowX: "auto",
@@ -649,7 +705,7 @@ export default function DirectoryList() {
                       sx={{ alignItems: "center" }}
                     >
                       {columns.map((col, index) => (
-                        <Draggable key={String(col._id)} draggableId={String(col._id)} index={index} isDragDisabled={activeTabId === ALL_TAB}>
+                        <Draggable key={String(col._id)} draggableId={String(col._id)} index={index}>
                           {(dragProvided, snapshot) => (
                             <Box
                               ref={dragProvided.innerRef}
@@ -797,6 +853,7 @@ export default function DirectoryList() {
                             onStopEdit={() => setEditingCell(null)}
                             onChangeRef={handleChangeRef}
                             onChangeField={handleChangeField}
+                            onOpenProfile={() => setDetailLead(row)}
                           />
                         );
                       })}
@@ -810,39 +867,142 @@ export default function DirectoryList() {
           </Box>
         </Box>
 
-        {/* Loading Progress - Bottom Skeleton Row for Pagination */}
-        {isFetching && rows.length > 0 && (
-          <Stack
-            direction="row"
-            sx={{
-              minHeight: 64,
-              py: 1,
-              alignItems: "center",
-      
-              width: "max-content",
-              minWidth: "100%",
-              backgroundColor: "#FFFFFF"
-            }}
-          >
-            <Box sx={{ width: 60, minWidth: 60, flexShrink: 0, px: 1, display: "flex", justifyContent: "center" }}>
-              <Skeleton variant="circular" width={40} height={40} />
-            </Box>
-            <Stack direction="row" sx={{ alignItems: "center" }}>
-              {columns.map((col) => (
-                <Box key={col._id} sx={{ width: col.width, minWidth: col.width === "auto" ? 140 : col.width, flexShrink: 0, px: 2 }}>
-                  <Skeleton variant="rounded" height={32} sx={{ width: col.width === "auto" ? "120px" : "90%", borderRadius: "8px" }} />
-                </Box>
-              ))}
-            </Stack>
-          </Stack>
-        )}
+        {/* Table Pagination Controls Footer */}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            px: 3,
+            py: 1.5,
+            borderTop: "1px solid #EAECF0",
+            backgroundColor: "#FFFFFF",
+            gap: 3,
+            flexWrap: "wrap"
+          }}
+        >
+          {/* Rows per page selector */}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography variant="body2" sx={{ color: "#475467", fontSize: "0.875rem" }}>
+              Rows per page:
+            </Typography>
+            <Select
+              size="small"
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
+              variant="standard"
+              disableUnderline
+              sx={{
+                fontSize: "0.875rem",
+                fontWeight: 500,
+                color: "#344054",
+                "& .MuiSelect-select": {
+                  py: 0.5,
+                  pr: "20px !important",
+                  pl: 0.5
+                },
+                "& .MuiSvgIcon-root": {
+                  fontSize: 18,
+                  color: "#667085"
+                }
+              }}
+            >
+              <MenuItem value={25}>25</MenuItem>
+              <MenuItem value={50}>50</MenuItem>
+              <MenuItem value={100}>100</MenuItem>
+            </Select>
+          </Box>
+
+          {/* Range count text */}
+          <Typography variant="body2" sx={{ color: "#344054", fontSize: "0.875rem", fontWeight: 500 }}>
+            {totalLeads === 0
+              ? "0-0 of 0"
+              : `${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, totalLeads)} of ${totalLeads}`}
+          </Typography>
+
+          {/* Prev / Next buttons */}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <IconButton
+              size="small"
+              disabled={page <= 1 || isFetching}
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              sx={{
+                width: 32,
+                height: 32,
+                borderRadius: "6px",
+                border: "1px solid #D0D5DD",
+                color: "#344054",
+                "&:disabled": {
+                  borderColor: "#EAECF0",
+                  color: "#D0D5DD"
+                },
+                "&:hover:not(:disabled)": {
+                  backgroundColor: "#F9FAFB",
+                  borderColor: "#D0D5DD"
+                }
+              }}
+            >
+              <ChevronLeftIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+
+            <IconButton
+              size="small"
+              disabled={page >= totalPages || isFetching}
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              sx={{
+                width: 32,
+                height: 32,
+                borderRadius: "6px",
+                border: "1px solid #D0D5DD",
+                color: "#344054",
+                "&:disabled": {
+                  borderColor: "#EAECF0",
+                  color: "#D0D5DD"
+                },
+                "&:hover:not(:disabled)": {
+                  backgroundColor: "#F9FAFB",
+                  borderColor: "#D0D5DD"
+                }
+              }}
+            >
+              <ChevronRightIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Box>
+        </Box>
       </Card>
+
+
 
       {/* Choose Columns drawer panel */}
       <ColumnSelectorPanel
         open={columnsOpen}
         onClose={() => setColumnsOpen(false)}
         customFields={meta.data?.customFields || []}
+        activeTabId={activeTabId}
+        activeTabName={allStatusGroups.find(g => String(g._id) === activeTabId)?.name || "Members"}
+        currentTabOrder={tabColOrders[activeTabId] || getStoredTabColumnOrder(user?._id, activeTabId)}
+        currentTabHidden={tabHiddenCols[activeTabId] || getStoredTabHiddenCols(user?._id, activeTabId)}
+        onSaveTabLayout={(tabId, newOrder, hiddenList) => {
+          // Optimistic UI update
+          setTabColOrders(prev => ({ ...prev, [tabId]: newOrder }));
+          setTabHiddenCols(prev => ({ ...prev, [tabId]: hiddenList }));
+
+          // Persist to MongoDB backend database
+          saveTabLayout.mutate({
+            tabId,
+            columnOrder: newOrder,
+            hiddenColumns: hiddenList
+          });
+
+          // Save local cache fallback
+          try {
+            localStorage.setItem(`tab_col_order_${user?._id || "default"}_${tabId}`, JSON.stringify(newOrder));
+            localStorage.setItem(`tab_col_hidden_${user?._id || "default"}_${tabId}`, JSON.stringify(hiddenList));
+          } catch { /* ignore */ }
+        }}
         canManage={true}
       />
 

@@ -2,6 +2,7 @@ const CustomField = require('../models/CustomField');
 const StatusGroup = require('../models/StatusGroup');
 const Status = require('../models/Status');
 const User = require('../models/User');
+const TableLayout = require('../models/TableLayout');
 
 /**
  * Fetch all crm metadata including columns, groups, statuses, and assignees
@@ -15,6 +16,7 @@ exports.getMetadata = async (req, res, next) => {
     }).sort({ order: 1 });
     const statuses = await Status.find({}).sort({ order: 1 });
     const agents = await User.find({ role: { $in: ['ADMIN', 'CHAIRPERSON', 'STAFF'] } }, 'name email phone role');
+    const tableLayouts = req.user ? await TableLayout.find({ user: req.user._id }) : [];
 
     res.status(200).json({
       success: true,
@@ -23,7 +25,8 @@ exports.getMetadata = async (req, res, next) => {
         statusGroups,
         statuses,
         teams: [],
-        agents
+        agents,
+        tableLayouts
       }
     });
   } catch (err) {
@@ -257,6 +260,47 @@ exports.orderStatuses = async (req, res, next) => {
     }
 
     res.status(200).json({ success: true, message: 'Statuses reordered.' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Get all saved table layouts for the logged-in user
+ */
+exports.getTabLayouts = async (req, res, next) => {
+  try {
+    const layouts = await TableLayout.find({ user: req.user._id });
+    res.status(200).json({ success: true, data: layouts });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Save or update table column layout (order & hidden columns) for a specific tab
+ */
+exports.saveTabLayout = async (req, res, next) => {
+  try {
+    const { tabId } = req.params;
+    const { columnOrder, hiddenColumns } = req.body;
+
+    if (!tabId) {
+      return res.status(400).json({ success: false, message: 'tabId is required' });
+    }
+
+    const updated = await TableLayout.findOneAndUpdate(
+      { user: req.user._id, tabId },
+      {
+        user: req.user._id,
+        tabId,
+        columnOrder: columnOrder || [],
+        hiddenColumns: hiddenColumns || []
+      },
+      { new: true, upsert: true }
+    );
+
+    res.status(200).json({ success: true, data: updated });
   } catch (err) {
     next(err);
   }

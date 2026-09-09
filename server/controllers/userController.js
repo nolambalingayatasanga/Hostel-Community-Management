@@ -53,6 +53,11 @@ exports.getUsers = async (req, res, next) => {
         { name: searchRegex },
         { email: searchRegex },
         { phone: searchRegex },
+        { registrationNumber: searchRegex },
+        { receiptNo: searchRegex },
+        { localLanguageDetails: searchRegex },
+        { adhaar: searchRegex },
+        { 'memberInfo.registrationNo': searchRegex },
         { 'education.college': searchRegex },
         { 'education.course': searchRegex },
         { 'employment.occupation': searchRegex },
@@ -67,6 +72,11 @@ exports.getUsers = async (req, res, next) => {
         { 'address.pincode': searchRegex },
         { 'lead_data.value': searchRegex } // Custom field values search support
       ];
+    }
+
+    // Student privacy filter on backend
+    if (req.user?.role === 'STUDENT' && !role) {
+      query.role = { $nin: ['ADMIN', 'CHAIRPERSON'] };
     }
 
     // 2. Direct Filters

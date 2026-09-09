@@ -101,8 +101,13 @@ export default function LeadDetailsDialog({ open, onClose, lead, customFields })
                     </Typography>
                     <DetailRow label="Gender" value={lead.gender} />
                     <DetailRow label="Adhaar" value={lead.raw?.adhaar} />
-                    {lead.role !== 'STUDENT' && <DetailRow label="Reg Number" value={lead.raw?.registrationNumber} />}
-                    <DetailRow label="Local Details" value={lead.raw?.localLanguageDetails} />
+                    {lead.role !== 'STUDENT' && <DetailRow label="Reg Number" value={lead.raw?.registrationNumber || lead.raw?.memberInfo?.registrationNo} />}
+                    {lead.raw?.receiptNo || lead.raw?.memberInfo?.receiptNo ? <DetailRow label="Receipt No" value={lead.raw?.receiptNo || lead.raw?.memberInfo?.receiptNo} /> : null}
+                    {lead.raw?.memberInfo?.slNo ? <DetailRow label="SL NO" value={lead.raw?.memberInfo?.slNo} /> : null}
+                    {lead.raw?.relation?.relatedPersonName ? (
+                      <DetailRow label="Relation" value={`${lead.raw.relation.relationshipType || ''} ${lead.raw.relation.relatedPersonName}`} />
+                    ) : null}
+                    <DetailRow label="Local Details" value={lead.raw?.localLanguageDetails || lead.raw?.memberInfo?.rawNameAddressKannada} />
                   </Grid>
 
                   {/* Education info */}
