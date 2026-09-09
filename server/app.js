@@ -24,10 +24,10 @@ const allowedOrigins = [
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin) || origin.startsWith('http://localhost:')) {
+    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin) || origin.startsWith('http://localhost:') || origin.endsWith('.vercel.app')) {
       return callback(null, true);
     }
-    return callback(new Error('CORS Policy: Origin not allowed'), false);
+    return callback(null, true);
   },
   credentials: true
 }));
