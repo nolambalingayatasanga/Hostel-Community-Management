@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import AuthLayout from '../../layouts/AuthLayout';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
+dayjs.extend(customParseFormat);
+
 import {
   Box,
   Card,
@@ -18,7 +21,8 @@ import {
   IconButton,
   Divider,
   Stack,
-  Chip
+  Chip,
+  Autocomplete
 } from '@mui/material';
 import {
   PersonOutlined as PersonIcon,
@@ -31,7 +35,6 @@ import {
   VisibilityOff as VisibilityOffIcon,
   SchoolOutlined as StudentIcon,
   SupervisorAccountOutlined as MemberIcon,
-  PersonAddOutlined as RegisterIcon,
   ArrowBack as ArrowBackIcon,
   ArrowForward as ArrowForwardIcon,
   AccountBalanceOutlined as CollegeIcon
@@ -39,9 +42,74 @@ import {
 
 const DRAFT_KEY = 'hostel_register_draft';
 
+// Comprehensive list of prominent colleges & universities for suggestions
+const POPULAR_COLLEGES = [
+  'RV College of Engineering (RVCE), Bangalore',
+  'BMS College of Engineering (BMSCE), Bangalore',
+  'M.S. Ramaiah Institute of Technology (MSRIT), Bangalore',
+  'PES University (Ring Road Campus), Bangalore',
+  'PES University (Electronic City Campus), Bangalore',
+  'Dayananda Sagar College of Engineering (DSCE), Bangalore',
+  'Bangalore Institute of Technology (BIT), Bangalore',
+  'University Visvesvaraya College of Engineering (UVCE), Bangalore',
+  'Siddaganga Institute of Technology (SIT), Tumkur',
+  'Bapuji Institute of Engineering and Technology (BIET), Davangere',
+  'UBDT College of Engineering, Davangere',
+  'Sri Jayachamarajendra College of Engineering (SJCE / JSS STU), Mysuru',
+  'The National Institute of Engineering (NIE), Mysuru',
+  'National Institute of Technology Karnataka (NITK), Surathkal',
+  'Indian Institute of Technology (IIT), Dharwad',
+  'Indian Institute of Science (IISc), Bangalore',
+  'Manipal Institute of Technology (MIT), Manipal',
+  'KLE Technological University (BVBCET), Hubballi',
+  'Basaveshwar Engineering College (BEC), Bagalkot',
+  "BLDE Association's VP Dr. PG Halakatti College of Engineering, Vijayapura",
+  'SDM College of Engineering and Technology, Dharwad',
+  'Malnad College of Engineering (MCE), Hassan',
+  'PDA College of Engineering, Kalaburagi',
+  'Sir M. Visvesvaraya Institute of Technology (SMVIT), Bangalore',
+  'Nitte Meenakshi Institute of Technology (NMIT), Bangalore',
+  'New Horizon College of Engineering, Bangalore',
+  'CMR Institute of Technology (CMRIT), Bangalore',
+  'Oxford College of Engineering, Bangalore',
+  'R.N.S. Institute of Technology (RNSIT), Bangalore',
+  'JSS Academy of Technical Education (JSSATE), Bangalore',
+  'BMS Institute of Technology and Management (BMSIT), Bangalore',
+  'Christ University, Bangalore',
+  "St. Joseph's University, Bangalore",
+  'Mount Carmel College, Bangalore',
+  'Bangalore University (Jnana Bharathi Campus), Bangalore',
+  'Visvesvaraya Technological University (VTU), Belagavi',
+  'Karnatak University, Dharwad',
+  'Mangalore University, Mangalore',
+  'Mysore University (Manasagangotri), Mysuru',
+  'Kuvempu University, Shivamogga',
+  'Gulbarga University, Kalaburagi',
+  'Davangere University, Davangere',
+  'Rani Channamma University, Belagavi',
+  'Bangalore Medical College and Research Institute (BMCRI), Bangalore',
+  'MS Ramaiah Medical College, Bangalore',
+  'Kempegowda Institute of Medical Sciences (KIMS), Bangalore',
+  'St. John\'s Medical College, Bangalore',
+  'JSS Medical College, Mysuru',
+  'Kasturba Medical College (KMC), Manipal',
+  'Kasturba Medical College (KMC), Mangalore',
+  'JJM Medical College, Davangere',
+  'SS Institute of Medical Sciences and Research Centre, Davangere',
+  'SDM College of Medical Sciences, Dharwad',
+  'S.N. Medical College, Bagalkot',
+  'BLDE Shri B.M. Patil Medical College, Vijayapura',
+  'Karnataka Institute of Medical Sciences (KIMS), Hubballi',
+  'Mysore Medical College and Research Institute (MMCRI), Mysuru',
+  'Vijayanagar Institute of Medical Sciences (VIMS), Ballari',
+  'National Law School of India University (NLSIU), Bangalore',
+  'Indian Institute of Management (IIM), Bangalore'
+];
+
 const Register = () => {
   const { register } = useAuth();
   const navigate = useNavigate();
+  const formRef = useRef(null);
 
   // Load initial draft from localStorage to prevent loss on refresh
   const getSavedDraft = () => {
@@ -62,7 +130,7 @@ const Register = () => {
   const [email, setEmail] = useState(initialDraft.email || '');
   const [phone, setPhone] = useState(initialDraft.phone || '');
   const [adhaar, setAdhaar] = useState(initialDraft.adhaar || '');
-  const [dob, setDob] = useState(initialDraft.dob || '');
+  const [dob, setDob] = useState(initialDraft.dob || ''); // stores YYYY-MM-DD
   const [password, setPassword] = useState(initialDraft.password || '');
   const [showPassword, setShowPassword] = useState(false);
 
@@ -108,6 +176,30 @@ const Register = () => {
     return gradYearNum < currentYear ? `Alumni (Class of ${gradYearNum})` : `Student (Expected ${gradYearNum})`;
   }, [role, endYear, currentYear]);
 
+  // Explicit element refs to guarantee seamless Enter-key navigation across all fields
+  const nameRef = useRef(null);
+  const emailRef = useRef(null);
+  const phoneRef = useRef(null);
+  const aadhaarRef = useRef(null);
+  const dobRef = useRef(null);
+  const passwordRef = useRef(null);
+  const collegeRef = useRef(null);
+  const startYearRef = useRef(null);
+  const endYearRef = useRef(null);
+
+  // Dynamic word-predictive filtering for college suggestions (only show when typing)
+  const collegeSuggestions = useMemo(() => {
+    const query = college.trim().toLowerCase();
+    if (!query || query.length < 2) return [];
+    
+    // Score colleges by prefix and word boundary matches
+    return POPULAR_COLLEGES.filter((name) => {
+      const lower = name.toLowerCase();
+      const words = lower.split(/[\s,()/-]+/);
+      return words.some((word) => word.startsWith(query)) || lower.includes(query);
+    }).slice(0, 8); // Top 8 predictive suggestions
+  }, [college]);
+
   // Handle Phone input (prevent negative values & non-digits)
   const handlePhoneChange = (e) => {
     const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 10);
@@ -126,13 +218,25 @@ const Register = () => {
     setAdhaar(formatted);
   };
 
+  // Handle Joining Year manual typing & picker update
+  const handleStartYearChange = (e) => {
+    const digitsOnly = (e.target?.value || '').replace(/\D/g, '').slice(0, 4);
+    setStartYear(digitsOnly);
+  };
+
+  // Handle Graduation Year manual typing & picker update
+  const handleEndYearChange = (e) => {
+    const digitsOnly = (e.target?.value || '').replace(/\D/g, '').slice(0, 4);
+    setEndYear(digitsOnly);
+  };
+
   const handleNextStep = () => {
     setError('');
     setStep(2);
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setError('');
 
     // Common mandatory validations
@@ -140,7 +244,7 @@ const Register = () => {
     if (!email.trim()) { setError('Email Address is mandatory.'); return; }
     if (!phone.trim()) { setError('Phone Number is mandatory.'); return; }
     if (!adhaar.trim()) { setError('Aadhaar Number is mandatory.'); return; }
-    if (!dob) { setError('Date of Birth is mandatory.'); return; }
+    if (!dob) { setError('Date of Birth is mandatory (DD/MM/YYYY).'); return; }
     if (!password) { setError('Password is mandatory.'); return; }
 
     const cleanAdhaar = adhaar.replace(/\s+/g, '');
@@ -157,18 +261,18 @@ const Register = () => {
     // Role-specific validations
     if (role === 'STUDENT' || role === 'ALUMNI') {
       if (!college.trim()) { setError('College / University Name is mandatory.'); return; }
-      if (!startYear) { setError('College Joining Year is mandatory.'); return; }
-      if (!endYear) { setError('College Graduation Year is mandatory.'); return; }
+      if (!startYear || startYear.length !== 4) { setError('Please enter a valid 4-digit Joining Year (e.g. 2022).'); return; }
+      if (!endYear || endYear.length !== 4) { setError('Please enter a valid 4-digit Graduation Year (e.g. 2026).'); return; }
 
       const sYear = parseInt(startYear, 10);
       const eYear = parseInt(endYear, 10);
 
-      if (isNaN(sYear) || sYear < 1950) {
-        setError('Please enter a valid Joining Year.');
+      if (isNaN(sYear) || sYear < 1950 || sYear > currentYear + 1) {
+        setError('Please enter a valid Joining Year (between 1950 and current year).');
         return;
       }
-      if (isNaN(eYear) || eYear < 1950) {
-        setError('Please enter a valid Graduation Year.');
+      if (isNaN(eYear) || eYear < 1950 || eYear > currentYear + 15) {
+        setError('Please enter a valid Graduation Year (e.g. 2026).');
         return;
       }
       if (eYear < sYear) {
@@ -219,7 +323,7 @@ const Register = () => {
         <Card
           sx={{
             width: '100%',
-            maxWidth: { xs: '100%', sm: step === 1 ? 460 : 660, md: step === 1 ? 480 : 720 },
+            maxWidth: { xs: '100%', sm: step === 1 ? 460 : 660, md: step === 1 ? 480 : 740 },
             bgcolor: '#FFFFFF',
             borderRadius: '24px',
             p: { xs: 3, sm: 4, md: 4.5 },
@@ -229,9 +333,7 @@ const Register = () => {
             transition: 'all 0.3s ease'
           }}
         >
-   
-
-          {/* Title & Subtitle */}
+          {/* Title */}
           <Box sx={{ textAlign: 'center', mb: 3 }}>
             <Typography
               variant="h5"
@@ -245,7 +347,6 @@ const Register = () => {
             >
               Create Account
             </Typography>
-        
           </Box>
 
           {error && (
@@ -390,7 +491,7 @@ const Register = () => {
               </Button>
             </Box>
           ) : (
-            /* STEP 2: 2-COLUMN BALANCED CSS GRID FORM */
+            /* STEP 2: 2-COLUMN BALANCED CSS GRID FORM WITH ENTER-KEY NAVIGATION */
             <form onSubmit={handleSubmit}>
               {/* Header with Selected Role & Change Role Action */}
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
@@ -434,11 +535,25 @@ const Register = () => {
                   <TextField
                     fullWidth
                     size="small"
+                    autoFocus
+                    inputRef={nameRef}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        emailRef.current?.focus();
+                      }
+                    }}
                     placeholder="Enter Full Name"
-                    InputProps={{
-                      startAdornment: <InputAdornment position="start"><PersonIcon sx={{ color: '#94A3B8', fontSize: 19 }} /></InputAdornment>,
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <PersonIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                          </InputAdornment>
+                        ),
+                      }
                     }}
                     sx={inputStyle}
                   />
@@ -452,11 +567,24 @@ const Register = () => {
                     fullWidth
                     size="small"
                     type="email"
+                    inputRef={emailRef}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        phoneRef.current?.focus();
+                      }
+                    }}
                     placeholder="Enter Email Address"
-                    InputProps={{
-                      startAdornment: <InputAdornment position="start"><MailIcon sx={{ color: '#94A3B8', fontSize: 19 }} /></InputAdornment>,
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <MailIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                          </InputAdornment>
+                        ),
+                      }
                     }}
                     sx={inputStyle}
                   />
@@ -470,11 +598,25 @@ const Register = () => {
                   <TextField
                     fullWidth
                     size="small"
+                    inputRef={phoneRef}
                     value={phone}
                     onChange={handlePhoneChange}
-                    placeholder="Enter Phone Number"
-                    InputProps={{
-                      startAdornment: <InputAdornment position="start"><PhoneIcon sx={{ color: '#94A3B8', fontSize: 19 }} /></InputAdornment>,
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        aadhaarRef.current?.focus();
+                      }
+                    }}
+                    placeholder="Enter 10-digit Phone Number"
+                    slotProps={{
+                      htmlInput: { inputMode: 'numeric', maxLength: 10 },
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <PhoneIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                          </InputAdornment>
+                        ),
+                      }
                     }}
                     sx={inputStyle}
                   />
@@ -487,22 +629,38 @@ const Register = () => {
                   <TextField
                     fullWidth
                     size="small"
+                    inputRef={aadhaarRef}
                     value={adhaar}
                     onChange={handleAadhaarChange}
-                    placeholder="Enter Aadhaar Number"
-                    InputProps={{
-                      startAdornment: <InputAdornment position="start"><AadhaarIcon sx={{ color: '#94A3B8', fontSize: 19 }} /></InputAdornment>,
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        dobRef.current?.focus();
+                      }
+                    }}
+                    placeholder="XXXX XXXX XXXX"
+                    slotProps={{
+                      htmlInput: { inputMode: 'numeric', maxLength: 14 },
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <AadhaarIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                          </InputAdornment>
+                        ),
+                      }
                     }}
                     sx={inputStyle}
                   />
                 </Box>
 
-                {/* Row 3: Date of Birth (MUI DatePicker) & Password */}
+                {/* Row 3: Date of Birth (DD/MM/YYYY Format) & Password with Toggle Icon */}
                 <Box>
                   <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
                     Date of Birth <span style={{ color: '#EF4444' }}>*</span>
                   </Typography>
                   <DatePicker
+                    format="DD/MM/YYYY"
+                    views={['year', 'month', 'day']}
                     value={dob ? dayjs(dob) : null}
                     onChange={(newValue) => {
                       const formatted = newValue && newValue.isValid() ? newValue.format('YYYY-MM-DD') : '';
@@ -513,14 +671,23 @@ const Register = () => {
                       textField: {
                         fullWidth: true,
                         size: 'small',
-                        placeholder: 'Enter Date of Birth',
+                        inputRef: dobRef,
+                        placeholder: 'DD/MM/YYYY',
+                        onKeyDown: (e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            passwordRef.current?.focus();
+                          }
+                        },
                         sx: inputStyle,
-                        InputProps: {
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <DateIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
-                            </InputAdornment>
-                          ),
+                        slotProps: {
+                          input: {
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <DateIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                              </InputAdornment>
+                            ),
+                          }
                         }
                       }
                     }}
@@ -534,19 +701,40 @@ const Register = () => {
                   <TextField
                     fullWidth
                     size="small"
+                    inputRef={passwordRef}
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        if (role === 'STUDENT' || role === 'ALUMNI') {
+                          e.preventDefault();
+                          collegeRef.current?.focus();
+                        }
+                      }
+                    }}
                     placeholder="Enter Minimum 6 characters"
-                    InputProps={{
-                      startAdornment: <InputAdornment position="start"><LockIcon sx={{ color: '#94A3B8', fontSize: 19 }} /></InputAdornment>,
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton size="small" onClick={() => setShowPassword(!showPassword)} edge="end" sx={{ color: '#94A3B8' }}>
-                            {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
-                          </IconButton>
-                        </InputAdornment>
-                      ),
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <LockIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                          </InputAdornment>
+                        ),
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              size="small"
+                              onClick={() => setShowPassword(!showPassword)}
+                              edge="end"
+                              sx={{ color: '#64748B', p: 0.5 }}
+                              title={showPassword ? "Hide password" : "Show password"}
+                            >
+                              {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      }
                     }}
                     sx={inputStyle}
                   />
@@ -555,36 +743,65 @@ const Register = () => {
                 {/* Student / Alumni Specific Fields */}
                 {(role === 'STUDENT' || role === 'ALUMNI') && (
                   <>
-                    {/* Row 4: College Name (Full Width spanning 2 columns) */}
+                    {/* Row 4: College Name with Predictive Word Completion (Spans 2 columns) */}
                     <Box sx={{ gridColumn: { xs: 'span 1', sm: 'span 2' } }}>
                       <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
                         College / University Name <span style={{ color: '#EF4444' }}>*</span>
                       </Typography>
-                      <TextField
-                        fullWidth
-                        size="small"
+                      <Autocomplete
+                        freeSolo
+                        openOnFocus={false}
+                        options={collegeSuggestions}
                         value={college}
-                        onChange={(e) => setCollege(e.target.value)}
-                        placeholder="Enter College / University Name"
-                        InputProps={{
-                          startAdornment: <InputAdornment position="start"><CollegeIcon sx={{ color: '#94A3B8', fontSize: 19 }} /></InputAdornment>,
+                        onInputChange={(event, newInputValue) => {
+                          setCollege(newInputValue || '');
                         }}
-                        sx={inputStyle}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            fullWidth
+                            size="small"
+                            inputRef={collegeRef}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                startYearRef.current?.focus();
+                              }
+                            }}
+                            placeholder="Type keywords (e.g. RV, BMS, PES, Engi, Bangalore, VTU...)"
+                            slotProps={{
+                              input: {
+                                ...(params.InputProps || {}),
+                                startAdornment: (
+                                  <>
+                                    <InputAdornment position="start">
+                                      <CollegeIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                                    </InputAdornment>
+                                    {params.InputProps?.startAdornment}
+                                  </>
+                                ),
+                              }
+                            }}
+                            sx={inputStyle}
+                          />
+                        )}
                       />
                     </Box>
 
-                    {/* Row 5: Joining Year & Graduation Year (MUI DatePicker Year Views) */}
+                    {/* Row 5: Joining Year & Graduation Year (Direct Typing + Year Picker Icon) */}
                     <Box>
                       <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
                         College Joining Year <span style={{ color: '#EF4444' }}>*</span>
                       </Typography>
                       <DatePicker
                         views={['year']}
+                        openTo="year"
                         format="YYYY"
                         value={startYear ? dayjs(`${startYear}-01-01`) : null}
                         onChange={(newValue) => {
-                          const y = newValue && newValue.isValid() ? newValue.format('YYYY') : '';
-                          setStartYear(y);
+                          if (newValue && newValue.isValid()) {
+                            setStartYear(newValue.format('YYYY'));
+                          }
                         }}
                         minDate={dayjs('1950-01-01')}
                         maxDate={dayjs().add(5, 'year')}
@@ -592,8 +809,20 @@ const Register = () => {
                           textField: {
                             fullWidth: true,
                             size: 'small',
+                            inputRef: startYearRef,
                             placeholder: 'e.g. 2022',
-                            sx: inputStyle
+                            onChange: handleStartYearChange,
+                            onKeyDown: (e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                endYearRef.current?.focus();
+                              }
+                            },
+                            sx: inputStyle,
+                            slotProps: {
+                              htmlInput: { inputMode: 'numeric', maxLength: 4 },
+                            
+                            }
                           }
                         }}
                       />
@@ -605,11 +834,13 @@ const Register = () => {
                       </Typography>
                       <DatePicker
                         views={['year']}
+                        openTo="year"
                         format="YYYY"
                         value={endYear ? dayjs(`${endYear}-01-01`) : null}
                         onChange={(newValue) => {
-                          const y = newValue && newValue.isValid() ? newValue.format('YYYY') : '';
-                          setEndYear(y);
+                          if (newValue && newValue.isValid()) {
+                            setEndYear(newValue.format('YYYY'));
+                          }
                         }}
                         minDate={dayjs('1950-01-01')}
                         maxDate={dayjs().add(15, 'year')}
@@ -617,8 +848,19 @@ const Register = () => {
                           textField: {
                             fullWidth: true,
                             size: 'small',
+                            inputRef: endYearRef,
                             placeholder: 'e.g. 2026',
-                            sx: inputStyle
+                            onChange: handleEndYearChange,
+                            onKeyDown: (e) => {
+                              if (e.key === 'Enter') {
+                                handleSubmit(e);
+                              }
+                            },
+                            sx: inputStyle,
+                            slotProps: {
+                              htmlInput: { inputMode: 'numeric', maxLength: 4 },
+                           
+                            }
                           }
                         }}
                       />
@@ -700,3 +942,4 @@ const Register = () => {
 };
 
 export default Register;
+

@@ -78,16 +78,19 @@ app.use('/api/events', eventRoutes);
 app.use('/api/gallery', galleryRoutes);
 app.use('/api/crm', crmRoutes);
 
-// Health check endpoint
+// Health check endpoints
 app.get('/health', (req, res) => {
+  res.status(200).json({ success: true, message: 'Backend is running fine' });
+});
+app.get('/api/health', (req, res) => {
   res.status(200).json({ success: true, message: 'Backend is running fine' });
 });
 
 // Serve static uploads if using local fallback storage
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Catch-all route not found handler
-app.use('*', (req, res, next) => {
+// Catch-all route not found handler (Express 5 compatible)
+app.use((req, res, next) => {
   const error = new Error(`Cannot find ${req.originalUrl} on this server`);
   error.statusCode = 404;
   next(error);

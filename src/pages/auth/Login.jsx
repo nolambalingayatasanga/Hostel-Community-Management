@@ -195,17 +195,19 @@ const Login = () => {
               value={loginIdentifier}
               onChange={(e) => setLoginIdentifier(e.target.value)}
               autoComplete="username"
-                placeholder="Enter email, phone or Adhaar"
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    {isAadhaarOrNumeric ? (
-                      <AadhaarIcon sx={{ color: '#1877F2', fontSize: 19 }} />
-                    ) : (
-                      <MailIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
-                    )}
-                  </InputAdornment>
-                ),
+              placeholder="Enter email, phone or Adhaar"
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      {isAadhaarOrNumeric ? (
+                        <AadhaarIcon sx={{ color: '#1877F2', fontSize: 19 }} />
+                      ) : (
+                        <MailIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                      )}
+                    </InputAdornment>
+                  ),
+                }
               }}
               sx={{
                 '& .MuiOutlinedInput-root': {
@@ -243,24 +245,26 @@ const Login = () => {
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
               placeholder="Enter your password"
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <LockOutlineIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
-                  </InputAdornment>
-                ),
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      size="small"
-                      onClick={() => setShowPassword(!showPassword)}
-                      edge="end"
-                      sx={{ color: '#94A3B8' }}
-                    >
-                      {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <LockOutlineIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        onClick={() => setShowPassword(!showPassword)}
+                        edge="end"
+                        sx={{ color: '#94A3B8' }}
+                      >
+                        {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }
               }}
               sx={{
                 '& .MuiOutlinedInput-root': {
