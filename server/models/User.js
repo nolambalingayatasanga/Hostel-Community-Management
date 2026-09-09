@@ -99,6 +99,9 @@ const UserSchema = new mongoose.Schema({
     type: String,
     enum: ['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY']
   },
+  dob: {
+    type: Date
+  },
   adhaar: {
     type: String,
     trim: true,

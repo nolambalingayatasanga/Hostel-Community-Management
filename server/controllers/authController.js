@@ -34,20 +34,31 @@ const createSendToken = (user, statusCode, res) => {
  */
 exports.register = async (req, res, next) => {
   try {
-    const { name, email, phone, password, confirmPassword, role } = req.body;
+    const {
+      name,
+      email,
+      phone,
+      adhaar,
+      dob,
+      password,
+      role,
+      college,
+      startYear,
+      endYear
+    } = req.body;
 
-    // Validation
-    if (!name || !email || !phone || !password || !confirmPassword || !role) {
+    // Validate mandatory common fields
+    if (!name || !email || !phone || !adhaar || !dob || !password || !role) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide name, email, phone, password, confirmPassword, and role.'
+        message: 'All fields (Name, Email, Phone, Aadhaar, Date of Birth, and Password) are mandatory.'
       });
     }
 
-    if (password !== confirmPassword) {
+    if (password.length < 6) {
       return res.status(400).json({
         success: false,
-        message: 'Passwords do not match.'
+        message: 'Password must be at least 6 characters.'
       });
     }
 
@@ -59,54 +70,132 @@ exports.register = async (req, res, next) => {
       });
     }
 
-    // Ensure role is valid
-    let finalRole = role.toUpperCase();
-    if (finalRole === 'ALUMNI') {
-      finalRole = 'STUDENT';
-    }
-    
-    const validRoles = ['MEMBER', 'STUDENT'];
-    if (!validRoles.includes(finalRole)) {
+    // Normalizing email, phone, and adhaar
+    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedPhone = phone.trim().replace(/\s+/g, '');
+    const cleanAdhaar = adhaar.trim().replace(/\s+/g, '');
+
+    if (cleanAdhaar.length !== 12 || !/^\d{12}$/.test(cleanAdhaar)) {
       return res.status(400).json({
         success: false,
-        message: `Invalid role selected. Options: ${validRoles.join(', ')}`
+        message: 'Please provide a valid 12-digit Aadhaar number.'
       });
     }
 
-    // Normalizing email and phone
-    const normalizedEmail = email.toLowerCase().trim();
-    const normalizedPhone = phone.trim();
+    // Determine final role & education fields
+    let finalRole = role.toUpperCase();
+    const educationData = {};
 
-    // Check if user already exists
+    if (finalRole === 'STUDENT' || finalRole === 'ALUMNI') {
+      if (!college || !startYear || !endYear) {
+        return res.status(400).json({
+          success: false,
+          message: 'College Name, Joining Year, and Graduation Year are mandatory for Student/Alumni registration.'
+        });
+      }
+
+      const currentYear = new Date().getFullYear();
+      const gradYearNum = parseInt(endYear, 10);
+      const startYearNum = parseInt(startYear, 10);
+
+      if (isNaN(gradYearNum) || isNaN(startYearNum)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please provide valid 4-digit years for Joining and Graduation Year.'
+        });
+      }
+
+      // If graduation year < current year, role is ALUMNI; else STUDENT
+      finalRole = gradYearNum < currentYear ? 'ALUMNI' : 'STUDENT';
+
+      educationData.college = college.trim();
+      educationData.startYear = startYearNum;
+      educationData.endYear = gradYearNum;
+    } else if (finalRole === 'MEMBER') {
+      finalRole = 'MEMBER';
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid role selected.'
+      });
+    }
+
+    // Check if user already exists with email, phone, or Aadhaar
     const existingUser = await User.findOne({
-      $or: [{ email: normalizedEmail }, { phone: normalizedPhone }]
+      $or: [
+        { email: normalizedEmail },
+        { phone: normalizedPhone },
+        { adhaar: cleanAdhaar },
+        { adhaar: `${cleanAdhaar.slice(0, 4)} ${cleanAdhaar.slice(4, 8)} ${cleanAdhaar.slice(8, 12)}` }
+      ]
     });
 
     if (existingUser) {
-      const field = existingUser.email === normalizedEmail ? 'email' : 'phone number';
+      let duplicateField = 'email or phone';
+      if (existingUser.email === normalizedEmail) duplicateField = 'Email Address';
+      else if (existingUser.phone === normalizedPhone) duplicateField = 'Phone Number';
+      else duplicateField = 'Aadhaar Number';
+
       return res.status(400).json({
         success: false,
-        message: `An account with this ${field} already exists.`
+        message: `An account with this ${duplicateField} already exists.`
       });
     }
 
     const newUser = await User.create({
-      name,
+      name: name.trim(),
       email: normalizedEmail,
       phone: normalizedPhone,
+      adhaar: cleanAdhaar,
+      dob: new Date(dob),
       passwordHash: password, // Pre-save hook hashes this
       role: finalRole,
+      ...(Object.keys(educationData).length > 0 && { education: educationData }),
       accountStatus: 'ACTIVE' // Active status upon registration
     });
 
-    createSendToken(newUser, 217, res); // 217 created status
+    createSendToken(newUser, 201, res); // 201 created status
   } catch (error) {
     next(error);
   }
 };
 
 /**
- * Login user - can use Email OR Phone number
+ * Helper to build search conditions from an identifier (Email, Phone, or Aadhaar)
+ */
+const buildUserSearchConditions = (rawIdentifier) => {
+  const clean = rawIdentifier.trim();
+  const noSpace = clean.replace(/\s+/g, '');
+  const digitsOnly = clean.replace(/\D/g, '');
+
+  const conditions = [
+    { email: clean.toLowerCase() },
+    { email: noSpace.toLowerCase() },
+    { phone: clean },
+    { phone: noSpace },
+    { adhaar: clean },
+    { adhaar: noSpace },
+    { registrationNumber: clean },
+    { registrationNumber: noSpace }
+  ];
+
+  // If 12 digits, also format as 'XXXX XXXX XXXX'
+  if (digitsOnly.length === 12) {
+    const formatted = `${digitsOnly.slice(0, 4)} ${digitsOnly.slice(4, 8)} ${digitsOnly.slice(8, 12)}`;
+    conditions.push({ adhaar: formatted });
+    conditions.push({ adhaar: digitsOnly });
+  }
+
+  // If 10 digits, also check phone
+  if (digitsOnly.length === 10) {
+    conditions.push({ phone: digitsOnly });
+  }
+
+  return conditions;
+};
+
+/**
+ * Login user - can use Email, Phone number, or Aadhaar number
  */
 exports.login = async (req, res, next) => {
   try {
@@ -115,24 +204,18 @@ exports.login = async (req, res, next) => {
     if (!loginIdentifier || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide an email or phone number and password.'
+        message: 'Please provide your email, phone number, or Aadhaar number and password.'
       });
     }
 
-    const cleanIdentifier = loginIdentifier.trim();
-
-    // Query by either email or phone
     const user = await User.findOne({
-      $or: [
-        { email: cleanIdentifier.toLowerCase() },
-        { phone: cleanIdentifier }
-      ]
+      $or: buildUserSearchConditions(loginIdentifier)
     }).select('+passwordHash'); // include passwordHash
 
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({
         success: false,
-        message: 'Incorrect email/phone number or password.'
+        message: 'Incorrect login credentials or password.'
       });
     }
 
@@ -171,31 +254,27 @@ exports.getMe = async (req, res, next) => {
 };
 
 /**
- * Forgot password - generates secure reset link
+ * Forgot password - request reset token via email/phone/Aadhaar
  */
 exports.forgotPassword = async (req, res, next) => {
   try {
     const { loginIdentifier } = req.body;
+
     if (!loginIdentifier) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide an email or phone number.'
+        message: 'Please provide your email, phone number, or Aadhaar number.'
       });
     }
 
-    const cleanIdentifier = loginIdentifier.trim();
-
     const user = await User.findOne({
-      $or: [
-        { email: cleanIdentifier.toLowerCase() },
-        { phone: cleanIdentifier }
-      ]
+      $or: buildUserSearchConditions(loginIdentifier)
     });
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'There is no user with that email or phone number.'
+        message: 'No account found with those credentials.'
       });
     }
 
