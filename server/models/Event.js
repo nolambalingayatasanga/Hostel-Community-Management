@@ -6,9 +6,17 @@ const ReviewSchema = new mongoose.Schema({
   text: { type: String, trim: true, default: '' }
 }, { timestamps: true });
 
+const CommentReplySchema = new mongoose.Schema({
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  text: { type: String, trim: true, required: true },
+  likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
+}, { timestamps: true });
+
 const CommentSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  text: { type: String, trim: true, required: true }
+  text: { type: String, trim: true, required: true },
+  likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  replies: [CommentReplySchema]
 }, { timestamps: true });
 
 const EventSchema = new mongoose.Schema({

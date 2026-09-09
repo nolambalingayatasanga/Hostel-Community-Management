@@ -70,7 +70,8 @@ exports.getEvent = async (req, res, next) => {
       .populate('createdBy', 'name email role profilePhoto')
       .populate('updatedBy', 'name email')
       .populate('reviews.user', 'name profilePhoto role')
-      .populate('comments.user', 'name profilePhoto role');
+      .populate('comments.user', 'name profilePhoto role')
+      .populate('comments.replies.user', 'name profilePhoto role');
 
     if (!event) {
       return res.status(404).json({ success: false, message: 'Event not found.' });
@@ -129,11 +130,106 @@ exports.addComment = async (req, res, next) => {
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ success: false, message: 'Event not found.' });
 
-    event.comments.push({ user: req.user._id, text: text.trim() });
+    event.comments.push({ user: req.user._id, text: text.trim(), likes: [], replies: [] });
     await event.save();
     await event.populate('comments.user', 'name profilePhoto role');
+    await event.populate('comments.replies.user', 'name profilePhoto role');
 
     res.status(201).json({ success: true, data: { comments: event.comments } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Add a reply to a comment
+ */
+exports.addReply = async (req, res, next) => {
+  try {
+    const { text } = req.body;
+    const { id, commentId } = req.params;
+
+    if (!text || !text.trim()) {
+      return res.status(400).json({ success: false, message: 'Reply text is required.' });
+    }
+
+    const event = await Event.findById(id);
+    if (!event) return res.status(404).json({ success: false, message: 'Event not found.' });
+
+    const comment = event.comments.id(commentId);
+    if (!comment) return res.status(404).json({ success: false, message: 'Comment not found.' });
+
+    comment.replies.push({ user: req.user._id, text: text.trim(), likes: [] });
+    await event.save();
+    await event.populate('comments.user', 'name profilePhoto role');
+    await event.populate('comments.replies.user', 'name profilePhoto role');
+
+    res.status(201).json({ success: true, data: { comments: event.comments } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Toggle like on a comment
+ */
+exports.likeComment = async (req, res, next) => {
+  try {
+    const { id, commentId } = req.params;
+    const event = await Event.findById(id);
+    if (!event) return res.status(404).json({ success: false, message: 'Event not found.' });
+
+    const comment = event.comments.id(commentId);
+    if (!comment) return res.status(404).json({ success: false, message: 'Comment not found.' });
+
+    const userIdStr = String(req.user._id);
+    const existingIndex = comment.likes.findIndex((userId) => String(userId) === userIdStr);
+
+    if (existingIndex > -1) {
+      comment.likes.splice(existingIndex, 1);
+    } else {
+      comment.likes.push(req.user._id);
+    }
+
+    await event.save();
+    await event.populate('comments.user', 'name profilePhoto role');
+    await event.populate('comments.replies.user', 'name profilePhoto role');
+
+    res.status(200).json({ success: true, data: { comments: event.comments } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Toggle like on a reply
+ */
+exports.likeReply = async (req, res, next) => {
+  try {
+    const { id, commentId, replyId } = req.params;
+    const event = await Event.findById(id);
+    if (!event) return res.status(404).json({ success: false, message: 'Event not found.' });
+
+    const comment = event.comments.id(commentId);
+    if (!comment) return res.status(404).json({ success: false, message: 'Comment not found.' });
+
+    const reply = comment.replies.id(replyId);
+    if (!reply) return res.status(404).json({ success: false, message: 'Reply not found.' });
+
+    const userIdStr = String(req.user._id);
+    const existingIndex = reply.likes.findIndex((userId) => String(userId) === userIdStr);
+
+    if (existingIndex > -1) {
+      reply.likes.splice(existingIndex, 1);
+    } else {
+      reply.likes.push(req.user._id);
+    }
+
+    await event.save();
+    await event.populate('comments.user', 'name profilePhoto role');
+    await event.populate('comments.replies.user', 'name profilePhoto role');
+
+    res.status(200).json({ success: true, data: { comments: event.comments } });
   } catch (error) {
     next(error);
   }
@@ -158,6 +254,40 @@ exports.deleteComment = async (req, res, next) => {
 
     comment.deleteOne();
     await event.save();
+    await event.populate('comments.user', 'name profilePhoto role');
+    await event.populate('comments.replies.user', 'name profilePhoto role');
+
+    res.status(200).json({ success: true, data: { comments: event.comments } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Delete a reply (owner or admin)
+ */
+exports.deleteReply = async (req, res, next) => {
+  try {
+    const { id, commentId, replyId } = req.params;
+    const event = await Event.findById(id);
+    if (!event) return res.status(404).json({ success: false, message: 'Event not found.' });
+
+    const comment = event.comments.id(commentId);
+    if (!comment) return res.status(404).json({ success: false, message: 'Comment not found.' });
+
+    const reply = comment.replies.id(replyId);
+    if (!reply) return res.status(404).json({ success: false, message: 'Reply not found.' });
+
+    const isOwner = String(reply.user) === String(req.user._id);
+    const isAdmin = ['ADMIN', 'CHAIRPERSON'].includes(req.user.role);
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Not authorised.' });
+    }
+
+    reply.deleteOne();
+    await event.save();
+    await event.populate('comments.user', 'name profilePhoto role');
+    await event.populate('comments.replies.user', 'name profilePhoto role');
 
     res.status(200).json({ success: true, data: { comments: event.comments } });
   } catch (error) {
@@ -330,6 +460,77 @@ exports.uploadEventGalleryImages = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: 'Gallery images uploaded successfully',
+      data: {
+        additionalImages: event.additionalImages
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Delete a specific gallery image from event
+ */
+exports.deleteGalleryImage = async (req, res, next) => {
+  try {
+    const { id, imageId } = req.params;
+    const event = await Event.findById(id);
+
+    if (!event) {
+      return res.status(404).json({ success: false, message: 'Event not found.' });
+    }
+
+    const imageIndex = event.additionalImages.findIndex((img) => String(img._id) === String(imageId));
+    if (imageIndex === -1) {
+      return res.status(404).json({ success: false, message: 'Gallery image not found.' });
+    }
+
+    const imageToDelete = event.additionalImages[imageIndex];
+    if (imageToDelete.publicId || imageToDelete.url) {
+      await deleteImage(imageToDelete.publicId || imageToDelete.url);
+    }
+
+    event.additionalImages.splice(imageIndex, 1);
+    event.updatedBy = req.user._id;
+    await event.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Image removed from gallery.',
+      data: {
+        additionalImages: event.additionalImages
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Reorder gallery images
+ */
+exports.reorderGalleryImages = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { orderedImages } = req.body;
+
+    if (!Array.isArray(orderedImages)) {
+      return res.status(400).json({ success: false, message: 'orderedImages must be an array.' });
+    }
+
+    const event = await Event.findById(id);
+    if (!event) {
+      return res.status(404).json({ success: false, message: 'Event not found.' });
+    }
+
+    event.additionalImages = orderedImages;
+    event.updatedBy = req.user._id;
+    await event.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Media order updated successfully',
       data: {
         additionalImages: event.additionalImages
       }

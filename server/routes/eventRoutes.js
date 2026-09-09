@@ -16,11 +16,17 @@ router.get('/:id', eventController.getEvent);
 router.post('/:id/reviews', eventController.addReview);
 router.post('/:id/comments', eventController.addComment);
 router.delete('/:id/comments/:commentId', eventController.deleteComment);
+router.post('/:id/comments/:commentId/reply', eventController.addReply);
+router.post('/:id/comments/:commentId/like', eventController.likeComment);
+router.post('/:id/comments/:commentId/replies/:replyId/like', eventController.likeReply);
+router.delete('/:id/comments/:commentId/replies/:replyId', eventController.deleteReply);
 
 // Modify events (restricted to ADMIN & CHAIRPERSON)
 router.post('/', restrictTo('ADMIN', 'CHAIRPERSON'), upload.single('coverImage'), eventController.createEvent);
 router.patch('/:id', restrictTo('ADMIN', 'CHAIRPERSON'), upload.single('coverImage'), eventController.updateEvent);
 router.post('/:id/gallery', restrictTo('ADMIN', 'CHAIRPERSON'), upload.array('galleryImages', 10), eventController.uploadEventGalleryImages);
+router.delete('/:id/gallery/:imageId', restrictTo('ADMIN', 'CHAIRPERSON'), eventController.deleteGalleryImage);
+router.patch('/:id/gallery/reorder', restrictTo('ADMIN', 'CHAIRPERSON'), eventController.reorderGalleryImages);
 
 // Delete events (ADMIN only)
 router.delete('/:id', restrictTo('ADMIN'), eventController.deleteEvent);

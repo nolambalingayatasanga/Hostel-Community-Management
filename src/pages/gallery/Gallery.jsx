@@ -844,7 +844,7 @@ Add photos
                 isAdmin={isAdminOrChairperson} 
                 onUpload={handleOpenUpload} 
                 title="No Media Found"
-                subtitle="Upload photos and videos to share them with the hostel community."
+                subtitle="Upload media to share them with your community."
               />
             ) : (
               <Grid container spacing={2.5}>
@@ -889,8 +889,8 @@ Add photos
                   isAdmin={isAdminOrChairperson}
                   onUpload={handleOpenCreateFolderDialog}
                   buttonLabel="Create Folder"
-                  title="No Folders Yet"
-                  subtitle="Organize your hostel events and memories by creating Google Drive-style folders."
+                  title="No Folders Found"
+                  subtitle="Organize your events and memories by creating folders."
                   icon={<FolderIcon sx={{ fontSize: 44, color: '#0F9D58' }} />}
                 />
               ) : (
@@ -1367,7 +1367,7 @@ Add photos
                 background: '#0088ff',
                 fontWeight: 600,
                 textTransform: 'none',
-                borderRadius: '10px',
+                borderRadius: '8px',
                 px: 3,
                 '&:hover': { background: '#0077ee' }
               }}
@@ -1395,7 +1395,7 @@ Add photos
         PaperProps={{
           sx: {
             backgroundColor: '#ffffff',
-            borderRadius: '24px',
+            borderRadius: '8px',
             boxShadow: '0 20px 40px rgba(0, 0, 0, 0.1)',
             overflow: 'hidden'
           }
@@ -2003,17 +2003,16 @@ function EmptyGalleryCard({ isAdmin, onUpload, title, subtitle, buttonLabel = 'U
         backgroundColor: '#ffffff',
         border: '1px dashed #E2E8F0',
         borderRadius: '24px',
-        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.02)',
+        boxShadow: 'none',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        maxWidth: 560,
-        mx: 'auto',
-        my: 4
+        minHeight:"70vh",
+        m: 'auto',
       }}
     >
-      <Box
+      {/* <Box
         sx={{
           width: 88,
           height: 88,
@@ -2027,7 +2026,7 @@ function EmptyGalleryCard({ isAdmin, onUpload, title, subtitle, buttonLabel = 'U
         }}
       >
         {icon || <CameraIcon sx={{ fontSize: 38, color: '#0088ff' }} />}
-      </Box>
+      </Box> */}
 
       <Typography variant="h6" sx={{ fontWeight: 700, color: '#1E293B', mb: 1 }}>
         {title}
