@@ -203,7 +203,7 @@ export default function Row2Graphs({ apiFrp, apiByStatusAndDate }) {
   return (
     <>
       {/* Second Row Chart: First Response Time */}
-      <Card sx={{ p: 4, borderRadius: "14px", border: "1px solid #E5E7EB", boxShadow: "none", mb: 4 }}>
+      <Card sx={{ p: 4, borderRadius: "8px", border: "1px solid #E5E7EB", boxShadow: "none", mb: 4 }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
           <Typography sx={{ fontSize: "15px", fontWeight: 700, color: "#111827" }}>
             First Response Time
@@ -237,7 +237,7 @@ export default function Row2Graphs({ apiFrp, apiByStatusAndDate }) {
       </Card>
 
       {/* Third Row Chart: Lead Overview (Stacked bar) */}
-      <Card sx={{ p: 4, borderRadius: "14px", border: "1px solid #E5E7EB", boxShadow: "none", mb: 4 }}>
+      <Card sx={{ p: 4, borderRadius: "8px", border: "1px solid #E5E7EB", boxShadow: "none", mb: 4 }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
           <Typography sx={{ fontSize: "15px", fontWeight: 700, color: "#111827" }}>
             Lead Overview
@@ -270,7 +270,7 @@ export default function Row2Graphs({ apiFrp, apiByStatusAndDate }) {
       </Card>
 
       {/* Fourth Row Chart: Total Lead (Purple area curve) */}
-      <Card sx={{ p: 4, borderRadius: "14px", border: "1px solid #E5E7EB", boxShadow: "none" }}>
+      <Card sx={{ p: 4, borderRadius: "8px", border: "1px solid #E5E7EB", boxShadow: "none" }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
           <Typography sx={{ fontSize: "15px", fontWeight: 700, color: "#111827" }}>
             Total Lead

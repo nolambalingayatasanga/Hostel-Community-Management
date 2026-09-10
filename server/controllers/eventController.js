@@ -6,7 +6,7 @@ const { uploadImage, deleteImage, deleteMultipleMedia } = require('../config/clo
  */
 exports.getEvents = async (req, res, next) => {
   try {
-    const { filter, sortBy, category, dateFrom, dateTo } = req.query;
+    const { filter, sortBy, dateFrom, dateTo } = req.query;
 
     const query = {};
     const today = new Date();
@@ -28,11 +28,6 @@ exports.getEvents = async (req, res, next) => {
       } else if (filter === 'past') {
         query.eventDate = { $lt: today };
       }
-    }
-
-    // Filter by Category
-    if (category) {
-      query.category = category;
     }
 
     // Sort setup
@@ -300,13 +295,22 @@ exports.deleteReply = async (req, res, next) => {
  */
 exports.createEvent = async (req, res, next) => {
   try {
-    const { title, description, eventDate, startTime, endTime, location, category } = req.body;
+    const { title, description, eventDate, startTime, endTime, location, color, locationUrl, locationCoordinates } = req.body;
 
     if (!title || !description || !eventDate || !startTime || !endTime || !location) {
       return res.status(400).json({
         success: false,
         message: 'Please provide title, description, eventDate, startTime, endTime, and location.'
       });
+    }
+
+    let parsedCoordinates = undefined;
+    if (locationCoordinates) {
+      try {
+        parsedCoordinates = typeof locationCoordinates === 'string' ? JSON.parse(locationCoordinates) : locationCoordinates;
+      } catch (e) {
+        // ignore parse error
+      }
     }
 
     let coverImage = { url: '', publicId: '' };
@@ -327,7 +331,9 @@ exports.createEvent = async (req, res, next) => {
       startTime,
       endTime,
       location,
-      category,
+      locationUrl: locationUrl || '',
+      locationCoordinates: parsedCoordinates,
+      color: color || '#0088ff',
       coverImage,
       createdBy: req.user._id
     });
@@ -372,9 +378,17 @@ exports.updateEvent = async (req, res, next) => {
 
     // Apply other updates
     Object.keys(updates).forEach((key) => {
-      if (key !== 'coverImage') {
+      if (key !== 'coverImage' && key !== 'category') {
         if (key === 'eventDate') {
           event.eventDate = new Date(updates.eventDate);
+        } else if (key === 'locationCoordinates') {
+          try {
+            event.locationCoordinates = typeof updates.locationCoordinates === 'string'
+              ? JSON.parse(updates.locationCoordinates)
+              : updates.locationCoordinates;
+          } catch (e) {
+            // ignore
+          }
         } else {
           event[key] = updates[key];
         }

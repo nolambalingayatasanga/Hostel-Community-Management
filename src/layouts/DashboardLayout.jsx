@@ -17,7 +17,8 @@ import {
   Avatar,
   Menu,
   MenuItem,
-  Tooltip
+  Tooltip,
+  Button
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -27,7 +28,8 @@ import {
   AccountCircle as ProfileIcon,
   ExitToApp as LogoutIcon,
   AdminPanelSettings as AdminIcon,
-  Collections as GalleryIcon
+  Collections as GalleryIcon,
+  ArrowBack as ArrowBackIcon
 } from '@mui/icons-material';
 
 const drawerWidth = 240;
@@ -45,6 +47,11 @@ const DashboardLayout = () => {
     // Event details page check
     if (path.startsWith('/events/') && path !== '/events/new') {
       return 'Event Details';
+    }
+
+    // Events / Calendar page check
+    if (path === '/events') {
+      return 'Event Calendar';
     }
     
     // Profile page check
@@ -86,7 +93,7 @@ const DashboardLayout = () => {
       ? { text: 'Profile', icon: <ProfileIcon />, path: '/profile', roles: ['STUDENT', 'ALUMNI', 'STAFF'] }
       : { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', roles: ['ADMIN', 'CHAIRPERSON', 'MEMBER'] },
     { text: 'Members', icon: <PeopleIcon />, path: '/members', roles: ['ADMIN', 'CHAIRPERSON', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'] },
-    { text: 'Events', icon: <EventIcon />, path: '/events', roles: ['ADMIN', 'CHAIRPERSON', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'] },
+    { text: 'Events Calendar', icon: <EventIcon />, path: '/events', roles: ['ADMIN', 'CHAIRPERSON', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'] },
     { text: 'Gallery', icon: <GalleryIcon />, path: '/gallery', roles: ['ADMIN', 'CHAIRPERSON', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'] },
   ];
 
@@ -202,19 +209,47 @@ const DashboardLayout = () => {
         }}
       >
         <Toolbar sx={{ justifyContent: 'space-between' }}>
-          <IconButton
-            color="inherit"
-            aria-label="open drawer"
-            edge="start"
-            onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { md: 'none' } }}
-          >
-            <MenuIcon />
-          </IconButton>
-          
-          <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 600, display: { xs: 'none', sm: 'block' } }}>
-            {getPageTitle()}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <IconButton
+              color="inherit"
+              aria-label="open drawer"
+              edge="start"
+              onClick={handleDrawerToggle}
+              sx={{ mr: 2, display: { md: 'none' } }}
+            >
+              <MenuIcon />
+            </IconButton>
+            
+            {location.pathname.startsWith('/events/') && location.pathname !== '/events/new' ? (
+              <Button
+                startIcon={<ArrowBackIcon sx={{ fontSize: 18 }} />}
+                onClick={() => navigate('/events')}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 700,
+                  fontSize: '13.5px',
+                  color: '#64748B',
+                  bgcolor: '#FFFFFF',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '10px',
+                  px: 2,
+                  py: 0.75,
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                  '&:hover': {
+                    bgcolor: '#F8FAFC',
+                    color: '#1E293B',
+                    borderColor: '#CBD5E1',
+                  },
+                }}
+              >
+                Back to Events
+              </Button>
+            ) : (
+              <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 600, display: { xs: 'none', sm: 'block' } }}>
+                {getPageTitle()}
+              </Typography>
+            )}
+          </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Tooltip title="Account settings">
               <IconButton onClick={handleMenuOpen} size="small" sx={{ ml: 2 }}>

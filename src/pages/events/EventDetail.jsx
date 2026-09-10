@@ -28,6 +28,7 @@ import {
   Menu,
   Popover,
   Tooltip,
+  Divider,
 } from "@mui/material";
 import {
   ArrowBack as ArrowBackIcon,
@@ -61,6 +62,9 @@ import {
   CheckRounded as CheckIcon,
   CheckCircleRounded as CheckCircleIcon,
   SelectAllRounded as SelectAllIcon,
+  OpenInNewRounded as OpenInNewIcon,
+  SearchRounded as SearchIcon,
+  PaletteRounded as PaletteIcon,
 } from "@mui/icons-material";
 
 import { useAuth } from "../../context/AuthContext";
@@ -73,16 +77,17 @@ dayjs.extend(relativeTime);
 
 const EMOJI_LIST = ["👍", "❤️", "🎉", "🔥", "👏", "😊", "✨", "🙌", "☕", "🤩", "🥳", "💯"];
 
-const CATEGORIES = [
-  "Hostel Annual Day",
-  "Alumni Meet",
-  "Community Meeting",
-  "Sports Event",
-  "Cultural Event",
-  "Voting Meeting",
-  "Festival",
-  "Student Gathering",
-  "Other",
+const EVENT_COLORS = [
+  { label: "Ocean Blue", value: "#0088ff" },
+  { label: "Royal Purple", value: "#7c3aed" },
+  { label: "Emerald Green", value: "#059669" },
+  { label: "Vibrant Orange", value: "#ea580c" },
+  { label: "Crimson Red", value: "#dc2626" },
+  { label: "Amber Gold", value: "#d97706" },
+  { label: "Sky Cyan", value: "#0284c7" },
+  { label: "Hot Pink", value: "#db2777" },
+  { label: "Deep Indigo", value: "#4f46e5" },
+  { label: "Slate Gray", value: "#475569" },
 ];
 
 // ─── Star Rating Component ────────────────────────────────────────────────────
@@ -123,10 +128,17 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [location, setLocation] = useState("");
-  const [category, setCategory] = useState("Other");
-  const [coverImageFile, setCoverImageFile] = useState(null);
+  const [locationUrl, setLocationUrl] = useState("");
+  const [locationCoordinates, setLocationCoordinates] = useState(null);
+  const [color, setColor] = useState("#0088ff");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
+
+  // Location suggestions state
+  const [locationQuery, setLocationQuery] = useState("");
+  const [locationSuggestions, setLocationSuggestions] = useState([]);
+  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
 
   useEffect(() => {
     if (open && event) {
@@ -136,11 +148,64 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
       setStartTime(event.startTime || "");
       setEndTime(event.endTime || "");
       setLocation(event.location || "");
-      setCategory(event.category || "Other");
-      setCoverImageFile(null);
+      setLocationQuery(event.location || "");
+      setLocationUrl(event.locationUrl || "");
+      setLocationCoordinates(event.locationCoordinates || null);
+      setColor(event.color || "#0088ff");
       setFormError("");
+      setLocationSuggestions([]);
+      setShowLocationSuggestions(false);
     }
   }, [open, event]);
+
+  // Debounced search using OpenStreetMap Nominatim for exact place resolution
+  useEffect(() => {
+    if (!locationQuery || locationQuery.trim().length < 3) {
+      setLocationSuggestions([]);
+      setIsSearchingLocation(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingLocation(true);
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationQuery)}&limit=5&addressdetails=1`,
+          { headers: { "Accept-Language": "en" } }
+        );
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setLocationSuggestions(data);
+          setShowLocationSuggestions(true);
+        }
+      } catch (err) {
+        console.error("Location search error:", err);
+      } finally {
+        setIsSearchingLocation(false);
+      }
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [locationQuery]);
+
+  const handleSelectPlace = (place) => {
+    const displayName = place.display_name;
+    const lat = parseFloat(place.lat);
+    const lon = parseFloat(place.lon);
+    setLocation(displayName);
+    setLocationQuery(displayName);
+    setLocationCoordinates({ lat, lng: lon });
+    setLocationUrl(`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`);
+    setShowLocationSuggestions(false);
+  };
+
+  const handleManualLocationChange = (e) => {
+    const val = e.target.value;
+    setLocation(val);
+    setLocationQuery(val);
+    setShowLocationSuggestions(true);
+    setLocationUrl(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(val)}`);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -151,20 +216,20 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
     setFormError("");
     setSubmitting(true);
 
-    const fd = new FormData();
-    fd.append("title", title);
-    fd.append("description", description);
-    fd.append("eventDate", eventDate);
-    fd.append("startTime", startTime);
-    fd.append("endTime", endTime);
-    fd.append("location", location);
-    fd.append("category", category);
-    if (coverImageFile) fd.append("coverImage", coverImageFile);
+    const payload = {
+      title,
+      description,
+      eventDate,
+      startTime,
+      endTime,
+      location,
+      locationUrl: locationUrl || (location ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}` : ""),
+      locationCoordinates,
+      color: color || "#0088ff",
+    };
 
     try {
-      const res = await API.patch(`/events/${event._id}`, fd, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const res = await API.patch(`/events/${event._id}`, payload);
       if (res.data?.success) {
         onSaved(res.data.data.event);
         onClose();
@@ -175,6 +240,13 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
       setSubmitting(false);
     }
   };
+
+  const currentMapLink = locationUrl || (location ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}` : "");
+  const embedMapUrl = locationCoordinates?.lat && locationCoordinates?.lng
+    ? `https://maps.google.com/maps?q=${locationCoordinates.lat},${locationCoordinates.lng}&t=&z=15&ie=UTF8&iwloc=&output=embed`
+    : location && location.trim().length > 2
+    ? `https://maps.google.com/maps?q=${encodeURIComponent(location)}&t=&z=15&ie=UTF8&iwloc=&output=embed`
+    : "";
 
   return (
     <Dialog
@@ -242,22 +314,6 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
               }}
             />
 
-            <FormControl fullWidth size="small">
-              <InputLabel>Category</InputLabel>
-              <Select
-                value={category}
-                label="Category"
-                onChange={(e) => setCategory(e.target.value)}
-                sx={{ borderRadius: "12px", backgroundColor: "#F8FAFC" }}
-              >
-                {CATEGORIES.map((c) => (
-                  <MenuItem key={c} value={c}>
-                    {c}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
             <TextField
               fullWidth
               size="small"
@@ -274,6 +330,100 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
                 },
               }}
             />
+
+            {/* Event Color Picker */}
+            <Box sx={{ pt: 0.5 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+                <Typography variant="caption" sx={{ color: "#475569", fontWeight: 700, fontSize: "12px" }}>
+                  Event Theme Color *
+                </Typography>
+                <Box
+                  sx={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    bgcolor: `${color}14`,
+                    border: `1px solid ${color}35`,
+                    borderRadius: "6px",
+                    px: 1,
+                    py: 0.25,
+                  }}
+                >
+                  <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: color, mr: 0.75 }} />
+                  <Typography sx={{ fontSize: "11px", fontWeight: 700, color, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {title || "Event Theme"}
+                  </Typography>
+                </Box>
+              </Stack>
+
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: "wrap", gap: 1 }}>
+                {EVENT_COLORS.map((c) => {
+                  const isSelected = color.toLowerCase() === c.value.toLowerCase();
+                  return (
+                    <Tooltip key={c.value} title={c.label} arrow placement="top">
+                      <Box
+                        onClick={() => setColor(c.value)}
+                        sx={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: "50%",
+                          bgcolor: c.value,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                          border: isSelected ? "3px solid #FFF" : "2px solid transparent",
+                          outline: isSelected ? `2.5px solid ${c.value}` : "none",
+                          boxShadow: isSelected ? `0 2px 8px ${c.value}60` : "none",
+                          "&:hover": {
+                            transform: "scale(1.15)",
+                          },
+                        }}
+                      >
+                        {isSelected && <CheckIcon sx={{ color: "#FFF", fontSize: 16, strokeWidth: 2 }} />}
+                      </Box>
+                    </Tooltip>
+                  );
+                })}
+
+                <Tooltip title="Choose Custom Hex Color" arrow placement="top">
+                  <Box
+                    component="label"
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: "50%",
+                      border: "1.5px dashed #94A3B8",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      position: "relative",
+                      overflow: "hidden",
+                      transition: "all 0.15s ease",
+                      "&:hover": {
+                        borderColor: "#0088ff",
+                        transform: "scale(1.15)",
+                      },
+                    }}
+                  >
+                    <PaletteIcon sx={{ fontSize: 16, color: "#64748B" }} />
+                    <input
+                      type="color"
+                      value={color}
+                      onChange={(e) => setColor(e.target.value)}
+                      style={{
+                        position: "absolute",
+                        opacity: 0,
+                        width: "100%",
+                        height: "100%",
+                        cursor: "pointer",
+                      }}
+                    />
+                  </Box>
+                </Tooltip>
+              </Stack>
+            </Box>
 
             <LocalizationProvider dateAdapter={AdapterDayjs}>
               <Grid container spacing={2}>
@@ -349,49 +499,121 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
               </Grid>
             </LocalizationProvider>
 
-            <TextField
-              fullWidth
-              size="small"
-              label="Venue / Location *"
-              required
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              sx={{
-                "& .MuiOutlinedInput-root": {
-                  borderRadius: "12px",
-                  backgroundColor: "#F8FAFC",
-                },
-              }}
-            />
-
-            <Box
-              sx={{
-                border: "2px dashed #D0D5DD",
-                p: 2.5,
-                borderRadius: "14px",
-                textAlign: "center",
-                bgcolor: "#F8FAFC",
-                cursor: "pointer",
-                transition: "all 0.2s",
-                "&:hover": { bgcolor: "rgba(124, 58, 237, 0.04)", borderColor: "#7C3AED" },
-              }}
-              component="label"
-            >
-              <input
-                accept="image/*"
-                style={{ display: "none" }}
-                id="edit-cover"
-                type="file"
-                onChange={(e) => setCoverImageFile(e.target.files[0])}
+            {/* Location & Map Search */}
+            <Box sx={{ position: "relative" }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Venue / Location *"
+                placeholder="Search or enter exact location"
+                required
+                value={location}
+                onChange={handleManualLocationChange}
+                onFocus={() => locationSuggestions.length > 0 && setShowLocationSuggestions(true)}
+                InputProps={{
+                  startAdornment: <LocationIcon sx={{ color: "#0088ff", mr: 1, fontSize: 20 }} />,
+                  endAdornment: isSearchingLocation ? (
+                    <CircularProgress size={16} sx={{ color: "#0088ff" }} />
+                  ) : (
+                    <SearchIcon sx={{ color: "#94A3B8", fontSize: 20 }} />
+                  ),
+                }}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: "12px",
+                    backgroundColor: "#F8FAFC",
+                  },
+                }}
               />
-              <CloudUploadIcon sx={{ fontSize: 28, color: "#7C3AED", mb: 0.5 }} />
-              <Typography variant="body2" sx={{ fontWeight: 600, color: "#334155" }}>
-                {coverImageFile ? coverImageFile.name : "Change Event Cover Image"}
-              </Typography>
-              <Typography variant="caption" sx={{ color: "#94A3B8" }}>
-                Select an image from your device
-              </Typography>
+
+              {/* Suggestions dropdown */}
+              {showLocationSuggestions && locationSuggestions.length > 0 && (
+                <Paper
+                  elevation={4}
+                  sx={{
+                    position: "absolute",
+                    top: "calc(100% + 4px)",
+                    left: 0,
+                    right: 0,
+                    zIndex: 20,
+                    borderRadius: "12px",
+                    maxHeight: "220px",
+                    overflowY: "auto",
+                    border: "1px solid #E2E8F0",
+                    bgcolor: "#FFF",
+                  }}
+                >
+                  {locationSuggestions.map((place, idx) => (
+                    <Box
+                      key={idx}
+                      onClick={() => handleSelectPlace(place)}
+                      sx={{
+                        p: 1.5,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 1.25,
+                        borderBottom: idx < locationSuggestions.length - 1 ? "1px solid #F1F5F9" : "none",
+                        "&:hover": { bgcolor: "#F0F7FF" },
+                      }}
+                    >
+                      <LocationIcon sx={{ color: "#0088ff", fontSize: 18, mt: 0.25, flexShrink: 0 }} />
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: "#1E293B", fontSize: "13px" }}>
+                          {place.display_name.split(",")[0]}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: "#64748B", fontSize: "11.5px", display: "block", wordBreak: "break-word" }}>
+                          {place.display_name}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  ))}
+                </Paper>
+              )}
             </Box>
+
+            {/* Embedded Live Map Preview */}
+            {embedMapUrl && (
+              <Box sx={{ borderRadius: "14px", overflow: "hidden", border: "1px solid #E2E8F0", bgcolor: "#F8FAFC" }}>
+                <iframe
+                  title="Edit Location Pin"
+                  width="100%"
+                  height="160"
+                  style={{ border: 0, display: "block" }}
+                  loading="lazy"
+                  src={embedMapUrl}
+                />
+                <Box sx={{ px: 2, py: 1.25, display: "flex", justifyContent: "space-between", alignItems: "center", bgcolor: "#F8FAFC", borderTop: "1px solid #EAECF0" }}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#10B981" }} />
+                    <Typography variant="caption" sx={{ color: "#475569", fontWeight: 700, fontSize: "11.5px" }}>
+                      Location Pin Ready
+                    </Typography>
+                  </Stack>
+                  {currentMapLink && (
+                    <Button
+                      size="small"
+                      component="a"
+                      href={currentMapLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      endIcon={<OpenInNewIcon sx={{ fontSize: "14px !important" }} />}
+                      sx={{
+                        fontSize: "11.5px",
+                        fontWeight: 700,
+                        color: "#0088ff",
+                        textTransform: "none",
+                        p: 0,
+                        minWidth: 0,
+                        "&:hover": { bgcolor: "transparent", textDecoration: "underline" },
+                      }}
+                    >
+                      Open in Google Maps
+                    </Button>
+                  )}
+                </Box>
+              </Box>
+            )}
           </Stack>
         </DialogContent>
 
@@ -415,13 +637,14 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
             variant="contained"
             disabled={submitting}
             sx={{
-              bgcolor: "#7C3AED",
               borderRadius: "10px",
               textTransform: "none",
               fontWeight: 700,
-              boxShadow: "none",
+              bgcolor: color || "#0088ff",
+              color: "#FFFFFF",
               px: 3,
-              "&:hover": { bgcolor: "#6D28D9", boxShadow: "none" },
+              boxShadow: "none",
+              "&:hover": { bgcolor: color || "#0077EE", filter: "brightness(0.92)", boxShadow: "none" },
             }}
           >
             {submitting ? <CircularProgress size={20} color="inherit" /> : "Save Changes"}
@@ -433,7 +656,15 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
 }
 
 // ─── Top Media Carousel & Thumbnail Strip Component ───────────────────────────
-function EventMediaHero({ coverImage, additionalImages, onOpenAllMedia, onZoom }) {
+function EventMediaHero({
+  coverImage,
+  additionalImages,
+  onOpenAllMedia,
+  onZoom,
+  canManage = false,
+  onManageMedia,
+  sx = {},
+}) {
   const images = useMemo(() => {
     const list = [];
     if (coverImage?.url) list.push({ url: coverImage.url, isCover: true });
@@ -457,17 +688,106 @@ function EventMediaHero({ coverImage, additionalImages, onOpenAllMedia, onZoom }
     return (
       <Card
         sx={{
-          borderRadius: "24px",
-          border: "1px solid #EAECF0",
-          p: 4,
-          textAlign: "center",
-          bgcolor: "#F8FAFC",
+          borderRadius: "20px",
+          border: "1px solid #E2E8F0",
+          background: "linear-gradient(135deg, #1E1B4B 0%, #312E81 50%, #4338CA 100%)",
+          color: "#FFFFFF",
+          p: { xs: 2.5, sm: 3.5 },
           mb: 3,
+          position: "relative",
+          overflow: "hidden",
+          boxShadow: "0 6px 24px rgba(67, 56, 202, 0.12)",
+          ...sx,
         }}
       >
-        <Typography variant="body2" sx={{ color: "#94A3B8" }}>
-          No event media uploaded yet.
-        </Typography>
+        {/* Decorative background glow circles */}
+        <Box
+          sx={{
+            position: "absolute",
+            top: -40,
+            right: -30,
+            width: 160,
+            height: 160,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(255,255,255,0.14) 0%, transparent 70%)",
+            pointerEvents: "none",
+          }}
+        />
+        <Box
+          sx={{
+            position: "absolute",
+            bottom: -30,
+            left: "35%",
+            width: 130,
+            height: 130,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%)",
+            pointerEvents: "none",
+          }}
+        />
+
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          alignItems={{ xs: "flex-start", sm: "center" }}
+          justifyContent="space-between"
+          spacing={2}
+          sx={{ position: "relative", zIndex: 1 }}
+        >
+          <Stack direction="row" spacing={2} alignItems="center">
+            <Box
+              sx={{
+                width: 48,
+                height: 48,
+                borderRadius: "8px",
+                bgcolor: "rgba(255, 255, 255, 0.12)",
+                backdropFilter: "blur(8px)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#E0E7FF",
+                border: "1px solid rgba(255, 255, 255, 0.2)",
+                flexShrink: 0,
+              }}
+            >
+              <AddPhotoIcon sx={{ fontSize: 24 }} />
+            </Box>
+            <Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#FFFFFF", fontSize: "15px" }}>
+                No event photos yet
+              </Typography>
+              <Typography variant="body2" sx={{ color: "#C7D2FE", fontSize: "12.5px" }}>
+                {canManage
+                  ? "Upload a cover photo or event highlights to showcase this event."
+                  : "Photos will appear here once uploaded by organizers."}
+              </Typography>
+            </Box>
+          </Stack>
+
+          {canManage && (
+            <Button
+              variant="contained"
+              onClick={onManageMedia}
+              startIcon={<AddPhotoIcon sx={{ fontSize: 18 }} />}
+              sx={{
+                bgcolor: "#FFFFFF",
+                color: "#4338CA",
+                fontWeight: 800,
+                fontSize: "12.5px",
+                textTransform: "none",
+                borderRadius: "10px",
+                px: 2,
+                py: 0.85,
+                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                whiteSpace: "nowrap",
+                "&:hover": {
+                  bgcolor: "#EEF2FF",
+                },
+              }}
+            >
+              Add Photos
+            </Button>
+          )}
+        </Stack>
       </Card>
     );
   }
@@ -487,22 +807,25 @@ function EventMediaHero({ coverImage, additionalImages, onOpenAllMedia, onZoom }
   return (
     <Card
       sx={{
-        borderRadius: "24px",
+        borderRadius: "12px",
         overflow: "hidden",
         border: "1px solid #EAECF0",
-        boxShadow: "0 4px 20px rgba(0, 0, 0, 0.04)",
+        boxShadow: "none",
         p: { xs: 1.5, sm: 2 },
         bgcolor: "#FFFFFF",
         mb: 3,
+        display: "flex",
+        flexDirection: "column",
+        ...sx,
       }}
     >
-      {/* Main Big Image Banner */}
+      {/* Main Image Banner - balanced 16:9 proportion */}
       <Box
         sx={{
           position: "relative",
           width: "100%",
-          height: { xs: 240, sm: 380, md: 440 },
-          borderRadius: "18px",
+          height: { xs: 220, sm: 300, md: 350 },
+          borderRadius: "16px",
           overflow: "hidden",
           bgcolor: "#0F172A",
           cursor: "pointer",
@@ -526,21 +849,21 @@ function EventMediaHero({ coverImage, additionalImages, onOpenAllMedia, onZoom }
         <Box
           sx={{
             position: "absolute",
-            top: 16,
-            right: 16,
+            top: 14,
+            right: 14,
             bgcolor: "rgba(15, 23, 42, 0.75)",
             backdropFilter: "blur(6px)",
             color: "#FFFFFF",
-            px: 1.75,
+            px: 1.5,
             py: 0.5,
-            borderRadius: "20px",
-            fontSize: "12px",
+            borderRadius: "16px",
+            fontSize: "11.5px",
             fontWeight: 700,
             letterSpacing: "0.03em",
             zIndex: 3,
           }}
         >
-          {activeIndex + 1}/{images.length}
+          {activeIndex + 1} / {images.length}
         </Box>
 
         {/* Navigation Arrows */}
@@ -551,40 +874,40 @@ function EventMediaHero({ coverImage, additionalImages, onOpenAllMedia, onZoom }
               sx={{
                 position: "absolute",
                 top: "50%",
-                left: 16,
+                left: 12,
                 transform: "translateY(-50%)",
                 bgcolor: "rgba(15, 23, 42, 0.65)",
                 backdropFilter: "blur(4px)",
                 color: "#FFFFFF",
-                width: 42,
-                height: 42,
+                width: 36,
+                height: 36,
                 zIndex: 3,
                 transition: "all 0.2s",
                 "&:hover": { bgcolor: "rgba(15, 23, 42, 0.9)", transform: "translateY(-50%) scale(1.08)" },
               }}
-              size="medium"
+              size="small"
             >
-              <ChevronLeftIcon />
+              <ChevronLeftIcon fontSize="small" />
             </IconButton>
             <IconButton
               onClick={handleNext}
               sx={{
                 position: "absolute",
                 top: "50%",
-                right: 16,
+                right: 12,
                 transform: "translateY(-50%)",
                 bgcolor: "rgba(15, 23, 42, 0.65)",
                 backdropFilter: "blur(4px)",
                 color: "#FFFFFF",
-                width: 42,
-                height: 42,
+                width: 36,
+                height: 36,
                 zIndex: 3,
                 transition: "all 0.2s",
                 "&:hover": { bgcolor: "rgba(15, 23, 42, 0.9)", transform: "translateY(-50%) scale(1.08)" },
               }}
-              size="medium"
+              size="small"
             >
-              <ChevronRightIcon />
+              <ChevronRightIcon fontSize="small" />
             </IconButton>
           </>
         )}
@@ -593,17 +916,17 @@ function EventMediaHero({ coverImage, additionalImages, onOpenAllMedia, onZoom }
       {/* Thumbnail Strip Below Main Image */}
       <Stack
         direction="row"
-        spacing={1.5}
+        spacing={1.25}
         alignItems="center"
         sx={{
-          mt: 2,
+          mt: 1.75,
           overflowX: "auto",
           py: 0.5,
-          "&::-webkit-scrollbar": { height: 6 },
+          "&::-webkit-scrollbar": { height: 5 },
           "&::-webkit-scrollbar-thumb": { bgcolor: "#E2E8F0", borderRadius: 3 },
         }}
       >
-        <Stack direction="row" spacing={1.5} sx={{ flex: 1, overflowX: "auto" }}>
+        <Stack direction="row" spacing={1.25} sx={{ flex: 1, overflowX: "auto" }}>
           {images.map((img, idx) => {
             const isActive = activeIndex === idx;
             return (
@@ -612,16 +935,16 @@ function EventMediaHero({ coverImage, additionalImages, onOpenAllMedia, onZoom }
                   onClick={() => setActiveIndex(idx)}
                   sx={{
                     position: "relative",
-                    width: { xs: 70, sm: 96 },
-                    height: { xs: 48, sm: 64 },
+                    width: { xs: 56, sm: 72 },
+                    height: { xs: 40, sm: 50 },
                     flexShrink: 0,
-                    borderRadius: "10px",
+                    borderRadius: "8px",
                     overflow: "hidden",
                     cursor: "pointer",
-                    border: isActive ? "2.5px solid #7C3AED" : "2px solid transparent",
-                    opacity: isActive ? 1 : 0.75,
+                    border: isActive ? "2.5px solid #7C3AED" : "2px solid #F1F5F9",
+                    opacity: isActive ? 1 : 0.7,
                     transition: "all 0.2s ease",
-                    "&:hover": { opacity: 1, transform: "translateY(-2px)" },
+                    "&:hover": { opacity: 1, transform: "translateY(-1px)" },
                   }}
                 >
                   <Box
@@ -640,28 +963,139 @@ function EventMediaHero({ coverImage, additionalImages, onOpenAllMedia, onZoom }
         <Button
           variant="outlined"
           onClick={onOpenAllMedia}
-          startIcon={<GridViewIcon sx={{ fontSize: 18, color: "#7C3AED" }} />}
+          startIcon={<GridViewIcon sx={{ fontSize: 16, color: "#7C3AED" }} />}
           sx={{
             flexShrink: 0,
-            borderRadius: "12px",
+            borderRadius: "10px",
             borderColor: "#DDD6FE",
             bgcolor: "#F5F3FF",
             color: "#7C3AED",
             textTransform: "none",
             fontWeight: 700,
-            fontSize: { xs: "12px", sm: "13px" },
-            px: { xs: 1.5, sm: 2 },
-            py: 1,
+            fontSize: "12px",
+            px: 1.5,
+            py: 0.75,
             "&:hover": {
               borderColor: "#7C3AED",
               bgcolor: "#EDE9FE",
             },
           }}
         >
-          View all media
+          View all ({images.length})
         </Button>
       </Stack>
     </Card>
+  );
+}
+
+// ─── Delete Confirmation Modal ───────────────────────────────────────────────
+function DeleteConfirmDialog({
+  open,
+  onClose,
+  onConfirm,
+  title = "Delete Event",
+  message = "",
+  confirmText = "Delete Event",
+  loading = false,
+  itemName = "",
+}) {
+  return (
+    <Dialog
+      open={open}
+      onClose={loading ? undefined : onClose}
+      maxWidth="xs"
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: "16px",
+          p: 1,
+          boxShadow: "0 20px 40px rgba(0,0,0,0.12)",
+        },
+      }}
+    >
+      <DialogContent sx={{ pt: 3, pb: 2, textAlign: "center" }}>
+        <Box
+          sx={{
+            width: 54,
+            height: 54,
+            borderRadius: "50%",
+            bgcolor: "#FEF2F2",
+            color: "#DC2626",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            mx: "auto",
+            mb: 2,
+          }}
+        >
+          <DeleteIcon sx={{ fontSize: 28 }} />
+        </Box>
+        <Typography variant="h6" sx={{ fontWeight: 800, color: "#0F172A", mb: 1, fontSize: "18px" }}>
+          {title}
+        </Typography>
+        <Typography variant="body2" sx={{ color: "#64748B", fontSize: "13.5px", lineHeight: 1.5 }}>
+          {message}
+        </Typography>
+        {itemName && (
+          <Box
+            sx={{
+              p: 1.25,
+              borderRadius: "8px",
+              bgcolor: "#F8FAFC",
+              border: "1px solid #E2E8F0",
+              mt: 2,
+              fontWeight: 700,
+              fontSize: "13px",
+              color: "#1E293B",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {itemName}
+          </Box>
+        )}
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2.5, pt: 1, gap: 1.5, justifyContent: "center" }}>
+        <Button
+          fullWidth
+          variant="outlined"
+          onClick={onClose}
+          disabled={loading}
+          sx={{
+            borderRadius: "10px",
+            borderColor: "#E2E8F0",
+            color: "#475569",
+            fontWeight: 700,
+            textTransform: "none",
+            fontSize: "13px",
+            py: 1,
+            "&:hover": { bgcolor: "#F8FAFC", borderColor: "#CBD5E1" },
+          }}
+        >
+          Cancel
+        </Button>
+        <Button
+          fullWidth
+          variant="contained"
+          onClick={onConfirm}
+          disabled={loading}
+          sx={{
+            borderRadius: "10px",
+            bgcolor: "#DC2626",
+            color: "#FFFFFF",
+            fontWeight: 700,
+            textTransform: "none",
+            fontSize: "13px",
+            py: 1,
+            boxShadow: "0 2px 8px rgba(220, 38, 38, 0.25)",
+            "&:hover": { bgcolor: "#B91C1C" },
+          }}
+        >
+          {loading ? <CircularProgress size={18} color="inherit" /> : confirmText}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }
 
@@ -815,7 +1249,7 @@ function ViewAllMediaDialog({
 
     if (
       !window.confirm(
-        "Are you sure you want to permanently delete this photo from Cloudinary & this event?"
+        ""
       )
     ) {
       return;
@@ -863,7 +1297,7 @@ function ViewAllMediaDialog({
         },
       }}
     >
- 
+
       {/* ── Action Bar / Selection Controls Toolbar ── */}
       <Box
         sx={{
@@ -1607,7 +2041,7 @@ function ManageMediaDialog({
           sx={{
             border: "2px dashed #D0D5DD",
             p: 3,
-            borderRadius: "14px",
+            borderRadius: "8px",
             textAlign: "center",
             bgcolor: "#F8FAFC",
             cursor: uploading ? "default" : "pointer",
@@ -1900,45 +2334,27 @@ function ReorderMediaDialog({
   );
 }
 
-// ─── Exact One-Line Visitor Rating Card Component (For users only) ───────────
-function VisitorOneLineRatingCard({ myRating, onRate, submitting }) {
+// ─── Visitor Rating Card Component (For users only) ───────────────────────────
+function VisitorOneLineRatingCard({ myRating, onRate, submitting, sx = {} }) {
   return (
     <Card
       sx={{
-        borderRadius: "24px",
+        borderRadius: "12px",
         border: "1px solid #EAECF0",
-        boxShadow: "0 2px 10px rgba(0, 0, 0, 0.02)",
+        boxShadow: "none",
         bgcolor: "#FFFFFF",
-        py: 1.75,
-        px: { xs: 2, sm: 3 },
+        p: 2.5,
         mb: 3,
+        ...sx,
       }}
     >
-      <Stack
-        direction="row"
-        alignItems="center"
-        justifyContent="space-between"
-        spacing={2}
-        sx={{
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        {/* Left: Yellow Squircle Icon + "Rate this event" Text */}
-        <Stack
-          direction="row"
-          spacing={2}
-          alignItems="center"
-          sx={{
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
+      <Stack spacing={1.5}>
+        <Stack direction="row" spacing={1.5} alignItems="center">
           <Box
             sx={{
-              width: 44,
-              height: 44,
-              borderRadius: "14px",
+              width: 40,
+              height: 40,
+              borderRadius: "12px",
               bgcolor: "#FEF3C7",
               display: "flex",
               alignItems: "center",
@@ -1946,25 +2362,29 @@ function VisitorOneLineRatingCard({ myRating, onRate, submitting }) {
               flexShrink: 0,
             }}
           >
-            <StarIcon sx={{ fontSize: 24, color: "#F59E0B" }} />
+            <StarIcon sx={{ fontSize: 22, color: "#F59E0B" }} />
           </Box>
-          <Typography
-            variant="subtitle1"
-            sx={{
-              fontWeight: 800,
-              color: "#0F172A",
-              fontSize: { xs: "15px", sm: "16.5px" },
-              letterSpacing: "-0.01em",
-            }}
-          >
-            Rate this event
-          </Typography>
+          <Box>
+            <Typography
+              variant="subtitle2"
+              sx={{
+                fontWeight: 800,
+                color: "#0F172A",
+                fontSize: "14px",
+                letterSpacing: "-0.01em",
+              }}
+            >
+              {myRating > 0 ? "Your Rating" : "Rate this event"}
+            </Typography>
+            <Typography variant="caption" sx={{ color: "#64748B", fontSize: "11px", display: "block" }}>
+              {myRating > 0 ? `You rated this ${myRating} star${myRating > 1 ? "s" : ""}` : "Tap stars to share feedback"}
+            </Typography>
+          </Box>
         </Stack>
 
-        {/* Right: 5 Stars */}
-        <Stack direction="row" spacing={1} alignItems="center">
+        <Stack direction="row" spacing={1} alignItems="center" justifyContent="center" sx={{ pt: 0.5 }}>
           <StarRating value={myRating} onChange={onRate} size={28} />
-          {submitting && <CircularProgress size={16} sx={{ color: "#7C3AED", ml: 0.5 }} />}
+          {submitting && <CircularProgress size={16} sx={{ color: "#7C3AED", ml: 1 }} />}
         </Stack>
       </Stack>
     </Card>
@@ -1990,6 +2410,50 @@ function EventCommentsSection({
   // Menu for delete
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [selectedTarget, setSelectedTarget] = useState(null);
+
+  // Helper to render text with @mentions highlighted in #0088ff
+  const renderMentionText = (text) => {
+    if (!text) return null;
+
+    // Collect all user names from comments and replies for accurate mention matching
+    const namesSet = new Set();
+    comments.forEach((c) => {
+      if (c.user?.name) namesSet.add(c.user.name.trim());
+      if (c.replies) {
+        c.replies.forEach((r) => {
+          if (r.user?.name) namesSet.add(r.user.name.trim());
+        });
+      }
+    });
+
+    const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const sortedNames = Array.from(namesSet).sort((a, b) => b.length - a.length);
+    const namesPattern = sortedNames.length > 0 
+      ? sortedNames.map(escapeRegExp).join("|") + "|" 
+      : "";
+
+    const regex = new RegExp(`(@(?:${namesPattern}[A-Za-z0-9_.-]+))`, "gi");
+    const parts = text.split(regex);
+
+    return parts.map((part, index) => {
+      if (part.startsWith("@") && part.length > 1) {
+        return (
+          <Box
+            component="span"
+            key={index}
+            sx={{
+              color: "#0088ff",
+              fontWeight: 700,
+              display: "inline",
+            }}
+          >
+            {part}
+          </Box>
+        );
+      }
+      return part;
+    });
+  };
 
   const handlePostComment = async () => {
     if (!commentText.trim() || postingComment) return;
@@ -2079,9 +2543,9 @@ function EventCommentsSection({
   return (
     <Card
       sx={{
-        borderRadius: "24px",
+        borderRadius: "12px",
         border: "1px solid #EAECF0",
-        boxShadow: "0 4px 20px rgba(0, 0, 0, 0.03)",
+        boxShadow: "none",
         bgcolor: "#FFFFFF",
         p: { xs: 2.5, md: 3.5 },
       }}
@@ -2178,7 +2642,7 @@ function EventCommentsSection({
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
         transformOrigin={{ vertical: "top", horizontal: "right" }}
         PaperProps={{
-          sx: { p: 1.5, borderRadius: "14px", boxShadow: "0 10px 25px rgba(0,0,0,0.1)" },
+          sx: { p: 1.5, borderRadius: "8px", boxShadow: "0 10px 25px rgba(0,0,0,0.1)" },
         }}
       >
         <Grid container spacing={1} sx={{ width: 180 }}>
@@ -2274,9 +2738,9 @@ function EventCommentsSection({
                     {/* Text */}
                     <Typography
                       variant="body2"
-                      sx={{ color: "#334155", mt: 0.5, lineHeight: 1.6, fontSize: "14px", wordBreak: "break-word" }}
+                      sx={{ color: "#334155", mt: 0.5, lineHeight: 1.6, fontSize: "14px", wordBreak: "break-word", whiteSpace: "pre-wrap" }}
                     >
-                      {comment.text}
+                      {renderMentionText(comment.text)}
                     </Typography>
 
                     {/* Action row (Like & Reply) */}
@@ -2308,10 +2772,14 @@ function EventCommentsSection({
                         size="small"
                         startIcon={<ReplyIcon sx={{ fontSize: "16px !important", color: "#64748B" }} />}
                         onClick={() => {
-                          setReplyingToCommentId(
-                            replyingToCommentId === comment._id ? null : comment._id
-                          );
-                          setReplyText("");
+                          if (replyingToCommentId === comment._id) {
+                            setReplyingToCommentId(null);
+                            setReplyText("");
+                          } else {
+                            setReplyingToCommentId(comment._id);
+                            const targetName = comment.user?.name || "member";
+                            setReplyText(`@${targetName} `);
+                          }
                         }}
                         sx={{
                           textTransform: "none",
@@ -2407,9 +2875,9 @@ function EventCommentsSection({
 
                                 <Typography
                                   variant="body2"
-                                  sx={{ color: "#334155", mt: 0.5, lineHeight: 1.5, fontSize: "13px", wordBreak: "break-word" }}
+                                  sx={{ color: "#334155", mt: 0.5, lineHeight: 1.5, fontSize: "13px", wordBreak: "break-word", whiteSpace: "pre-wrap" }}
                                 >
-                                  {reply.text}
+                                  {renderMentionText(reply.text)}
                                 </Typography>
 
                                 <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 0.75 }}>
@@ -2553,7 +3021,7 @@ function EventCommentsSection({
         anchorEl={menuAnchor}
         open={Boolean(menuAnchor)}
         onClose={() => setMenuAnchor(null)}
-        PaperProps={{ sx: { borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.08)" } }}
+        PaperProps={{ sx: { borderRadius: "8px", boxShadow: "0 4px 20px rgba(0,0,0,0.08)" } }}
       >
         <MenuItem onClick={handleDelete} sx={{ color: "#EF4444", fontSize: "13px", fontWeight: 600 }}>
           <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
@@ -2565,23 +3033,34 @@ function EventCommentsSection({
 }
 
 // ─── Admin Controls Card Component ───────────────────────────────────────────
-function AdminControlsCard({ onEdit, onDelete, onManageMedia, onReorderMedia }) {
+function AdminControlsCard({ onEdit, onDelete, onManageMedia, onReorderMedia, photoCount = 0, sx = {} }) {
   return (
     <Card
       sx={{
-        borderRadius: "24px",
+        borderRadius: "12px",
         border: "1px solid #EAECF0",
-        boxShadow: "0 4px 20px rgba(0, 0, 0, 0.03)",
+        boxShadow: "none",
         bgcolor: "#FFFFFF",
         p: { xs: 2.5, md: 3 },
+        mb: 3,
+        ...sx,
       }}
     >
       {/* Card Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          width: "100%",
+          gap: 1.5,
+          mb: 1,
+        }}
+      >
         <Stack direction="row" spacing={1} alignItems="center">
-          <AdminShieldIcon sx={{ color: "#7C3AED", fontSize: 24 }} />
-          <Typography variant="h6" sx={{ fontWeight: 800, color: "#0F172A", fontSize: "17px" }}>
-            Admin controls
+          <AdminShieldIcon sx={{ color: "#7C3AED", fontSize: 22 }} />
+          <Typography variant="h6" sx={{ fontWeight: 800, color: "#0F172A", fontSize: "16px" }}>
+            Admin Controls
           </Typography>
         </Stack>
         <Chip
@@ -2591,32 +3070,33 @@ function AdminControlsCard({ onEdit, onDelete, onManageMedia, onReorderMedia }) 
             bgcolor: "#F3E8FF",
             color: "#7C3AED",
             fontWeight: 700,
-            fontSize: "11px",
-            borderRadius: "12px",
-            height: 24,
+            fontSize: "10.5px",
+            borderRadius: "6px",
+            height: 22,
+            flexShrink: 0,
           }}
         />
-      </Stack>
+      </Box>
 
       {/* Subtitle */}
-      <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 3 }}>
-        <LockIcon sx={{ fontSize: 14, color: "#94A3B8" }} />
-        <Typography variant="caption" sx={{ color: "#64748B", fontSize: "12px", fontWeight: 500 }}>
+      <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 2.5 }}>
+        <LockIcon sx={{ fontSize: 13, color: "#94A3B8" }} />
+        <Typography variant="caption" sx={{ color: "#64748B", fontSize: "11.5px", fontWeight: 500 }}>
           Visible to event administrators only
         </Typography>
       </Stack>
 
       {/* Action Buttons List */}
       <Stack spacing={1.5}>
-        {/* Edit Event */}
+        {/* 1. Edit Event */}
         <Box
           onClick={onEdit}
           sx={{
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            p: 2,
-            borderRadius: "16px",
+            p: 1.75,
+            borderRadius: "8px",
             bgcolor: "#F8FAFC",
             border: "1px solid #F1F5F9",
             cursor: "pointer",
@@ -2628,89 +3108,43 @@ function AdminControlsCard({ onEdit, onDelete, onManageMedia, onReorderMedia }) 
             },
           }}
         >
-          <Stack direction="row" spacing={2} alignItems="center">
+          <Stack direction="row" spacing={1.75} alignItems="center">
             <Box
               sx={{
-                width: 38,
-                height: 38,
+                width: 36,
+                height: 36,
                 borderRadius: "10px",
                 bgcolor: "#EDE9FE",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 color: "#7C3AED",
+                flexShrink: 0,
               }}
             >
-              <EditIcon sx={{ fontSize: 20 }} />
+              <EditIcon sx={{ fontSize: 18 }} />
             </Box>
             <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#1E293B", fontSize: "14px" }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#1E293B", fontSize: "13.5px" }}>
                 Edit Event
               </Typography>
               <Typography variant="caption" sx={{ color: "#64748B", fontSize: "11px", display: "block" }}>
-                Update event details, date, time, venue etc.
+                Update title, date, time, venue
               </Typography>
             </Box>
           </Stack>
-          <ChevronRightIcon sx={{ color: "#94A3B8", fontSize: 20 }} />
+          <ChevronRightIcon sx={{ color: "#94A3B8", fontSize: 18 }} />
         </Box>
 
-        {/* Delete Event */}
-        <Box
-          onClick={onDelete}
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            p: 2,
-            borderRadius: "16px",
-            bgcolor: "#FEF2F2",
-            border: "1px solid #FEE2E2",
-            cursor: "pointer",
-            transition: "all 0.2s ease",
-            "&:hover": {
-              bgcolor: "#FEE2E2",
-              borderColor: "#FECACA",
-              transform: "translateY(-1px)",
-            },
-          }}
-        >
-          <Stack direction="row" spacing={2} alignItems="center">
-            <Box
-              sx={{
-                width: 38,
-                height: 38,
-                borderRadius: "10px",
-                bgcolor: "#FEE2E2",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#EF4444",
-              }}
-            >
-              <DeleteIcon sx={{ fontSize: 20 }} />
-            </Box>
-            <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#DC2626", fontSize: "14px" }}>
-                Delete Event
-              </Typography>
-              <Typography variant="caption" sx={{ color: "#EF4444", opacity: 0.85, fontSize: "11px", display: "block" }}>
-                Permanently remove this event
-              </Typography>
-            </Box>
-          </Stack>
-          <ChevronRightIcon sx={{ color: "#F87171", fontSize: 20 }} />
-        </Box>
-
-        {/* Manage Media / Add Photos */}
+        {/* 2. Manage Media / Add Photos */}
         <Box
           onClick={onManageMedia}
           sx={{
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            p: 2,
-            borderRadius: "16px",
+            p: 1.75,
+            borderRadius: "8px",
             bgcolor: "#F8FAFC",
             border: "1px solid #F1F5F9",
             cursor: "pointer",
@@ -2722,42 +3156,45 @@ function AdminControlsCard({ onEdit, onDelete, onManageMedia, onReorderMedia }) 
             },
           }}
         >
-          <Stack direction="row" spacing={2} alignItems="center">
+          <Stack direction="row" spacing={1.75} alignItems="center">
             <Box
               sx={{
-                width: 38,
-                height: 38,
-                borderRadius: "10px",
+                width: 36,
+                height: 36,
+                borderRadius: "8px",
                 bgcolor: "#EDE9FE",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 color: "#7C3AED",
+                flexShrink: 0,
               }}
             >
-              <AddPhotoIcon sx={{ fontSize: 20 }} />
+              <AddPhotoIcon sx={{ fontSize: 18 }} />
             </Box>
             <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#1E293B", fontSize: "14px" }}>
-                Manage Media / Add Photos
-              </Typography>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#1E293B", fontSize: "13.5px" }}>
+                  Manage Media
+                </Typography>
+              </Stack>
               <Typography variant="caption" sx={{ color: "#64748B", fontSize: "11px", display: "block" }}>
-                Upload, remove or reorder event photos
+                Upload or remove event photos
               </Typography>
             </Box>
           </Stack>
-          <ChevronRightIcon sx={{ color: "#94A3B8", fontSize: 20 }} />
+          <ChevronRightIcon sx={{ color: "#94A3B8", fontSize: 18 }} />
         </Box>
 
-        {/* Reorder Media */}
+        {/* 3. Reorder Media */}
         <Box
           onClick={onReorderMedia}
           sx={{
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            p: 2,
-            borderRadius: "16px",
+            p: 1.75,
+            borderRadius: "8px",
             bgcolor: "#F8FAFC",
             border: "1px solid #F1F5F9",
             cursor: "pointer",
@@ -2769,33 +3206,508 @@ function AdminControlsCard({ onEdit, onDelete, onManageMedia, onReorderMedia }) 
             },
           }}
         >
-          <Stack direction="row" spacing={2} alignItems="center">
+          <Stack direction="row" spacing={1.75} alignItems="center">
             <Box
               sx={{
-                width: 38,
-                height: 38,
+                width: 36,
+                height: 36,
+                borderRadius: "8px",
+                bgcolor: "#EDE9FE",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#7C3AED",
+                flexShrink: 0,
+              }}
+            >
+              <ReorderIcon sx={{ fontSize: 18 }} />
+            </Box>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#1E293B", fontSize: "13.5px" }}>
+                Reorder Gallery
+              </Typography>
+              <Typography variant="caption" sx={{ color: "#64748B", fontSize: "11px", display: "block" }}>
+                Change photo display sequence
+              </Typography>
+            </Box>
+          </Stack>
+          <ChevronRightIcon sx={{ color: "#94A3B8", fontSize: 18 }} />
+        </Box>
+      </Stack>
+
+      {/* Danger Zone: Delete Event */}
+      <Box sx={{ mt: 2.5, pt: 2, borderTop: "1px solid #F1F5F9" }}>
+        <Button
+          fullWidth
+          variant="outlined"
+          color="error"
+          onClick={onDelete}
+          startIcon={<DeleteIcon sx={{ fontSize: 18 }} />}
+          sx={{
+            borderRadius: "8px",
+            borderColor: "#FECACA",
+            bgcolor: "#FEF2F2",
+            color: "#DC2626",
+            textTransform: "none",
+            fontWeight: 700,
+            fontSize: "12.5px",
+            py: 0.85,
+            "&:hover": {
+              bgcolor: "#FEE2E2",
+              borderColor: "#F87171",
+            },
+          }}
+        >
+          Delete Event
+        </Button>
+      </Box>
+    </Card>
+  );
+}
+
+// ─── Event Quick Summary Card Component ───────────────────────────────────────
+function EventQuickSummaryCard({ event, allImagesList, avgRating, sx = {} }) {
+  const eventDay = event?.eventDate ? dayjs(event.eventDate) : null;
+  const today = dayjs().startOf("day");
+  const daysDiff = eventDay ? eventDay.startOf("day").diff(today, "day") : 0;
+
+  let statusLabel = "Upcoming";
+  let statusBg = "#DCFCE7";
+  let statusColor = "#15803D";
+
+  if (daysDiff === 0) {
+    statusLabel = "Happening Today";
+    statusBg = "#FEF3C7";
+    statusColor = "#B45309";
+  } else if (daysDiff > 0) {
+    statusLabel = `In ${daysDiff} ${daysDiff === 1 ? "day" : "days"}`;
+    statusBg = "#DCFCE7";
+    statusColor = "#15803D";
+  } else {
+    statusLabel = "Past Event";
+    statusBg = "#F1F5F9";
+    statusColor = "#64748B";
+  }
+
+  return (
+    <Card
+      sx={{
+        borderRadius: "12px",
+        border: "1px solid #EAECF0",
+        boxShadow: "none",
+        bgcolor: "#FFFFFF",
+        p: 2.5,
+        mb: 3,
+        ...sx,
+      }}
+    >
+      <Stack spacing={2}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            width: "100%",
+            gap: 1.5,
+          }}
+        >
+          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#0F172A", fontSize: "14px" }}>
+            Event Status
+          </Typography>
+          <Chip
+            label={statusLabel}
+            size="small"
+            sx={{
+              bgcolor: statusBg,
+              color: statusColor,
+              fontWeight: 800,
+              fontSize: "11px",
+              borderRadius: "6px",
+              height: 22,
+              flexShrink: 0,
+            }}
+          />
+        </Box>
+
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{
+            bgcolor: "#F8FAFC",
+            p: 1.5,
+            borderRadius: "8px",
+            border: "1px solid #F1F5F9",
+          }}
+        >
+          <Box sx={{ flex: 1, textAlign: "center", borderRight: "1px solid #E2E8F0" }}>
+            <Typography variant="h6" sx={{ fontWeight: 800, color: "#1E293B", fontSize: "16px", lineHeight: 1.2 }}>
+              {allImagesList.length}
+            </Typography>
+            <Typography variant="caption" sx={{ color: "#64748B", fontSize: "11px", fontWeight: 600 }}>
+              Photos
+            </Typography>
+          </Box>
+          <Box sx={{ flex: 1, textAlign: "center", borderRight: "1px solid #E2E8F0" }}>
+            <Typography variant="h6" sx={{ fontWeight: 800, color: "#1E293B", fontSize: "16px", lineHeight: 1.2 }}>
+              {event?.comments?.length || 0}
+            </Typography>
+            <Typography variant="caption" sx={{ color: "#64748B", fontSize: "11px", fontWeight: 600 }}>
+              Comments
+            </Typography>
+          </Box>
+          <Box sx={{ flex: 1, textAlign: "center" }}>
+            <Typography variant="h6" sx={{ fontWeight: 800, color: "#1E293B", fontSize: "16px", lineHeight: 1.2 }}>
+              {event?.reviews?.length ? avgRating.toFixed(1) : "—"}
+            </Typography>
+            <Typography variant="caption" sx={{ color: "#64748B", fontSize: "11px", fontWeight: 600 }}>
+              Rating
+            </Typography>
+          </Box>
+        </Stack>
+      </Stack>
+    </Card>
+  );
+}
+
+// ─── Event Header & Details Card Component ─────────────────────────────────────
+function EventDetailsCard({
+  event,
+  avgRating,
+  formattedDate,
+  formattedTime,
+  organizerDisplay,
+  isFullWidth = false,
+  sx = {},
+}) {
+  return (
+    <Card
+      sx={{
+        borderRadius: "12px",
+        border: "1px solid #EAECF0",
+        boxShadow: "none",
+        bgcolor: "#FFFFFF",
+        p: { xs: 2.5, sm: 3.5 },
+        mb: 3,
+        ...sx,
+      }}
+    >
+      {/* Title */}
+      <Typography
+        variant="h4"
+        sx={{
+          fontWeight: 800,
+          color: "#0F172A",
+          lineHeight: 1.25,
+          mb: 1.5,
+          letterSpacing: "-0.025em",
+          fontSize: { xs: "22px", sm: "28px", md: "32px" },
+          wordBreak: "break-word",
+        }}
+      >
+        {event.title}
+      </Typography>
+
+      {/* Rating Summary Row */}
+      <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 3 }}>
+        <StarRating value={Math.round(avgRating)} readOnly size={22} />
+        <Typography variant="body2" sx={{ color: "#64748B", fontSize: "13px", fontWeight: 600 }}>
+          {event.reviews?.length > 0
+            ? `${avgRating.toFixed(1)} (${event.reviews.length} ${event.reviews.length === 1 ? "review" : "reviews"
+            })`
+            : "No reviews yet"}
+        </Typography>
+      </Stack>
+
+      {/* 4 Info Tiles - 4 across on desktop when full width, or 2x2 grid when in column */}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        {/* Tile 1: Date */}
+        <Grid size={{ xs: 12, sm: 6, md: isFullWidth ? 3 : 6 }}>
+          <Box
+            sx={{
+              p: 2,
+              borderRadius: "8px",
+              bgcolor: "#F8FAFC",
+              border: "1px solid #F1F5F9",
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 1.5,
+              height: "100%",
+            }}
+          >
+            <Box
+              sx={{
+                width: 40,
+                height: 40,
                 borderRadius: "10px",
                 bgcolor: "#EDE9FE",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 color: "#7C3AED",
+                flexShrink: 0,
               }}
             >
-              <ReorderIcon sx={{ fontSize: 20 }} />
+              <DateIcon sx={{ fontSize: 20 }} />
             </Box>
-            <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#1E293B", fontSize: "14px" }}>
-                Reorder Media
+            <Box sx={{ minWidth: 0, flex: 1 }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "#64748B",
+                  fontWeight: 800,
+                  textTransform: "uppercase",
+                  fontSize: "10.5px",
+                  letterSpacing: "0.05em",
+                  display: "block",
+                  mb: 0.25,
+                }}
+              >
+                DATE
               </Typography>
-              <Typography variant="caption" sx={{ color: "#64748B", fontSize: "11px", display: "block" }}>
-                Change the display order of images
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: 700,
+                  color: "#0F172A",
+                  fontSize: "14px",
+                  lineHeight: 1.4,
+                }}
+              >
+                {formattedDate}
               </Typography>
             </Box>
-          </Stack>
-          <ChevronRightIcon sx={{ color: "#94A3B8", fontSize: 20 }} />
-        </Box>
-      </Stack>
+          </Box>
+        </Grid>
+
+        {/* Tile 2: Time */}
+        <Grid size={{ xs: 12, sm: 6, md: isFullWidth ? 3 : 6 }}>
+          <Box
+            sx={{
+              p: 2,
+              borderRadius: "8px",
+              bgcolor: "#F8FAFC",
+              border: "1px solid #F1F5F9",
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 1.5,
+              height: "100%",
+            }}
+          >
+            <Box
+              sx={{
+                width: 40,
+                height: 40,
+                borderRadius: "10px",
+                bgcolor: "#EDE9FE",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#7C3AED",
+                flexShrink: 0,
+              }}
+            >
+              <TimeIcon sx={{ fontSize: 20 }} />
+            </Box>
+            <Box sx={{ minWidth: 0, flex: 1 }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "#64748B",
+                  fontWeight: 800,
+                  textTransform: "uppercase",
+                  fontSize: "10.5px",
+                  letterSpacing: "0.05em",
+                  display: "block",
+                  mb: 0.25,
+                }}
+              >
+                TIME
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: 700,
+                  color: "#0F172A",
+                  fontSize: "14px",
+                  lineHeight: 1.4,
+                }}
+              >
+                {formattedTime}
+              </Typography>
+            </Box>
+          </Box>
+        </Grid>
+
+        {/* Tile 3: Venue (Click to open Google Maps) */}
+        <Grid size={{ xs: 12, sm: 6, md: isFullWidth ? 3 : 6 }}>
+          <Tooltip title="Click to open location in Google Maps" arrow placement="top">
+            <Box
+              onClick={() => {
+                if (event.location) {
+                  const url = event.locationUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`;
+                  window.open(url, "_blank", "noopener,noreferrer");
+                }
+              }}
+              sx={{
+                p: 2,
+                borderRadius: "8px",
+                bgcolor: "#F8FAFC",
+                border: "1px solid #F1F5F9",
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 1.5,
+                height: "100%",
+                cursor: event.location ? "pointer" : "default",
+                transition: "all 0.2s ease",
+                "&:hover": event.location
+                  ? {
+                      bgcolor: "#F0F7FF",
+                      borderColor: "#0088ff50",
+                      transform: "translateY(-2px)",
+                      boxShadow: "0 4px 14px rgba(0,136,255,0.08)",
+                    }
+                  : {},
+              }}
+            >
+              <Box
+                sx={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: "10px",
+                  bgcolor: "#EDE9FE",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#7C3AED",
+                  flexShrink: 0,
+                }}
+              >
+                <LocationIcon sx={{ fontSize: 20 }} />
+              </Box>
+              <Box sx={{ minWidth: 0, flex: 1 }}>
+                <Stack direction="row" alignItems="center" justifyContent="space-between">
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: "#64748B",
+                      fontWeight: 800,
+                      textTransform: "uppercase",
+                      fontSize: "10.5px",
+                      letterSpacing: "0.05em",
+                      display: "block",
+                      mb: 0.25,
+                    }}
+                  >
+                    VENUE
+                  </Typography>
+                  {event.location && (
+                    <OpenInNewIcon sx={{ fontSize: 13, color: "#0088ff", opacity: 0.8 }} />
+                  )}
+                </Stack>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontWeight: 700,
+                    color: "#0F172A",
+                    fontSize: "14px",
+                    lineHeight: 1.4,
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {event.location || "Location not specified"}
+                </Typography>
+              </Box>
+            </Box>
+          </Tooltip>
+        </Grid>
+
+        {/* Tile 4: Organizer */}
+        <Grid size={{ xs: 12, sm: 6, md: isFullWidth ? 3 : 6 }}>
+          <Box
+            sx={{
+              p: 2,
+              borderRadius: "8px",
+              bgcolor: "#F8FAFC",
+              border: "1px solid #F1F5F9",
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 1.5,
+              height: "100%",
+            }}
+          >
+            <Box
+              sx={{
+                width: 40,
+                height: 40,
+                borderRadius: "10px",
+                bgcolor: "#EDE9FE",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#7C3AED",
+                flexShrink: 0,
+              }}
+            >
+              <PersonIcon sx={{ fontSize: 20 }} />
+            </Box>
+            <Box sx={{ minWidth: 0, flex: 1 }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "#64748B",
+                  fontWeight: 800,
+                  textTransform: "uppercase",
+                  fontSize: "10.5px",
+                  letterSpacing: "0.05em",
+                  display: "block",
+                  mb: 0.25,
+                }}
+              >
+                ORGANIZER
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: 700,
+                  color: "#0F172A",
+                  fontSize: "14px",
+                  lineHeight: 1.4,
+                  wordBreak: "break-word",
+                }}
+              >
+                {organizerDisplay}
+              </Typography>
+            </Box>
+          </Box>
+        </Grid>
+      </Grid>
+
+      {/* Description Divider & Header */}
+      <Divider sx={{ mb: 2.5, borderColor: "#F1F5F9" }} />
+      <Typography
+        variant="subtitle2"
+        sx={{
+          fontWeight: 800,
+          color: "#1E293B",
+          fontSize: "13px",
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+          mb: 1.5,
+        }}
+      >
+        About this event
+      </Typography>
+      <Typography
+        variant="body1"
+        sx={{
+          color: "#334155",
+          lineHeight: 1.8,
+          fontSize: "15px",
+          whiteSpace: "pre-wrap",
+        }}
+      >
+        {event.description || "No description provided."}
+      </Typography>
     </Card>
   );
 }
@@ -2823,6 +3735,8 @@ export default function EventDetail() {
   const [reorderMediaOpen, setReorderMediaOpen] = useState(false);
   const [viewAllMediaOpen, setViewAllMediaOpen] = useState(false);
   const [activeImageUrl, setActiveImageUrl] = useState(null);
+  const [deleteEventOpen, setDeleteEventOpen] = useState(false);
+  const [deletingEvent, setDeletingEvent] = useState(false);
 
   // Quick Rating states (for visitors / non-staff only)
   const [myRating, setMyRating] = useState(0);
@@ -2878,17 +3792,20 @@ export default function EventDetail() {
     }
   };
 
-  // Delete event
-  const handleDeleteEvent = async () => {
-    if (!window.confirm("Permanently delete this event?")) return;
+  // Delete event with popup confirmation modal
+  const handleConfirmDeleteEvent = async () => {
+    setDeletingEvent(true);
     try {
       await API.delete(`/events/${id}`);
       enqueueSnackbar("Event deleted successfully", { variant: "info" });
+      setDeleteEventOpen(false);
       navigate("/events");
     } catch (err) {
       enqueueSnackbar(err.response?.data?.message || "Failed to delete event", {
         variant: "error",
       });
+    } finally {
+      setDeletingEvent(false);
     }
   };
 
@@ -2957,7 +3874,7 @@ export default function EventDetail() {
   if (error || !event) {
     return (
       <Container maxWidth="lg" sx={{ pb: 6, pt: 3 }}>
-        <Alert severity="error" sx={{ borderRadius: "14px", mb: 3 }}>
+        <Alert severity="error" sx={{ borderRadius: "8px", mb: 3 }}>
           {error || "Event not found."}
         </Alert>
         <Button
@@ -2971,314 +3888,37 @@ export default function EventDetail() {
     );
   }
 
+
   return (
-    <Container maxWidth="lg" sx={{ pb: 8, pt: 2 }}>
-      {/* ── 1. Top Featured Media Carousel & Thumbnail Strip ── */}
-      <EventMediaHero
-        coverImage={event.coverImage}
-        additionalImages={event.additionalImages}
-        onOpenAllMedia={() => setViewAllMediaOpen(true)}
-        onZoom={(url) => setActiveImageUrl(url)}
-      />
+    <Container maxWidth="xl" sx={{ pb: 8, px: 2 }}>
 
-      {/* ── 2. Event Header & Information Card ── */}
-      <Card
-        sx={{
-          borderRadius: "24px",
-          border: "1px solid #EAECF0",
-          boxShadow: "0 4px 20px rgba(0, 0, 0, 0.03)",
-          bgcolor: "#FFFFFF",
-          p: { xs: 2.5, md: 4 },
-          mb: 3.5,
-        }}
-      >
-        {/* Title */}
-        <Tooltip title={event.title} arrow placement="bottom-start" enterDelay={400}>
-          <Typography
-            variant="h4"
-            sx={{
-              fontWeight: 800,
-              color: "#0F172A",
-              lineHeight: 1.25,
-              mb: 1.5,
-              letterSpacing: "-0.025em",
-              fontSize: { xs: "24px", sm: "30px", md: "34px" },
-              wordBreak: "break-word",
-            }}
-          >
-            {event.title}
-          </Typography>
-        </Tooltip>
 
-        {/* Rating Row Below Title */}
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5, alignItems: "center" }}>
-          <StarRating value={Math.round(avgRating)} readOnly size={28} />
-          <Typography variant="body2" sx={{ color: "#94A3B8", fontSize: "0.8rem" }}>
-            {event.reviews?.length > 0
-              ? `${avgRating.toFixed(1)} (${event.reviews.length} ${event.reviews.length === 1 ? "review" : "reviews"
-              })`
-              : "No reviews yet"}
-          </Typography>
-        </Stack>
-
-        {/* 4 Info Tiles (Date, Time, Venue, Organizer) with Hover Tooltips on Overflow */}
-        <Grid container spacing={2} sx={{ mb: 3.5 }}>
-          {/* Tile 1: Date */}
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <Tooltip title={formattedDate} arrow placement="top">
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: "16px",
-                  bgcolor: "#F8FAFC",
-                  border: "1px solid #F1F5F9",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1.5,
-                  height: "100%",
-                  cursor: "default",
-                  transition: "background-color 0.15s",
-                  "&:hover": { bgcolor: "#F1F5F9" },
-                }}
-              >
-                <Box
-                  sx={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: "10px",
-                    bgcolor: "#EDE9FE",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#7C3AED",
-                    flexShrink: 0,
-                  }}
-                >
-                  <DateIcon sx={{ fontSize: 20 }} />
-                </Box>
-                <Box sx={{ minWidth: 0, flex: 1 }}>
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      color: "#64748B",
-                      fontWeight: 800,
-                      textTransform: "uppercase",
-                      fontSize: "10px",
-                      letterSpacing: "0.05em",
-                      display: "block",
-                    }}
-                  >
-                    DATE
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    noWrap
-                    sx={{ fontWeight: 700, color: "#0F172A", fontSize: "13.5px", overflow: "hidden", textOverflow: "ellipsis" }}
-                  >
-                    {formattedDate}
-                  </Typography>
-                </Box>
-              </Box>
-            </Tooltip>
-          </Grid>
-
-          {/* Tile 2: Time */}
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <Tooltip title={formattedTime} arrow placement="top">
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: "16px",
-                  bgcolor: "#F8FAFC",
-                  border: "1px solid #F1F5F9",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1.5,
-                  height: "100%",
-                  cursor: "default",
-                  transition: "background-color 0.15s",
-                  "&:hover": { bgcolor: "#F1F5F9" },
-                }}
-              >
-                <Box
-                  sx={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: "10px",
-                    bgcolor: "#EDE9FE",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#7C3AED",
-                    flexShrink: 0,
-                  }}
-                >
-                  <TimeIcon sx={{ fontSize: 20 }} />
-                </Box>
-                <Box sx={{ minWidth: 0, flex: 1 }}>
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      color: "#64748B",
-                      fontWeight: 800,
-                      textTransform: "uppercase",
-                      fontSize: "10px",
-                      letterSpacing: "0.05em",
-                      display: "block",
-                    }}
-                  >
-                    TIME
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    noWrap
-                    sx={{ fontWeight: 700, color: "#0F172A", fontSize: "13.5px", overflow: "hidden", textOverflow: "ellipsis" }}
-                  >
-                    {formattedTime}
-                  </Typography>
-                </Box>
-              </Box>
-            </Tooltip>
-          </Grid>
-
-          {/* Tile 3: Venue */}
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <Tooltip title={event.location || "—"} arrow placement="top">
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: "16px",
-                  bgcolor: "#F8FAFC",
-                  border: "1px solid #F1F5F9",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1.5,
-                  height: "100%",
-                  cursor: "default",
-                  transition: "background-color 0.15s",
-                  "&:hover": { bgcolor: "#F1F5F9" },
-                }}
-              >
-                <Box
-                  sx={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: "10px",
-                    bgcolor: "#EDE9FE",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#7C3AED",
-                    flexShrink: 0,
-                  }}
-                >
-                  <LocationIcon sx={{ fontSize: 20 }} />
-                </Box>
-                <Box sx={{ minWidth: 0, flex: 1 }}>
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      color: "#64748B",
-                      fontWeight: 800,
-                      textTransform: "uppercase",
-                      fontSize: "10px",
-                      letterSpacing: "0.05em",
-                      display: "block",
-                    }}
-                  >
-                    VENUE
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    noWrap
-                    sx={{ fontWeight: 700, color: "#0F172A", fontSize: "13.5px", overflow: "hidden", textOverflow: "ellipsis" }}
-                  >
-                    {event.location || "—"}
-                  </Typography>
-                </Box>
-              </Box>
-            </Tooltip>
-          </Grid>
-
-          {/* Tile 4: Organizer */}
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <Tooltip title={organizerDisplay} arrow placement="top">
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: "16px",
-                  bgcolor: "#F8FAFC",
-                  border: "1px solid #F1F5F9",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1.5,
-                  height: "100%",
-                  cursor: "default",
-                  transition: "background-color 0.15s",
-                  "&:hover": { bgcolor: "#F1F5F9" },
-                }}
-              >
-                <Box
-                  sx={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: "10px",
-                    bgcolor: "#EDE9FE",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#7C3AED",
-                    flexShrink: 0,
-                  }}
-                >
-                  <PersonIcon sx={{ fontSize: 20 }} />
-                </Box>
-                <Box sx={{ minWidth: 0, flex: 1 }}>
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      color: "#64748B",
-                      fontWeight: 800,
-                      textTransform: "uppercase",
-                      fontSize: "10px",
-                      letterSpacing: "0.05em",
-                      display: "block",
-                    }}
-                  >
-                    ORGANIZER
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    noWrap
-                    sx={{ fontWeight: 700, color: "#0F172A", fontSize: "13.5px", overflow: "hidden", textOverflow: "ellipsis" }}
-                  >
-                    {organizerDisplay}
-                  </Typography>
-                </Box>
-              </Box>
-            </Tooltip>
-          </Grid>
-        </Grid>
-
-        {/* Description Text */}
-        <Typography
-          variant="body1"
-          sx={{
-            color: "#475569",
-            lineHeight: 1.75,
-            fontSize: "15px",
-            whiteSpace: "pre-wrap",
-          }}
-        >
-          {event.description}
-        </Typography>
-      </Card>
-
-      {/* ── 3. Bottom Section ── */}
+      {/* ── Conditional Layout: Admin vs Other Users ── */}
       {canManage ? (
-        <Grid container spacing={3.5}>
-          {/* Left Column: Comments */}
-          <Grid size={{ xs: 12, md: 7.5 }}>
+        /* ── ADMIN VIEW: Fixed/Sticky Right Controls, Left Side Scrolls ── */
+        <Grid container spacing={3.5} alignItems="flex-start">
+          {/* Left Column (Scrolls smoothly) */}
+          <Grid size={{ xs: 12, lg: 8 }}>
+            <EventMediaHero
+              coverImage={event.coverImage}
+              additionalImages={event.additionalImages}
+              onOpenAllMedia={() => setViewAllMediaOpen(true)}
+              onZoom={(url) => setActiveImageUrl(url)}
+              canManage={canManage}
+              onManageMedia={() => setManageMediaOpen(true)}
+              sx={{ mb: 3 }}
+            />
+
+            <EventDetailsCard
+              event={event}
+              avgRating={avgRating}
+              formattedDate={formattedDate}
+              formattedTime={formattedTime}
+              organizerDisplay={organizerDisplay}
+              isFullWidth={false}
+              sx={{ mb: 3 }}
+            />
+
             <EventCommentsSection
               eventId={event._id}
               comments={event.comments || []}
@@ -3289,29 +3929,133 @@ export default function EventDetail() {
             />
           </Grid>
 
-          {/* Right Column: Admin Controls (No rating card for admin/staff) */}
-          <Grid size={{ xs: 12, md: 4.5 }}>
-            <AdminControlsCard
-              onEdit={() => setEditOpen(true)}
-              onDelete={handleDeleteEvent}
-              onManageMedia={() => setManageMediaOpen(true)}
-              onReorderMedia={() => setReorderMediaOpen(true)}
-            />
+          {/* Right Column: Fixed in position as left side scrolls */}
+          <Grid
+            size={{ xs: 12, lg: 4 }}
+            sx={{
+              position: { lg: "sticky" },
+              top: { lg: 84 },
+              alignSelf: "flex-start",
+              zIndex: 10,
+            }}
+          >
+            <Box
+              sx={{
+                position: { lg: "sticky" },
+                top: { lg: 84 },
+                display: "flex",
+                flexDirection: "column",
+                gap: 2.5,
+                maxHeight: { lg: "calc(100vh - 100px)" },
+                overflowY: { lg: "auto" },
+                pr: { lg: 0.5 },
+                "&::-webkit-scrollbar": { width: 4 },
+                "&::-webkit-scrollbar-thumb": { bgcolor: "#E2E8F0", borderRadius: 2 },
+              }}
+            >
+              <EventQuickSummaryCard
+                event={event}
+                allImagesList={allImagesList}
+                avgRating={avgRating}
+                sx={{ mb: 0 }}
+              />
+
+              <AdminControlsCard
+                onEdit={() => setEditOpen(true)}
+                onDelete={() => setDeleteEventOpen(true)}
+                onManageMedia={() => setManageMediaOpen(true)}
+                onReorderMedia={() => setReorderMediaOpen(true)}
+                photoCount={allImagesList.length}
+                sx={{ mb: 0 }}
+              />
+            </Box>
           </Grid>
         </Grid>
       ) : (
-        /* Non-Admin / User Full Width View */
+        /* ── OTHER USERS VIEW: Top row preview + 2 cards with matching height; Full-width details & comments below ── */
         <Box>
-          {/* Exact One-Line Visitor Rating Card (Only for regular users, NOT staff/warden/admin) */}
-          {!isStaffOrAdmin && (
-            <VisitorOneLineRatingCard
-              myRating={myRating}
-              onRate={handleQuickRate}
-              submitting={ratingSubmitting}
-            />
-          )}
+          {/* Top Row: Preview on left, 2 cards on right with exact matching height */}
+          <Grid container spacing={3} alignItems="stretch" sx={{ mb: 3 }}>
+            {/* Left: Preview Card */}
+            <Grid size={{ xs: 12, md: 7, lg: 7.5 }} sx={{ display: "flex" }}>
+              <EventMediaHero
+                coverImage={event.coverImage}
+                additionalImages={event.additionalImages}
+                onOpenAllMedia={() => setViewAllMediaOpen(true)}
+                onZoom={(url) => setActiveImageUrl(url)}
+                canManage={false}
+                sx={{
+                  flex: 1,
+                  width: "100%",
+                  height: "100%",
+                  mb: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              />
+            </Grid>
 
-          {/* Comments Section (Full Width) */}
+            {/* Right: 2 Cards taking full matching height of preview card */}
+            <Grid size={{ xs: 12, md: 5, lg: 4.5 }} sx={{ display: "flex" }}>
+              <Box
+                sx={{
+                  width: "100%",
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 2.5,
+                }}
+              >
+                <Box sx={{ flex: 1, display: "flex" }}>
+                  <EventQuickSummaryCard
+                    event={event}
+                    allImagesList={allImagesList}
+                    avgRating={avgRating}
+                    sx={{
+                      flex: 1,
+                      width: "100%",
+                      height: "100%",
+                      mb: 0,
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                    }}
+                  />
+                </Box>
+                {!isStaffOrAdmin && (
+                  <Box sx={{ flex: 1, display: "flex" }}>
+                    <VisitorOneLineRatingCard
+                      myRating={myRating}
+                      onRate={handleQuickRate}
+                      submitting={ratingSubmitting}
+                      sx={{
+                        flex: 1,
+                        width: "100%",
+                        height: "100%",
+                        mb: 0,
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "center",
+                      }}
+                    />
+                  </Box>
+                )}
+              </Box>
+            </Grid>
+          </Grid>
+
+          {/* Full Width Event Info Card Below */}
+          <EventDetailsCard
+            event={event}
+            avgRating={avgRating}
+            formattedDate={formattedDate}
+            formattedTime={formattedTime}
+            organizerDisplay={organizerDisplay}
+            isFullWidth={true}
+            sx={{ mb: 3 }}
+          />
+
+          {/* Full Width Comments Section Below */}
           <EventCommentsSection
             eventId={event._id}
             comments={event.comments || []}
@@ -3377,6 +4121,17 @@ export default function EventDetail() {
           setEvent((prev) => ({ ...prev, additionalImages: newImages }));
           setActiveImageUrl(null);
         }}
+      />
+
+      <DeleteConfirmDialog
+        open={deleteEventOpen}
+        onClose={() => setDeleteEventOpen(false)}
+        onConfirm={handleConfirmDeleteEvent}
+        title="Delete Event"
+        message=""
+        confirmText="Delete Event"
+        loading={deletingEvent}
+        itemName={event?.title}
       />
     </Container>
   );

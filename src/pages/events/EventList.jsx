@@ -37,7 +37,11 @@ import {
   Close as CloseIcon,
   PhotoCamera as CameraIcon,
   FilterList as FilterListIcon,
-  CloudUpload as CloudUploadIcon,
+  LocationOn as LocationIcon,
+  Search as SearchIcon,
+  OpenInNew as OpenInNewIcon,
+  Check as CheckIcon,
+  Palette as PaletteIcon,
 } from "@mui/icons-material";
 
 import { useAuth } from "../../context/AuthContext";
@@ -50,20 +54,18 @@ dayjs.extend(isoWeek);
 
 const WEEK_LABELS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-const CATEGORY_COLORS = {
-  "Hostel Annual Day": "#8E33FF",
-  "Alumni Meet": "#0088ff",
-  "Community Meeting": "#00A76F",
-  "Sports Event": "#FF5630",
-  "Cultural Event": "#FFAB00",
-  "Voting Meeting": "#3B82F6",
-  "Festival": "#22C55E",
-  "Student Gathering": "#00B8D9",
-  "Other": "#64748B",
-};
-
-const CATEGORIES = Object.keys(CATEGORY_COLORS);
-const getCategoryColor = (cat) => CATEGORY_COLORS[cat] || CATEGORY_COLORS["Other"];
+const EVENT_COLORS = [
+  { label: "Ocean Blue", value: "#0088ff" },
+  { label: "Royal Purple", value: "#7c3aed" },
+  { label: "Emerald Green", value: "#059669" },
+  { label: "Vibrant Orange", value: "#ea580c" },
+  { label: "Crimson Red", value: "#dc2626" },
+  { label: "Amber Gold", value: "#d97706" },
+  { label: "Sky Cyan", value: "#0284c7" },
+  { label: "Hot Pink", value: "#db2777" },
+  { label: "Deep Indigo", value: "#4f46e5" },
+  { label: "Slate Gray", value: "#475569" },
+];
 
 // ─── Toolbar ─────────────────────────────────────────────────────────────────
 function CalendarToolbar({ view, onViewChange, currentDate, onPrev, onNext, onToday }) {
@@ -111,10 +113,10 @@ function CalendarToolbar({ view, onViewChange, currentDate, onPrev, onNext, onTo
             color: "#475467",
             "&:hover": { bgcolor: "#E4E4E7" },
             "&.Mui-selected": {
-              bgcolor: "#fff",
-              color: "#111827",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
-              "&:hover": { bgcolor: "#fff" },
+              bgcolor: "#0088ff",
+              color: "#fff",
+              boxShadow: "none",
+              "&:hover": { bgcolor: "#0088ff" },
             },
           },
         }}
@@ -173,7 +175,7 @@ function CalendarToolbar({ view, onViewChange, currentDate, onPrev, onNext, onTo
 
 // ─── Event pill (like in the screenshot) ─────────────────────────────────────
 function EventPill({ event, onClick }) {
-  const color = getCategoryColor(event.category);
+  const color = event.color || "#0088ff";
 
   return (
     <Tooltip title={event.title} placement="top" arrow>
@@ -244,20 +246,30 @@ function PillList({ events, onNavigate }) {
 }
 
 // ─── Day Cell ─────────────────────────────────────────────────────────────────
-function DayCell({ dateStr, events, onOpenCreate, onNavigate, isLoading, canCreate, isCurrentMonth }) {
-  const today = dayjs().format("YYYY-MM-DD");
-  const isToday = dateStr === today;
+function DayCell({
+  dateStr,
+  events,
+  onOpenCreate,
+  onNavigate,
+  isLoading,
+  canCreate,
+  isCurrentMonth,
+  isTodayActive,
+  onMouseEnter,
+}) {
+  const isToday = dayjs().format("YYYY-MM-DD") === dateStr;
 
   return (
     <Paper
       variant="outlined"
       onClick={() => canCreate && onOpenCreate(dateStr)}
+      onMouseEnter={onMouseEnter}
       sx={{
         height: 130, // uniform grid height
         p: "10px 12px",
         borderRadius: "12px",
-        borderColor: isToday ? "#0088ff" : "#EAECF0",
-        bgcolor: isToday ? "#F0F7FF" : "#ffffff",
+        borderColor: isTodayActive ? "#0088ff" : "#EAECF0",
+        bgcolor: isTodayActive ? "#F0F7FF" : "#ffffff",
         boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
         cursor: canCreate ? "pointer" : "default",
         transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -275,64 +287,63 @@ function DayCell({ dateStr, events, onOpenCreate, onNavigate, isLoading, canCrea
     >
       {isLoading ? (
         <Skeleton variant="rounded" height={100} sx={{ borderRadius: "6px" }} />
-      ) : (
-        <>
-          <Box sx={{ mb: 1, flexShrink: 0, display: "flex", alignItems: "center" }}>
-            <Typography
-              variant="subtitle2"
+      ) : (<>
+        <Box sx={{ mb: 1, flexShrink: 0, display: "flex", alignItems: "center" }}>
+          <Typography
+            variant="subtitle2"
+            sx={{
+              fontWeight: 700,
+              fontSize: 14,
+              color: isTodayActive
+                ? "#0088ff"
+                : isCurrentMonth
+                  ? "#1E293B"
+                  : "#94A3B8",
+              lineHeight: 1,
+            }}
+          >
+            {dayjs(dateStr).date()}
+          </Typography>
+
+          {canCreate && (
+            <Box
+              className="add-btn"
               sx={{
-                fontWeight: 700,
-                fontSize: 14,
-                color: isToday
-                  ? "#0088ff"
-                  : isCurrentMonth
-                    ? "#1E293B"
-                    : "#94A3B8",
-                lineHeight: 1,
+                opacity: isTodayActive ? 1 : 0,
+                transition: "opacity 0.15s, transform 0.15s",
+                cursor: "pointer",
+                width: 22,
+                height: 22,
+                borderRadius: "6px",
+                bgcolor: "#0088ff",
+                color: "#ffffff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                position: "absolute",
+                top: 10,
+                right: 12,
+                zIndex: 2,
+                "&:hover": {
+                  bgcolor: "#0077ee",
+                  transform: "scale(1.05)"
+                },
+                "&:active": {
+                  transform: "scale(0.95)"
+                }
               }}
+              onClick={(e) => { e.stopPropagation(); onOpenCreate(dateStr); }}
             >
-              {dayjs(dateStr).date()}
-            </Typography>
+              <AddRoundedIcon sx={{ fontSize: 14 }} />
+            </Box>
+          )}
+        </Box>
 
-            {canCreate && (
-              <Box
-                className="add-btn"
-                sx={{
-                  opacity: 0,
-                  transition: "opacity 0.15s, transform 0.15s",
-                  cursor: "pointer",
-                  width: 22,
-                  height: 22,
-                  borderRadius: "6px",
-                  bgcolor: "#0088ff",
-                  color: "#ffffff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  position: "absolute",
-                  top: 10,
-                  right: 12,
-                  zIndex: 2,
-                  "&:hover": {
-                    bgcolor: "#0077ee",
-                    transform: "scale(1.05)"
-                  },
-                  "&:active": {
-                    transform: "scale(0.95)"
-                  }
-                }}
-                onClick={(e) => { e.stopPropagation(); onOpenCreate(dateStr); }}
-              >
-                <AddRoundedIcon sx={{ fontSize: 14 }} />
-              </Box>
-            )}
-          </Box>
-
-          {/* Scrollable pill area */}
-          <Box sx={{ flex: 1, overflowY: "auto", "&::-webkit-scrollbar": { width: 2 } }}>
-            <PillList events={events} onNavigate={onNavigate} />
-          </Box>
-        </>
+        {/* Scrollable pill area */}
+        <Box sx={{ flex: 1, overflowY: "auto", "&::-webkit-scrollbar": { width: 2 } }}>
+          <PillList events={events} onNavigate={onNavigate} />
+        </Box>
+      </>
       )}
     </Paper>
   );
@@ -341,6 +352,9 @@ function DayCell({ dateStr, events, onOpenCreate, onNavigate, isLoading, canCrea
 
 // ─── Month view ───────────────────────────────────────────────────────────────
 function MonthView({ events, currentDate, onOpenCreate, onNavigate, isLoading, canCreate }) {
+  const [hoveredDate, setHoveredDate] = useState(null);
+  const today = dayjs().format("YYYY-MM-DD");
+
   const startOfMonth = currentDate.startOf("month");
   const endOfMonth = currentDate.endOf("month");
   const startDate =
@@ -377,7 +391,7 @@ function MonthView({ events, currentDate, onOpenCreate, onNavigate, isLoading, c
               borderRadius: "12px",
               borderColor: "#EAECF0",
               bgcolor: "#fff",
-              boxShadow: "0 1px 2px rgba(0,0,0,0.02)"
+              boxShadow: "none"
             }}
           >
             <Typography sx={{ fontSize: "13px", fontWeight: 700, color: "#1E293B" }}>{l}</Typography>
@@ -386,9 +400,14 @@ function MonthView({ events, currentDate, onOpenCreate, onNavigate, isLoading, c
       </Box>
 
       {/* Date cells */}
-      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "12px", px: "12px", pt: "12px" }}>
+      <Box
+        onMouseLeave={() => setHoveredDate(null)}
+        sx={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "12px", px: "12px", pt: "12px" }}
+      >
         {days.map((date) => {
           const ds = date.format("YYYY-MM-DD");
+          const isToday = ds === today;
+          const isTodayActive = isToday && (!hoveredDate || hoveredDate === today);
           const dayEvents = events.filter(
             (ev) => ev.eventDate && dayjs(ev.eventDate).format("YYYY-MM-DD") === ds
           );
@@ -402,6 +421,8 @@ function MonthView({ events, currentDate, onOpenCreate, onNavigate, isLoading, c
               isLoading={isLoading}
               canCreate={canCreate}
               isCurrentMonth={date.month() === currentDate.month()}
+              isTodayActive={isTodayActive}
+              onMouseEnter={() => setHoveredDate(ds)}
             />
           );
         })}
@@ -439,7 +460,7 @@ function WeekView({ events, currentDate, onOpenCreate, onNavigate, isLoading, ca
                 borderRadius: "12px",
                 borderColor: "#EAECF0",
                 bgcolor: "#fff",
-                boxShadow: "0 1px 2px rgba(0,0,0,0.02)"
+                boxShadow: "none"
               }}
             >
               <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#6B7280", display: "block" }}>
@@ -515,8 +536,23 @@ function DayView({ currentDate, events, onOpenCreate, onNavigate, isLoading, can
 
   if (isLoading)
     return (
-      <Box sx={{ p: 3 }}>
-        {[1, 2, 3].map((k) => <Skeleton key={k} variant="rounded" height={60} sx={{ mb: 1.5, borderRadius: "8px" }} />)}
+      <Box>
+        <Box sx={{ py: 1.5, px: 3, borderBottom: "1px solid #F1F5F9", bgcolor: "#FAFAFA", display: "flex", justifyContent: "center" }}>
+          <Skeleton variant="text" width={220} height={28} />
+        </Box>
+        <Box sx={{ maxHeight: 600, overflowY: "auto" }}>
+          {Array.from({ length: 14 }).map((_, i) => (
+            <Box
+              key={i}
+              sx={{ display: "grid", gridTemplateColumns: "72px 1fr", borderBottom: "1px solid #F5F5F5" }}
+            >
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", pr: 2, py: 1.5, borderRight: "1px solid #F5F5F5" }}>
+                <Skeleton variant="text" width={40} height={18} />
+              </Box>
+
+            </Box>
+          ))}
+        </Box>
       </Box>
     );
 
@@ -561,9 +597,15 @@ function EventFormDialog({ open, onClose, onSubmit, isEdit, defaultDate, initial
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [location, setLocation] = useState("");
-  const [category, setCategory] = useState("Other");
-  const [mediaFiles, setMediaFiles] = useState([]);
-  const [mediaPreviews, setMediaPreviews] = useState([]);
+  const [locationUrl, setLocationUrl] = useState("");
+  const [locationCoordinates, setLocationCoordinates] = useState(null);
+  const [color, setColor] = useState("#0088ff");
+
+  // Location search suggestions state
+  const [locationQuery, setLocationQuery] = useState("");
+  const [locationSuggestions, setLocationSuggestions] = useState([]);
+  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -574,38 +616,97 @@ function EventFormDialog({ open, onClose, onSubmit, isEdit, defaultDate, initial
         setStartTime(initialData.startTime || "");
         setEndTime(initialData.endTime || "");
         setLocation(initialData.location || "");
-        setCategory(initialData.category || "Other");
-        setMediaFiles([]);
-        setMediaPreviews([]);
+        setLocationQuery(initialData.location || "");
+        setLocationUrl(initialData.locationUrl || "");
+        setLocationCoordinates(initialData.locationCoordinates || null);
+        setColor(initialData.color || "#0088ff");
       } else {
-        setTitle(""); setDescription(""); setEventDate(defaultDate || "");
-        setStartTime(""); setEndTime(""); setLocation(""); setCategory("Other");
-        setMediaFiles([]); setMediaPreviews([]);
+        setTitle("");
+        setDescription("");
+        setEventDate(defaultDate || "");
+        setStartTime("");
+        setEndTime("");
+        setLocation("");
+        setLocationQuery("");
+        setLocationUrl("");
+        setLocationCoordinates(null);
+        setColor("#0088ff");
       }
+      setLocationSuggestions([]);
+      setShowLocationSuggestions(false);
     }
   }, [open, initialData, defaultDate]);
 
-  const handleMediaChange = (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length > 0) {
-      setMediaFiles(prev => [...prev, ...files]);
-      const newPreviews = files.map(file => URL.createObjectURL(file));
-      setMediaPreviews(prev => [...prev, ...newPreviews]);
+  // Debounced search using OpenStreetMap Nominatim for exact place resolution
+  useEffect(() => {
+    if (!locationQuery || locationQuery.trim().length < 3) {
+      setLocationSuggestions([]);
+      setIsSearchingLocation(false);
+      return;
     }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingLocation(true);
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationQuery)}&limit=5&addressdetails=1`,
+          { headers: { "Accept-Language": "en" } }
+        );
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setLocationSuggestions(data);
+          setShowLocationSuggestions(true);
+        }
+      } catch (err) {
+        console.error("Location search error:", err);
+      } finally {
+        setIsSearchingLocation(false);
+      }
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [locationQuery]);
+
+  const handleSelectPlace = (place) => {
+    const displayName = place.display_name;
+    const lat = parseFloat(place.lat);
+    const lon = parseFloat(place.lon);
+    setLocation(displayName);
+    setLocationQuery(displayName);
+    setLocationCoordinates({ lat, lng: lon });
+    setLocationUrl(`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`);
+    setShowLocationSuggestions(false);
   };
 
-  const handleRemoveMediaAt = (index) => {
-    setMediaFiles(prev => prev.filter((_, idx) => idx !== index));
-    setMediaPreviews(prev => {
-      URL.revokeObjectURL(prev[index]);
-      return prev.filter((_, idx) => idx !== index);
-    });
+  const handleManualLocationChange = (e) => {
+    const val = e.target.value;
+    setLocation(val);
+    setLocationQuery(val);
+    setShowLocationSuggestions(true);
+    setLocationUrl(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(val)}`);
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit({ title, description, eventDate, startTime, endTime, location, category, mediaFiles });
+    onSubmit({
+      title,
+      description,
+      eventDate,
+      startTime,
+      endTime,
+      location,
+      locationUrl: locationUrl || (location ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}` : ""),
+      locationCoordinates,
+      color,
+    });
   };
+
+  const currentMapLink = locationUrl || (location ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}` : "");
+  const embedMapUrl = locationCoordinates?.lat && locationCoordinates?.lng
+    ? `https://maps.google.com/maps?q=${locationCoordinates.lat},${locationCoordinates.lng}&t=&z=15&ie=UTF8&iwloc=&output=embed`
+    : location && location.trim().length > 2
+    ? `https://maps.google.com/maps?q=${encodeURIComponent(location)}&t=&z=15&ie=UTF8&iwloc=&output=embed`
+    : "";
 
   return (
     <Dialog
@@ -621,14 +722,14 @@ function EventFormDialog({ open, onClose, onSubmit, isEdit, defaultDate, initial
         }
       }}
     >
-      <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #EAECF0", py: 2.5, px: 3.5, bgcolor: "#F8FAFC" }}>
+      {/* <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #EAECF0", py: 2.5, px: 3.5, bgcolor: "#F8FAFC" }}>
         <Typography variant="h6" sx={{ fontWeight: 800, fontSize: 17, color: "#1E293B", letterSpacing: "-0.02em" }}>
           {isEdit ? "Edit Event Details" : "Schedule Community Event"}
         </Typography>
         <IconButton onClick={onClose} size="small" sx={{ color: "#94A3B8", bgcolor: "#FFF", border: "1px solid #E2E8F0", "&:hover": { bgcolor: "#F1F5F9", color: "#1E293B" } }}>
           <CloseIcon fontSize="small" />
         </IconButton>
-      </DialogTitle>
+      </DialogTitle> */}
 
       <form onSubmit={handleSubmit}>
         <DialogContent sx={{ px: 3.5, py: 3, backgroundColor: "#FFF" }}>
@@ -646,17 +747,11 @@ function EventFormDialog({ open, onClose, onSubmit, isEdit, defaultDate, initial
                   size="small"
                   label="Event Title *"
                   required
+                  placeholder="e.g. Annual Alumni Meet 2026"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px", backgroundColor: "#F8FAFC", "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#0088ff30" } } }}
                 />
-
-                <FormControl fullWidth size="small">
-                  <InputLabel>Category</InputLabel>
-                  <Select value={category} label="Category" onChange={(e) => setCategory(e.target.value)} sx={{ borderRadius: "12px", backgroundColor: "#F8FAFC" }}>
-                    {CATEGORIES.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
-                  </Select>
-                </FormControl>
 
                 <TextField
                   fullWidth
@@ -665,10 +760,112 @@ function EventFormDialog({ open, onClose, onSubmit, isEdit, defaultDate, initial
                   multiline
                   rows={3}
                   required
+                  placeholder="Provide an engaging description of what will happen at this event..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px", backgroundColor: "#F8FAFC", "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#0088ff30" } } }}
                 />
+
+                {/* Color Selector */}
+                <Box sx={{ pt: 0.5 }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+                    <Typography variant="caption" sx={{ color: "#475569", fontWeight: 700, fontSize: "12px" }}>
+                      Event Theme Color *
+                    </Typography>
+                    {/* Live Calendar Pill Preview */}
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <Typography variant="caption" sx={{ color: "#94A3B8", fontSize: "11px", fontWeight: 600 }}>
+                        Calendar Preview:
+                      </Typography>
+                      <Box
+                        sx={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          bgcolor: `${color}14`,
+                          border: `1px solid ${color}35`,
+                          borderRadius: "6px",
+                          px: 1,
+                          py: 0.25,
+                        }}
+                      >
+                        <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: color, mr: 0.75 }} />
+                        <Typography sx={{ fontSize: "11px", fontWeight: 700, color, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {title ? title : "Event Title"}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Stack>
+
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: "wrap", gap: 1 }}>
+                    {EVENT_COLORS.map((c) => {
+                      const isSelected = color.toLowerCase() === c.value.toLowerCase();
+                      return (
+                        <Tooltip key={c.value} title={c.label} arrow placement="top">
+                          <Box
+                            onClick={() => setColor(c.value)}
+                            sx={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: "50%",
+                              bgcolor: c.value,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: "pointer",
+                              transition: "all 0.15s ease",
+                              border: isSelected ? "3px solid #FFF" : "2px solid transparent",
+                              outline: isSelected ? `2.5px solid ${c.value}` : "none",
+                              boxShadow: isSelected ? `0 2px 8px ${c.value}60` : "none",
+                              "&:hover": {
+                                transform: "scale(1.15)",
+                              },
+                            }}
+                          >
+                            {isSelected && <CheckIcon sx={{ color: "#FFF", fontSize: 16, strokeWidth: 2 }} />}
+                          </Box>
+                        </Tooltip>
+                      );
+                    })}
+
+                    {/* Custom Color Input */}
+                    <Tooltip title="Choose Custom Hex Color" arrow placement="top">
+                      <Box
+                        component="label"
+                        sx={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: "50%",
+                          border: "1.5px dashed #94A3B8",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          position: "relative",
+                          overflow: "hidden",
+                          transition: "all 0.15s ease",
+                          "&:hover": {
+                            borderColor: "#0088ff",
+                            transform: "scale(1.15)",
+                          },
+                        }}
+                      >
+                        <PaletteIcon sx={{ fontSize: 16, color: "#64748B" }} />
+                        <input
+                          type="color"
+                          value={color}
+                          onChange={(e) => setColor(e.target.value)}
+                          style={{
+                            position: "absolute",
+                            opacity: 0,
+                            width: "100%",
+                            height: "100%",
+                            cursor: "pointer",
+                          }}
+                        />
+                      </Box>
+                    </Tooltip>
+                  </Stack>
+                </Box>
               </Stack>
             </Box>
 
@@ -711,158 +908,126 @@ function EventFormDialog({ open, onClose, onSubmit, isEdit, defaultDate, initial
 
             <Divider />
 
-            {/* Section 3: Location & Media */}
+            {/* Section 3: Location & Map Search */}
             <Box>
               <Typography variant="caption" sx={{ color: "#0088ff", fontWeight: 800, textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.05em", display: "block", mb: 1.5 }}>
-                Location & Gallery Media
+                Location & Map
               </Typography>
-              <Stack spacing={2.5}>
+              <Box sx={{ position: "relative" }}>
                 <TextField
                   fullWidth
                   size="small"
-                  label="Venue / Location *"
+                  label="Search & Select Exact Location *"
+                  placeholder="e.g. Auditorium, Hostel Campus, Bangalore"
                   required
                   value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px", backgroundColor: "#F8FAFC", "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#0088ff30" } } }}
+                  onChange={handleManualLocationChange}
+                  onFocus={() => locationSuggestions.length > 0 && setShowLocationSuggestions(true)}
+                  InputProps={{
+                    startAdornment: <LocationIcon sx={{ color: "#0088ff", mr: 1, fontSize: 20 }} />,
+                    endAdornment: isSearchingLocation ? (
+                      <CircularProgress size={16} sx={{ color: "#0088ff" }} />
+                    ) : (
+                      <SearchIcon sx={{ color: "#94A3B8", fontSize: 20 }} />
+                    ),
+                  }}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: "12px",
+                      backgroundColor: "#F8FAFC",
+                      "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#0088ff30" },
+                    },
+                  }}
                 />
 
-                {/* Media Upload Area */}
-                {mediaPreviews.length > 0 ? (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                    <Box
-                      sx={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))',
-                        gap: 1.5,
-                        maxHeight: '140px',
-                        overflowY: 'auto',
-                        p: 1.5,
-                        border: '1px solid #EAECF0',
-                        borderRadius: '14px',
-                        backgroundColor: '#F8FAFC'
-                      }}
-                    >
-                      {mediaFiles.map((file, idx) => (
-                        <Box
-                          key={idx}
-                          sx={{
-                            position: 'relative',
-                            width: '100%',
-                            paddingBottom: '100%',
-                            borderRadius: '8px',
-                            overflow: 'hidden',
-                            border: idx === 0 ? '2px solid #0088ff' : '1px solid #E2E8F0',
-                            bgcolor: '#000',
-                            transition: 'transform 0.15s',
-                            '&:hover': { transform: 'scale(1.03)' }
-                          }}
-                        >
-                          <img
-                            src={mediaPreviews[idx]}
-                            alt={`preview-${idx}`}
-                            style={{
-                              position: 'absolute',
-                              top: 0,
-                              left: 0,
-                              width: '100%',
-                              height: '100%',
-                              objectFit: 'cover'
-                            }}
-                          />
-
-                          {idx === 0 && (
-                            <Box sx={{ position: 'absolute', bottom: 0, width: '100%', bgcolor: 'rgba(0,136,255,0.85)', color: '#fff', textAlign: 'center', py: 0.1, zIndex: 1 }}>
-                              <Typography sx={{ fontSize: '8px', fontWeight: 700 }}>Cover</Typography>
-                            </Box>
-                          )}
-
-                          <IconButton
-                            size="small"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleRemoveMediaAt(idx);
-                            }}
-                            sx={{
-                              position: 'absolute',
-                              top: 2,
-                              right: 2,
-                              color: '#fff',
-                              backgroundColor: 'rgba(0,0,0,0.5)',
-                              p: 0.25,
-                              zIndex: 2,
-                              '&:hover': {
-                                backgroundColor: 'rgba(0,0,0,0.8)'
-                              }
-                            }}
-                          >
-                            <CloseIcon sx={{ fontSize: 10 }} />
-                          </IconButton>
-                        </Box>
-                      ))}
-                    </Box>
-
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Typography variant="caption" sx={{ color: '#475569', fontWeight: 600 }}>
-                        {mediaFiles.length} photo(s) selected
-                      </Typography>
-                      <Button
-                        variant="text"
-                        size="small"
-                        component="span"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          document.getElementById("ev-media-input").click();
-                        }}
-                        sx={{ textTransform: 'none', fontWeight: 700, fontSize: '12px', borderRadius: '8px' }}
-                      >
-                        Add more photos
-                      </Button>
-                    </Box>
-                    <input
-                      accept="image/*"
-                      id="ev-media-input"
-                      style={{ display: "none" }}
-                      type="file"
-                      multiple
-                      onChange={handleMediaChange}
-                    />
-                  </Box>
-                ) : (
-                  <Box
+                {/* Autocomplete suggestions dropdown */}
+                {showLocationSuggestions && locationSuggestions.length > 0 && (
+                  <Paper
+                    elevation={4}
                     sx={{
-                      border: "2px dashed #D0D5DD",
-                      p: 3,
-                      borderRadius: "14px",
-                      textAlign: "center",
-                      bgcolor: "#F8FAFC",
-                      cursor: "pointer",
-                      transition: "all 0.2s",
-                      "&:hover": {
-                        bgcolor: "rgba(0,136,255,0.02)",
-                        borderColor: "#0088ff"
-                      }
+                      position: "absolute",
+                      top: "calc(100% + 4px)",
+                      left: 0,
+                      right: 0,
+                      zIndex: 20,
+                      borderRadius: "12px",
+                      maxHeight: "220px",
+                      overflowY: "auto",
+                      border: "1px solid #E2E8F0",
+                      bgcolor: "#FFF",
                     }}
-                    component="label"
                   >
-                    <input
-                      accept="image/*"
-                      style={{ display: "none" }}
-                      type="file"
-                      multiple
-                      onChange={handleMediaChange}
-                    />
-                    <CloudUploadIcon sx={{ fontSize: 32, color: "#64748B", mb: 1 }} />
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: "#334155", mb: 0.5 }}>
-                      Upload Cover & Gallery Photos
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: "#94A3B8" }}>
-                      Select one or more images (First is cover)
-                    </Typography>
-                  </Box>
+                    {locationSuggestions.map((place, idx) => (
+                      <Box
+                        key={idx}
+                        onClick={() => handleSelectPlace(place)}
+                        sx={{
+                          p: 1.5,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: 1.25,
+                          borderBottom: idx < locationSuggestions.length - 1 ? "1px solid #F1F5F9" : "none",
+                          "&:hover": { bgcolor: "#F0F7FF" },
+                        }}
+                      >
+                        <LocationIcon sx={{ color: "#0088ff", fontSize: 18, mt: 0.25, flexShrink: 0 }} />
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 700, color: "#1E293B", fontSize: "13px" }}>
+                            {place.display_name.split(",")[0]}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: "#64748B", fontSize: "11.5px", display: "block", wordBreak: "break-word" }}>
+                            {place.display_name}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    ))}
+                  </Paper>
                 )}
-              </Stack>
+              </Box>
+
+              {/* Live Embedded Map Preview */}
+              {embedMapUrl && (
+                <Box sx={{ mt: 2, borderRadius: "14px", overflow: "hidden", border: "1px solid #E2E8F0", bgcolor: "#F8FAFC" }}>
+                  <iframe
+                    title="Event Location Pin"
+                    width="100%"
+                    height="170"
+                    style={{ border: 0, display: "block" }}
+                    loading="lazy"
+                    src={embedMapUrl}
+                  />
+                  <Box sx={{ px: 2, py: 1.25, display: "flex", justifyContent: "space-between", alignItems: "center", bgcolor: "#F8FAFC", borderTop: "1px solid #EAECF0" }}>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#10B981" }} />
+                      <Typography variant="caption" sx={{ color: "#475569", fontWeight: 700, fontSize: "11.5px" }}>
+                        Location Pin Mapped
+                      </Typography>
+                    </Stack>
+                    {currentMapLink && (
+                      <Button
+                        size="small"
+                        component="a"
+                        href={currentMapLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        endIcon={<OpenInNewIcon sx={{ fontSize: "14px !important" }} />}
+                        sx={{
+                          fontSize: "11.5px",
+                          fontWeight: 700,
+                          color: "#0088ff",
+                          textTransform: "none",
+                          p: 0,
+                          minWidth: 0,
+                          "&:hover": { bgcolor: "transparent", textDecoration: "underline" },
+                        }}
+                      >
+                        Open in Google Maps
+                      </Button>
+                    )}
+                  </Box>
+                </Box>
+              )}
             </Box>
           </Stack>
         </DialogContent>
@@ -874,13 +1039,13 @@ function EventFormDialog({ open, onClose, onSubmit, isEdit, defaultDate, initial
             variant="contained"
             disabled={submitting}
             sx={{
-              bgcolor: "#0088ff",
+              bgcolor: color || "#0088ff",
               borderRadius: "10px",
               textTransform: "none",
               fontWeight: 700,
               boxShadow: "none",
               px: 3,
-              "&:hover": { bgcolor: "#0077EE", boxShadow: "none" }
+              "&:hover": { bgcolor: color || "#0077EE", filter: "brightness(0.92)", boxShadow: "none" }
             }}
           >
             {submitting ? <CircularProgress size={20} color="inherit" /> : isEdit ? "Save Changes" : "Schedule Event"}
@@ -955,43 +1120,30 @@ export default function EventList() {
     navigate(`/events/${ev._id}`);
   };
 
-  const handleFormSubmit = async ({ title, description, eventDate, startTime, endTime, location, category, mediaFiles }) => {
+  const handleFormSubmit = async ({ title, description, eventDate, startTime, endTime, location, locationUrl, locationCoordinates, color }) => {
     if (!title || !description || !eventDate || !startTime || !endTime || !location) {
       setFormError("Please fill in all required fields."); return;
     }
     setFormError(""); setSubmitting(true);
 
-    const fd = new FormData();
-    fd.append("title", title); fd.append("description", description);
-    fd.append("eventDate", eventDate); fd.append("startTime", startTime);
-    fd.append("endTime", endTime); fd.append("location", location); fd.append("category", category);
-
-    // First file is the cover image
-    if (mediaFiles && mediaFiles.length > 0) {
-      fd.append("coverImage", mediaFiles[0]);
-    }
+    const payload = {
+      title,
+      description,
+      eventDate,
+      startTime,
+      endTime,
+      location,
+      locationUrl: locationUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`,
+      locationCoordinates,
+      color: color || "#0088ff",
+    };
 
     try {
       const res = editId
-        ? await API.patch(`/events/${editId}`, fd, { headers: { "Content-Type": "multipart/form-data" } })
-        : await API.post("/events", fd, { headers: { "Content-Type": "multipart/form-data" } });
+        ? await API.patch(`/events/${editId}`, payload)
+        : await API.post("/events", payload);
 
       if (res.data?.success) {
-        const createdEvent = res.data.data.event;
-
-        // If additional files are selected, upload them to the gallery
-        if (mediaFiles && mediaFiles.length > 1) {
-          const eventId = createdEvent._id;
-          const galleryFd = new FormData();
-          for (let i = 1; i < mediaFiles.length; i++) {
-            galleryFd.append("galleryImages", mediaFiles[i]);
-          }
-
-          await API.post(`/events/${eventId}/gallery`, galleryFd, {
-            headers: { "Content-Type": "multipart/form-data" }
-          });
-        }
-
         enqueueSnackbar(editId ? "Event updated successfully!" : "Event scheduled successfully!", { variant: "success" });
         setCreateOpen(false);
         fetchEvents();

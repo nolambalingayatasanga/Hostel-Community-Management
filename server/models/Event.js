@@ -47,10 +47,19 @@ const EventSchema = new mongoose.Schema({
     required: [true, 'Please provide an event location'],
     trim: true
   },
-  category: {
+  locationUrl: {
     type: String,
-    enum: ['Hostel Annual Day', 'Alumni Meet', 'Community Meeting', 'Sports Event', 'Cultural Event', 'Voting Meeting', 'Festival', 'Student Gathering', 'Other'],
-    default: 'Other'
+    default: '',
+    trim: true
+  },
+  locationCoordinates: {
+    lat: { type: Number },
+    lng: { type: Number }
+  },
+  color: {
+    type: String,
+    default: '#0088ff',
+    trim: true
   },
   coverImage: {
     url: { type: String, default: '' },
@@ -79,7 +88,6 @@ const EventSchema = new mongoose.Schema({
 
 // Indexing eventDate for sorting upcoming vs past events
 EventSchema.index({ eventDate: 1 });
-EventSchema.index({ category: 1 });
 
 module.exports = mongoose.model('Event', EventSchema);
 

@@ -389,7 +389,8 @@ const seedData = async () => {
       startTime: '16:00',
       endTime: '21:00',
       location: 'Hostel Main Ground, Campus East',
-      category: 'Hostel Annual Day',
+      locationUrl: 'https://www.google.com/maps/search/?api=1&query=Hostel+Main+Ground+Campus+East',
+      color: '#7c3aed',
       coverImage: {
         url: 'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=800&q=80',
         publicId: 'mock_cover_annual_day'
@@ -404,7 +405,8 @@ const seedData = async () => {
       startTime: '10:00',
       endTime: '15:00',
       location: 'Seminar Auditorium, Block C',
-      category: 'Alumni Meet',
+      locationUrl: 'https://www.google.com/maps/search/?api=1&query=Seminar+Auditorium+Block+C',
+      color: '#0088ff',
       coverImage: {
         url: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80',
         publicId: 'mock_cover_alumni_meet'
@@ -419,7 +421,8 @@ const seedData = async () => {
       startTime: '08:00',
       endTime: '14:00',
       location: 'College Sports Pavilion',
-      category: 'Sports Event',
+      locationUrl: 'https://www.google.com/maps/search/?api=1&query=College+Sports+Pavilion',
+      color: '#ea580c',
       coverImage: {
         url: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=800&q=80',
         publicId: 'mock_cover_sports'

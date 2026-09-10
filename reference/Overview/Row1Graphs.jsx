@@ -133,7 +133,7 @@ function LeadsDonutChart({ activeTab, setActiveTab }) {
   });
 
   return (
-    <Card sx={{ p: 3, width: "100%", height: "100%", borderRadius: "14px", border: "1px solid #E5E7EB", boxShadow: "none", display: "flex", flexDirection: "column" }}>
+    <Card sx={{ p: 3, width: "100%", height: "100%", borderRadius: "8px", border: "1px solid #E5E7EB", boxShadow: "none", display: "flex", flexDirection: "column" }}>
       {/* Header Tabs */}
       <Stack direction="row" spacing={1.5} sx={{ mb: 3, borderBottom: "1px solid #F1F5F9", pb: 2 }}>
         <Button
@@ -366,7 +366,7 @@ function LeadsByTagChart() {
   });
 
   return (
-    <Card sx={{ p: 4, width: "100%", height: "100%", borderRadius: "14px", border: "1px solid #E5E7EB", boxShadow: "none" }}>
+    <Card sx={{ p: 4, width: "100%", height: "100%", borderRadius: "8px", border: "1px solid #E5E7EB", boxShadow: "none" }}>
       <Typography sx={{ fontSize: "16px", fontWeight: 700, color: "#111827", mb: 4 }}>
         Leads By Tag
       </Typography>
