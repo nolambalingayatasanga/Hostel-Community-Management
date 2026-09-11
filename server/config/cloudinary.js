@@ -16,17 +16,24 @@ if (isConfigured) {
   console.warn('WARNING: Cloudinary credentials not configured. Using fallback local/placeholder media uploads.');
 }
 
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+
 /**
- * Uploads a file buffer or path to Cloudinary, or returns a placeholder if Cloudinary is not configured.
+ * Uploads a file buffer or path to Cloudinary using chunked upload for videos/large files,
+ * or returns a placeholder if Cloudinary is not configured.
  * @param {string|Buffer} fileSource - File buffer or temp path
- * @param {string} folder - Folder in Cloudinary (e.g., 'hostel-community/profiles')
- * @returns {Promise<{ url: string, publicId: string }>}
+ * @param {string} folder - Folder in Cloudinary (e.g., 'hostel-community/events')
+ * @param {string} mimetype - MIME type of the file
+ * @param {string} resourceType - 'auto', 'image', or 'video'
+ * @returns {Promise<{ url: string, publicId: string, resourceType: string }>}
  */
 const uploadImage = async (fileSource, folder, mimetype = 'image/jpeg', resourceType = 'auto') => {
-  let resolvedMimetype = mimetype;
+  let resolvedMimetype = mimetype || 'image/jpeg';
   let resolvedResourceType = resourceType;
 
-  // Resolve auto resource_type based on mimetype prefix
+  // Resolve auto resource_type based on mimetype prefix or extension
   if (resolvedResourceType === 'auto' && resolvedMimetype) {
     if (resolvedMimetype.startsWith('video/')) {
       resolvedResourceType = 'video';
@@ -35,53 +42,110 @@ const uploadImage = async (fileSource, folder, mimetype = 'image/jpeg', resource
     }
   }
 
-  // If the resource type is explicitly image, but the mimetype is generic/raw, override to image/jpeg
+  // If the resource type is explicitly image, but the mimetype is generic/raw, default to image/jpeg
   if (resolvedResourceType === 'image' && (!resolvedMimetype || resolvedMimetype === 'application/octet-stream')) {
     resolvedMimetype = 'image/jpeg';
   }
 
   if (!isConfigured) {
     // Return a mock URL/ID fallback
-    console.log(`[Mock Cloudinary Upload] Uploading to folder: ${folder}`);
+    console.log(`[Mock Cloudinary Upload] Uploading to folder: ${folder} (${resolvedResourceType})`);
     const mockId = `mock_${Date.now()}`;
 
-    // Determine placeholder URL depending on profile vs event
+    // Determine placeholder URL depending on profile vs event vs video
     let fallbackUrl = 'https://res.cloudinary.com/demo/image/upload/v1312461204/sample.jpg';
-    if (folder.includes('profiles')) {
-      fallbackUrl = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=250&q=80'; // high quality placeholder avatar
+    if (resolvedResourceType === 'video') {
+      fallbackUrl = 'https://res.cloudinary.com/demo/video/upload/v1612461204/sample_video.mp4';
+    } else if (folder.includes('profiles')) {
+      fallbackUrl = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=250&q=80';
     } else if (folder.includes('events')) {
-      fallbackUrl = 'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=800&q=80'; // community event image
+      fallbackUrl = 'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=800&q=80';
+    } else if (folder.includes('gallery')) {
+      fallbackUrl = 'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=800&q=80';
     }
 
     return {
       url: fallbackUrl,
-      publicId: mockId
+      publicId: mockId,
+      resourceType: resolvedResourceType
     };
   }
 
-  // Convert buffer to base64 Data URI if it's a buffer
-  let uploadSource = fileSource;
-  if (Buffer.isBuffer(fileSource)) {
-    uploadSource = `data:${resolvedMimetype};base64,${fileSource.toString('base64')}`;
-  }
+  // Determine file extension for temp file
+  let ext = resolvedResourceType === 'video' ? '.mp4' : '.jpg';
+  if (resolvedMimetype.includes('png')) ext = '.png';
+  else if (resolvedMimetype.includes('webp')) ext = '.webp';
+  else if (resolvedMimetype.includes('webm')) ext = '.webm';
+  else if (resolvedMimetype.includes('mov') || resolvedMimetype.includes('quicktime')) ext = '.mov';
 
-  return new Promise((resolve, reject) => {
-    cloudinary.uploader.upload(
-      uploadSource,
-      { folder: folder, resource_type: resolvedResourceType },
-      (error, result) => {
-        if (error) {
-          console.error('Cloudinary upload error:', error);
-          reject(error);
-        } else {
-          resolve({
-            url: result.secure_url,
-            publicId: result.public_id
-          });
-        }
+  const tempFilePath = path.join(
+    os.tmpdir(),
+    `cld_upload_${Date.now()}_${Math.random().toString(36).substring(2, 9)}${ext}`
+  );
+
+  try {
+    let uploadPath = tempFilePath;
+    if (Buffer.isBuffer(fileSource)) {
+      await fs.promises.writeFile(tempFilePath, fileSource);
+    } else if (typeof fileSource === 'string' && fs.existsSync(fileSource)) {
+      uploadPath = fileSource;
+    } else {
+      throw new Error('Invalid fileSource: must be a Buffer or an existing file path.');
+    }
+
+    const isVideo = resolvedResourceType === 'video';
+    const fileSize = Buffer.isBuffer(fileSource)
+      ? fileSource.length
+      : (fs.existsSync(uploadPath) ? fs.statSync(uploadPath).size : 0);
+
+    const uploadOptions = {
+      folder: folder,
+      resource_type: resolvedResourceType
+    };
+
+    let result;
+    // For videos or files larger than 5MB, utilize Cloudinary chunked upload via upload_large
+    // Note: files over 100 MB must be uploaded using chunked uploads; chunk_size: 6000000 (6MB)
+    if (isVideo || fileSize > 5 * 1024 * 1024) {
+      uploadOptions.chunk_size = 6000000;
+      result = await new Promise((resolve, reject) => {
+        cloudinary.uploader.upload_large(uploadPath, uploadOptions, (error, res) => {
+          if (error) {
+            console.error('Cloudinary chunked upload error:', error);
+            reject(error);
+          } else {
+            resolve(res);
+          }
+        });
+      });
+    } else {
+      result = await new Promise((resolve, reject) => {
+        cloudinary.uploader.upload(uploadPath, uploadOptions, (error, res) => {
+          if (error) {
+            console.error('Cloudinary upload error:', error);
+            reject(error);
+          } else {
+            resolve(res);
+          }
+        });
+      });
+    }
+
+    return {
+      url: result.secure_url,
+      publicId: result.public_id,
+      resourceType: result.resource_type || resolvedResourceType
+    };
+  } finally {
+    // Always clean up temp file if created
+    try {
+      if (fs.existsSync(tempFilePath)) {
+        await fs.promises.unlink(tempFilePath);
       }
-    );
-  });
+    } catch (cleanupErr) {
+      console.warn('Failed to clean up temp upload file:', cleanupErr.message);
+    }
+  }
 };
 
 /**

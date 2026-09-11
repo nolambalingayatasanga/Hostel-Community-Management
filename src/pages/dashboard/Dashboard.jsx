@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useSnackbar } from 'notistack';
 import { useAuth } from '../../context/AuthContext';
 import API from '../../api';
 import {
@@ -46,6 +47,7 @@ const COLORS = ['#0088ff', '#6366F1', '#10B981', '#F59E0B', '#3B82F6', '#EF4444'
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const { enqueueSnackbar } = useSnackbar();
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -82,7 +84,9 @@ const Dashboard = () => {
         setLoading(false);
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
-        setError('Could not load dashboard statistics.');
+        const errMsg = 'Could not load dashboard statistics.';
+        setError(errMsg);
+        enqueueSnackbar(errMsg, { variant: 'error' });
         setLoading(false);
       }
     };

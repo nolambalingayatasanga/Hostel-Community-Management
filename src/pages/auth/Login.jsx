@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useSnackbar } from 'notistack';
 import { useAuth } from '../../context/AuthContext';
 import AuthLayout from '../../layouts/AuthLayout';
 import {
@@ -29,6 +30,7 @@ import {
 
 const Login = () => {
   const { login } = useAuth();
+  const { enqueueSnackbar } = useSnackbar();
   const navigate = useNavigate();
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -43,7 +45,9 @@ const Login = () => {
     e.preventDefault();
     const rawIdentifier = loginIdentifier.trim();
     if (!rawIdentifier || !password.trim()) {
-      setError('Please fill in all fields.');
+      const valMsg = 'Please fill in all fields.';
+      setError(valMsg);
+      enqueueSnackbar(valMsg, { variant: 'warning' });
       return;
     }
     setError('');
@@ -59,9 +63,12 @@ const Login = () => {
     const result = await login(identifierToSend, password);
     setLoading(false);
     if (result?.success) {
+      enqueueSnackbar('Login successful! Welcome back.', { variant: 'success' });
       navigate('/dashboard');
     } else {
-      setError(result?.message || 'Login failed. Please check your credentials.');
+      const errMsg = result?.message || 'Login failed. Please check your credentials.';
+      setError(errMsg);
+      enqueueSnackbar(errMsg, { variant: 'error' });
     }
   };
 

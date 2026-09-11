@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useSnackbar } from 'notistack';
 import { useAuth } from '../../context/AuthContext';
 import AuthLayout from '../../layouts/AuthLayout';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
@@ -145,6 +146,7 @@ const POPULAR_COURSES = [
 
 const Register = () => {
   const { register } = useAuth();
+  const { enqueueSnackbar } = useSnackbar();
   const navigate = useNavigate();
 
   // Load initial draft from localStorage to prevent loss on refresh
@@ -287,18 +289,22 @@ const Register = () => {
   const handleSubmit = async (e) => {
     if (e) e.preventDefault();
     setError('');
+    const notifyWarn = (msg) => {
+      setError(msg);
+      enqueueSnackbar(msg, { variant: 'warning' });
+    };
 
     // Common mandatory validations
-    if (!name.trim()) { setError('Full Name is mandatory.'); return; }
-    if (!email.trim()) { setError('Email Address is mandatory.'); return; }
-    if (!phone.trim()) { setError('Phone Number is mandatory.'); return; }
-    if (!adhaar.trim()) { setError('Aadhaar Number is mandatory.'); return; }
-    if (!gender) { setError('Gender is mandatory.'); return; }
-    if (!dob) { setError('Date of Birth is mandatory (DD/MM/YYYY).'); return; }
+    if (!name.trim()) { notifyWarn('Full Name is mandatory.'); return; }
+    if (!email.trim()) { notifyWarn('Email Address is mandatory.'); return; }
+    if (!phone.trim()) { notifyWarn('Phone Number is mandatory.'); return; }
+    if (!adhaar.trim()) { notifyWarn('Aadhaar Number is mandatory.'); return; }
+    if (!gender) { notifyWarn('Gender is mandatory.'); return; }
+    if (!dob) { notifyWarn('Date of Birth is mandatory (DD/MM/YYYY).'); return; }
 
     const cleanAdhaar = adhaar.replace(/\s+/g, '');
     if (cleanAdhaar.length !== 12 || !/^\d{12}$/.test(cleanAdhaar)) {
-      setError('Aadhaar Number must be exactly 12 digits.');
+      notifyWarn('Aadhaar Number must be exactly 12 digits.');
       return;
     }
 
@@ -307,24 +313,24 @@ const Register = () => {
     let eYearStr = '';
 
     if (role === 'STUDENT' || role === 'ALUMNI') {
-      if (!college.trim()) { setError('College / University Name is mandatory.'); return; }
-      if (!course.trim()) { setError('Course / Degree is mandatory.'); return; }
-      if (!startYear) { setError('College Joining Date is mandatory (DD/MM/YYYY).'); return; }
-      if (!endYear) { setError('Graduation Date is mandatory (DD/MM/YYYY).'); return; }
+      if (!college.trim()) { notifyWarn('College / University Name is mandatory.'); return; }
+      if (!course.trim()) { notifyWarn('Course / Degree is mandatory.'); return; }
+      if (!startYear) { notifyWarn('College Joining Date is mandatory (DD/MM/YYYY).'); return; }
+      if (!endYear) { notifyWarn('Graduation Date is mandatory (DD/MM/YYYY).'); return; }
 
       const startParsed = dayjs(startYear);
       const endParsed = dayjs(endYear);
 
       if (!startParsed.isValid()) {
-        setError('Please enter a valid Joining Date (DD/MM/YYYY).');
+        notifyWarn('Please enter a valid Joining Date (DD/MM/YYYY).');
         return;
       }
       if (!endParsed.isValid()) {
-        setError('Please enter a valid Graduation Date (DD/MM/YYYY).');
+        notifyWarn('Please enter a valid Graduation Date (DD/MM/YYYY).');
         return;
       }
       if (endParsed.isBefore(startParsed)) {
-        setError('Graduation Date cannot be earlier than Joining Date.');
+        notifyWarn('Graduation Date cannot be earlier than Joining Date.');
         return;
       }
 
@@ -334,23 +340,23 @@ const Register = () => {
 
     if (role === 'MEMBER') {
       if (!registrationNumber.trim()) {
-        setError('Registration Number is mandatory for Community Members.');
+        notifyWarn('Registration Number is mandatory for Community Members.');
         return;
       }
     }
 
     // Password validations at the end
-    if (!password) { setError('Password is mandatory.'); return; }
+    if (!password) { notifyWarn('Password is mandatory.'); return; }
     if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
+      notifyWarn('Password must be at least 6 characters.');
       return;
     }
     if (!confirmPassword) {
-      setError('Please confirm your password.');
+      notifyWarn('Please confirm your password.');
       return;
     }
     if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+      notifyWarn('Passwords do not match.');
       return;
     }
 
@@ -373,11 +379,14 @@ const Register = () => {
     setLoading(false);
 
     if (result?.success) {
+      enqueueSnackbar('Account created successfully! Welcome to the Hostel Community.', { variant: 'success' });
       // Clear draft on successful registration
       try { localStorage.removeItem(DRAFT_KEY); } catch (err) {}
       navigate('/profile');
     } else {
-      setError(result?.message || 'Registration failed. Please check your credentials.');
+      const errMsg = result?.message || 'Registration failed. Please check your credentials.';
+      setError(errMsg);
+      enqueueSnackbar(errMsg, { variant: 'error' });
     }
   };
 

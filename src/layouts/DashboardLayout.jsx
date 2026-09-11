@@ -87,14 +87,12 @@ const DashboardLayout = () => {
   };
 
   // Nav menu items mapping
-  const isStudentAlumniStaff = ['STUDENT', 'ALUMNI', 'STAFF'].includes(user?.role);
   const menuItems = [
-    isStudentAlumniStaff
-      ? { text: 'Profile', icon: <ProfileIcon />, path: '/profile', roles: ['STUDENT', 'ALUMNI', 'STAFF'] }
-      : { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', roles: ['ADMIN', 'CHAIRPERSON', 'MEMBER'] },
+    { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', roles: ['ADMIN', 'CHAIRPERSON', 'MEMBER'] },
     { text: 'Members', icon: <PeopleIcon />, path: '/members', roles: ['ADMIN', 'CHAIRPERSON', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'] },
     { text: 'Events Calendar', icon: <EventIcon />, path: '/events', roles: ['ADMIN', 'CHAIRPERSON', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'] },
     { text: 'Gallery', icon: <GalleryIcon />, path: '/gallery', roles: ['ADMIN', 'CHAIRPERSON', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'] },
+    { text: 'Profile', icon: <ProfileIcon />, path: '/profile', roles: ['ADMIN', 'CHAIRPERSON', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'] },
   ];
 
 
@@ -137,9 +135,13 @@ const DashboardLayout = () => {
             <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
               <ListItemButton
                 onClick={() => navigate(item.path)}
-                selected={location.pathname === item.path}
+                selected={
+                  location.pathname === item.path ||
+                  (item.path === '/profile' && location.pathname.startsWith('/profile')) ||
+                  (item.path === '/events' && location.pathname.startsWith('/events'))
+                }
                 sx={{
-                  borderRadius: 2,
+                  borderRadius: "12px",
                   color: '#475467',
                   '&.Mui-selected': {
                     backgroundColor: 'rgba(0, 136, 255, 0.08)',

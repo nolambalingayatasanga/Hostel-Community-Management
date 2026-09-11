@@ -29,7 +29,8 @@ import {
   Select,
   Chip,
   Avatar,
-  Skeleton
+  Skeleton,
+  LinearProgress
 } from '@mui/material';
 import {
   AddPhotoAlternate as AddIcon,
@@ -91,6 +92,7 @@ const Gallery = () => {
   const [filePreviews, setFilePreviews] = useState([]);
   const [uploadFolderId, setUploadFolderId] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   // Folder Dialog State (Create / Edit) - No description input as requested
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
@@ -320,6 +322,7 @@ const Gallery = () => {
   const handleOpenUpload = () => {
     setSelectedFiles([]);
     setFilePreviews([]);
+    setUploadProgress(0);
     if (currentFolder) {
       setUploadFolderId(currentFolder._id);
     } else {
@@ -329,12 +332,46 @@ const Gallery = () => {
   };
 
   const handleFileChange = (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length > 0) {
-      setSelectedFiles(prev => [...prev, ...files]);
-      const newPreviews = files.map(file => URL.createObjectURL(file));
+    const rawFiles = Array.from(e.target.files);
+    if (!rawFiles || rawFiles.length === 0) return;
+
+    const MAX_IMAGE_SIZE = 9.8 * 1024 * 1024; // 9.8 MB (0.2 MB below Cloudinary's 10 MB limit)
+    const MAX_VIDEO_SIZE = 99 * 1024 * 1024;  // 99 MB (within Cloudinary's 100 MB limit)
+
+    const validFiles = [];
+    for (const file of rawFiles) {
+      const isVideo = file.type.startsWith('video/') || file.name.match(/\.(mp4|webm|mov|ogg)$/i);
+      const isImage = file.type.startsWith('image/');
+
+      if (!isImage && !isVideo) {
+        enqueueSnackbar(`"${file.name}" is not a valid image or video.`, { variant: 'error' });
+        continue;
+      }
+      if (isImage && file.size > MAX_IMAGE_SIZE) {
+        enqueueSnackbar(
+          `Image "${file.name}" exceeds 9.8 MB limit (kept 0.2 MB below Cloudinary's 10 MB limit). Selected size: ${(file.size / (1024 * 1024)).toFixed(2)} MB.`,
+          { variant: 'error' }
+        );
+        continue;
+      }
+      if (isVideo && file.size > MAX_VIDEO_SIZE) {
+        enqueueSnackbar(
+          `Video "${file.name}" exceeds 99 MB limit. Selected size: ${(file.size / (1024 * 1024)).toFixed(2)} MB.`,
+          { variant: 'error' }
+        );
+        continue;
+      }
+      validFiles.push(file);
+    }
+
+    if (validFiles.length > 0) {
+      setSelectedFiles(prev => [...prev, ...validFiles]);
+      const newPreviews = validFiles.map(file => URL.createObjectURL(file));
       setFilePreviews(prev => [...prev, ...newPreviews]);
     }
+
+    // Reset input value so same files can be re-selected if needed
+    e.target.value = '';
   };
 
   const handleRemoveFileAt = (index) => {
@@ -354,6 +391,7 @@ const Gallery = () => {
 
     try {
       setUploading(true);
+      setUploadProgress(0);
       setError('');
       setSuccess('');
 
@@ -361,13 +399,25 @@ const Gallery = () => {
 
       const uploadPromises = selectedFiles.map(async (file) => {
         const formData = new FormData();
-        formData.append('photo', file);
+        // IMPORTANT: Append folderId before photo so Multer receives fields first
         if (targetFolder) {
           formData.append('folderId', targetFolder);
         }
+        formData.append('photo', file);
         
-        const res = await API.post('/gallery', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
+        const endpoint = targetFolder
+          ? `/gallery?folderId=${encodeURIComponent(targetFolder)}`
+          : '/gallery';
+
+        const res = await API.post(endpoint, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 0, // No client timeout for large media/video uploads
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+              setUploadProgress(percent);
+            }
+          }
         });
         return res.data;
       });
@@ -383,7 +433,8 @@ const Gallery = () => {
         
         enqueueSnackbar(successMsg, { variant: 'success' });
 
-        if (activeTab === 'all' || (activeTab === 'folders' && currentFolder && targetFolder === currentFolder._id)) {
+        const isCurrentFolderMatch = currentFolder && targetFolder && String(targetFolder) === String(currentFolder._id);
+        if (activeTab === 'all' || (activeTab === 'folders' && isCurrentFolderMatch)) {
           setPhotos(prev => [...successfulUploads, ...prev]);
           setTotalPhotos(prev => prev + successfulUploads.length);
         }
@@ -394,11 +445,12 @@ const Gallery = () => {
         filePreviews.forEach(url => URL.revokeObjectURL(url));
         setSelectedFiles([]);
         setFilePreviews([]);
+        setUploadProgress(0);
       } else {
         enqueueSnackbar('Failed to upload media. Please try again.', { variant: 'error' });
       }
     } catch (err) {
-      const errMsg = err.response?.data?.message || 'Failed to upload media.';
+      const errMsg = err.response?.data?.message || err.message || 'Failed to upload media.';
       enqueueSnackbar(errMsg, { variant: 'error' });
     } finally {
       setUploading(false);
@@ -1209,7 +1261,7 @@ Add photos
                   <EmptyGalleryCard
                     isAdmin={isAdminOrChairperson}
                     onUpload={handleOpenUpload}
-                    title={`Folder "${currentFolder.name}" is Empty`}
+                    title="No Media Found"
                     subtitle="Add photos and videos directly into this folder."
                     buttonLabel="Upload to Folder"
                   />
@@ -1590,12 +1642,42 @@ Add photos
                   <Typography variant="body1" sx={{ fontWeight: 600, color: '#334155', mb: 0.5 }}>
                     Click to select files
                   </Typography>
-                  <Typography variant="caption" sx={{ color: '#94A3B8' }}>
-                    Images & Videos (Supports bulk upload)
+                  <Typography variant="caption" sx={{ color: '#64748B', display: 'block' }}>
+                    Images (up to 9.8 MB) & Videos (up to 99 MB)
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: '#94A3B8', display: 'block', fontSize: '11px' }}>
+                    Cloudinary chunked upload enabled (0.2 MB buffer limit)
                   </Typography>
                 </Box>
               )}
             </Box>
+
+            {/* Live Upload Progress Indicator */}
+            {uploading && (
+              <Box sx={{ mt: 2, p: 2, bgcolor: '#EFF6FF', borderRadius: '12px', border: '1px solid #BFDBFE' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#1E40AF' }}>
+                    {uploadProgress < 100 ? `Uploading to server (${uploadProgress}%)...` : 'Processing & uploading to Cloudinary...'}
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: '#2563EB' }}>
+                    {uploadProgress}%
+                  </Typography>
+                </Box>
+                <LinearProgress
+                  variant={uploadProgress > 0 ? "determinate" : "indeterminate"}
+                  value={uploadProgress}
+                  sx={{
+                    height: 8,
+                    borderRadius: 4,
+                    bgcolor: '#DBEAFE',
+                    '& .MuiLinearProgress-bar': { bgcolor: '#0088ff' }
+                  }}
+                />
+                <Typography variant="caption" sx={{ color: '#64748B', display: 'block', mt: 0.75, fontSize: '11px' }}>
+                  Please keep this dialog open. Large files and videos are chunked for reliability.
+                </Typography>
+              </Box>
+            )}
           </DialogContent>
 
           <DialogActions sx={{ p: 3, display: 'flex', gap: 1.5 }}>
@@ -1622,7 +1704,10 @@ Add photos
               }}
             >
               {uploading ? (
-                <CircularProgress size={20} sx={{ color: '#fff' }} />
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <CircularProgress size={18} sx={{ color: '#fff' }} />
+                  <span>{uploadProgress < 100 ? `Uploading (${uploadProgress}%)...` : 'Processing...'}</span>
+                </Box>
               ) : (
                 `Upload ${selectedFiles.length > 0 ? `(${selectedFiles.length})` : ''}`
               )}

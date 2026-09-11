@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "react-query";
+import { useSnackbar } from "notistack";
 import API from "../../api";
 
 export const crmKeys = {
@@ -190,6 +191,7 @@ export function useStatusMutations() {
 // Hook to manage lead (user) updates and mutations
 export function useLeadMutations() {
   const queryClient = useQueryClient();
+  const { enqueueSnackbar } = useSnackbar();
 
   const update = useMutation(
     async ({ id, data }) => {
@@ -199,7 +201,11 @@ export function useLeadMutations() {
     {
       onSuccess: () => {
         queryClient.invalidateQueries(["crm-leads"]);
+        enqueueSnackbar("Member updated successfully!", { variant: "success" });
       },
+      onError: (err) => {
+        enqueueSnackbar(err.response?.data?.message || "Failed to update member.", { variant: "error" });
+      }
     }
   );
 
@@ -226,7 +232,11 @@ export function useLeadMutations() {
     {
       onSuccess: () => {
         queryClient.invalidateQueries(["crm-leads"]);
+        enqueueSnackbar("Field updated successfully!", { variant: "success" });
       },
+      onError: (err) => {
+        enqueueSnackbar(err.response?.data?.message || "Failed to update field.", { variant: "error" });
+      }
     }
   );
 
@@ -238,7 +248,11 @@ export function useLeadMutations() {
     {
       onSuccess: () => {
         queryClient.invalidateQueries(["crm-leads"]);
+        enqueueSnackbar("Member added successfully!", { variant: "success" });
       },
+      onError: (err) => {
+        enqueueSnackbar(err.response?.data?.message || "Failed to add member.", { variant: "error" });
+      }
     }
   );
 
@@ -250,7 +264,11 @@ export function useLeadMutations() {
     {
       onSuccess: () => {
         queryClient.invalidateQueries(["crm-leads"]);
+        enqueueSnackbar("Member removed successfully.", { variant: "info" });
       },
+      onError: (err) => {
+        enqueueSnackbar(err.response?.data?.message || "Failed to remove member.", { variant: "error" });
+      }
     }
   );
 

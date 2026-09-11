@@ -10,6 +10,7 @@ router.use(protect);
 
 // View events (any authenticated role)
 router.get('/', eventController.getEvents);
+router.post('/parse-map-url', eventController.parseMapUrl);
 router.get('/:id', eventController.getEvent);
 
 // Reviews & Comments (any authenticated user)

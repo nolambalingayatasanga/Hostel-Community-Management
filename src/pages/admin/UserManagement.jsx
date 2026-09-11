@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSnackbar } from 'notistack';
 import { useAuth } from '../../context/AuthContext';
 import API from '../../api';
 import UserDirectory from '../../components/UserDirectory';
@@ -46,6 +47,7 @@ const months = [
 
 const UserManagement = () => {
   const { user: currentUser } = useAuth();
+  const { enqueueSnackbar } = useSnackbar();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -103,7 +105,9 @@ const UserManagement = () => {
 
             // Security check: CHAIRPERSONs cannot edit ADMINs or other CHAIRPERSONs
             if (currentUser?.role === 'CHAIRPERSON' && ['ADMIN', 'CHAIRPERSON'].includes(u.role)) {
-              setFormError('Chairpersons do not have permission to edit Admin or Chairperson accounts.');
+              const permErr = 'Chairpersons do not have permission to edit Admin or Chairperson accounts.';
+              setFormError(permErr);
+              enqueueSnackbar(permErr, { variant: 'error' });
               setLoading(false);
               return;
             }
@@ -140,7 +144,9 @@ const UserManagement = () => {
           setLoading(false);
         } catch (err) {
           console.error(err);
-          setFormError('Failed to fetch user data for editing.');
+          const fetchErr = 'Failed to fetch user data for editing.';
+          setFormError(fetchErr);
+          enqueueSnackbar(fetchErr, { variant: 'error' });
           setLoading(false);
         }
       };
@@ -162,7 +168,9 @@ const UserManagement = () => {
     setFormSuccess('');
 
     if (!name || !email || !phone || (action !== 'edit' && !password)) {
-      setFormError('Name, Email, Phone, and Password are required.');
+      const reqErr = 'Name, Email, Phone, and Password are required.';
+      setFormError(reqErr);
+      enqueueSnackbar(reqErr, { variant: 'warning' });
       return;
     }
 
@@ -172,49 +180,39 @@ const UserManagement = () => {
       if (localLanguageDetails) {
         const words = localLanguageDetails.trim().split(/\s+/).filter(Boolean);
         if (words.length < 15 || words.length > 20) {
-          setFormError(`Local language details must be exactly between 15 and 20 words (currently ${words.length} words).`);
+          const langErr = `Local language details must be exactly between 15 and 20 words (currently ${words.length} words).`;
+          setFormError(langErr);
+          enqueueSnackbar(langErr, { variant: 'warning' });
           setLoading(false);
           return;
         }
       }
 
       const payload = {
+        role,
+        status,
         name,
         email,
         phone,
-        role,
-        status,
+        ...(action !== 'edit' && { password }),
         gender,
         adhaar: adhaar || undefined,
         registrationNumber: role !== 'STUDENT' ? registrationNumber : undefined,
         localLanguageDetails,
         address,
-        education: ['STUDENT', 'ALUMNI'].includes(role)
-          ? {
-              college,
-              course,
-              startMonth: startMonth ? Number(startMonth) : undefined,
-              startYear: startYear ? Number(startYear) : undefined,
-              endMonth: endMonth ? Number(endMonth) : undefined,
-              endYear: endYear ? Number(endYear) : undefined
-            }
-          : undefined,
-        employment: ['ALUMNI', 'AGENT', 'STAFF', 'MEMBER', 'ADMIN'].includes(role)
-          ? {
-              occupation,
-              organization,
-              industry,
-              workLocation,
-              employmentStatus: role === 'ALUMNI' ? employmentStatus : undefined,
-              businessName,
-              businessType
-            }
-          : undefined
+        education: {
+          college, course,
+          startMonth: startMonth ? parseInt(startMonth, 10) : undefined,
+          startYear: startYear ? parseInt(startYear, 10) : undefined,
+          endMonth: endMonth ? parseInt(endMonth, 10) : undefined,
+          endYear: endYear ? parseInt(endYear, 10) : undefined
+        },
+        employment: {
+          occupation, organization, industry, workLocation, employmentStatus,
+          businessName: ['Business Owner', 'Entrepreneur', 'Self-Employed'].includes(employmentStatus) ? businessName : undefined,
+          businessType: ['Business Owner', 'Entrepreneur', 'Self-Employed'].includes(employmentStatus) ? businessType : undefined
+        }
       };
-
-      if (action !== 'edit') {
-        payload.password = password;
-      }
 
       let res;
       if (action === 'edit') {
@@ -224,7 +222,9 @@ const UserManagement = () => {
       }
 
       if (res.data?.success) {
-        setFormSuccess(`User ${action === 'edit' ? 'updated' : 'created'} successfully!`);
+        const succMsg = `User ${action === 'edit' ? 'updated' : 'created'} successfully!`;
+        setFormSuccess(succMsg);
+        enqueueSnackbar(succMsg, { variant: 'success' });
         setTimeout(() => {
           navigate('/admin/users');
         }, 1500);
@@ -232,7 +232,9 @@ const UserManagement = () => {
       setLoading(false);
     } catch (err) {
       console.error(err);
-      setFormError(err.response?.data?.message || 'Failed to submit form data.');
+      const subErr = err.response?.data?.message || 'Failed to submit form data.';
+      setFormError(subErr);
+      enqueueSnackbar(subErr, { variant: 'error' });
       setLoading(false);
     }
   };

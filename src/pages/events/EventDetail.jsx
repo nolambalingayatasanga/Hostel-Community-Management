@@ -29,6 +29,9 @@ import {
   Popover,
   Tooltip,
   Divider,
+  Link,
+  Paper,
+  ClickAwayListener,
 } from "@mui/material";
 import {
   ArrowBack as ArrowBackIcon,
@@ -65,6 +68,13 @@ import {
   OpenInNewRounded as OpenInNewIcon,
   SearchRounded as SearchIcon,
   PaletteRounded as PaletteIcon,
+  LinkRounded as LinkIcon,
+  AutoAwesomeRounded as AutoAwesomeIcon,
+  MyLocationRounded as MyLocationIcon,
+  KeyboardArrowUpRounded as KeyboardArrowUpIcon,
+  KeyboardArrowDownRounded as KeyboardArrowDownIcon,
+  PlayArrowRounded as PlayArrowIcon,
+  VideocamRounded as VideocamIcon,
 } from "@mui/icons-material";
 
 import { useAuth } from "../../context/AuthContext";
@@ -121,6 +131,9 @@ function StarRating({ value, onChange, readOnly = false, size = 28 }) {
 }
 
 // ─── Edit Event Dialog ─────────────────────────────────────────────────────────
+const DEFAULT_COORDS = { lat: 12.9716, lng: 77.5946 };
+const DEFAULT_PLACE_NAME = "Bengaluru, Karnataka, India";
+
 function EditEventDialog({ open, onClose, event, onSaved }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -129,16 +142,46 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
   const [endTime, setEndTime] = useState("");
   const [location, setLocation] = useState("");
   const [locationUrl, setLocationUrl] = useState("");
-  const [locationCoordinates, setLocationCoordinates] = useState(null);
+  const [locationCoordinates, setLocationCoordinates] = useState(DEFAULT_COORDS);
   const [color, setColor] = useState("#0088ff");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
 
-  // Location suggestions state
+  // Location search suggestions & Direct Link Scraping state
+  const [locationMode, setLocationMode] = useState("search"); // "search" | "link"
+  const [pastedMapUrl, setPastedMapUrl] = useState("");
+  const [isScrapingMap, setIsScrapingMap] = useState(false);
+  const [scrapeError, setScrapeError] = useState("");
+
   const [locationQuery, setLocationQuery] = useState("");
   const [locationSuggestions, setLocationSuggestions] = useState([]);
   const [isSearchingLocation, setIsSearchingLocation] = useState(false);
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
+  const [detectedLocation, setDetectedLocation] = useState(null);
+
+  // Prevent background page scrolling when popup is open
+  useEffect(() => {
+    if (open) {
+      const originalBodyOverflow = document.body.style.overflow;
+      const originalHtmlOverflow = document.documentElement.style.overflow;
+      document.body.style.overflow = "hidden";
+      document.documentElement.style.overflow = "hidden";
+
+      const handleTouchMove = (e) => {
+        if (!e.target.closest(".MuiDialogContent-root")) {
+          e.preventDefault();
+        }
+      };
+
+      document.addEventListener("touchmove", handleTouchMove, { passive: false });
+
+      return () => {
+        document.body.style.overflow = originalBodyOverflow;
+        document.documentElement.style.overflow = originalHtmlOverflow;
+        document.removeEventListener("touchmove", handleTouchMove);
+      };
+    }
+  }, [open]);
 
   useEffect(() => {
     if (open && event) {
@@ -150,18 +193,161 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
       setLocation(event.location || "");
       setLocationQuery(event.location || "");
       setLocationUrl(event.locationUrl || "");
-      setLocationCoordinates(event.locationCoordinates || null);
+      setPastedMapUrl(event.locationUrl || "");
+      const coords = event.locationCoordinates || DEFAULT_COORDS;
+      setLocationCoordinates(coords);
       setColor(event.color || "#0088ff");
       setFormError("");
-      setLocationSuggestions([]);
+
+      if (event.location) {
+        const item = {
+          display_name: event.location,
+          lat: coords?.lat || DEFAULT_COORDS.lat,
+          lon: coords?.lng || DEFAULT_COORDS.lng,
+          isCurrentLocation: false,
+        };
+        setDetectedLocation(item);
+        setLocationSuggestions([item]);
+      } else {
+        // If event has no location, load map with default and detect current position
+        const fallbackItem = {
+          display_name: DEFAULT_PLACE_NAME,
+          lat: DEFAULT_COORDS.lat,
+          lon: DEFAULT_COORDS.lng,
+          isCurrentLocation: false,
+        };
+        setDetectedLocation(fallbackItem);
+        setLocationSuggestions([fallbackItem]);
+        setLocation(DEFAULT_PLACE_NAME);
+        setLocationQuery(DEFAULT_PLACE_NAME);
+        setLocationUrl(`https://www.google.com/maps/search/?api=1&query=${DEFAULT_COORDS.lat},${DEFAULT_COORDS.lng}`);
+
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+              const lat = pos.coords.latitude;
+              const lng = pos.coords.longitude;
+              setLocationCoordinates({ lat, lng });
+              setLocationUrl(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
+              try {
+                const res = await fetch(
+                  `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+                  { headers: { "Accept-Language": "en" } }
+                );
+                const data = await res.json();
+                const resolvedName = data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+                const currentItem = {
+                  display_name: resolvedName,
+                  name: (data.address ? (data.address.road || data.address.suburb || data.address.neighbourhood || data.address.city || data.address.town) : null) || resolvedName.split(",")[0],
+                  lat,
+                  lon: lng,
+                  isCurrentLocation: true,
+                };
+                setDetectedLocation(currentItem);
+                setLocation(resolvedName);
+                setLocationQuery(resolvedName);
+                setLocationSuggestions([currentItem]);
+              } catch (e) {
+                const genericName = `Current Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+                const currentItem = {
+                  display_name: genericName,
+                  lat,
+                  lon: lng,
+                  isCurrentLocation: true,
+                };
+                setDetectedLocation(currentItem);
+                setLocation(genericName);
+                setLocationQuery(genericName);
+                setLocationSuggestions([currentItem]);
+              }
+            },
+            (err) => {
+              console.warn("Geolocation query error/denied:", err);
+            },
+            { timeout: 7000, enableHighAccuracy: true }
+          );
+        }
+      }
+
       setShowLocationSuggestions(false);
+      setLocationMode("search");
+      setIsScrapingMap(false);
+      setScrapeError("");
     }
   }, [open, event]);
+
+  const handleScrapeMapLink = async (urlInput) => {
+    const rawUrl = (urlInput || pastedMapUrl || "").trim();
+    if (!rawUrl) {
+      setScrapeError("Please paste a valid Google Maps, Apple Maps, or OpenStreetMap link.");
+      return;
+    }
+
+    setIsScrapingMap(true);
+    setScrapeError("");
+
+    try {
+      const res = await API.post("/events/parse-map-url", { url: rawUrl });
+      if (res.data?.success && res.data?.data) {
+        const item = res.data.data;
+        const resolvedName = item.displayName || item.name || "Pinned Location";
+        setLocation(resolvedName);
+        setLocationQuery(resolvedName);
+        if (item.locationCoordinates) {
+          setLocationCoordinates(item.locationCoordinates);
+        } else if (item.lat && item.lng) {
+          setLocationCoordinates({ lat: item.lat, lng: item.lng });
+        }
+        setLocationUrl(item.locationUrl || rawUrl);
+        setPastedMapUrl(rawUrl);
+        setShowLocationSuggestions(false);
+      } else {
+        setScrapeError(res.data?.message || "Could not resolve details from this map link.");
+      }
+    } catch (err) {
+      console.error("Map parse error:", err);
+      let clientParsed = false;
+      try {
+        const atMatch = rawUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+        const qMatch = rawUrl.match(/[?&](?:q|query|ll)=(-?\d+\.\d+)[,;](-?\d+\.\d+)/);
+        const placeMatch = rawUrl.match(/\/place\/([^/@?#]+)/);
+        const lat = atMatch ? parseFloat(atMatch[1]) : (qMatch ? parseFloat(qMatch[1]) : null);
+        const lng = atMatch ? parseFloat(atMatch[2]) : (qMatch ? parseFloat(qMatch[2]) : null);
+        let placeName = placeMatch ? decodeURIComponent(placeMatch[1].replace(/\+/g, " ")).trim() : "";
+
+        if (lat && lng) {
+          setLocationCoordinates({ lat, lng });
+          setLocationUrl(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
+          const finalName = placeName || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+          setLocation(finalName);
+          setLocationQuery(finalName);
+          clientParsed = true;
+        } else if (placeName) {
+          setLocation(placeName);
+          setLocationQuery(placeName);
+          setLocationUrl(rawUrl);
+          clientParsed = true;
+        }
+      } catch (e) {
+        // Fallback ignored
+      }
+
+      if (!clientParsed) {
+        setScrapeError(err.response?.data?.message || "Failed to extract map details. Please verify the link or enter the location manually.");
+      }
+    } finally {
+      setIsScrapingMap(false);
+    }
+  };
 
   // Debounced search using OpenStreetMap Nominatim for exact place resolution
   useEffect(() => {
     if (!locationQuery || locationQuery.trim().length < 3) {
-      setLocationSuggestions([]);
+      if (detectedLocation) {
+        setLocationSuggestions([detectedLocation]);
+      } else {
+        setLocationSuggestions([]);
+      }
       setIsSearchingLocation(false);
       return;
     }
@@ -175,7 +361,10 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
         );
         const data = await res.json();
         if (Array.isArray(data)) {
-          setLocationSuggestions(data);
+          const suggestions = detectedLocation
+            ? [detectedLocation, ...data.filter((d) => d.display_name !== detectedLocation.display_name)]
+            : data;
+          setLocationSuggestions(suggestions);
           setShowLocationSuggestions(true);
         }
       } catch (err) {
@@ -186,7 +375,7 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
     }, 450);
 
     return () => clearTimeout(timer);
-  }, [locationQuery]);
+  }, [locationQuery, detectedLocation]);
 
   const handleSelectPlace = (place) => {
     const displayName = place.display_name;
@@ -194,8 +383,12 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
     const lon = parseFloat(place.lon);
     setLocation(displayName);
     setLocationQuery(displayName);
-    setLocationCoordinates({ lat, lng: lon });
-    setLocationUrl(`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`);
+    if (!isNaN(lat) && !isNaN(lon)) {
+      setLocationCoordinates({ lat, lng: lon });
+      setLocationUrl(`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`);
+    } else {
+      setLocationUrl(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(displayName)}`);
+    }
     setShowLocationSuggestions(false);
   };
 
@@ -242,11 +435,12 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
   };
 
   const currentMapLink = locationUrl || (location ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}` : "");
+  const displayCoords = locationCoordinates || DEFAULT_COORDS;
   const embedMapUrl = locationCoordinates?.lat && locationCoordinates?.lng
     ? `https://maps.google.com/maps?q=${locationCoordinates.lat},${locationCoordinates.lng}&t=&z=15&ie=UTF8&iwloc=&output=embed`
     : location && location.trim().length > 2
-    ? `https://maps.google.com/maps?q=${encodeURIComponent(location)}&t=&z=15&ie=UTF8&iwloc=&output=embed`
-    : "";
+      ? `https://maps.google.com/maps?q=${encodeURIComponent(location)}&t=&z=15&ie=UTF8&iwloc=&output=embed`
+      : `https://maps.google.com/maps?q=${displayCoords.lat},${displayCoords.lng}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
 
   return (
     <Dialog
@@ -254,6 +448,16 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
       onClose={onClose}
       maxWidth="sm"
       fullWidth
+      disableScrollLock={false}
+      sx={{
+        overscrollBehavior: "contain",
+        "& .MuiBackdrop-root": {
+          touchAction: "none",
+        },
+        "& .MuiDialog-container": {
+          overscrollBehavior: "contain",
+        },
+      }}
       PaperProps={{
         sx: {
           borderRadius: "20px",
@@ -262,102 +466,21 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
         },
       }}
     >
-      <DialogTitle
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          borderBottom: "1px solid #EAECF0",
-          py: 2.5,
-          px: 3.5,
-          bgcolor: "#F8FAFC",
-        }}
-      >
-        <Typography variant="h6" sx={{ fontWeight: 800, fontSize: 17, color: "#1E293B" }}>
-          Edit Event Details
-        </Typography>
-        <IconButton
-          onClick={onClose}
-          size="small"
-          sx={{
-            color: "#94A3B8",
-            bgcolor: "#FFF",
-            border: "1px solid #E2E8F0",
-            "&:hover": { bgcolor: "#F1F5F9", color: "#1E293B" },
-          }}
-        >
-          <CloseIcon fontSize="small" />
-        </IconButton>
-      </DialogTitle>
 
       <form onSubmit={handleSubmit}>
-        <DialogContent sx={{ px: 3.5, py: 3, backgroundColor: "#FFF" }}>
+        <DialogContent sx={{ px: 3.5, pt: 3.5, pb: 2.5, backgroundColor: "#FFF", overscrollBehavior: "contain" }}>
           {formError && (
-            <Alert severity="error" sx={{ mb: 3, borderRadius: "12px" }}>
+            <Alert severity="error" sx={{ mb: 2.5, borderRadius: "10px", fontSize: "13px" }}>
               {formError}
             </Alert>
           )}
 
-          <Stack spacing={2.5}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Event Title *"
-              required
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              sx={{
-                "& .MuiOutlinedInput-root": {
-                  borderRadius: "12px",
-                  backgroundColor: "#F8FAFC",
-                },
-              }}
-            />
-
-            <TextField
-              fullWidth
-              size="small"
-              label="Description *"
-              multiline
-              rows={3}
-              required
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              sx={{
-                "& .MuiOutlinedInput-root": {
-                  borderRadius: "12px",
-                  backgroundColor: "#F8FAFC",
-                },
-              }}
-            />
-
-            {/* Event Color Picker */}
-            <Box sx={{ pt: 0.5 }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
-                <Typography variant="caption" sx={{ color: "#475569", fontWeight: 700, fontSize: "12px" }}>
-                  Event Theme Color *
-                </Typography>
-                <Box
-                  sx={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    bgcolor: `${color}14`,
-                    border: `1px solid ${color}35`,
-                    borderRadius: "6px",
-                    px: 1,
-                    py: 0.25,
-                  }}
-                >
-                  <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: color, mr: 0.75 }} />
-                  <Typography sx={{ fontSize: "11px", fontWeight: 700, color, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {title || "Event Theme"}
-                  </Typography>
-                </Box>
-              </Stack>
-
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: "wrap", gap: 1 }}>
+          <Stack spacing={1.8}>
+            {/* Top Color Palette Selector */}
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1 }}>
+              <Stack direction="row" spacing={1.1} alignItems="center" sx={{ flexWrap: "wrap", gap: 1 }}>
                 {EVENT_COLORS.map((c) => {
-                  const isSelected = color.toLowerCase() === c.value.toLowerCase();
+                  const isSelected = (color || "#0088ff").toLowerCase() === c.value.toLowerCase();
                   return (
                     <Tooltip key={c.value} title={c.label} arrow placement="top">
                       <Box
@@ -380,13 +503,14 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
                           },
                         }}
                       >
-                        {isSelected && <CheckIcon sx={{ color: "#FFF", fontSize: 16, strokeWidth: 2 }} />}
+                        {isSelected && <CheckIcon sx={{ color: "#FFF", fontSize: 16, strokeWidth: 2.5 }} />}
                       </Box>
                     </Tooltip>
                   );
                 })}
 
-                <Tooltip title="Choose Custom Hex Color" arrow placement="top">
+                {/* Custom Color Input */}
+                <Tooltip title="Custom Color" arrow placement="top">
                   <Box
                     component="label"
                     sx={{
@@ -410,7 +534,7 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
                     <PaletteIcon sx={{ fontSize: 16, color: "#64748B" }} />
                     <input
                       type="color"
-                      value={color}
+                      value={color || "#0088ff"}
                       onChange={(e) => setColor(e.target.value)}
                       style={{
                         position: "absolute",
@@ -425,71 +549,270 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
               </Stack>
             </Box>
 
+            {/* Event Title */}
+            <Box>
+              <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#344054", mb: 0.6 }}>
+                Event Title <span style={{ color: "#D92D20" }}>*</span>
+              </Typography>
+              <TextField
+                fullWidth
+                size="small"
+                required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    height: "40px",
+                    borderRadius: "10px",
+                    backgroundColor: "#FFF",
+                    fontSize: "13.5px",
+                    "& fieldset": { borderColor: "#D0D5DD" },
+                    "&:hover fieldset": { borderColor: "#98A2B3" },
+                    "&.Mui-focused fieldset": { borderColor: "#0088ff" },
+                  },
+                  "& .MuiInputBase-input": {
+                    py: "8.5px",
+                    px: "12px",
+                  },
+                }}
+              />
+            </Box>
+
+            {/* Description */}
+            <Box>
+              <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#344054", mb: 0.6 }}>
+                Description <span style={{ color: "#D92D20" }}>*</span>
+              </Typography>
+              <TextField
+                fullWidth
+                size="small"
+                multiline
+                rows={2}
+                required
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: "10px",
+                    backgroundColor: "#FFF",
+                    fontSize: "13.5px",
+                    "& fieldset": { borderColor: "#D0D5DD" },
+                    "&:hover fieldset": { borderColor: "#98A2B3" },
+                    "&.Mui-focused fieldset": { borderColor: "#0088ff" },
+                  },
+                  "& .MuiInputBase-input": {
+                    px: "12px",
+                    py: "8px",
+                  },
+                }}
+              />
+            </Box>
+
+            {/* Date & Time Row */}
             <LocalizationProvider dateAdapter={AdapterDayjs}>
-              <Grid container spacing={2}>
-                <Grid size={{ xs: 12, sm: 6 }}>
+              <Grid container spacing={1.5}>
+                <Grid size={{ xs: 12, sm: 5 }}>
+                  <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#344054", mb: 0.6 }}>
+                    Event Date <span style={{ color: "#D92D20" }}>*</span>
+                  </Typography>
                   <DatePicker
-                    label="Event Date *"
+                    format="DD/MM/YYYY"
                     value={eventDate ? dayjs(eventDate) : null}
                     onChange={(newValue) =>
                       setEventDate(newValue ? newValue.format("YYYY-MM-DD") : "")
                     }
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        size: "small",
+                        required: true,
+                        sx: {
+                          "& .MuiOutlinedInput-root": {
+                            height: "38px",
+                            borderRadius: "10px",
+                            backgroundColor: "#FFF",
+                            fontSize: "13px",
+                            "& fieldset": { borderColor: "#D0D5DD" },
+                            "&:hover fieldset": { borderColor: "#98A2B3" },
+                            "&.Mui-focused fieldset": { borderColor: "#0088ff" },
+                          },
+                          "& .MuiInputBase-input": {
+                            py: "7px",
+                            px: "10px",
+                            fontSize: "13px",
+                            height: "auto",
+                          },
+                          "& .MuiIconButton-root": {
+                            p: "4px",
+                            color: "#667085",
+                          },
+                        },
+                      },
+                    }}
                     renderInput={(params) => (
                       <TextField
                         {...params}
+                        label=""
                         fullWidth
                         size="small"
                         required
                         sx={{
                           "& .MuiOutlinedInput-root": {
-                            borderRadius: "12px",
-                            backgroundColor: "#F8FAFC",
+                            height: "38px",
+                            borderRadius: "10px",
+                            backgroundColor: "#FFF",
+                            fontSize: "13px",
+                            "& fieldset": { borderColor: "#D0D5DD" },
+                            "&:hover fieldset": { borderColor: "#98A2B3" },
+                            "&.Mui-focused fieldset": { borderColor: "#0088ff" },
+                          },
+                          "& .MuiInputBase-input": {
+                            py: "7px",
+                            px: "10px",
+                            fontSize: "13px",
+                            height: "auto",
+                          },
+                          "& .MuiIconButton-root": {
+                            p: "4px",
+                            color: "#667085",
                           },
                         }}
                       />
                     )}
                   />
                 </Grid>
-                <Grid size={{ xs: 6, sm: 3 }}>
+                <Grid size={{ xs: 6, sm: 3.5 }}>
+                  <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#344054", mb: 0.6 }}>
+                    Start <span style={{ color: "#D92D20" }}>*</span>
+                  </Typography>
                   <TimePicker
-                    label="Start *"
                     value={startTime ? dayjs(`2000-01-01T${startTime}`) : null}
                     onChange={(newValue) =>
                       setStartTime(newValue ? newValue.format("HH:mm") : "")
                     }
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        size: "small",
+                        required: true,
+                        sx: {
+                          "& .MuiOutlinedInput-root": {
+                            height: "38px",
+                            borderRadius: "10px",
+                            backgroundColor: "#FFF",
+                            fontSize: "13px",
+                            "& fieldset": { borderColor: "#D0D5DD" },
+                            "&:hover fieldset": { borderColor: "#98A2B3" },
+                            "&.Mui-focused fieldset": { borderColor: "#0088ff" },
+                          },
+                          "& .MuiInputBase-input": {
+                            py: "7px",
+                            px: "10px",
+                            fontSize: "13px",
+                            height: "auto",
+                          },
+                          "& .MuiIconButton-root": {
+                            p: "4px",
+                            color: "#667085",
+                          },
+                        },
+                      },
+                    }}
                     renderInput={(params) => (
                       <TextField
                         {...params}
+                        label=""
                         fullWidth
                         size="small"
                         required
                         sx={{
                           "& .MuiOutlinedInput-root": {
-                            borderRadius: "12px",
-                            backgroundColor: "#F8FAFC",
+                            height: "38px",
+                            borderRadius: "10px",
+                            backgroundColor: "#FFF",
+                            fontSize: "13px",
+                            "& fieldset": { borderColor: "#D0D5DD" },
+                            "&:hover fieldset": { borderColor: "#98A2B3" },
+                            "&.Mui-focused fieldset": { borderColor: "#0088ff" },
+                          },
+                          "& .MuiInputBase-input": {
+                            py: "7px",
+                            px: "10px",
+                            fontSize: "13px",
+                            height: "auto",
+                          },
+                          "& .MuiIconButton-root": {
+                            p: "4px",
+                            color: "#667085",
                           },
                         }}
                       />
                     )}
                   />
                 </Grid>
-                <Grid size={{ xs: 6, sm: 3 }}>
+                <Grid size={{ xs: 6, sm: 3.5 }}>
+                  <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#344054", mb: 0.6 }}>
+                    End <span style={{ color: "#D92D20" }}>*</span>
+                  </Typography>
                   <TimePicker
-                    label="End *"
                     value={endTime ? dayjs(`2000-01-01T${endTime}`) : null}
                     onChange={(newValue) =>
                       setEndTime(newValue ? newValue.format("HH:mm") : "")
                     }
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        size: "small",
+                        required: true,
+                        sx: {
+                          "& .MuiOutlinedInput-root": {
+                            height: "38px",
+                            borderRadius: "10px",
+                            backgroundColor: "#FFF",
+                            fontSize: "13px",
+                            "& fieldset": { borderColor: "#D0D5DD" },
+                            "&:hover fieldset": { borderColor: "#98A2B3" },
+                            "&.Mui-focused fieldset": { borderColor: "#0088ff" },
+                          },
+                          "& .MuiInputBase-input": {
+                            py: "7px",
+                            px: "10px",
+                            fontSize: "13px",
+                            height: "auto",
+                          },
+                          "& .MuiIconButton-root": {
+                            p: "4px",
+                            color: "#667085",
+                          },
+                        },
+                      },
+                    }}
                     renderInput={(params) => (
                       <TextField
                         {...params}
+                        label=""
                         fullWidth
                         size="small"
                         required
                         sx={{
                           "& .MuiOutlinedInput-root": {
-                            borderRadius: "12px",
-                            backgroundColor: "#F8FAFC",
+                            height: "38px",
+                            borderRadius: "10px",
+                            backgroundColor: "#FFF",
+                            fontSize: "13px",
+                            "& fieldset": { borderColor: "#D0D5DD" },
+                            "&:hover fieldset": { borderColor: "#98A2B3" },
+                            "&.Mui-focused fieldset": { borderColor: "#0088ff" },
+                          },
+                          "& .MuiInputBase-input": {
+                            py: "7px",
+                            px: "10px",
+                            fontSize: "13px",
+                            height: "auto",
+                          },
+                          "& .MuiIconButton-root": {
+                            p: "4px",
+                            color: "#667085",
                           },
                         }}
                       />
@@ -499,125 +822,319 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
               </Grid>
             </LocalizationProvider>
 
-            {/* Location & Map Search */}
-            <Box sx={{ position: "relative" }}>
-              <TextField
+            {/* Location Mode Tabs (Full Width) */}
+            <Box
+              sx={{
+                display: "flex",
+                width: "100%",
+                bgcolor: "#F2F4F7",
+                p: "3px",
+                borderRadius: "10px",
+                border: "1px solid #EAECF0",
+              }}
+            >
+              <Button
                 fullWidth
                 size="small"
-                label="Venue / Location *"
-                placeholder="Search or enter exact location"
-                required
-                value={location}
-                onChange={handleManualLocationChange}
-                onFocus={() => locationSuggestions.length > 0 && setShowLocationSuggestions(true)}
-                InputProps={{
-                  startAdornment: <LocationIcon sx={{ color: "#0088ff", mr: 1, fontSize: 20 }} />,
-                  endAdornment: isSearchingLocation ? (
-                    <CircularProgress size={16} sx={{ color: "#0088ff" }} />
-                  ) : (
-                    <SearchIcon sx={{ color: "#94A3B8", fontSize: 20 }} />
-                  ),
+                onClick={() => {
+                  setLocationMode("search");
+                  setScrapeError("");
                 }}
+                startIcon={<SearchIcon sx={{ fontSize: 16 }} />}
                 sx={{
-                  "& .MuiOutlinedInput-root": {
-                    borderRadius: "12px",
-                    backgroundColor: "#F8FAFC",
+                  py: 0.6,
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  fontWeight: locationMode === "search" ? 700 : 500,
+                  color: locationMode === "search" ? "#0088ff" : "#667085",
+                  bgcolor: locationMode === "search" ? "#FFF" : "transparent",
+                  border: locationMode === "search" ? "1px solid #0088ff" : "1px solid transparent",
+                  boxShadow: locationMode === "search" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                  textTransform: "none",
+                  "&:hover": {
+                    bgcolor: locationMode === "search" ? "#FFF" : "#E4E7EC",
                   },
                 }}
-              />
+              >
+                Search Location
+              </Button>
+              <Button
+                fullWidth
+                size="small"
+                onClick={() => {
+                  setLocationMode("link");
+                  setScrapeError("");
+                }}
+                startIcon={<LinkIcon sx={{ fontSize: 16 }} />}
+                sx={{
+                  py: 0.6,
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  fontWeight: locationMode === "link" ? 700 : 500,
+                  color: locationMode === "link" ? "#0088ff" : "#667085",
+                  bgcolor: locationMode === "link" ? "#FFF" : "transparent",
+                  border: locationMode === "link" ? "1px solid #0088ff" : "1px solid transparent",
+                  boxShadow: locationMode === "link" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                  textTransform: "none",
+                  "&:hover": {
+                    bgcolor: locationMode === "link" ? "#FFF" : "#E4E7EC",
+                  },
+                }}
+              >
+                Paste Map Link
+              </Button>
+            </Box>
 
-              {/* Suggestions dropdown */}
-              {showLocationSuggestions && locationSuggestions.length > 0 && (
-                <Paper
-                  elevation={4}
-                  sx={{
-                    position: "absolute",
-                    top: "calc(100% + 4px)",
-                    left: 0,
-                    right: 0,
-                    zIndex: 20,
-                    borderRadius: "12px",
-                    maxHeight: "220px",
-                    overflowY: "auto",
-                    border: "1px solid #E2E8F0",
-                    bgcolor: "#FFF",
-                  }}
-                >
-                  {locationSuggestions.map((place, idx) => (
-                    <Box
-                      key={idx}
-                      onClick={() => handleSelectPlace(place)}
-                      sx={{
-                        p: 1.5,
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "flex-start",
-                        gap: 1.25,
-                        borderBottom: idx < locationSuggestions.length - 1 ? "1px solid #F1F5F9" : "none",
-                        "&:hover": { bgcolor: "#F0F7FF" },
+            {/* Location Tab Content Container - maintains identical height across tabs */}
+            <Box >
+              {/* Mode A: Search by Name */}
+              {locationMode === "search" && (
+                <ClickAwayListener onClickAway={() => setShowLocationSuggestions(false)}>
+                  <Box sx={{ position: "relative" }}>
+                    <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#344054", mb: 0.6 }}>
+                      Search Location <span style={{ color: "#D92D20" }}>*</span>
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      required
+                      value={location}
+                      onChange={handleManualLocationChange}
+                      onFocus={() =>
+                        locationSuggestions.length > 0 && setShowLocationSuggestions(true)
+                      }
+                      onClick={() =>
+                        locationSuggestions.length > 0 && setShowLocationSuggestions(true)
+                      }
+                      InputProps={{
+                        startAdornment: <LocationIcon sx={{ color: "#0088ff", mr: 1, fontSize: 19 }} />,
+                        endAdornment: (
+                          <Stack direction="row" spacing={0.5} alignItems="center">
+                            {isSearchingLocation && <CircularProgress size={16} sx={{ color: "#0088ff" }} />}
+                            <IconButton
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowLocationSuggestions((prev) => !prev);
+                              }}
+                              sx={{ p: "2px", color: "#667085" }}
+                            >
+                              {showLocationSuggestions ? (
+                                <KeyboardArrowDownIcon sx={{ fontSize: 19 }} />
+                              ) : (
+                                <KeyboardArrowUpIcon sx={{ fontSize: 19 }} />
+                              )}
+                            </IconButton>
+                          </Stack>
+                        ),
                       }}
-                    >
-                      <LocationIcon sx={{ color: "#0088ff", fontSize: 18, mt: 0.25, flexShrink: 0 }} />
-                      <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: "#1E293B", fontSize: "13px" }}>
-                          {place.display_name.split(",")[0]}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: "#64748B", fontSize: "11.5px", display: "block", wordBreak: "break-word" }}>
-                          {place.display_name}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  ))}
-                </Paper>
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          height: "40px",
+                          borderRadius: "10px",
+                          backgroundColor: "#FFF",
+                          fontSize: "13px",
+                          "& fieldset": { borderColor: "#D0D5DD" },
+                          "&:hover fieldset": { borderColor: "#98A2B3" },
+                          "&.Mui-focused fieldset": { borderColor: "#0088ff" },
+                        },
+                        "& .MuiInputBase-input": {
+                          py: "8.5px",
+                          px: "8px",
+                        },
+                      }}
+                    />
+
+                    {/* Upward Autocomplete suggestions dropdown */}
+                    {showLocationSuggestions && locationSuggestions.length > 0 && (
+                      <Paper
+                        elevation={6}
+                        sx={{
+                          position: "absolute",
+                          bottom: "calc(100% + 6px)",
+                          left: 0,
+                          right: 0,
+                          zIndex: 1300,
+                          borderRadius: "12px",
+                          maxHeight: "220px",
+                          overflowY: "auto",
+                          border: "1px solid #D0D5DD",
+                          bgcolor: "#FFF",
+                          boxShadow: "0 -8px 24px rgba(16, 24, 40, 0.12), 0 -2px 6px rgba(16, 24, 40, 0.08)",
+                        }}
+                      >
+                        {locationSuggestions.map((place, idx) => (
+                          <Box
+                            key={idx}
+                            onClick={() => handleSelectPlace(place)}
+                            sx={{
+                              p: 1.25,
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "flex-start",
+                              gap: 1.25,
+                              borderBottom: idx < locationSuggestions.length - 1 ? "1px solid #F2F4F7" : "none",
+                              bgcolor: place.isCurrentLocation ? "#F0F7FF" : "transparent",
+                              "&:hover": { bgcolor: place.isCurrentLocation ? "#E0EFFF" : "#F8FAFC" },
+                            }}
+                          >
+                            {place.isCurrentLocation ? (
+                              <MyLocationIcon sx={{ color: "#0088ff", fontSize: 18, mt: 0.25, flexShrink: 0 }} />
+                            ) : (
+                              <LocationIcon sx={{ color: "#667085", fontSize: 18, mt: 0.25, flexShrink: 0 }} />
+                            )}
+                            <Box sx={{ minWidth: 0, flex: 1 }}>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, flexWrap: "wrap" }}>
+                                <Typography variant="body2" sx={{ fontWeight: 700, color: "#1E293B", fontSize: "13px" }}>
+                                  {place.name || place.display_name.split(",")[0]}
+                                </Typography>
+                                {place.isCurrentLocation && (
+                                  <Chip
+                                    size="small"
+                                    label="Current Location"
+                                    sx={{
+                                      height: 18,
+                                      fontSize: "10px",
+                                      fontWeight: 700,
+                                      bgcolor: "#DCEAFD",
+                                      color: "#0070d6",
+                                      borderRadius: "4px",
+                                      px: 0.5,
+                                    }}
+                                  />
+                                )}
+                              </Box>
+                              <Typography
+                                variant="caption"
+                                sx={{ color: "#64748B", fontSize: "11.5px", display: "block", wordBreak: "break-word" }}
+                              >
+                                {place.display_name}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        ))}
+                      </Paper>
+                    )}
+                  </Box>
+                </ClickAwayListener>
+              )}
+
+              {/* Mode B: Direct Map Link Paste & Scraper */}
+              {locationMode === "link" && (
+                <Stack spacing={1.5}>
+                  <Box>
+                    <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#344054", mb: 0.6 }}>
+                      Paste Direct Map Link <span style={{ color: "#D92D20" }}>*</span>
+                    </Typography>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <TextField
+                        fullWidth
+                        size="small"
+                        value={pastedMapUrl}
+                        onChange={(e) => setPastedMapUrl(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleScrapeMapLink(pastedMapUrl);
+                          }
+                        }}
+                        sx={{
+                          "& .MuiOutlinedInput-root": {
+                            height: "40px",
+                            borderRadius: "10px",
+                            backgroundColor: "#FFF",
+                            fontSize: "13px",
+                            "& fieldset": { borderColor: "#D0D5DD" },
+                            "&:hover fieldset": { borderColor: "#98A2B3" },
+                            "&.Mui-focused fieldset": { borderColor: "#0088ff" },
+                          },
+                          "& .MuiInputBase-input": {
+                            py: "8.5px",
+                            px: "12px",
+                          },
+                        }}
+                      />
+                      <Button
+                        variant="contained"
+                        onClick={() => handleScrapeMapLink(pastedMapUrl)}
+                        disabled={isScrapingMap || !pastedMapUrl.trim()}
+                        startIcon={isScrapingMap ? <CircularProgress size={16} color="inherit" /> : <AutoAwesomeIcon sx={{ fontSize: 16 }} />}
+                        sx={{
+                          height: "40px",
+                          borderRadius: "10px",
+                          bgcolor: "#EBF3FE",
+                          color: "#0088ff",
+                          fontWeight: 700,
+                          fontSize: "13px",
+                          textTransform: "none",
+                          px: 2.2,
+                          whiteSpace: "nowrap",
+                          boxShadow: "none",
+                          border: "1px solid #CCE1FD",
+                          "&:hover": { bgcolor: "#DCEAFD", boxShadow: "none" },
+                          "&.Mui-disabled": { bgcolor: "#F2F4F7", color: "#98A2B3", borderColor: "#EAECF0" },
+                        }}
+                      >
+                        Search
+                      </Button>
+                    </Stack>
+                    {scrapeError && (
+                      <Alert severity="error" sx={{ mt: 1, py: 0.2, px: 1.5, borderRadius: "8px", fontSize: "12px" }}>
+                        {scrapeError}
+                      </Alert>
+                    )}
+                  </Box>
+
+                  {/* Location display/edit input */}
+                  <Box>
+                    <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#344054", mb: 0.6 }}>
+                      Location Name & Address <span style={{ color: "#D92D20" }}>*</span>
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      required
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          height: "40px",
+                          borderRadius: "10px",
+                          backgroundColor: "#FFF",
+                          fontSize: "13px",
+                          "& fieldset": { borderColor: "#D0D5DD" },
+                          "&:hover fieldset": { borderColor: "#98A2B3" },
+                          "&.Mui-focused fieldset": { borderColor: "#0088ff" },
+                        },
+                        "& .MuiInputBase-input": {
+                          py: "8.5px",
+                          px: "12px",
+                        },
+                      }}
+                    />
+                  </Box>
+                </Stack>
               )}
             </Box>
 
+
             {/* Embedded Live Map Preview */}
             {embedMapUrl && (
-              <Box sx={{ borderRadius: "14px", overflow: "hidden", border: "1px solid #E2E8F0", bgcolor: "#F8FAFC" }}>
+              <Box sx={{ borderRadius: "14px", overflow: "hidden", border: "1px solid #E4E7EC", bgcolor: "#F8FAFC" }}>
                 <iframe
                   title="Edit Location Pin"
                   width="100%"
-                  height="160"
+                  height={locationMode === "search" ? "205" : "130"}
                   style={{ border: 0, display: "block" }}
                   loading="lazy"
                   src={embedMapUrl}
                 />
-                <Box sx={{ px: 2, py: 1.25, display: "flex", justifyContent: "space-between", alignItems: "center", bgcolor: "#F8FAFC", borderTop: "1px solid #EAECF0" }}>
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#10B981" }} />
-                    <Typography variant="caption" sx={{ color: "#475569", fontWeight: 700, fontSize: "11.5px" }}>
-                      Location Pin Ready
-                    </Typography>
-                  </Stack>
-                  {currentMapLink && (
-                    <Button
-                      size="small"
-                      component="a"
-                      href={currentMapLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      endIcon={<OpenInNewIcon sx={{ fontSize: "14px !important" }} />}
-                      sx={{
-                        fontSize: "11.5px",
-                        fontWeight: 700,
-                        color: "#0088ff",
-                        textTransform: "none",
-                        p: 0,
-                        minWidth: 0,
-                        "&:hover": { bgcolor: "transparent", textDecoration: "underline" },
-                      }}
-                    >
-                      Open in Google Maps
-                    </Button>
-                  )}
-                </Box>
               </Box>
             )}
           </Stack>
         </DialogContent>
 
-        <DialogActions sx={{ px: 3.5, pb: 3, pt: 2, borderTop: "1px solid #EAECF0", bgcolor: "#F8FAFC" }}>
+        <DialogActions sx={{ px: 3.5, bgcolor: "#FFF" }}>
           <Button
             variant="outlined"
             onClick={onClose}
@@ -625,9 +1142,12 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
               borderRadius: "10px",
               textTransform: "none",
               borderColor: "#D0D5DD",
-              color: "#475569",
+              color: "#344054",
               px: 2.5,
+              py: 0.8,
+              fontSize: "13px",
               fontWeight: 600,
+              "&:hover": { borderColor: "#98A2B3", bgcolor: "#F9FAFB" },
             }}
           >
             Cancel
@@ -640,11 +1160,13 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
               borderRadius: "10px",
               textTransform: "none",
               fontWeight: 700,
-              bgcolor: color || "#0088ff",
+              fontSize: "13px",
+              bgcolor: "#0088ff",
               color: "#FFFFFF",
               px: 3,
+              py: 0.8,
               boxShadow: "none",
-              "&:hover": { bgcolor: color || "#0077EE", filter: "brightness(0.92)", boxShadow: "none" },
+              "&:hover": { bgcolor: "#0070d6", boxShadow: "none" },
             }}
           >
             {submitting ? <CircularProgress size={20} color="inherit" /> : "Save Changes"}
@@ -667,10 +1189,19 @@ function EventMediaHero({
 }) {
   const images = useMemo(() => {
     const list = [];
-    if (coverImage?.url) list.push({ url: coverImage.url, isCover: true });
+    if (coverImage?.url) {
+      list.push({ url: coverImage.url, isCover: true, resourceType: "image" });
+    }
     if (additionalImages && Array.isArray(additionalImages) && additionalImages.length > 0) {
       additionalImages.forEach((img) => {
-        if (img?.url) list.push({ url: img.url, id: img._id });
+        if (img?.url) {
+          const isVideo = img.resourceType === "video" || img.url.match(/\.(mp4|webm|mov|ogg)($|\?)/i);
+          list.push({
+            url: img.url,
+            id: img._id,
+            resourceType: isVideo ? "video" : "image",
+          });
+        }
       });
     }
     return list;
@@ -753,12 +1284,12 @@ function EventMediaHero({
             </Box>
             <Box>
               <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#FFFFFF", fontSize: "15px" }}>
-                No event photos yet
+                No event media yet
               </Typography>
               <Typography variant="body2" sx={{ color: "#C7D2FE", fontSize: "12.5px" }}>
                 {canManage
-                  ? "Upload a cover photo or event highlights to showcase this event."
-                  : "Photos will appear here once uploaded by organizers."}
+                  ? "Upload a cover photo or event highlights (photos & videos) to showcase this event."
+                  : "Photos and videos will appear here once uploaded by organizers."}
               </Typography>
             </Box>
           </Stack>
@@ -784,7 +1315,7 @@ function EventMediaHero({
                 },
               }}
             >
-              Add Photos
+              Add Media
             </Button>
           )}
         </Stack>
@@ -793,6 +1324,9 @@ function EventMediaHero({
   }
 
   const currentMedia = images[activeIndex] || images[0];
+  const isCurrentVideo =
+    currentMedia.resourceType === "video" ||
+    (currentMedia.url && currentMedia.url.match(/\.(mp4|webm|mov|ogg)($|\?)/i));
 
   const handleNext = (e) => {
     e?.stopPropagation();
@@ -819,7 +1353,7 @@ function EventMediaHero({
         ...sx,
       }}
     >
-      {/* Main Image Banner - balanced 16:9 proportion */}
+      {/* Main Image/Video Banner */}
       <Box
         sx={{
           position: "relative",
@@ -828,22 +1362,38 @@ function EventMediaHero({
           borderRadius: "16px",
           overflow: "hidden",
           bgcolor: "#0F172A",
-          cursor: "pointer",
         }}
-        onClick={() => onZoom(currentMedia.url)}
       >
-        <Box
-          component="img"
-          src={currentMedia.url}
-          alt="Event Media"
-          sx={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            transition: "transform 0.4s ease",
-            "&:hover": { transform: "scale(1.02)" },
-          }}
-        />
+        {isCurrentVideo ? (
+          <Box sx={{ width: "100%", height: "100%", position: "relative" }}>
+            <video
+              src={currentMedia.url}
+              controls
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                backgroundColor: "#000",
+                display: "block",
+              }}
+            />
+          </Box>
+        ) : (
+          <Box
+            component="img"
+            src={currentMedia.url}
+            alt="Event Media"
+            onClick={() => onZoom(currentMedia.url)}
+            sx={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              cursor: "pointer",
+              transition: "transform 0.4s ease",
+              "&:hover": { transform: "scale(1.02)" },
+            }}
+          />
+        )}
 
         {/* Count Pill Badge on Top-Right */}
         <Box
@@ -861,9 +1411,15 @@ function EventMediaHero({
             fontWeight: 700,
             letterSpacing: "0.03em",
             zIndex: 3,
+            display: "flex",
+            alignItems: "center",
+            gap: 0.5,
           }}
         >
-          {activeIndex + 1} / {images.length}
+          {isCurrentVideo && <VideocamIcon sx={{ fontSize: 14 }} />}
+          <span>
+            {activeIndex + 1} / {images.length}
+          </span>
         </Box>
 
         {/* Navigation Arrows */}
@@ -929,8 +1485,10 @@ function EventMediaHero({
         <Stack direction="row" spacing={1.25} sx={{ flex: 1, overflowX: "auto" }}>
           {images.map((img, idx) => {
             const isActive = activeIndex === idx;
+            const isThumbVideo =
+              img.resourceType === "video" || (img.url && img.url.match(/\.(mp4|webm|mov|ogg)($|\?)/i));
             return (
-              <Tooltip key={idx} title={`Photo ${idx + 1}`} arrow placement="top">
+              <Tooltip key={idx} title={`${isThumbVideo ? "Video" : "Photo"} ${idx + 1}`} arrow placement="top">
                 <Box
                   onClick={() => setActiveIndex(idx)}
                   sx={{
@@ -944,15 +1502,45 @@ function EventMediaHero({
                     border: isActive ? "2.5px solid #7C3AED" : "2px solid #F1F5F9",
                     opacity: isActive ? 1 : 0.7,
                     transition: "all 0.2s ease",
+                    bgcolor: "#000",
                     "&:hover": { opacity: 1, transform: "translateY(-1px)" },
                   }}
                 >
-                  <Box
-                    component="img"
-                    src={img.url}
-                    alt={`thumbnail-${idx}`}
-                    sx={{ width: "100%", height: "100%", objectFit: "cover" }}
-                  />
+                  {isThumbVideo ? (
+                    <>
+                      <video
+                        src={img.url}
+                        preload="metadata"
+                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                      />
+                      <Box
+                        sx={{
+                          position: "absolute",
+                          top: "50%",
+                          left: "50%",
+                          transform: "translate(-50%, -50%)",
+                          width: 20,
+                          height: 20,
+                          borderRadius: "50%",
+                          bgcolor: "rgba(0,0,0,0.65)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "#fff",
+                          pointerEvents: "none",
+                        }}
+                      >
+                        <PlayArrowIcon sx={{ fontSize: 13 }} />
+                      </Box>
+                    </>
+                  ) : (
+                    <Box
+                      component="img"
+                      src={img.url}
+                      alt={`thumbnail-${idx}`}
+                      sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    />
+                  )}
                 </Box>
               </Tooltip>
             );
@@ -1536,21 +2124,60 @@ function ViewAllMediaDialog({
                         bgcolor: "#F1F5F9",
                       }}
                     >
-                      <Box
-                        component="img"
-                        src={img.url}
-                        alt={img.caption || `Media ${index + 1}`}
-                        className="card-media-img"
-                        sx={{
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          width: "100%",
-                          height: "100%",
-                          objectFit: "cover",
-                          transition: "transform 0.35s ease",
-                        }}
-                      />
+                      {img.resourceType === "video" || (img.url && img.url.match(/\.(mp4|webm|mov|ogg)($|\?)/i)) ? (
+                        <>
+                          <video
+                            src={img.url}
+                            preload="metadata"
+                            style={{
+                              position: "absolute",
+                              top: 0,
+                              left: 0,
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                              backgroundColor: "#000",
+                            }}
+                          />
+                          <Box
+                            sx={{
+                              position: "absolute",
+                              top: "50%",
+                              left: "50%",
+                              transform: "translate(-50%, -50%)",
+                              width: 42,
+                              height: 42,
+                              borderRadius: "50%",
+                              bgcolor: "rgba(0, 0, 0, 0.65)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              color: "#FFFFFF",
+                              border: "1.5px solid rgba(255,255,255,0.3)",
+                              pointerEvents: "none",
+                              zIndex: 2,
+                            }}
+                          >
+                            <PlayArrowIcon sx={{ fontSize: 24 }} />
+                          </Box>
+                        </>
+                      ) : (
+                        <Box
+                          component="img"
+                          src={img.url}
+                          alt={img.caption || `Media ${index + 1}`}
+                          className="card-media-img"
+                          sx={{
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                            transition: "transform 0.35s ease",
+                          }}
+                        />
+                      )}
 
                       {/* Top-Left Selection Checkbox */}
                       <Box
@@ -1745,14 +2372,19 @@ function ImageLightbox({ open, onClose, imageUrl, canManage = false, currentImag
   const { enqueueSnackbar } = useSnackbar();
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  const isVideo =
+    currentImage?.resourceType === "video" ||
+    (imageUrl && imageUrl.match(/\.(mp4|webm|mov|ogg)($|\?)/i));
+
   const downloadCurrentImage = async (url) => {
+    const filename = isVideo ? "KSH_Media.mp4" : "KSH_Gallery.jpg";
     try {
       const response = await fetch(url, { mode: "cors" });
       const blob = await response.blob();
       const blobUrl = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = blobUrl;
-      a.download = "KSH_Gallery.jpg";
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(blobUrl);
@@ -1761,7 +2393,7 @@ function ImageLightbox({ open, onClose, imageUrl, canManage = false, currentImag
       const a = document.createElement("a");
       a.href = url;
       a.target = "_blank";
-      a.download = "KSH_Gallery.jpg";
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1773,7 +2405,7 @@ function ImageLightbox({ open, onClose, imageUrl, canManage = false, currentImag
       enqueueSnackbar("Cover photo cannot be deleted here. Change it in Edit Event.", { variant: "warning" });
       return;
     }
-    if (!window.confirm("Are you sure you want to permanently delete this photo from Cloudinary & this event?")) return;
+    if (!window.confirm(`Are you sure you want to permanently delete this ${isVideo ? "video" : "photo"} from Cloudinary & this event?`)) return;
     setDeleteLoading(true);
     try {
       const imgId = currentImage._id || currentImage.id;
@@ -1781,11 +2413,11 @@ function ImageLightbox({ open, onClose, imageUrl, canManage = false, currentImag
       if (res.data?.success) {
         const updatedList = res.data.data.additionalImages || [];
         if (onDeleted) onDeleted(updatedList);
-        enqueueSnackbar("Photo deleted successfully", { variant: "success" });
+        enqueueSnackbar(`${isVideo ? "Video" : "Photo"} deleted successfully`, { variant: "success" });
         onClose();
       }
     } catch (err) {
-      enqueueSnackbar(err.response?.data?.message || "Failed to delete photo", { variant: "error" });
+      enqueueSnackbar(err.response?.data?.message || `Failed to delete ${isVideo ? "video" : "photo"}`, { variant: "error" });
     } finally {
       setDeleteLoading(false);
     }
@@ -1826,7 +2458,7 @@ function ImageLightbox({ open, onClose, imageUrl, canManage = false, currentImag
           zIndex: 1800,
         }}
       >
-        <Tooltip title="Download (KSH_Gallery)" arrow>
+        <Tooltip title={`Download (${isVideo ? "MP4 Video" : "JPG Photo"})`} arrow>
           <IconButton
             onClick={() => downloadCurrentImage(imageUrl)}
             sx={{
@@ -1849,7 +2481,7 @@ function ImageLightbox({ open, onClose, imageUrl, canManage = false, currentImag
         </Tooltip>
 
         {isDeletable && (
-          <Tooltip title="Delete Photo" arrow>
+          <Tooltip title={`Delete ${isVideo ? "Video" : "Photo"}`} arrow>
             <IconButton
               onClick={handleDeleteFromLightbox}
               disabled={deleteLoading}
@@ -1897,7 +2529,7 @@ function ImageLightbox({ open, onClose, imageUrl, canManage = false, currentImag
         </Tooltip>
       </Box>
 
-      {/* Centered Image */}
+      {/* Centered Image / Video */}
       <Box
         onClick={(e) => e.stopPropagation()}
         sx={{
@@ -1909,19 +2541,35 @@ function ImageLightbox({ open, onClose, imageUrl, canManage = false, currentImag
           cursor: "default",
         }}
       >
-        <Box
-          component="img"
-          src={imageUrl}
-          alt="Fullscreen media preview"
-          sx={{
-            maxWidth: "100%",
-            maxHeight: "86vh",
-            objectFit: "contain",
-            borderRadius: "12px",
-            boxShadow: "0 30px 60px -15px rgba(0, 0, 0, 0.6)",
-            userSelect: "none",
-          }}
-        />
+        {isVideo ? (
+          <Box
+            component="video"
+            src={imageUrl}
+            controls
+            autoPlay
+            sx={{
+              maxWidth: "100%",
+              maxHeight: "86vh",
+              borderRadius: "12px",
+              boxShadow: "0 30px 60px -15px rgba(0, 0, 0, 0.6)",
+              bgcolor: "#000",
+            }}
+          />
+        ) : (
+          <Box
+            component="img"
+            src={imageUrl}
+            alt="Fullscreen media preview"
+            sx={{
+              maxWidth: "100%",
+              maxHeight: "86vh",
+              objectFit: "contain",
+              borderRadius: "12px",
+              boxShadow: "0 30px 60px -15px rgba(0, 0, 0, 0.6)",
+              userSelect: "none",
+            }}
+          />
+        )}
       </Box>
     </Box>
   );
@@ -1949,11 +2597,41 @@ function ManageMediaDialog({
 
   const handleFileSelectAndUpload = async (e) => {
     if (!e.target.files || e.target.files.length === 0) return;
-    const files = Array.from(e.target.files).filter((file) =>
-      file.type.startsWith("image/")
-    );
-    if (files.length === 0) {
-      setError("Please select valid image files.");
+    const rawFiles = Array.from(e.target.files);
+
+    const MAX_IMAGE_SIZE = 9.8 * 1024 * 1024; // 9.8 MB (0.2 MB buffer below Cloudinary's 10 MB limit)
+    const MAX_VIDEO_SIZE = 99 * 1024 * 1024;  // 99 MB (within Cloudinary's 100 MB limit)
+
+    const validFiles = [];
+    for (const file of rawFiles) {
+      const isVideo = file.type.startsWith("video/") || file.name.match(/\.(mp4|webm|mov|ogg)$/i);
+      const isImage = file.type.startsWith("image/");
+
+      if (!isImage && !isVideo) {
+        const msg = `"${file.name}" has an unsupported format. Please select image or video files.`;
+        setError(msg);
+        enqueueSnackbar(msg, { variant: "warning" });
+        return;
+      }
+      if (isImage && file.size > MAX_IMAGE_SIZE) {
+        const msg = `Image "${file.name}" exceeds 9.8 MB limit (kept 0.2 MB below Cloudinary's 10 MB limit). Selected size: ${(file.size / (1024 * 1024)).toFixed(2)} MB.`;
+        setError(msg);
+        enqueueSnackbar(msg, { variant: "warning" });
+        return;
+      }
+      if (isVideo && file.size > MAX_VIDEO_SIZE) {
+        const msg = `Video "${file.name}" exceeds 99 MB limit. Selected size: ${(file.size / (1024 * 1024)).toFixed(2)} MB.`;
+        setError(msg);
+        enqueueSnackbar(msg, { variant: "warning" });
+        return;
+      }
+      validFiles.push(file);
+    }
+
+    if (validFiles.length === 0) {
+      const msg = "Please select valid image or video files.";
+      setError(msg);
+      enqueueSnackbar(msg, { variant: "warning" });
       return;
     }
 
@@ -1961,40 +2639,45 @@ function ManageMediaDialog({
     setError("");
 
     const formData = new FormData();
-    files.forEach((file) => {
+    validFiles.forEach((file) => {
       formData.append("galleryImages", file);
     });
 
     try {
       const res = await API.post(`/events/${eventId}/gallery`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
+        timeout: 0,
       });
       if (res.data?.success) {
         const updatedList = res.data.data.additionalImages || [];
         setImages(updatedList);
         onUpdated(updatedList);
-        enqueueSnackbar("Photos uploaded successfully to Cloudinary!", { variant: "success" });
+        enqueueSnackbar("Media uploaded successfully to Cloudinary!", { variant: "success" });
       }
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to upload images.");
+      const errMsg = err.response?.data?.message || "Failed to upload media.";
+      setError(errMsg);
+      enqueueSnackbar(errMsg, { variant: "error" });
     } finally {
       setUploading(false);
       e.target.value = "";
     }
   };
 
-  const handleDeleteImage = async (imageId) => {
-    if (!window.confirm("Delete this photo permanently from Cloudinary & Event?")) return;
+  const handleDeleteImage = async (imageId, isVideo = false) => {
+    if (!window.confirm(`Delete this ${isVideo ? "video" : "photo"} permanently from Cloudinary & Event?`)) return;
     try {
       const res = await API.delete(`/events/${eventId}/gallery/${imageId}`);
       if (res.data?.success) {
         const updatedList = res.data.data.additionalImages || [];
         setImages(updatedList);
         onUpdated(updatedList);
-        enqueueSnackbar("Photo deleted", { variant: "info" });
+        enqueueSnackbar(`${isVideo ? "Video" : "Photo"} deleted`, { variant: "info" });
       }
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to delete image.");
+      const errMsg = err.response?.data?.message || `Failed to delete ${isVideo ? "video" : "photo"}.`;
+      setError(errMsg);
+      enqueueSnackbar(errMsg, { variant: "error" });
     }
   };
 
@@ -2021,7 +2704,7 @@ function ManageMediaDialog({
         <Stack direction="row" spacing={1.5} alignItems="center">
           <AddPhotoIcon sx={{ color: "#7C3AED" }} />
           <Typography variant="h6" sx={{ fontWeight: 800, color: "#1E293B" }}>
-            Manage Media / Add Photos
+            Manage Media / Photos & Videos
           </Typography>
         </Stack>
         <IconButton onClick={onClose} size="small" sx={{ color: "#94A3B8" }}>
@@ -2057,7 +2740,7 @@ function ManageMediaDialog({
             id="manage-media-direct-upload"
             type="file"
             multiple
-            accept="image/*"
+            accept="image/*,video/*"
             style={{ display: "none" }}
             onChange={handleFileSelectAndUpload}
             disabled={uploading}
@@ -2073,64 +2756,112 @@ function ManageMediaDialog({
             <>
               <CloudUploadIcon sx={{ fontSize: 36, color: "#7C3AED", mb: 1 }} />
               <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#334155", mb: 0.5 }}>
-                Click to Select and Upload Photos
+                Click to Select and Upload Photos & Videos
               </Typography>
-              <Typography variant="caption" sx={{ color: "#64748B" }}>
-                Supports JPG, PNG, WEBP (Multiple files supported)
+              <Typography variant="caption" sx={{ color: "#64748B", display: "block" }}>
+                Images up to 9.8 MB, Videos up to 99 MB (Supports JPG, PNG, WEBP, MP4, WEBM, MOV)
               </Typography>
             </>
           )}
         </Box>
 
-        {/* Existing Photos List */}
+        {/* Existing Media List */}
         <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#1E293B", mb: 2 }}>
-          Gallery Photos ({images.length})
+          Gallery Media ({images.length})
         </Typography>
 
         {images.length === 0 ? (
           <Typography variant="body2" sx={{ color: "#94A3B8", fontStyle: "italic", textAlign: "center", py: 3 }}>
-            No additional gallery photos yet. Upload photos above.
+            No additional gallery media yet. Upload photos and videos above.
           </Typography>
         ) : (
           <Stack spacing={1.5} sx={{ maxHeight: 300, overflowY: "auto", pr: 1 }}>
-            {images.map((img, idx) => (
-              <Stack
-                key={img._id || idx}
-                direction="row"
-                alignItems="center"
-                spacing={2}
-                sx={{
-                  p: 1.5,
-                  borderRadius: "12px",
-                  border: "1px solid #EAECF0",
-                  bgcolor: "#FFFFFF",
-                }}
-              >
-                <Typography variant="caption" sx={{ fontWeight: 700, color: "#94A3B8", width: 24 }}>
-                  #{idx + 1}
-                </Typography>
-                <Box
-                  component="img"
-                  src={img.url}
-                  alt={`Photo ${idx + 1}`}
-                  sx={{ width: 56, height: 44, borderRadius: "8px", objectFit: "cover" }}
-                />
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Tooltip title={`Photo ${idx + 1}`} arrow placement="top">
-                    <Typography variant="body2" noWrap sx={{ fontWeight: 600, color: "#334155" }}>
-                      Photo {idx + 1}
-                    </Typography>
-                  </Tooltip>
-                </Box>
-                <IconButton
-                  size="small"
-                  onClick={() => handleDeleteImage(img._id)}
-                  sx={{ color: "#EF4444", "&:hover": { bgcolor: "#FEE2E2" } }}
+            {images.map((img, idx) => {
+              const isVideo =
+                img.resourceType === "video" ||
+                (img.url && img.url.match(/\.(mp4|webm|mov|ogg)($|\?)/i));
+              const label = isVideo ? `Video ${idx + 1}` : `Photo ${idx + 1}`;
+
+              return (
+                <Stack
+                  key={img._id || idx}
+                  direction="row"
+                  alignItems="center"
+                  spacing={2}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: "12px",
+                    border: "1px solid #EAECF0",
+                    bgcolor: "#FFFFFF",
+                  }}
                 >
-                  <DeleteIcon fontSize="small" />
-                </IconButton>
-              </Stack>
-            ))}
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: "#94A3B8", width: 24 }}>
+                    #{idx + 1}
+                  </Typography>
+
+                  {isVideo ? (
+                    <Box
+                      sx={{
+                        position: "relative",
+                        width: 56,
+                        height: 44,
+                        borderRadius: "8px",
+                        overflow: "hidden",
+                        bgcolor: "#000",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <video
+                        src={img.url}
+                        preload="metadata"
+                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                      />
+                      <Box
+                        sx={{
+                          position: "absolute",
+                          top: "50%",
+                          left: "50%",
+                          transform: "translate(-50%, -50%)",
+                          width: 20,
+                          height: 20,
+                          borderRadius: "50%",
+                          bgcolor: "rgba(0,0,0,0.65)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "#fff",
+                          pointerEvents: "none",
+                        }}
+                      >
+                        <PlayArrowIcon sx={{ fontSize: 13 }} />
+                      </Box>
+                    </Box>
+                  ) : (
+                    <Box
+                      component="img"
+                      src={img.url}
+                      alt={label}
+                      sx={{ width: 56, height: 44, borderRadius: "8px", objectFit: "cover", flexShrink: 0 }}
+                    />
+                  )}
+
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Tooltip title={label} arrow placement="top">
+                      <Typography variant="body2" noWrap sx={{ fontWeight: 600, color: "#334155" }}>
+                        {label}
+                      </Typography>
+                    </Tooltip>
+                  </Box>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleDeleteImage(img._id, isVideo)}
+                    sx={{ color: "#EF4444", "&:hover": { bgcolor: "#FEE2E2" } }}
+                  >
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Stack>
+              );
+            })}
           </Stack>
         )}
       </DialogContent>
@@ -2428,8 +3159,8 @@ function EventCommentsSection({
 
     const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const sortedNames = Array.from(namesSet).sort((a, b) => b.length - a.length);
-    const namesPattern = sortedNames.length > 0 
-      ? sortedNames.map(escapeRegExp).join("|") + "|" 
+    const namesPattern = sortedNames.length > 0
+      ? sortedNames.map(escapeRegExp).join("|") + "|"
       : "";
 
     const regex = new RegExp(`(@(?:${namesPattern}[A-Za-z0-9_.-]+))`, "gi");
@@ -3179,7 +3910,7 @@ function AdminControlsCard({ onEdit, onDelete, onManageMedia, onReorderMedia, ph
                 </Typography>
               </Stack>
               <Typography variant="caption" sx={{ color: "#64748B", fontSize: "11px", display: "block" }}>
-                Upload or remove event photos
+                Upload or remove photos & videos
               </Typography>
             </Box>
           </Stack>
@@ -3289,6 +4020,17 @@ function EventQuickSummaryCard({ event, allImagesList, avgRating, sx = {} }) {
     statusColor = "#64748B";
   }
 
+  const photosCount = (allImagesList || []).filter(
+    (item) => item.resourceType !== "video" && !item.url?.match(/\.(mp4|webm|mov|ogg)($|\?)/i)
+  ).length;
+
+  const videosCount =
+    (allImagesList || []).filter(
+      (item) =>
+        item.resourceType === "video" ||
+        (item.url && item.url.match(/\.(mp4|webm|mov|ogg)($|\?)/i))
+    ).length + (event?.videos?.length || 0);
+
   return (
     <Card
       sx={{
@@ -3329,41 +4071,81 @@ function EventQuickSummaryCard({ event, allImagesList, avgRating, sx = {} }) {
           />
         </Box>
 
-        <Stack
-          direction="row"
-          spacing={1}
+        {/* 2x2 Matrix */}
+        <Box
           sx={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
             bgcolor: "#F8FAFC",
-            p: 1.5,
-            borderRadius: "8px",
+            borderRadius: "10px",
             border: "1px solid #F1F5F9",
+            overflow: "hidden",
           }}
         >
-          <Box sx={{ flex: 1, textAlign: "center", borderRight: "1px solid #E2E8F0" }}>
+          {/* Photos */}
+          <Box
+            sx={{
+              p: 1.5,
+              textAlign: "center",
+              borderRight: "1px solid #E2E8F0",
+              borderBottom: "1px solid #E2E8F0",
+            }}
+          >
             <Typography variant="h6" sx={{ fontWeight: 800, color: "#1E293B", fontSize: "16px", lineHeight: 1.2 }}>
-              {allImagesList.length}
+              {photosCount}
             </Typography>
-            <Typography variant="caption" sx={{ color: "#64748B", fontSize: "11px", fontWeight: 600 }}>
+            <Typography variant="caption" sx={{ color: "#64748B", fontSize: "11px", fontWeight: 600, display: "block", mt: 0.25 }}>
               Photos
             </Typography>
           </Box>
-          <Box sx={{ flex: 1, textAlign: "center", borderRight: "1px solid #E2E8F0" }}>
+
+          {/* Videos */}
+          <Box
+            sx={{
+              p: 1.5,
+              textAlign: "center",
+              borderBottom: "1px solid #E2E8F0",
+            }}
+          >
+            <Typography variant="h6" sx={{ fontWeight: 800, color: "#1E293B", fontSize: "16px", lineHeight: 1.2 }}>
+              {videosCount}
+            </Typography>
+            <Typography variant="caption" sx={{ color: "#64748B", fontSize: "11px", fontWeight: 600, display: "block", mt: 0.25 }}>
+              Videos
+            </Typography>
+          </Box>
+
+          {/* Comments */}
+          <Box
+            sx={{
+              p: 1.5,
+              textAlign: "center",
+              borderRight: "1px solid #E2E8F0",
+            }}
+          >
             <Typography variant="h6" sx={{ fontWeight: 800, color: "#1E293B", fontSize: "16px", lineHeight: 1.2 }}>
               {event?.comments?.length || 0}
             </Typography>
-            <Typography variant="caption" sx={{ color: "#64748B", fontSize: "11px", fontWeight: 600 }}>
+            <Typography variant="caption" sx={{ color: "#64748B", fontSize: "11px", fontWeight: 600, display: "block", mt: 0.25 }}>
               Comments
             </Typography>
           </Box>
-          <Box sx={{ flex: 1, textAlign: "center" }}>
+
+          {/* Rating */}
+          <Box
+            sx={{
+              p: 1.5,
+              textAlign: "center",
+            }}
+          >
             <Typography variant="h6" sx={{ fontWeight: 800, color: "#1E293B", fontSize: "16px", lineHeight: 1.2 }}>
               {event?.reviews?.length ? avgRating.toFixed(1) : "—"}
             </Typography>
-            <Typography variant="caption" sx={{ color: "#64748B", fontSize: "11px", fontWeight: 600 }}>
+            <Typography variant="caption" sx={{ color: "#64748B", fontSize: "11px", fontWeight: 600, display: "block", mt: 0.25 }}>
               Rating
             </Typography>
           </Box>
-        </Stack>
+        </Box>
       </Stack>
     </Card>
   );
@@ -3561,11 +4343,11 @@ function EventDetailsCard({
                 transition: "all 0.2s ease",
                 "&:hover": event.location
                   ? {
-                      bgcolor: "#F0F7FF",
-                      borderColor: "#0088ff50",
-                      transform: "translateY(-2px)",
-                      boxShadow: "0 4px 14px rgba(0,136,255,0.08)",
-                    }
+                    bgcolor: "#F0F7FF",
+                    borderColor: "#0088ff50",
+                    transform: "translateY(-2px)",
+                    boxShadow: "0 4px 14px rgba(0,136,255,0.08)",
+                  }
                   : {},
               }}
             >
@@ -3761,6 +4543,7 @@ export default function EventDetail() {
       }
     } catch {
       setError("Could not load event details.");
+      enqueueSnackbar("Could not load event details.", { variant: "error" });
     } finally {
       setLoading(false);
     }
@@ -3827,6 +4610,7 @@ export default function EventDetail() {
         id: "cover_image",
         url: event.coverImage.url,
         isCover: true,
+        resourceType: "image",
         caption: "Cover Photo",
         publicId: event.coverImage.publicId,
       });
@@ -3838,12 +4622,16 @@ export default function EventDetail() {
     ) {
       event.additionalImages.forEach((img, idx) => {
         if (img?.url) {
+          const isVideo =
+            img.resourceType === "video" ||
+            (img.url && img.url.match(/\.(mp4|webm|mov|ogg)($|\?)/i));
           list.push({
             _id: img._id,
             id: img._id,
             url: img.url,
             isCover: false,
-            caption: img.caption || `Gallery Photo #${idx + 1}`,
+            resourceType: isVideo ? "video" : "image",
+            caption: img.caption || (isVideo ? `Gallery Video #${idx + 1}` : `Gallery Photo #${idx + 1}`),
             publicId: img.publicId,
           });
         }
@@ -3859,7 +4647,7 @@ export default function EventDetail() {
 
   const formattedDate = event?.eventDate ? dayjs(event.eventDate).format("dddd, D MMMM YYYY") : "—";
   const formattedTime = `${formatTime(event?.startTime)} – ${formatTime(event?.endTime)}`;
-  const organizerDisplay = `${event?.createdBy?.name || "Organizer"} (${event?.createdBy?.role || "ADMIN"})`;
+  const organizerDisplay = `${event?.createdBy?.name || "Organizer"}`;
 
   if (loading) {
     return (
@@ -3896,7 +4684,7 @@ export default function EventDetail() {
       {/* ── Conditional Layout: Admin vs Other Users ── */}
       {canManage ? (
         /* ── ADMIN VIEW: Fixed/Sticky Right Controls, Left Side Scrolls ── */
-        <Grid container spacing={3.5} alignItems="flex-start">
+        <Grid container spacing={3.5} alignItems="stretch">
           {/* Left Column (Scrolls smoothly) */}
           <Grid size={{ xs: 12, lg: 8 }}>
             <EventMediaHero
@@ -3929,14 +4717,11 @@ export default function EventDetail() {
             />
           </Grid>
 
-          {/* Right Column: Fixed in position as left side scrolls */}
+          {/* Right Column: Fixed in position on the screen, left side scrolls */}
           <Grid
             size={{ xs: 12, lg: 4 }}
             sx={{
-              position: { lg: "sticky" },
-              top: { lg: 84 },
-              alignSelf: "flex-start",
-              zIndex: 10,
+              position: "relative",
             }}
           >
             <Box
@@ -3946,11 +4731,7 @@ export default function EventDetail() {
                 display: "flex",
                 flexDirection: "column",
                 gap: 2.5,
-                maxHeight: { lg: "calc(100vh - 100px)" },
-                overflowY: { lg: "auto" },
-                pr: { lg: 0.5 },
-                "&::-webkit-scrollbar": { width: 4 },
-                "&::-webkit-scrollbar-thumb": { bgcolor: "#E2E8F0", borderRadius: 2 },
+                zIndex: 10,
               }}
             >
               <EventQuickSummaryCard

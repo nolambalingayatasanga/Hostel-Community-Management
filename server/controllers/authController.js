@@ -320,8 +320,46 @@ exports.forgotPassword = async (req, res, next) => {
 
     await user.save({ validateBeforeSave: false });
 
-    // Send reset URL (dynamically uses request origin if FRONTEND_URL is not set)
-    const clientBaseUrl = req.headers.origin || process.env.FRONTEND_URL || 'http://localhost:5173';
+    // Determine client base URL: prioritize current URL params, body params, and request headers over env or default urls
+    const rawUrl =
+      req.query?.clientUrl ||
+      req.query?.redirectUrl ||
+      req.query?.origin ||
+      req.query?.url ||
+      req.body?.clientUrl ||
+      req.body?.redirectUrl ||
+      req.body?.origin ||
+      req.headers?.['x-client-url'] ||
+      req.headers?.origin ||
+      req.headers?.referer;
+
+    let clientBaseUrl = '';
+    if (rawUrl) {
+      try {
+        const parsed = new URL(rawUrl);
+        clientBaseUrl = `${parsed.protocol}//${parsed.host}`;
+      } catch (_) {
+        clientBaseUrl = String(rawUrl).replace(/\/+$/, '');
+      }
+    }
+
+    // If not supplied in params/headers, derive dynamically from the incoming request host & protocol
+    if (!clientBaseUrl) {
+      const forwardedHost = req.headers?.['x-forwarded-host'];
+      if (forwardedHost) {
+        const proto = req.headers?.['x-forwarded-proto'] || req.protocol || 'https';
+        clientBaseUrl = `${proto}://${forwardedHost}`.replace(/\/+$/, '');
+      } else if (req.get && req.get('host')) {
+        clientBaseUrl = `${req.protocol}://${req.get('host')}`.replace(/\/+$/, '');
+      }
+    }
+
+    // Only fallback if no request context could be extracted
+    if (!clientBaseUrl) {
+      clientBaseUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
+    }
+    clientBaseUrl = clientBaseUrl.replace(/\/+$/, '');
+
     const resetURL = `${clientBaseUrl}/reset-password/${resetToken}`;
     
     const message = `Forgot your password? Please open this link to reset it: ${resetURL}\nIf you did not request this, please ignore this message.`;

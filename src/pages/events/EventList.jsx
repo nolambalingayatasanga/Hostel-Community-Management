@@ -18,30 +18,28 @@ import {
   CircularProgress,
   Alert,
   Dialog,
-  Divider,
-  DialogTitle,
   DialogContent,
   DialogActions,
   TextField,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
   Grid,
+  Link,
+  ClickAwayListener,
   Chip,
 } from "@mui/material";
 import {
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
   AddRounded as AddRoundedIcon,
-  Close as CloseIcon,
-  PhotoCamera as CameraIcon,
-  FilterList as FilterListIcon,
   LocationOn as LocationIcon,
   Search as SearchIcon,
   OpenInNew as OpenInNewIcon,
   Check as CheckIcon,
   Palette as PaletteIcon,
+  Link as LinkIcon,
+  AutoAwesome as AutoAwesomeIcon,
+  MyLocation as MyLocationIcon,
+  KeyboardArrowUp as KeyboardArrowUpIcon,
+  KeyboardArrowDown as KeyboardArrowDownIcon,
 } from "@mui/icons-material";
 
 import { useAuth } from "../../context/AuthContext";
@@ -178,33 +176,43 @@ function EventPill({ event, onClick }) {
   const color = event.color || "#0088ff";
 
   return (
-    <Tooltip title={event.title} placement="top" arrow>
+    <Tooltip title={`${event.title}`} placement="top" arrow>
       <Box
         onClick={(e) => { e.stopPropagation(); onClick(event); }}
         sx={{
           display: "flex",
           alignItems: "center",
-          bgcolor: `${color}10`,
-          border: `1px solid ${color}20`,
-          borderRadius: "6px",
-          px: 1,
-          py: 0.5,
+          gap: 0.6,
+          bgcolor: `${color}16`,
+          borderLeft: `3.5px solid ${color}`,
+          borderTop: `1px solid ${color}28`,
+          borderRight: `1px solid ${color}28`,
+          borderBottom: `1px solid ${color}28`,
+          borderRadius: "5px",
+          px: 0.75,
+          py: 0.4,
           cursor: "pointer",
-          transition: "all 0.12s ease",
-          "&:hover": { bgcolor: `${color}18`, transform: "translateY(-1px)" },
+          transition: "all 0.15s ease",
+          "&:hover": {
+            bgcolor: `${color}25`,
+            transform: "translateY(-1px)",
+            boxShadow: `0 2px 6px ${color}35`,
+          },
           overflow: "hidden",
         }}
       >
+ 
         <Typography
           sx={{
             fontSize: "11px",
-            fontWeight: 600,
-            color,
+            fontWeight: 700,
+            color: "#1E293B",
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
             flex: 1,
             minWidth: 0,
+            lineHeight: 1.25,
           }}
         >
           {event.title}
@@ -590,6 +598,9 @@ function DayView({ currentDate, events, onOpenCreate, onNavigate, isLoading, can
 }
 
 // ─── Create/Edit Dialog ───────────────────────────────────────────────────────
+const DEFAULT_COORDS = { lat: 12.9716, lng: 77.5946 };
+const DEFAULT_PLACE_NAME = "Bengaluru, Karnataka, India";
+
 function EventFormDialog({ open, onClose, onSubmit, isEdit, defaultDate, initialData, submitting, formError }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -598,14 +609,45 @@ function EventFormDialog({ open, onClose, onSubmit, isEdit, defaultDate, initial
   const [endTime, setEndTime] = useState("");
   const [location, setLocation] = useState("");
   const [locationUrl, setLocationUrl] = useState("");
-  const [locationCoordinates, setLocationCoordinates] = useState(null);
+  const [locationCoordinates, setLocationCoordinates] = useState(DEFAULT_COORDS);
   const [color, setColor] = useState("#0088ff");
 
-  // Location search suggestions state
+  // Location search suggestions & Direct Link Scraping state
+  const [locationMode, setLocationMode] = useState("search"); // "search" | "link"
+  const [pastedMapUrl, setPastedMapUrl] = useState("");
+  const [isScrapingMap, setIsScrapingMap] = useState(false);
+  const [scrapeError, setScrapeError] = useState("");
+  const [scrapedSuccess, setScrapedSuccess] = useState(false);
+
   const [locationQuery, setLocationQuery] = useState("");
   const [locationSuggestions, setLocationSuggestions] = useState([]);
   const [isSearchingLocation, setIsSearchingLocation] = useState(false);
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
+  const [detectedLocation, setDetectedLocation] = useState(null);
+
+  // Prevent background page scrolling when popup is open
+  useEffect(() => {
+    if (open) {
+      const originalBodyOverflow = document.body.style.overflow;
+      const originalHtmlOverflow = document.documentElement.style.overflow;
+      document.body.style.overflow = "hidden";
+      document.documentElement.style.overflow = "hidden";
+
+      const handleTouchMove = (e) => {
+        if (!e.target.closest(".MuiDialogContent-root")) {
+          e.preventDefault();
+        }
+      };
+
+      document.addEventListener("touchmove", handleTouchMove, { passive: false });
+
+      return () => {
+        document.body.style.overflow = originalBodyOverflow;
+        document.documentElement.style.overflow = originalHtmlOverflow;
+        document.removeEventListener("touchmove", handleTouchMove);
+      };
+    }
+  }, [open]);
 
   useEffect(() => {
     if (open) {
@@ -618,29 +660,177 @@ function EventFormDialog({ open, onClose, onSubmit, isEdit, defaultDate, initial
         setLocation(initialData.location || "");
         setLocationQuery(initialData.location || "");
         setLocationUrl(initialData.locationUrl || "");
-        setLocationCoordinates(initialData.locationCoordinates || null);
+        setPastedMapUrl(initialData.locationUrl || "");
+        const coords = initialData.locationCoordinates || DEFAULT_COORDS;
+        setLocationCoordinates(coords);
         setColor(initialData.color || "#0088ff");
+        if (initialData.location) {
+          const item = {
+            display_name: initialData.location,
+            lat: coords?.lat || DEFAULT_COORDS.lat,
+            lon: coords?.lng || DEFAULT_COORDS.lng,
+            isCurrentLocation: false,
+          };
+          setDetectedLocation(item);
+          setLocationSuggestions([item]);
+        } else {
+          setDetectedLocation(null);
+          setLocationSuggestions([]);
+        }
       } else {
         setTitle("");
         setDescription("");
         setEventDate(defaultDate || "");
         setStartTime("");
         setEndTime("");
-        setLocation("");
-        setLocationQuery("");
-        setLocationUrl("");
-        setLocationCoordinates(null);
         setColor("#0088ff");
+        setPastedMapUrl("");
+
+        // Before typing any input: load and show map immediately with fallback
+        setLocationCoordinates(DEFAULT_COORDS);
+        const fallbackItem = {
+          display_name: DEFAULT_PLACE_NAME,
+          lat: DEFAULT_COORDS.lat,
+          lon: DEFAULT_COORDS.lng,
+          isCurrentLocation: false,
+        };
+        setDetectedLocation(fallbackItem);
+        setLocationSuggestions([fallbackItem]);
+        setLocation(DEFAULT_PLACE_NAME);
+        setLocationQuery(DEFAULT_PLACE_NAME);
+        setLocationUrl(`https://www.google.com/maps/search/?api=1&query=${DEFAULT_COORDS.lat},${DEFAULT_COORDS.lng}`);
+
+        // Automatically detect user location via browser geolocation
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+              const lat = pos.coords.latitude;
+              const lng = pos.coords.longitude;
+              setLocationCoordinates({ lat, lng });
+              setLocationUrl(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
+              try {
+                const res = await fetch(
+                  `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+                  { headers: { "Accept-Language": "en" } }
+                );
+                const data = await res.json();
+                const resolvedName = data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+                const currentItem = {
+                  display_name: resolvedName,
+                  name: (data.address ? (data.address.road || data.address.suburb || data.address.neighbourhood || data.address.city || data.address.town) : null) || resolvedName.split(",")[0],
+                  lat,
+                  lon: lng,
+                  isCurrentLocation: true,
+                };
+                setDetectedLocation(currentItem);
+                setLocation(resolvedName);
+                setLocationQuery(resolvedName);
+                setLocationSuggestions([currentItem]);
+              } catch (e) {
+                const genericName = `Current Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+                const currentItem = {
+                  display_name: genericName,
+                  lat,
+                  lon: lng,
+                  isCurrentLocation: true,
+                };
+                setDetectedLocation(currentItem);
+                setLocation(genericName);
+                setLocationQuery(genericName);
+                setLocationSuggestions([currentItem]);
+              }
+            },
+            (err) => {
+              console.warn("Geolocation query error or denied:", err);
+            },
+            { timeout: 7000, enableHighAccuracy: true }
+          );
+        }
       }
-      setLocationSuggestions([]);
       setShowLocationSuggestions(false);
+      setLocationMode("search");
+      setIsScrapingMap(false);
+      setScrapeError("");
+      setScrapedSuccess(false);
     }
   }, [open, initialData, defaultDate]);
+
+  const handleScrapeMapLink = async (urlInput) => {
+    const rawUrl = (urlInput || pastedMapUrl || "").trim();
+    if (!rawUrl) {
+      setScrapeError("Please paste a valid Google Maps, Apple Maps, or OpenStreetMap link.");
+      return;
+    }
+
+    setIsScrapingMap(true);
+    setScrapeError("");
+    setScrapedSuccess(false);
+
+    try {
+      const res = await API.post("/events/parse-map-url", { url: rawUrl });
+      if (res.data?.success && res.data?.data) {
+        const item = res.data.data;
+        const resolvedName = item.displayName || item.name || "Pinned Location";
+        setLocation(resolvedName);
+        setLocationQuery(resolvedName);
+        if (item.locationCoordinates) {
+          setLocationCoordinates(item.locationCoordinates);
+        } else if (item.lat && item.lng) {
+          setLocationCoordinates({ lat: item.lat, lng: item.lng });
+        }
+        setLocationUrl(item.locationUrl || rawUrl);
+        setPastedMapUrl(rawUrl);
+        setScrapedSuccess(true);
+        setShowLocationSuggestions(false);
+      } else {
+        setScrapeError(res.data?.message || "Could not resolve details from this map link.");
+      }
+    } catch (err) {
+      console.error("Map parse error:", err);
+      let clientParsed = false;
+      try {
+        const atMatch = rawUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+        const qMatch = rawUrl.match(/[?&](?:q|query|ll)=(-?\d+\.\d+)[,;](-?\d+\.\d+)/);
+        const placeMatch = rawUrl.match(/\/place\/([^/@?#]+)/);
+        const lat = atMatch ? parseFloat(atMatch[1]) : (qMatch ? parseFloat(qMatch[1]) : null);
+        const lng = atMatch ? parseFloat(atMatch[2]) : (qMatch ? parseFloat(qMatch[2]) : null);
+        let placeName = placeMatch ? decodeURIComponent(placeMatch[1].replace(/\+/g, " ")).trim() : "";
+
+        if (lat && lng) {
+          setLocationCoordinates({ lat, lng });
+          setLocationUrl(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
+          const finalName = placeName || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+          setLocation(finalName);
+          setLocationQuery(finalName);
+          setScrapedSuccess(true);
+          clientParsed = true;
+        } else if (placeName) {
+          setLocation(placeName);
+          setLocationQuery(placeName);
+          setLocationUrl(rawUrl);
+          setScrapedSuccess(true);
+          clientParsed = true;
+        }
+      } catch (e) {
+        // Fallback ignored
+      }
+
+      if (!clientParsed) {
+        setScrapeError(err.response?.data?.message || "Failed to extract map details. Please check the URL or type the location manually.");
+      }
+    } finally {
+      setIsScrapingMap(false);
+    }
+  };
 
   // Debounced search using OpenStreetMap Nominatim for exact place resolution
   useEffect(() => {
     if (!locationQuery || locationQuery.trim().length < 3) {
-      setLocationSuggestions([]);
+      if (detectedLocation) {
+        setLocationSuggestions([detectedLocation]);
+      } else {
+        setLocationSuggestions([]);
+      }
       setIsSearchingLocation(false);
       return;
     }
@@ -654,7 +844,10 @@ function EventFormDialog({ open, onClose, onSubmit, isEdit, defaultDate, initial
         );
         const data = await res.json();
         if (Array.isArray(data)) {
-          setLocationSuggestions(data);
+          const suggestions = detectedLocation
+            ? [detectedLocation, ...data.filter((d) => d.display_name !== detectedLocation.display_name)]
+            : data;
+          setLocationSuggestions(suggestions);
           setShowLocationSuggestions(true);
         }
       } catch (err) {
@@ -665,7 +858,7 @@ function EventFormDialog({ open, onClose, onSubmit, isEdit, defaultDate, initial
     }, 450);
 
     return () => clearTimeout(timer);
-  }, [locationQuery]);
+  }, [locationQuery, detectedLocation]);
 
   const handleSelectPlace = (place) => {
     const displayName = place.display_name;
@@ -673,8 +866,12 @@ function EventFormDialog({ open, onClose, onSubmit, isEdit, defaultDate, initial
     const lon = parseFloat(place.lon);
     setLocation(displayName);
     setLocationQuery(displayName);
-    setLocationCoordinates({ lat, lng: lon });
-    setLocationUrl(`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`);
+    if (!isNaN(lat) && !isNaN(lon)) {
+      setLocationCoordinates({ lat, lng: lon });
+      setLocationUrl(`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`);
+    } else {
+      setLocationUrl(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(displayName)}`);
+    }
     setShowLocationSuggestions(false);
   };
 
@@ -702,11 +899,12 @@ function EventFormDialog({ open, onClose, onSubmit, isEdit, defaultDate, initial
   };
 
   const currentMapLink = locationUrl || (location ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}` : "");
+  const displayCoords = locationCoordinates || DEFAULT_COORDS;
   const embedMapUrl = locationCoordinates?.lat && locationCoordinates?.lng
     ? `https://maps.google.com/maps?q=${locationCoordinates.lat},${locationCoordinates.lng}&t=&z=15&ie=UTF8&iwloc=&output=embed`
     : location && location.trim().length > 2
     ? `https://maps.google.com/maps?q=${encodeURIComponent(location)}&t=&z=15&ie=UTF8&iwloc=&output=embed`
-    : "";
+    : `https://maps.google.com/maps?q=${displayCoords.lat},${displayCoords.lng}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
 
   return (
     <Dialog
@@ -714,6 +912,16 @@ function EventFormDialog({ open, onClose, onSubmit, isEdit, defaultDate, initial
       onClose={onClose}
       maxWidth="sm"
       fullWidth
+      disableScrollLock={false}
+      sx={{
+        overscrollBehavior: "contain",
+        "& .MuiBackdrop-root": {
+          touchAction: "none",
+        },
+        "& .MuiDialog-container": {
+          overscrollBehavior: "contain",
+        },
+      }}
       PaperProps={{
         sx: {
           borderRadius: "24px",
@@ -722,330 +930,720 @@ function EventFormDialog({ open, onClose, onSubmit, isEdit, defaultDate, initial
         }
       }}
     >
-      {/* <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #EAECF0", py: 2.5, px: 3.5, bgcolor: "#F8FAFC" }}>
-        <Typography variant="h6" sx={{ fontWeight: 800, fontSize: 17, color: "#1E293B", letterSpacing: "-0.02em" }}>
-          {isEdit ? "Edit Event Details" : "Schedule Community Event"}
-        </Typography>
-        <IconButton onClick={onClose} size="small" sx={{ color: "#94A3B8", bgcolor: "#FFF", border: "1px solid #E2E8F0", "&:hover": { bgcolor: "#F1F5F9", color: "#1E293B" } }}>
-          <CloseIcon fontSize="small" />
-        </IconButton>
-      </DialogTitle> */}
+
 
       <form onSubmit={handleSubmit}>
-        <DialogContent sx={{ px: 3.5, py: 3, backgroundColor: "#FFF" }}>
-          {formError && <Alert severity="error" sx={{ mb: 3, borderRadius: "12px" }}>{formError}</Alert>}
+        <DialogContent sx={{ px: 3.5, pt: 3.5, pb: 2.5, backgroundColor: "#FFF", overscrollBehavior: "contain" }}>
+          {formError && (
+            <Alert severity="error" sx={{ mb: 2.5, borderRadius: "10px", fontSize: "13px" }}>
+              {formError}
+            </Alert>
+          )}
 
-          <Stack spacing={3}>
-            {/* Section 1: General Info */}
-            <Box>
-              <Typography variant="caption" sx={{ color: "#0088ff", fontWeight: 800, textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.05em", display: "block", mb: 1.5 }}>
-                General Information
-              </Typography>
-              <Stack spacing={2}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Event Title *"
-                  required
-                  placeholder="e.g. Annual Alumni Meet 2026"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px", backgroundColor: "#F8FAFC", "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#0088ff30" } } }}
-                />
-
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Description *"
-                  multiline
-                  rows={3}
-                  required
-                  placeholder="Provide an engaging description of what will happen at this event..."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px", backgroundColor: "#F8FAFC", "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#0088ff30" } } }}
-                />
-
-                {/* Color Selector */}
-                <Box sx={{ pt: 0.5 }}>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
-                    <Typography variant="caption" sx={{ color: "#475569", fontWeight: 700, fontSize: "12px" }}>
-                      Event Theme Color *
-                    </Typography>
-                    {/* Live Calendar Pill Preview */}
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <Typography variant="caption" sx={{ color: "#94A3B8", fontSize: "11px", fontWeight: 600 }}>
-                        Calendar Preview:
-                      </Typography>
+          <Stack spacing={1.8}>
+            {/* Top Color Palette Selector */}
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1 }}>
+              <Stack direction="row" spacing={1.1} alignItems="center" sx={{ flexWrap: "wrap", gap: 1 }}>
+                {EVENT_COLORS.map((c) => {
+                  const isSelected = (color || "#0088ff").toLowerCase() === c.value.toLowerCase();
+                  return (
+                    <Tooltip key={c.value} title={c.label} arrow placement="top">
                       <Box
-                        sx={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          bgcolor: `${color}14`,
-                          border: `1px solid ${color}35`,
-                          borderRadius: "6px",
-                          px: 1,
-                          py: 0.25,
-                        }}
-                      >
-                        <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: color, mr: 0.75 }} />
-                        <Typography sx={{ fontSize: "11px", fontWeight: 700, color, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {title ? title : "Event Title"}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Stack>
-
-                  <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: "wrap", gap: 1 }}>
-                    {EVENT_COLORS.map((c) => {
-                      const isSelected = color.toLowerCase() === c.value.toLowerCase();
-                      return (
-                        <Tooltip key={c.value} title={c.label} arrow placement="top">
-                          <Box
-                            onClick={() => setColor(c.value)}
-                            sx={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: "50%",
-                              bgcolor: c.value,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              cursor: "pointer",
-                              transition: "all 0.15s ease",
-                              border: isSelected ? "3px solid #FFF" : "2px solid transparent",
-                              outline: isSelected ? `2.5px solid ${c.value}` : "none",
-                              boxShadow: isSelected ? `0 2px 8px ${c.value}60` : "none",
-                              "&:hover": {
-                                transform: "scale(1.15)",
-                              },
-                            }}
-                          >
-                            {isSelected && <CheckIcon sx={{ color: "#FFF", fontSize: 16, strokeWidth: 2 }} />}
-                          </Box>
-                        </Tooltip>
-                      );
-                    })}
-
-                    {/* Custom Color Input */}
-                    <Tooltip title="Choose Custom Hex Color" arrow placement="top">
-                      <Box
-                        component="label"
+                        onClick={() => setColor(c.value)}
                         sx={{
                           width: 32,
                           height: 32,
                           borderRadius: "50%",
-                          border: "1.5px dashed #94A3B8",
+                          bgcolor: c.value,
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
                           cursor: "pointer",
-                          position: "relative",
-                          overflow: "hidden",
                           transition: "all 0.15s ease",
+                          border: isSelected ? "3px solid #FFF" : "2px solid transparent",
+                          outline: isSelected ? `2.5px solid ${c.value}` : "none",
+                          boxShadow: isSelected ? `0 2px 8px ${c.value}60` : "none",
                           "&:hover": {
-                            borderColor: "#0088ff",
                             transform: "scale(1.15)",
                           },
                         }}
                       >
-                        <PaletteIcon sx={{ fontSize: 16, color: "#64748B" }} />
-                        <input
-                          type="color"
-                          value={color}
-                          onChange={(e) => setColor(e.target.value)}
-                          style={{
-                            position: "absolute",
-                            opacity: 0,
-                            width: "100%",
-                            height: "100%",
-                            cursor: "pointer",
-                          }}
-                        />
+                        {isSelected && <CheckIcon sx={{ color: "#FFF", fontSize: 16, strokeWidth: 2.5 }} />}
                       </Box>
                     </Tooltip>
-                  </Stack>
-                </Box>
+                  );
+                })}
+
+                {/* Custom Color Input */}
+                <Tooltip title="Custom Color" arrow placement="top">
+                  <Box
+                    component="label"
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: "50%",
+                      border: "1.5px dashed #94A3B8",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      position: "relative",
+                      overflow: "hidden",
+                      transition: "all 0.15s ease",
+                      "&:hover": {
+                        borderColor: "#0088ff",
+                        transform: "scale(1.15)",
+                      },
+                    }}
+                  >
+                    <PaletteIcon sx={{ fontSize: 16, color: "#64748B" }} />
+                    <input
+                      type="color"
+                      value={color || "#0088ff"}
+                      onChange={(e) => setColor(e.target.value)}
+                      style={{
+                        position: "absolute",
+                        opacity: 0,
+                        width: "100%",
+                        height: "100%",
+                        cursor: "pointer",
+                      }}
+                    />
+                  </Box>
+                </Tooltip>
               </Stack>
             </Box>
 
-            <Divider />
-
-            {/* Section 2: Scheduling */}
+            {/* Event Title */}
             <Box>
-              <Typography variant="caption" sx={{ color: "#0088ff", fontWeight: 800, textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.05em", display: "block", mb: 1.5 }}>
-                Date & Time
+              <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#344054", mb: 0.6 }}>
+                Event Title <span style={{ color: "#D92D20" }}>*</span>
               </Typography>
-              <LocalizationProvider dateAdapter={AdapterDayjs}>
-                <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <DatePicker
-                      label="Event Date *"
-                      value={eventDate ? dayjs(eventDate) : null}
-                      onChange={(newValue) => setEventDate(newValue ? newValue.format("YYYY-MM-DD") : "")}
-                      renderInput={(params) => <TextField {...params} fullWidth size="small" required sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px", backgroundColor: "#F8FAFC" } }} />}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 6, sm: 3 }}>
-                    <TimePicker
-                      label="Start *"
-                      value={startTime ? dayjs(`2000-01-01T${startTime}`) : null}
-                      onChange={(newValue) => setStartTime(newValue ? newValue.format("HH:mm") : "")}
-                      renderInput={(params) => <TextField {...params} fullWidth size="small" required sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px", backgroundColor: "#F8FAFC" } }} />}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 6, sm: 3 }}>
-                    <TimePicker
-                      label="End *"
-                      value={endTime ? dayjs(`2000-01-01T${endTime}`) : null}
-                      onChange={(newValue) => setEndTime(newValue ? newValue.format("HH:mm") : "")}
-                      renderInput={(params) => <TextField {...params} fullWidth size="small" required sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px", backgroundColor: "#F8FAFC" } }} />}
-                    />
-                  </Grid>
-                </Grid>
-              </LocalizationProvider>
+              <TextField
+                fullWidth
+                size="small"
+                required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    height: "40px",
+                    borderRadius: "10px",
+                    backgroundColor: "#FFF",
+                    fontSize: "13.5px",
+                    "& fieldset": { borderColor: "#D0D5DD" },
+                    "&:hover fieldset": { borderColor: "#98A2B3" },
+                    "&.Mui-focused fieldset": { borderColor: "#0088ff" },
+                  },
+                  "& .MuiInputBase-input": {
+                    py: "8.5px",
+                    px: "12px",
+                  },
+                }}
+              />
             </Box>
 
-            <Divider />
-
-            {/* Section 3: Location & Map Search */}
+            {/* Description */}
             <Box>
-              <Typography variant="caption" sx={{ color: "#0088ff", fontWeight: 800, textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.05em", display: "block", mb: 1.5 }}>
-                Location & Map
+              <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#344054", mb: 0.6 }}>
+                Description <span style={{ color: "#D92D20" }}>*</span>
               </Typography>
-              <Box sx={{ position: "relative" }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Search & Select Exact Location *"
-                  placeholder="e.g. Auditorium, Hostel Campus, Bangalore"
-                  required
-                  value={location}
-                  onChange={handleManualLocationChange}
-                  onFocus={() => locationSuggestions.length > 0 && setShowLocationSuggestions(true)}
-                  InputProps={{
-                    startAdornment: <LocationIcon sx={{ color: "#0088ff", mr: 1, fontSize: 20 }} />,
-                    endAdornment: isSearchingLocation ? (
-                      <CircularProgress size={16} sx={{ color: "#0088ff" }} />
-                    ) : (
-                      <SearchIcon sx={{ color: "#94A3B8", fontSize: 20 }} />
-                    ),
-                  }}
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      borderRadius: "12px",
-                      backgroundColor: "#F8FAFC",
-                      "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#0088ff30" },
-                    },
-                  }}
-                />
+              <TextField
+                fullWidth
+                size="small"
+                multiline
+                rows={2}
+                required
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: "10px",
+                    backgroundColor: "#FFF",
+                    fontSize: "13.5px",
+                    "& fieldset": { borderColor: "#D0D5DD" },
+                    "&:hover fieldset": { borderColor: "#98A2B3" },
+                    "&.Mui-focused fieldset": { borderColor: "#0088ff" },
+                  },
+                  "& .MuiInputBase-input": {
+                    px: "12px",
+                    py: "8px",
+                  },
+                }}
+              />
+            </Box>
 
-                {/* Autocomplete suggestions dropdown */}
-                {showLocationSuggestions && locationSuggestions.length > 0 && (
-                  <Paper
-                    elevation={4}
-                    sx={{
-                      position: "absolute",
-                      top: "calc(100% + 4px)",
-                      left: 0,
-                      right: 0,
-                      zIndex: 20,
-                      borderRadius: "12px",
-                      maxHeight: "220px",
-                      overflowY: "auto",
-                      border: "1px solid #E2E8F0",
-                      bgcolor: "#FFF",
+            {/* Date & Time Row */}
+            <LocalizationProvider dateAdapter={AdapterDayjs}>
+              <Grid container spacing={1.5}>
+                <Grid size={{ xs: 12, sm: 5 }}>
+                  <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#344054", mb: 0.6 }}>
+                    Event Date <span style={{ color: "#D92D20" }}>*</span>
+                  </Typography>
+                  <DatePicker
+                    format="DD/MM/YYYY"
+                    value={eventDate ? dayjs(eventDate) : null}
+                    onChange={(newValue) => setEventDate(newValue ? newValue.format("YYYY-MM-DD") : "")}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        size: "small",
+                        required: true,
+                        sx: {
+                          "& .MuiOutlinedInput-root": {
+                            height: "38px",
+                            borderRadius: "10px",
+                            backgroundColor: "#FFF",
+                            fontSize: "13px",
+                            "& fieldset": { borderColor: "#D0D5DD" },
+                            "&:hover fieldset": { borderColor: "#98A2B3" },
+                            "&.Mui-focused fieldset": { borderColor: "#0088ff" },
+                          },
+                          "& .MuiInputBase-input": {
+                            py: "7px",
+                            px: "10px",
+                            fontSize: "13px",
+                            height: "auto",
+                          },
+                          "& .MuiIconButton-root": {
+                            p: "4px",
+                            color: "#667085",
+                          },
+                        },
+                      },
                     }}
-                  >
-                    {locationSuggestions.map((place, idx) => (
-                      <Box
-                        key={idx}
-                        onClick={() => handleSelectPlace(place)}
-                        sx={{
-                          p: 1.5,
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "flex-start",
-                          gap: 1.25,
-                          borderBottom: idx < locationSuggestions.length - 1 ? "1px solid #F1F5F9" : "none",
-                          "&:hover": { bgcolor: "#F0F7FF" },
-                        }}
-                      >
-                        <LocationIcon sx={{ color: "#0088ff", fontSize: 18, mt: 0.25, flexShrink: 0 }} />
-                        <Box sx={{ minWidth: 0 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 700, color: "#1E293B", fontSize: "13px" }}>
-                            {place.display_name.split(",")[0]}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: "#64748B", fontSize: "11.5px", display: "block", wordBreak: "break-word" }}>
-                            {place.display_name}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    ))}
-                  </Paper>
-                )}
-              </Box>
-
-              {/* Live Embedded Map Preview */}
-              {embedMapUrl && (
-                <Box sx={{ mt: 2, borderRadius: "14px", overflow: "hidden", border: "1px solid #E2E8F0", bgcolor: "#F8FAFC" }}>
-                  <iframe
-                    title="Event Location Pin"
-                    width="100%"
-                    height="170"
-                    style={{ border: 0, display: "block" }}
-                    loading="lazy"
-                    src={embedMapUrl}
-                  />
-                  <Box sx={{ px: 2, py: 1.25, display: "flex", justifyContent: "space-between", alignItems: "center", bgcolor: "#F8FAFC", borderTop: "1px solid #EAECF0" }}>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#10B981" }} />
-                      <Typography variant="caption" sx={{ color: "#475569", fontWeight: 700, fontSize: "11.5px" }}>
-                        Location Pin Mapped
-                      </Typography>
-                    </Stack>
-                    {currentMapLink && (
-                      <Button
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label=""
+                        fullWidth
                         size="small"
-                        component="a"
-                        href={currentMapLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        endIcon={<OpenInNewIcon sx={{ fontSize: "14px !important" }} />}
+                        required
                         sx={{
-                          fontSize: "11.5px",
-                          fontWeight: 700,
-                          color: "#0088ff",
-                          textTransform: "none",
-                          p: 0,
-                          minWidth: 0,
-                          "&:hover": { bgcolor: "transparent", textDecoration: "underline" },
+                          "& .MuiOutlinedInput-root": {
+                            height: "38px",
+                            borderRadius: "10px",
+                            backgroundColor: "#FFF",
+                            fontSize: "13px",
+                            "& fieldset": { borderColor: "#D0D5DD" },
+                            "&:hover fieldset": { borderColor: "#98A2B3" },
+                            "&.Mui-focused fieldset": { borderColor: "#0088ff" },
+                          },
+                          "& .MuiInputBase-input": {
+                            py: "7px",
+                            px: "10px",
+                            fontSize: "13px",
+                            height: "auto",
+                          },
+                          "& .MuiIconButton-root": {
+                            p: "4px",
+                            color: "#667085",
+                          },
+                        }}
+                      />
+                    )}
+                  />
+                </Grid>
+                <Grid size={{ xs: 6, sm: 3.5 }}>
+                  <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#344054", mb: 0.6 }}>
+                    Start <span style={{ color: "#D92D20" }}>*</span>
+                  </Typography>
+                  <TimePicker
+                    value={startTime ? dayjs(`2000-01-01T${startTime}`) : null}
+                    onChange={(newValue) => setStartTime(newValue ? newValue.format("HH:mm") : "")}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        size: "small",
+                        required: true,
+                        sx: {
+                          "& .MuiOutlinedInput-root": {
+                            height: "38px",
+                            borderRadius: "10px",
+                            backgroundColor: "#FFF",
+                            fontSize: "13px",
+                            "& fieldset": { borderColor: "#D0D5DD" },
+                            "&:hover fieldset": { borderColor: "#98A2B3" },
+                            "&.Mui-focused fieldset": { borderColor: "#0088ff" },
+                          },
+                          "& .MuiInputBase-input": {
+                            py: "7px",
+                            px: "10px",
+                            fontSize: "13px",
+                            height: "auto",
+                          },
+                          "& .MuiIconButton-root": {
+                            p: "4px",
+                            color: "#667085",
+                          },
+                        },
+                      },
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label=""
+                        fullWidth
+                        size="small"
+                        required
+                        sx={{
+                          "& .MuiOutlinedInput-root": {
+                            height: "38px",
+                            borderRadius: "10px",
+                            backgroundColor: "#FFF",
+                            fontSize: "13px",
+                            "& fieldset": { borderColor: "#D0D5DD" },
+                            "&:hover fieldset": { borderColor: "#98A2B3" },
+                            "&.Mui-focused fieldset": { borderColor: "#0088ff" },
+                          },
+                          "& .MuiInputBase-input": {
+                            py: "7px",
+                            px: "10px",
+                            fontSize: "13px",
+                            height: "auto",
+                          },
+                          "& .MuiIconButton-root": {
+                            p: "4px",
+                            color: "#667085",
+                          },
+                        }}
+                      />
+                    )}
+                  />
+                </Grid>
+                <Grid size={{ xs: 6, sm: 3.5 }}>
+                  <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#344054", mb: 0.6 }}>
+                    End <span style={{ color: "#D92D20" }}>*</span>
+                  </Typography>
+                  <TimePicker
+                    value={endTime ? dayjs(`2000-01-01T${endTime}`) : null}
+                    onChange={(newValue) => setEndTime(newValue ? newValue.format("HH:mm") : "")}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        size: "small",
+                        required: true,
+                        sx: {
+                          "& .MuiOutlinedInput-root": {
+                            height: "38px",
+                            borderRadius: "10px",
+                            backgroundColor: "#FFF",
+                            fontSize: "13px",
+                            "& fieldset": { borderColor: "#D0D5DD" },
+                            "&:hover fieldset": { borderColor: "#98A2B3" },
+                            "&.Mui-focused fieldset": { borderColor: "#0088ff" },
+                          },
+                          "& .MuiInputBase-input": {
+                            py: "7px",
+                            px: "10px",
+                            fontSize: "13px",
+                            height: "auto",
+                          },
+                          "& .MuiIconButton-root": {
+                            p: "4px",
+                            color: "#667085",
+                          },
+                        },
+                      },
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label=""
+                        fullWidth
+                        size="small"
+                        required
+                        sx={{
+                          "& .MuiOutlinedInput-root": {
+                            height: "38px",
+                            borderRadius: "10px",
+                            backgroundColor: "#FFF",
+                            fontSize: "13px",
+                            "& fieldset": { borderColor: "#D0D5DD" },
+                            "&:hover fieldset": { borderColor: "#98A2B3" },
+                            "&.Mui-focused fieldset": { borderColor: "#0088ff" },
+                          },
+                          "& .MuiInputBase-input": {
+                            py: "7px",
+                            px: "10px",
+                            fontSize: "13px",
+                            height: "auto",
+                          },
+                          "& .MuiIconButton-root": {
+                            p: "4px",
+                            color: "#667085",
+                          },
+                        }}
+                      />
+                    )}
+                  />
+                </Grid>
+              </Grid>
+            </LocalizationProvider>
+
+            {/* Location Mode Tabs (Full Width) */}
+            <Box
+              sx={{
+                display: "flex",
+                width: "100%",
+                bgcolor: "#F2F4F7",
+                p: "3px",
+                borderRadius: "10px",
+                border: "1px solid #EAECF0",
+              }}
+            >
+              <Button
+                fullWidth
+                size="small"
+                onClick={() => {
+                  setLocationMode("search");
+                  setScrapeError("");
+                }}
+                startIcon={<SearchIcon sx={{ fontSize: 16 }} />}
+                sx={{
+                  py: 0.6,
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  fontWeight: locationMode === "search" ? 700 : 500,
+                  color: locationMode === "search" ? "#0088ff" : "#667085",
+                  bgcolor: locationMode === "search" ? "#FFF" : "transparent",
+                  border: locationMode === "search" ? "1px solid #0088ff" : "1px solid transparent",
+                  boxShadow: locationMode === "search" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                  textTransform: "none",
+                  "&:hover": {
+                    bgcolor: locationMode === "search" ? "#FFF" : "#E4E7EC",
+                  },
+                }}
+              >
+                Search Location
+              </Button>
+              <Button
+                fullWidth
+                size="small"
+                onClick={() => {
+                  setLocationMode("link");
+                  setScrapeError("");
+                }}
+                startIcon={<LinkIcon sx={{ fontSize: 16 }} />}
+                sx={{
+                  py: 0.6,
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  fontWeight: locationMode === "link" ? 700 : 500,
+                  color: locationMode === "link" ? "#0088ff" : "#667085",
+                  bgcolor: locationMode === "link" ? "#FFF" : "transparent",
+                  border: locationMode === "link" ? "1px solid #0088ff" : "1px solid transparent",
+                  boxShadow: locationMode === "link" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                  textTransform: "none",
+                  "&:hover": {
+                    bgcolor: locationMode === "link" ? "#FFF" : "#E4E7EC",
+                  },
+                }}
+              >
+                Paste Map Link
+              </Button>
+            </Box>
+
+            {/* Location Tab Content Container - maintains identical height across tabs */}
+            <Box sx={{ minHeight: "140px" }}>
+              {/* Mode A: Search by Name */}
+              {locationMode === "search" && (
+                <ClickAwayListener onClickAway={() => setShowLocationSuggestions(false)}>
+                  <Box sx={{ position: "relative" }}>
+                    <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#344054", mb: 0.6 }}>
+                      Search Location <span style={{ color: "#D92D20" }}>*</span>
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      required
+                      value={location}
+                      onChange={handleManualLocationChange}
+                      onFocus={() => locationSuggestions.length > 0 && setShowLocationSuggestions(true)}
+                      onClick={() => locationSuggestions.length > 0 && setShowLocationSuggestions(true)}
+                      InputProps={{
+                        startAdornment: <LocationIcon sx={{ color: "#0088ff", mr: 1, fontSize: 19 }} />,
+                        endAdornment: (
+                          <Stack direction="row" spacing={0.5} alignItems="center">
+                            {isSearchingLocation && <CircularProgress size={16} sx={{ color: "#0088ff" }} />}
+                            <IconButton
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowLocationSuggestions((prev) => !prev);
+                              }}
+                              sx={{ p: "2px", color: "#667085" }}
+                            >
+                              {showLocationSuggestions ? (
+                                <KeyboardArrowDownIcon sx={{ fontSize: 19 }} />
+                              ) : (
+                                <KeyboardArrowUpIcon sx={{ fontSize: 19 }} />
+                              )}
+                            </IconButton>
+                          </Stack>
+                        ),
+                      }}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          height: "40px",
+                          borderRadius: "10px",
+                          backgroundColor: "#FFF",
+                          fontSize: "13px",
+                          "& fieldset": { borderColor: "#D0D5DD" },
+                          "&:hover fieldset": { borderColor: "#98A2B3" },
+                          "&.Mui-focused fieldset": { borderColor: "#0088ff" },
+                        },
+                        "& .MuiInputBase-input": {
+                          py: "8.5px",
+                          px: "8px",
+                        },
+                      }}
+                    />
+
+                    {/* Upward Autocomplete suggestions dropdown */}
+                    {showLocationSuggestions && locationSuggestions.length > 0 && (
+                      <Paper
+                        elevation={6}
+                        sx={{
+                          position: "absolute",
+                          bottom: "calc(100% + 6px)",
+                          left: 0,
+                          right: 0,
+                          zIndex: 1300,
+                          borderRadius: "12px",
+                          maxHeight: "220px",
+                          overflowY: "auto",
+                          border: "1px solid #D0D5DD",
+                          bgcolor: "#FFF",
+                          boxShadow: "0 -8px 24px rgba(16, 24, 40, 0.12), 0 -2px 6px rgba(16, 24, 40, 0.08)",
                         }}
                       >
-                        Open in Google Maps
-                      </Button>
+                        {locationSuggestions.map((place, idx) => (
+                          <Box
+                            key={idx}
+                            onClick={() => handleSelectPlace(place)}
+                            sx={{
+                              p: 1.25,
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "flex-start",
+                              gap: 1.25,
+                              borderBottom: idx < locationSuggestions.length - 1 ? "1px solid #F2F4F7" : "none",
+                              bgcolor: place.isCurrentLocation ? "#F0F7FF" : "transparent",
+                              "&:hover": { bgcolor: place.isCurrentLocation ? "#E0EFFF" : "#F8FAFC" },
+                            }}
+                          >
+                            {place.isCurrentLocation ? (
+                              <MyLocationIcon sx={{ color: "#0088ff", fontSize: 18, mt: 0.25, flexShrink: 0 }} />
+                            ) : (
+                              <LocationIcon sx={{ color: "#667085", fontSize: 18, mt: 0.25, flexShrink: 0 }} />
+                            )}
+                            <Box sx={{ minWidth: 0, flex: 1 }}>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, flexWrap: "wrap" }}>
+                                <Typography variant="body2" sx={{ fontWeight: 700, color: "#1E293B", fontSize: "13px" }}>
+                                  {place.name || place.display_name.split(",")[0]}
+                                </Typography>
+                                {place.isCurrentLocation && (
+                                  <Chip
+                                    size="small"
+                                    label="Current Location"
+                                    sx={{
+                                      height: 18,
+                                      fontSize: "10px",
+                                      fontWeight: 700,
+                                      bgcolor: "#DCEAFD",
+                                      color: "#0070d6",
+                                      borderRadius: "4px",
+                                      px: 0.5,
+                                    }}
+                                  />
+                                )}
+                              </Box>
+                              <Typography
+                                variant="caption"
+                                sx={{ color: "#64748B", fontSize: "11.5px", display: "block", wordBreak: "break-word" }}
+                              >
+                                {place.display_name}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        ))}
+                      </Paper>
                     )}
                   </Box>
-                </Box>
+                </ClickAwayListener>
+              )}
+
+              {/* Mode B: Direct Map Link Paste & Scraper */}
+              {locationMode === "link" && (
+                <Stack spacing={1.5}>
+                  <Box>
+                    <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#344054", mb: 0.6 }}>
+                      Paste Direct Map Link <span style={{ color: "#D92D20" }}>*</span>
+                    </Typography>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <TextField
+                        fullWidth
+                        size="small"
+                        value={pastedMapUrl}
+                        onChange={(e) => setPastedMapUrl(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleScrapeMapLink(pastedMapUrl);
+                          }
+                        }}
+                        sx={{
+                          "& .MuiOutlinedInput-root": {
+                            height: "40px",
+                            borderRadius: "10px",
+                            backgroundColor: "#FFF",
+                            fontSize: "13px",
+                            "& fieldset": { borderColor: "#D0D5DD" },
+                            "&:hover fieldset": { borderColor: "#98A2B3" },
+                            "&.Mui-focused fieldset": { borderColor: "#0088ff" },
+                          },
+                          "& .MuiInputBase-input": {
+                            py: "8.5px",
+                            px: "12px",
+                          },
+                        }}
+                      />
+                      <Button
+                        variant="contained"
+                        onClick={() => handleScrapeMapLink(pastedMapUrl)}
+                        disabled={isScrapingMap || !pastedMapUrl.trim()}
+                        startIcon={isScrapingMap ? <CircularProgress size={16} color="inherit" /> : <AutoAwesomeIcon sx={{ fontSize: 16 }} />}
+                        sx={{
+                          height: "40px",
+                          borderRadius: "10px",
+                          bgcolor: "#EBF3FE",
+                          color: "#0088ff",
+                          fontWeight: 700,
+                          fontSize: "13px",
+                          textTransform: "none",
+                          px: 2.2,
+                          whiteSpace: "nowrap",
+                          boxShadow: "none",
+                          border: "1px solid #CCE1FD",
+                          "&:hover": { bgcolor: "#DCEAFD", boxShadow: "none" },
+                          "&.Mui-disabled": { bgcolor: "#F2F4F7", color: "#98A2B3", borderColor: "#EAECF0" },
+                        }}
+                      >
+                        Search
+                      </Button>
+                    </Stack>
+                    {scrapeError && (
+                      <Alert severity="error" sx={{ mt: 1, py: 0.2, px: 1.5, borderRadius: "8px", fontSize: "12px" }}>
+                        {scrapeError}
+                      </Alert>
+                    )}
+                  </Box>
+
+                  {/* Location display/edit input */}
+                  <Box>
+                    <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#344054", mb: 0.6 }}>
+                      Location Name & Address <span style={{ color: "#D92D20" }}>*</span>
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      required
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          height: "40px",
+                          borderRadius: "10px",
+                          backgroundColor: "#FFF",
+                          fontSize: "13px",
+                          "& fieldset": { borderColor: "#D0D5DD" },
+                          "&:hover fieldset": { borderColor: "#98A2B3" },
+                          "&.Mui-focused fieldset": { borderColor: "#0088ff" },
+                        },
+                        "& .MuiInputBase-input": {
+                          py: "8.5px",
+                          px: "12px",
+                        },
+                      }}
+                    />
+                  </Box>
+                </Stack>
               )}
             </Box>
+
+            {/* Open in Maps Link */}
+            {/* {currentMapLink && (
+              <Box>
+                <Link
+                  href={currentMapLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  sx={{
+                    color: "#0088ff",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 0.5,
+                    textDecoration: "none",
+                    "&:hover": { textDecoration: "underline" },
+                  }}
+                >
+                  Open in Maps <OpenInNewIcon sx={{ fontSize: "13px !important" }} />
+                </Link>
+              </Box>
+            )} */}
+
+            {/* Live Embedded Map Preview */}
+            {embedMapUrl && (
+              <Box sx={{ borderRadius: "14px", overflow: "hidden", border: "1px solid #E4E7EC", bgcolor: "#F8FAFC" }}>
+                <iframe
+                  title="Event Location Pin"
+                  width="100%"
+                   height={locationMode === "search" ? "205" : "130"}
+                  style={{ border: 0, display: "block" }}
+                  loading="lazy"
+                  src={embedMapUrl}
+                />
+              </Box>
+            )}
           </Stack>
         </DialogContent>
 
-        <DialogActions sx={{ px: 3.5, pb: 3, pt: 2, borderTop: "1px solid #EAECF0", bgcolor: "#F8FAFC" }}>
-          <Button variant="outlined" onClick={onClose} sx={{ borderRadius: "10px", textTransform: "none", borderColor: "#D0D5DD", color: "#475569", px: 2.5, fontWeight: 600 }}>Cancel</Button>
+        <DialogActions sx={{ px: 3.5, bgcolor: "#FFF" }}>
+          <Button
+            variant="outlined"
+            onClick={onClose}
+            sx={{
+              borderRadius: "10px",
+              textTransform: "none",
+              borderColor: "#D0D5DD",
+              color: "#344054",
+              px: 2.5,
+              py: 0.8,
+              fontSize: "13px",
+              fontWeight: 600,
+              "&:hover": { borderColor: "#98A2B3", bgcolor: "#F9FAFB" },
+            }}
+          >
+            Cancel
+          </Button>
           <Button
             type="submit"
             variant="contained"
             disabled={submitting}
             sx={{
-              bgcolor: color || "#0088ff",
+              bgcolor: "#0088ff",
+              color: "#FFF",
               borderRadius: "10px",
               textTransform: "none",
               fontWeight: 700,
+              fontSize: "13px",
               boxShadow: "none",
               px: 3,
-              "&:hover": { bgcolor: color || "#0077EE", filter: "brightness(0.92)", boxShadow: "none" }
+              py: 0.8,
+              "&:hover": { bgcolor: "#0070d6", boxShadow: "none" },
             }}
           >
             {submitting ? <CircularProgress size={20} color="inherit" /> : isEdit ? "Save Changes" : "Schedule Event"}
@@ -1100,6 +1698,7 @@ export default function EventList() {
       setEvents(res.data?.success ? res.data.data : []);
     } catch {
       setError("Could not load events.");
+      enqueueSnackbar("Could not load events.", { variant: "error" });
     } finally {
       setLoading(false);
     }

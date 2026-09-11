@@ -68,7 +68,12 @@ const EventSchema = new mongoose.Schema({
   additionalImages: [
     {
       url: { type: String },
-      publicId: { type: String }
+      publicId: { type: String },
+      resourceType: {
+        type: String,
+        enum: ['image', 'video'],
+        default: 'image'
+      }
     }
   ],
   reviews: [ReviewSchema],

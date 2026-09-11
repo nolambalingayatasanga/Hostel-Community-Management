@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 5000;
 
 // Connect to MongoDB
 connectDB().then(() => {
-  app.listen(PORT, async () => {
+  const server = app.listen(PORT, async () => {
     console.log(`Server is running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
     
     // Run student transition check on server startup
@@ -23,6 +23,11 @@ connectDB().then(() => {
       await checkAndTransitionStudents();
     }, ONE_DAY_MS);
   });
+
+  // Configure timeouts for handling large media/video uploads (up to 100MB)
+  server.timeout = 10 * 60 * 1000; // 10 minutes
+  server.keepAliveTimeout = 65000;
+  server.headersTimeout = 66000;
 }).catch(err => {
   console.error('Failed to connect to MongoDB. Server not started.', err);
 });

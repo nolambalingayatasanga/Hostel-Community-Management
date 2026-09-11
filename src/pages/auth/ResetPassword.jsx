@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useSnackbar } from 'notistack';
 import API from '../../api';
 import { useAuth } from '../../context/AuthContext';
 import AuthLayout from '../../layouts/AuthLayout';
@@ -28,6 +29,7 @@ const ResetPassword = () => {
   const { token } = useParams();
   const navigate = useNavigate();
   const { updateUser } = useAuth();
+  const { enqueueSnackbar } = useSnackbar();
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -41,15 +43,21 @@ const ResetPassword = () => {
     e.preventDefault();
     setError('');
     if (!password || !confirmPassword) {
-      setError('Please fill in all fields.');
+      const valErr = 'Please fill in all fields.';
+      setError(valErr);
+      enqueueSnackbar(valErr, { variant: 'warning' });
       return;
     }
     if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+      const valErr = 'Passwords do not match.';
+      setError(valErr);
+      enqueueSnackbar(valErr, { variant: 'warning' });
       return;
     }
     if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
+      const valErr = 'Password must be at least 6 characters.';
+      setError(valErr);
+      enqueueSnackbar(valErr, { variant: 'warning' });
       return;
     }
 
@@ -59,6 +67,7 @@ const ResetPassword = () => {
       setLoading(false);
       if (res.data?.success) {
         setSuccess(true);
+        enqueueSnackbar('Password reset successfully! Redirecting...', { variant: 'success' });
         const { token: jwtToken, data } = res.data;
         localStorage.setItem('token', jwtToken);
         localStorage.setItem('user', JSON.stringify(data.user));
@@ -67,7 +76,9 @@ const ResetPassword = () => {
       }
     } catch (err) {
       setLoading(false);
-      setError(err.response?.data?.message || 'Password reset failed. Token may be invalid or expired.');
+      const errMsg = err.response?.data?.message || 'Password reset failed. Token may be invalid or expired.';
+      setError(errMsg);
+      enqueueSnackbar(errMsg, { variant: 'error' });
     }
   };
 

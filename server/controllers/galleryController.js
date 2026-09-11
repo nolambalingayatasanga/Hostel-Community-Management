@@ -61,9 +61,35 @@ exports.uploadGalleryPhoto = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please select a file to upload.' });
     }
 
-    const { caption, folderId } = req.body;
+    const folderId = req.query.folderId || req.body.folderId;
+    const caption = req.body.caption || '';
     const isVideo = req.file.mimetype.startsWith('video/');
+    const isImage = req.file.mimetype.startsWith('image/');
     const resourceType = isVideo ? 'video' : 'image';
+
+    const MAX_IMAGE_SIZE = 9.8 * 1024 * 1024; // 9.8 MB
+    const MAX_VIDEO_SIZE = 99 * 1024 * 1024;  // 99 MB
+
+    if (!isImage && !isVideo) {
+      return res.status(400).json({
+        success: false,
+        message: `Unsupported file format for "${req.file.originalname}". Only image and video files are supported.`
+      });
+    }
+
+    if (isImage && req.file.size > MAX_IMAGE_SIZE) {
+      return res.status(400).json({
+        success: false,
+        message: `Image "${req.file.originalname}" exceeds 9.8 MB limit (kept 0.2 MB below Cloudinary's 10 MB limit). Selected size: ${(req.file.size / (1024 * 1024)).toFixed(2)} MB.`
+      });
+    }
+
+    if (isVideo && req.file.size > MAX_VIDEO_SIZE) {
+      return res.status(400).json({
+        success: false,
+        message: `Video "${req.file.originalname}" exceeds 99 MB limit. Selected size: ${(req.file.size / (1024 * 1024)).toFixed(2)} MB.`
+      });
+    }
 
     // Verify folder exists if specified
     let targetFolderId = null;

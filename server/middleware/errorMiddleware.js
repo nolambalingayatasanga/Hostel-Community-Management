@@ -33,6 +33,18 @@ const errorHandler = (err, req, res, next) => {
     message = 'Invalid authentication token. Please log in again.';
   }
 
+  // Handle Multer upload errors
+  if (err.name === 'MulterError') {
+    statusCode = 400;
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      message = 'File size is too large! Maximum video limit is 99 MB and image limit is 9.8 MB.';
+    } else if (err.code === 'LIMIT_FILE_COUNT') {
+      message = 'Too many files uploaded at once. Maximum 10 files allowed per upload.';
+    } else {
+      message = `Media upload error: ${err.message}`;
+    }
+  }
+
   // Handle TokenExpiredError
   if (err.name === 'TokenExpiredError') {
     statusCode = 401;

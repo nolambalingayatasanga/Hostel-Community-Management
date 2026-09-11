@@ -2,15 +2,18 @@ import axios from 'axios';
 
 const API = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
-  timeout: 10000,
+  timeout: 120000, // 2 minutes default timeout
 });
 
-// Request Interceptor: Attach JWT Token from localStorage
+// Request Interceptor: Attach JWT Token from localStorage and client origin
 API.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      config.headers['X-Client-Url'] = window.location.origin;
     }
     return config;
   },

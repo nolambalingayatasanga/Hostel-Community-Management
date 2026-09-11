@@ -257,7 +257,7 @@ exports.getUser = async (req, res, next) => {
 
     // Auto-transition if graduation date is older than current month
     const { checkAndTransitionSingleUser } = require('../utils/studentTransition');
-    const transitioned = await checkAndTransitionSingleUser(user);
+    const transitioned = await checkAndTransitionSingleUser(user, req);
     if (transitioned) {
       await user.save();
       user = await User.findById(req.params.id)
@@ -341,7 +341,7 @@ exports.updateOwnProfile = async (req, res, next) => {
 
     // Automatically transition Student to Alumni based on graduation month and year
     const { checkAndTransitionSingleUser } = require('../utils/studentTransition');
-    await checkAndTransitionSingleUser(user);
+    await checkAndTransitionSingleUser(user, req);
 
     user.updatedBy = userId;
     await user.save();
@@ -574,7 +574,7 @@ exports.adminCreateUser = async (req, res, next) => {
 
     // Auto transition if graduation is in the past
     const { checkAndTransitionSingleUser } = require('../utils/studentTransition');
-    await checkAndTransitionSingleUser(newUser);
+    await checkAndTransitionSingleUser(newUser, req);
 
     await newUser.save();
 
@@ -646,7 +646,7 @@ exports.adminUpdateUser = async (req, res, next) => {
 
     // Auto transition if graduation is in the past
     const { checkAndTransitionSingleUser } = require('../utils/studentTransition');
-    await checkAndTransitionSingleUser(user);
+    await checkAndTransitionSingleUser(user, req);
 
     user.updatedBy = req.user._id;
     await user.save();

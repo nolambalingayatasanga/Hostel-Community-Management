@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
+import { useSnackbar } from 'notistack';
 import API from '../../api';
 import AuthLayout from '../../layouts/AuthLayout';
 import {
@@ -22,6 +23,7 @@ import {
 } from '@mui/icons-material';
 
 const ForgotPassword = () => {
+  const { enqueueSnackbar } = useSnackbar();
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
@@ -31,7 +33,9 @@ const ForgotPassword = () => {
     e.preventDefault();
     const rawIdentifier = loginIdentifier.trim();
     if (!rawIdentifier) {
-      setError('Please provide your email, phone, or Aadhaar number.');
+      const valMsg = 'Please provide your email, phone, or Aadhaar number.';
+      setError(valMsg);
+      enqueueSnackbar(valMsg, { variant: 'warning' });
       return;
     }
     setError('');
@@ -43,14 +47,23 @@ const ForgotPassword = () => {
     const identifierToSend = isDigits ? cleanNoSpace : rawIdentifier;
 
     try {
-      const res = await API.post('/auth/forgot-password', { loginIdentifier: identifierToSend });
+      const clientUrl = typeof window !== 'undefined' && window.location ? window.location.origin : '';
+      const res = await API.post(
+        '/auth/forgot-password',
+        { loginIdentifier: identifierToSend, clientUrl },
+        { params: { clientUrl } }
+      );
       setLoading(false);
       if (res.data?.success) {
-        setSuccess('Password reset link sent! Check your inbox or notification.');
+        const msg = 'Password reset link sent! Check your inbox or notification.';
+        setSuccess(msg);
+        enqueueSnackbar(msg, { variant: 'success' });
       }
     } catch (err) {
       setLoading(false);
-      setError(err.response?.data?.message || 'Something went wrong. Please try again.');
+      const errMsg = err.response?.data?.message || 'Something went wrong. Please try again.';
+      setError(errMsg);
+      enqueueSnackbar(errMsg, { variant: 'error' });
     }
   };
 

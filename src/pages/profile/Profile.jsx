@@ -1,10 +1,8 @@
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useSnackbar } from 'notistack';
 import API from '../../api';
-import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import dayjs from 'dayjs';
 import {
   Box,
   Card,
@@ -33,9 +31,7 @@ import {
   Menu
 } from '@mui/material';
 import {
-  Edit as EditIcon,
   Save as SaveIcon,
-  Cancel as CancelIcon,
   PhotoCamera as CameraIcon,
   School as EducationIcon,
   Work as WorkIcon,
@@ -52,7 +48,9 @@ import {
   Email as EmailIcon,
   Language as WebIcon,
   Info as InfoIcon,
-  LocalPhone as PhoneIcon
+  LocalPhone as PhoneIcon,
+  Badge as BadgeIcon,
+  Fingerprint as FingerprintIcon
 } from '@mui/icons-material';
 
 const months = [
@@ -74,6 +72,7 @@ const Profile = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user: currentUser, updateUser: updateAuthUser } = useAuth();
+  const { enqueueSnackbar } = useSnackbar();
 
   const isOwnProfile = !id || id === currentUser?._id;
   const isAdmin = currentUser?.role === 'ADMIN';
@@ -178,7 +177,9 @@ const Profile = () => {
       setLoading(false);
     } catch (err) {
       console.error('Error fetching profile:', err);
-      setError('Could not load profile details.');
+      const msg = 'Could not load profile details.';
+      setError(msg);
+      enqueueSnackbar(msg, { variant: 'error' });
       setLoading(false);
     }
   };
@@ -213,7 +214,9 @@ const Profile = () => {
       });
 
       if (res.data?.success) {
-        setSuccess('Profile photo uploaded successfully!');
+        const msg = 'Profile photo uploaded successfully!';
+        setSuccess(msg);
+        enqueueSnackbar(msg, { variant: 'success' });
         const updatedPhoto = res.data.data.profilePhoto;
         setUser(prev => ({ ...prev, profilePhoto: updatedPhoto }));
 
@@ -228,7 +231,9 @@ const Profile = () => {
       return false;
     } catch (err) {
       console.error('Failed upload photo:', err);
-      setError(err.response?.data?.message || 'Failed to upload image.');
+      const errMsg = err.response?.data?.message || 'Failed to upload image.';
+      setError(errMsg);
+      enqueueSnackbar(errMsg, { variant: 'error' });
       setPhotoUploading(false);
       return false;
     }
@@ -267,7 +272,9 @@ const Profile = () => {
       }
     } catch (err) {
       console.error('Camera access error:', err);
-      setError('Could not access the camera. Please check permissions.');
+      const camErr = 'Could not access the camera. Please check permissions.';
+      setError(camErr);
+      enqueueSnackbar(camErr, { variant: 'error' });
       setCameraOpen(false);
     }
   };
@@ -350,7 +357,9 @@ const Profile = () => {
       if (localLanguageDetails) {
         const words = localLanguageDetails.trim().split(/\s+/).filter(Boolean);
         if (words.length < 15 || words.length > 20) {
-          setError(`Local language details must be exactly between 15 and 20 words (currently ${words.length} words).`);
+          const valErr = `Local language details must be exactly between 15 and 20 words (currently ${words.length} words).`;
+          setError(valErr);
+          enqueueSnackbar(valErr, { variant: 'warning' });
           return;
         }
       }
@@ -371,7 +380,9 @@ const Profile = () => {
 
       const res = await API.patch('/users/profile', updatedPayload);
       if (res.data?.success) {
-        setSuccess('Profile saved successfully!');
+        const msg = 'Profile saved successfully!';
+        setSuccess(msg);
+        enqueueSnackbar(msg, { variant: 'success' });
         setUser(res.data.data.user);
         setPassword('');
         setEditMode(false);
@@ -381,7 +392,9 @@ const Profile = () => {
       }
     } catch (err) {
       console.error('Profile update failed:', err);
-      setError(err.response?.data?.message || 'Could not save profile details.');
+      const saveErr = err.response?.data?.message || 'Could not save profile details.';
+      setError(saveErr);
+      enqueueSnackbar(saveErr, { variant: 'error' });
     }
   };
 
@@ -399,14 +412,18 @@ const Profile = () => {
       });
 
       if (res.data?.success) {
-        setSuccess('Congratulations! You have successfully transitioned to ALUMNI.');
+        const transMsg = 'Congratulations! You have successfully transitioned to ALUMNI.';
+        setSuccess(transMsg);
+        enqueueSnackbar(transMsg, { variant: 'success' });
         setUser(res.data.data.user);
         updateAuthUser(res.data.data.user);
         fetchProfile();
       }
     } catch (err) {
       console.error('Alumni transition failed:', err);
-      setError(err.response?.data?.message || 'Failed to transition to Alumni.');
+      const transErr = err.response?.data?.message || 'Failed to transition to Alumni.';
+      setError(transErr);
+      enqueueSnackbar(transErr, { variant: 'error' });
     }
   };
 
@@ -439,7 +456,7 @@ const Profile = () => {
             <CardContent sx={{ p: { xs: 3, md: 4 } }}>
 
               {/* Photo Upload Section */}
-              <Stack direction="row" spacing={3} alignItems="center" sx={{ mb: 4 }}>
+              <Stack direction="row" spacing={3}  sx={{ mb: 4,alignItems:"center" }}>
                 <Box sx={{ position: 'relative' }}>
                   <Avatar
                     src={user?.profilePhoto?.url || ''}
@@ -447,11 +464,19 @@ const Profile = () => {
                     sx={{
                       width: 100,
                       height: 100,
+                      borderRadius: '50%',
                       border: '2px dashed #CBD5E1',
-                      p: 2,
+                      p: user?.profilePhoto?.url ? '3px' : 2,
                       bgcolor: '#F8FAFC',
                       cursor: 'pointer',
                       transition: 'all 0.2s',
+                      overflow: 'hidden',
+                      '& .MuiAvatar-img': {
+                        borderRadius: '50%',
+                        objectFit: 'cover',
+                        width: '100%',
+                        height: '100%'
+                      },
                       '&:hover': { borderColor: '#0088ff' }
                     }}
                     onClick={(e) => setPhotoMenuAnchor(e.currentTarget)}
@@ -465,6 +490,7 @@ const Profile = () => {
                       disabled={photoUploading}
                       sx={{
                         backgroundColor: '#ffffff',
+
                         border: '1px solid #EAECF0',
                         boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
                         '&:hover': { backgroundColor: '#F8FAFC' }
@@ -501,9 +527,9 @@ const Profile = () => {
                   <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1E293B' }}>
                     Upload Profile Photo
                   </Typography>
-                  <Typography variant="caption" sx={{ color: '#94A3B8', display: 'block', lineHeight: 1.3 }}>
+                  {/* <Typography variant="caption" sx={{ color: '#94A3B8', display: 'block', lineHeight: 1.3 }}>
                     Allowed *.jpeg, *.jpg, *.png
-                  </Typography>
+                  </Typography> */}
                   <Typography variant="caption" sx={{ color: '#94A3B8', display: 'block', lineHeight: 1.3 }}>
                     max size of 10.0 MB
                   </Typography>
@@ -516,7 +542,7 @@ const Profile = () => {
                   <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1E293B', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
                     <PersonIcon sx={{ color: '#0088ff', fontSize: 20 }} /> Personal Information
                   </Typography>
-                  <Divider sx={{ mb: 2.5 }} />
+                  {/* <Divider sx={{ mb: 2.5 }} /> */}
                   <Grid container spacing={2.5}>
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', mb: 0.75 }}>
@@ -634,94 +660,92 @@ const Profile = () => {
                 </Box>
 
                 {/* 2. EDUCATION HISTORY */}
-                {(isStudent || isAlumni) && (
-                  <Box>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1E293B', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <EducationIcon sx={{ color: '#6366F1', fontSize: 20 }} /> Education History
-                    </Typography>
-                    <Divider sx={{ mb: 2.5 }} />
-                    <Grid container spacing={2.5}>
-                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', mb: 0.75 }}>
-                          College Name
-                        </Typography>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          value={education.college || ''}
-                          onChange={(e) => handleEducationChange('college', e.target.value)}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', mb: 0.75 }}>
-                          Course/Major
-                        </Typography>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          value={education.course || ''}
-                          onChange={(e) => handleEducationChange('course', e.target.value)}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, sm: 3 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', mb: 0.75 }}>
-                          Start Month
-                        </Typography>
-                        <FormControl fullWidth size="small">
-                          <Select
-                            value={education.startMonth || ''}
-                            onChange={(e) => handleEducationChange('startMonth', e.target.value)}
-                          >
-                            {months.map((m) => (
-                              <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                      <Grid size={{ xs: 12, sm: 3 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', mb: 0.75 }}>
-                          Start Year
-                        </Typography>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          type="number"
-                          value={education.startYear || ''}
-                          onChange={(e) => handleEducationChange('startYear', e.target.value)}
-                          placeholder="YYYY"
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, sm: 3 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', mb: 0.75 }}>
-                          End Month
-                        </Typography>
-                        <FormControl fullWidth size="small">
-                          <Select
-                            value={education.endMonth || ''}
-                            onChange={(e) => handleEducationChange('endMonth', e.target.value)}
-                          >
-                            {months.map((m) => (
-                              <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                      <Grid size={{ xs: 12, sm: 3 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', mb: 0.75 }}>
-                          {isStudent ? 'Expected Graduation Year' : 'Graduation Year'}
-                        </Typography>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          type="number"
-                          value={education.endYear || ''}
-                          onChange={(e) => handleEducationChange('endYear', e.target.value)}
-                          placeholder="YYYY"
-                        />
-                      </Grid>
+                <Box>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1E293B', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <EducationIcon sx={{ color: '#6366F1', fontSize: 20 }} /> Education History
+                  </Typography>
+                  {/* <Divider sx={{ mb: 2.5 }} /> */}
+                  <Grid container spacing={2.5}>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', mb: 0.75 }}>
+                        College Name
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        value={education.college || ''}
+                        onChange={(e) => handleEducationChange('college', e.target.value)}
+                      />
                     </Grid>
-                  </Box>
-                )}
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', mb: 0.75 }}>
+                        Course/Major
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        value={education.course || ''}
+                        onChange={(e) => handleEducationChange('course', e.target.value)}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 3 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', mb: 0.75 }}>
+                        Start Month
+                      </Typography>
+                      <FormControl fullWidth size="small">
+                        <Select
+                          value={education.startMonth || ''}
+                          onChange={(e) => handleEducationChange('startMonth', e.target.value)}
+                        >
+                          {months.map((m) => (
+                            <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 3 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', mb: 0.75 }}>
+                        Start Year
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        type="number"
+                        value={education.startYear || ''}
+                        onChange={(e) => handleEducationChange('startYear', e.target.value)}
+                        placeholder="YYYY"
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 3 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', mb: 0.75 }}>
+                        End Month
+                      </Typography>
+                      <FormControl fullWidth size="small">
+                        <Select
+                          value={education.endMonth || ''}
+                          onChange={(e) => handleEducationChange('endMonth', e.target.value)}
+                        >
+                          {months.map((m) => (
+                            <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 3 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', mb: 0.75 }}>
+                        {isStudent ? 'Expected Graduation Year' : 'Graduation Year'}
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        type="number"
+                        value={education.endYear || ''}
+                        onChange={(e) => handleEducationChange('endYear', e.target.value)}
+                        placeholder="YYYY"
+                      />
+                    </Grid>
+                  </Grid>
+                </Box>
 
                 {/* 3. EMPLOYMENT & CAREER */}
                 {(isAlumni || isStaffOrMemberOrChairperson) && (
@@ -729,7 +753,7 @@ const Profile = () => {
                     <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1E293B', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
                       <WorkIcon sx={{ color: '#10b981', fontSize: 20 }} /> Employment & Career
                     </Typography>
-                    <Divider sx={{ mb: 2.5 }} />
+                    {/* <Divider sx={{ mb: 2.5 }} /> */}
                     <Grid container spacing={2.5}>
                       <Grid size={{ xs: 12, sm: 6 }}>
                         <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', mb: 0.75 }}>
@@ -835,7 +859,7 @@ const Profile = () => {
                   <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1E293B', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
                     <HomeIcon sx={{ color: '#3b82f6', fontSize: 20 }} /> Address Configuration
                   </Typography>
-                  <Divider sx={{ mb: 2.5 }} />
+                  {/* <Divider sx={{ mb: 2.5 }} /> */}
                   <Grid container spacing={2.5}>
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', mb: 0.75 }}>
@@ -889,7 +913,7 @@ const Profile = () => {
                 </Box>
 
                 {/* Save Changes Button Row */}
-                <Stack direction="row" justifyContent="flex-end" sx={{ mt: 1 }}>
+                <Stack direction="row" sx={{ mt: 1 , justifyContent:"flex-end"}}>
                   <Button
                     variant="contained"
                     onClick={handleProfileSave}
@@ -946,9 +970,17 @@ const Profile = () => {
                   sx={{
                     width: 110,
                     height: 110,
+                    borderRadius: '50%',
                     border: '4px solid #ffffff',
                     boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
-                    mb: 2
+                    mb: 2,
+                    overflow: 'hidden',
+                    '& .MuiAvatar-img': {
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      width: '100%',
+                      height: '100%'
+                    }
                   }}
                 >
                   {(user?.name || name)?.charAt(0)}
@@ -959,43 +991,41 @@ const Profile = () => {
                   {name || user?.name || 'User'}
                 </Typography>
 
-                {/* Role and Account Status Badges */}
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'center', mb: 4 }}>
-                  <Chip
-                    label={user?.role}
-                    size="small"
-                    sx={{
-                      bgcolor: '#EFF6FF',
-                      color: '#0088ff',
-                      fontWeight: 700,
-                      border: '1px solid #BFDBFE'
-                    }}
-                  />
-                  <Chip
-                    label={user?.accountStatus || 'ACTIVE'}
-                    size="small"
-                    color={user?.accountStatus === 'ACTIVE' ? 'success' : 'warning'}
-                    variant="outlined"
-                    sx={{ fontWeight: 600 }}
-                  />
-                </Box>
-
                 {/* Info List Items */}
                 <Stack spacing={3} sx={{ width: '100%' }}>
-                  {/* Address */}
-                  <Stack direction="row" spacing={2} alignItems="flex-start">
-                    <PlaceIcon sx={{ color: '#64748B', fontSize: 20, mt: 0.25 }} />
-                    <Typography variant="body2" sx={{ color: '#475569', lineHeight: 1.5 }}>
-                      {[
-                        address.street,
-                        address.area,
-                        address.landmark,
-                        address.location,
-                        address.city,
-                        address.district,
-                        address.taluk,
-                        address.pincode
-                      ].filter(Boolean).join(', ') || 'Not Provided'}
+                  {/* Registration Number */}
+                  {(registrationNumber || user?.registrationNumber || user?.role !== 'STUDENT') && (
+                    <Stack direction="row" spacing={2} alignItems="center">
+                      <BadgeIcon sx={{ color: '#64748B', fontSize: 20 }} />
+                      <Box>
+                        <Typography variant="caption" sx={{ color: '#94A3B8', display: 'block', fontSize: 11, fontWeight: 500, lineHeight: 1.1 }}>
+                          Registration No.
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#334155', fontWeight: 600 }}>
+                          {registrationNumber || user?.registrationNumber || 'Not Provided'}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  )}
+
+                  {/* Adhaar Number */}
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <FingerprintIcon sx={{ color: '#64748B', fontSize: 20 }} />
+                    <Box>
+                      <Typography variant="caption" sx={{ color: '#94A3B8', display: 'block', fontSize: 11, fontWeight: 500, lineHeight: 1.1 }}>
+                        Adhaar No.
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#334155', fontWeight: 600 }}>
+                        {adhaar || user?.adhaar || 'Not Provided'}
+                      </Typography>
+                    </Box>
+                  </Stack>
+             
+                  {/* Phone */}
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <PhoneIcon sx={{ color: '#64748B', fontSize: 20 }} />
+                    <Typography variant="body2" sx={{ color: '#475569', fontWeight: 600 }}>
+                      {phone || 'Not Provided'}
                     </Typography>
                   </Stack>
 
@@ -1007,13 +1037,6 @@ const Profile = () => {
                     </Typography>
                   </Stack>
 
-                  {/* Phone */}
-                  <Stack direction="row" spacing={2} alignItems="center">
-                    <PhoneIcon sx={{ color: '#64748B', fontSize: 20 }} />
-                    <Typography variant="body2" sx={{ color: '#475569', fontWeight: 600 }}>
-                      {phone || 'Not Provided'}
-                    </Typography>
-                  </Stack>
 
                   {/* Education History */}
                   <Stack direction="row" spacing={2} alignItems="flex-start">
@@ -1021,7 +1044,7 @@ const Profile = () => {
                     <Box>
                       {(!education.college && !education.course) ? (
                         <Typography variant="body2" sx={{ color: '#94A3B8', fontStyle: 'italic' }}>
-                          Education: Not Provided
+                          Not Provided
                         </Typography>
                       ) : (
                         <>
@@ -1040,6 +1063,7 @@ const Profile = () => {
                       )}
                     </Box>
                   </Stack>
+                  
 
                   {/* Employment Details */}
                   <Stack direction="row" spacing={2} alignItems="flex-start">
@@ -1047,7 +1071,7 @@ const Profile = () => {
                     <Box>
                       {(!employment.occupation && !employment.organization && !employment.employmentStatus) ? (
                         <Typography variant="body2" sx={{ color: '#94A3B8', fontStyle: 'italic' }}>
-                          Employment: Not Provided
+                           Not Provided
                         </Typography>
                       ) : (
                         <>
@@ -1057,14 +1081,25 @@ const Profile = () => {
                           <Typography variant="caption" sx={{ color: '#64748B', display: 'block', mt: 0.25 }}>
                             {employment.organization || 'Organization: Not Provided'}
                           </Typography>
-                          {employment.employmentStatus && (
-                            <Typography variant="caption" sx={{ color: '#94A3B8', display: 'block', mt: 0.25 }}>
-                              Status: {employment.employmentStatus}
-                            </Typography>
-                          )}
                         </>
                       )}
                     </Box>
+                  </Stack>
+                       {/* Address */}
+                  <Stack direction="row" spacing={2} alignItems="flex-start">
+                    <PlaceIcon sx={{ color: '#64748B', fontSize: 20 }} />
+                    <Typography variant="body2" sx={{ color: '#475569', lineHeight: 1.5 }}>
+                      {[
+                        address.street,
+                        address.area,
+                        address.landmark,
+                        address.location,
+                        address.city,
+                        address.district,
+                        address.taluk,
+                        address.pincode
+                      ].filter(Boolean).join(', ') || 'Not Provided'}
+                    </Typography>
                   </Stack>
                 </Stack>
               </CardContent>
@@ -1153,14 +1188,14 @@ const Profile = () => {
           }
         }}
       >
-        <DialogTitle sx={{ fontWeight: 'bold', color: 'text.primary', borderBottom: '1px solid #EAECF0', pb: 2 }}>
+        {/* <DialogTitle sx={{ fontWeight: 'bold', color: 'text.primary', borderBottom: '1px solid #EAECF0', pb: 2 }}>
           Take Profile Photo
-        </DialogTitle>
-        <DialogContent sx={{ p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        </DialogTitle> */}
+        <DialogContent sx={{  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <Box sx={{
             position: 'relative',
             width: '100%',
-            maxWidth: 400,
+            // maxWidth: 400,
             aspectRatio: '4/3',
             borderRadius: 2,
             overflow: 'hidden',
@@ -1200,9 +1235,9 @@ const Profile = () => {
             <canvas ref={canvasRef} style={{ display: 'none' }} />
           </Box>
 
-          <Typography variant="caption" sx={{ color: 'text.secondary', textAlign: 'center', display: 'block', mb: 1 }}>
+          {/* <Typography variant="caption" sx={{ color: 'text.secondary', textAlign: 'center', display: 'block', mb: 1 }}>
             {!capturedImage ? "Center your face and take a picture." : "Check your photo. Click Save to upload."}
-          </Typography>
+          </Typography> */}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3, justifyContent: 'space-between', borderTop: '1px solid #EAECF0', pt: 2 }}>
           <Button onClick={handleCloseCamera} variant="outlined" sx={{ color: 'text.secondary', borderColor: '#D0D5DD' }}>

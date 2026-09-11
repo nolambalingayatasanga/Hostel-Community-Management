@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSnackbar } from 'notistack';
 import { useAuth } from '../../context/AuthContext';
 import API from '../../api';
 import {
@@ -36,6 +37,7 @@ const months = [
 
 const CompleteProfile = () => {
   const { user, updateUser } = useAuth();
+  const { enqueueSnackbar } = useSnackbar();
   const navigate = useNavigate();
 
   const [error, setError] = useState('');
@@ -81,7 +83,9 @@ const CompleteProfile = () => {
     if (localLanguageDetails) {
       const words = localLanguageDetails.trim().split(/\s+/).filter(Boolean);
       if (words.length < 15 || words.length > 20) {
-        setError(`Local language details must be exactly between 15 and 20 words (currently ${words.length} words).`);
+        const valMsg = `Local language details must be exactly between 15 and 20 words (currently ${words.length} words).`;
+        setError(valMsg);
+        enqueueSnackbar(valMsg, { variant: 'warning' });
         return;
       }
     }
@@ -122,6 +126,7 @@ const CompleteProfile = () => {
       setLoading(false);
 
       if (res.data?.success) {
+        enqueueSnackbar('Profile completed successfully!', { variant: 'success' });
         // Update user context
         updateUser(res.data.data.user);
         if (['STUDENT', 'ALUMNI', 'STAFF'].includes(res.data.data.user.role)) {
@@ -132,7 +137,9 @@ const CompleteProfile = () => {
       }
     } catch (err) {
       setLoading(false);
-      setError(err.response?.data?.message || 'Failed to complete profile. Please try again.');
+      const errMsg = err.response?.data?.message || 'Failed to complete profile. Please try again.';
+      setError(errMsg);
+      enqueueSnackbar(errMsg, { variant: 'error' });
     }
   };
 
