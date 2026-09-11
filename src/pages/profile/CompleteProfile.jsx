@@ -79,11 +79,11 @@ const CompleteProfile = () => {
     e.preventDefault();
     setError('');
 
-    // Native language text word count check: 15 to 20 words
+  
     if (localLanguageDetails) {
       const words = localLanguageDetails.trim().split(/\s+/).filter(Boolean);
       if (words.length < 15 || words.length > 20) {
-        const valMsg = `Local language details must be exactly between 15 and 20 words (currently ${words.length} words).`;
+        const valMsg = `Kannada Overview must be exactly between 15 and 20 words (currently ${words.length} words).`;
         setError(valMsg);
         enqueueSnackbar(valMsg, { variant: 'warning' });
         return;
@@ -109,7 +109,7 @@ const CompleteProfile = () => {
               endYear: endYear ? Number(endYear) : undefined
             }
           : undefined,
-        employment: ['ALUMNI', 'MEMBER', 'STAFF', 'CHAIRPERSON', 'ADMIN'].includes(user?.role)
+        employment: ['ALUMNI', 'MEMBER', 'STAFF', 'WARDEN', 'ADMIN'].includes(user?.role)
           ? {
               occupation,
               organization,
@@ -129,11 +129,7 @@ const CompleteProfile = () => {
         enqueueSnackbar('Profile completed successfully!', { variant: 'success' });
         // Update user context
         updateUser(res.data.data.user);
-        if (['STUDENT', 'ALUMNI', 'STAFF'].includes(res.data.data.user.role)) {
-          navigate('/profile');
-        } else {
-          navigate('/dashboard');
-        }
+        navigate('/profile');
       }
     } catch (err) {
       setLoading(false);
@@ -266,7 +262,7 @@ const CompleteProfile = () => {
                 </>
               )}
 
-              {['ALUMNI', 'MEMBER', 'STAFF', 'CHAIRPERSON', 'ADMIN'].includes(user?.role) && (
+              {['ALUMNI', 'MEMBER', 'STAFF', 'WARDEN', 'ADMIN'].includes(user?.role) && (
                 <>
                   <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 2, color: '#0088ff' }}>
                     Occupation & Professional Career
@@ -283,16 +279,15 @@ const CompleteProfile = () => {
                        <>
                          <Grid item xs={12} sm={6}>
                            <FormControl fullWidth>
-                             <InputLabel>Employment Status</InputLabel>
-                             <Select value={employmentStatus} label="Employment Status" onChange={(e) => setEmploymentStatus(e.target.value)}>
+                             <InputLabel>Employment</InputLabel>
+                             <Select value={employmentStatus} label="Employment" onChange={(e) => setEmploymentStatus(e.target.value)}>
                                <MenuItem value="Employed">Employed</MenuItem>
-                               <MenuItem value="Self-Employed">Self-Employed</MenuItem>
                                <MenuItem value="Business Owner">Business Owner</MenuItem>
                                <MenuItem value="Entrepreneur">Entrepreneur</MenuItem>
                                <MenuItem value="Higher Studies">Higher Studies</MenuItem>
                                <MenuItem value="Government Service">Government Service</MenuItem>
+                               <MenuItem value="Retired">Retired</MenuItem>
                                <MenuItem value="Unemployed">Unemployed</MenuItem>
-                               <MenuItem value="Other">Other</MenuItem>
                              </Select>
                            </FormControl>
                          </Grid>
@@ -300,7 +295,7 @@ const CompleteProfile = () => {
                            <TextField fullWidth label="Work Location" value={workLocation} onChange={(e) => setWorkLocation(e.target.value)} placeholder="e.g. Bengaluru, India" />
                          </Grid>
 
-                         {['Business Owner', 'Self-Employed', 'Entrepreneur'].includes(employmentStatus) && (
+                         {['Business Owner', 'Entrepreneur'].includes(employmentStatus) && (
                            <>
                              <Grid item xs={12} sm={6}>
                                <TextField fullWidth label="Business Name" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="e.g. Apex Consulting" />

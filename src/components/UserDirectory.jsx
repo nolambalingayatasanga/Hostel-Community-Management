@@ -52,7 +52,7 @@ const UserDirectory = ({ directoryRole, title }) => {
   const navigate = useNavigate();
 
   const isAdmin = currentUser?.role === 'ADMIN';
-  const isAdminOrChairperson = ['ADMIN', 'CHAIRPERSON'].includes(currentUser?.role);
+  const isAdminOrWarden = ['ADMIN', 'WARDEN'].includes(currentUser?.role);
 
   // Users and Pagination State
   const [users, setUsers] = useState([]);
@@ -285,7 +285,7 @@ const UserDirectory = ({ directoryRole, title }) => {
 
               
               {/* Account Status Filter (Admin/Chairperson only) */}
-              {isAdminOrChairperson && (
+              {isAdminOrWarden && (
                 <Grid xs={6} sm={3}>
                   <FormControl fullWidth size="small">
                     <InputLabel>Status</InputLabel>
@@ -354,8 +354,8 @@ const UserDirectory = ({ directoryRole, title }) => {
                 </>
               )}
 
-              {/* MEMBER/STAFF/CHAIRPERSON specific professional filters */}
-              {['MEMBER', 'STAFF', 'CHAIRPERSON'].includes(directoryRole) && (
+              {/* MEMBER/STAFF/WARDEN specific professional filters */}
+              {['MEMBER', 'STAFF', 'WARDEN'].includes(directoryRole) && (
                 <>
                   <Grid xs={6} sm={3}>
                     <TextField fullWidth size="small" label="Occupation" value={occupation} onChange={(e) => setOccupation(e.target.value)} />
@@ -392,7 +392,7 @@ const UserDirectory = ({ directoryRole, title }) => {
               </TableCell>
               {directoryRole === 'ALUMNI' && <TableCell>Current Job</TableCell>}
               <TableCell>Location</TableCell>
-              {isAdminOrChairperson && <TableCell>Status</TableCell>}
+              {isAdminOrWarden && <TableCell>Status</TableCell>}
               <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
@@ -475,7 +475,7 @@ const UserDirectory = ({ directoryRole, title }) => {
                       )}
                     </TableCell>
                     
-                    {isAdminOrChairperson && (
+                    {isAdminOrWarden && (
                       <TableCell>
                         {renderStatus(u.status)}
                       </TableCell>
@@ -489,7 +489,7 @@ const UserDirectory = ({ directoryRole, title }) => {
                           </IconButton>
                         </Tooltip>
                         
-                        {isAdminOrChairperson && (
+                        {isAdminOrWarden && (
                           <>
                             <Tooltip title="Edit Profile">
                               <IconButton size="small" onClick={() => navigate(`/admin/users?action=edit&id=${u._id}`)}>

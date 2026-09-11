@@ -3,6 +3,9 @@ import PropTypes from "prop-types";
 import { Box, Select, MenuItem, TextField, Typography, Tooltip, CircularProgress } from "@mui/material";
 import {
   KeyboardArrowDown as ChevronDownIcon,
+  WhatsApp as WhatsAppIcon,
+  Instagram as InstagramIcon,
+  LinkedIn as LinkedInIcon,
 } from "@mui/icons-material";
 import debounce from "lodash/debounce";
 
@@ -186,10 +189,21 @@ export default function LeadCell({
   onChangeRef,
   onChangeField,
   onOpenProfile,
+  sx = {},
+  className = "",
 }) {
   const width = field.width;
   const wrap = (children) => (
-    <Box sx={{ width, minWidth: width === "auto" ? 140 : width, flexShrink: 0, px: 1.5 }}>
+    <Box
+      className={className}
+      sx={{
+        width,
+        minWidth: width === "auto" ? 140 : width,
+        flexShrink: 0,
+        px: 1.5,
+        ...sx,
+      }}
+    >
       {children}
     </Box>
   );
@@ -203,18 +217,20 @@ export default function LeadCell({
   const isGender = field.slug === INTERNAL_SLUGS.GENDER || (field.slug || "").toLowerCase() === "gender";
   const isAge = field.slug === INTERNAL_SLUGS.AGE || (field.slug || "").toLowerCase() === "age";
   const isJoiningDate = (field.slug || "").toLowerCase().includes("joiningdate") || (field.slug || "").toLowerCase().includes("registereddate");
+  const isChannels = field.slug === INTERNAL_SLUGS.CHANNELS || (field.slug || "").toLowerCase() === "channels";
+  const isRelativeName = field.slug === INTERNAL_SLUGS.RELATIVE_NAME || (field.slug || "").toLowerCase() === "relativename" || (field.slug || "").toLowerCase() === "relation";
 
   const { user } = useAuth();
   const currentViewerRole = user?.role;
   const isViewerAdmin = currentViewerRole === "ADMIN";
-  const isViewerChairperson = currentViewerRole === "CHAIRPERSON";
+  const isViewerWarden = currentViewerRole === "WARDEN";
 
   // Strict check: Joining Date, Registration Number, Receipt NO, and SL No are non-editable by ANY user (even admin)
   const isLocked = isFieldNonEditable(field);
-  const editable = !disabled && !isLocked && (!isRole || isViewerAdmin || isViewerChairperson);
+  const editable = !disabled && !isLocked && (!isRole || isViewerAdmin || isViewerWarden);
 
   const hasPicker =
-    (isRole && (isViewerAdmin || isViewerChairperson)) ||
+    (isRole && (isViewerAdmin || isViewerWarden)) ||
     isStatus ||
     isGender ||
     field.type === "select";
@@ -237,6 +253,7 @@ export default function LeadCell({
       return "";
     }
     if (isJoiningDate) return formatLeadDate(row.joiningDate) || "";
+    if (isRelativeName) return row.relativeName || row.relativename || row.raw?.relation?.relatedPersonName || "";
 
     // Handle any other schema-mapped fields
     if (field.isInternal && field.slug) {
@@ -250,6 +267,12 @@ export default function LeadCell({
       if (field.slug === "dateOfBirth" && val) {
         return formatLeadDate(val);
       }
+      if ((field.slug === "email" || field.slug === "email") && (!val || val === "") && row.raw?.isEmailMasked) {
+        return "••••@••••.•• (Masked)";
+      }
+      if ((field.slug === "adhaar" || field.slug === "aadhaar") && (!val || val === "") && row.raw?.isAdhaarMasked) {
+        return "•••• •••• •••• (Masked)";
+      }
       return val != null && val !== "" ? String(val) : "";
     }
 
@@ -257,31 +280,32 @@ export default function LeadCell({
     return leadFieldValue(row.raw, field._id) || "";
   };
 
-  // 1. Stacked Name + Joined Date View
+  // 1. Stacked Name + Joined Date View with same standard Cell UI
   if (isName && !isEditing) {
     return wrap(
       <Box
-        onClick={() => onOpenProfile && onOpenProfile(row)}
+        onClick={editable ? onStartEdit : (onOpenProfile ? () => onOpenProfile(row) : undefined)}
         sx={{
-          display: "flex",
+          ...readSx(editable),
           flexDirection: "column",
+          alignItems: "flex-start",
           justifyContent: "center",
-          minHeight: 44,
-          cursor: onOpenProfile ? "pointer" : "default",
           py: 0.5,
+          cursor: editable ? "pointer" : onOpenProfile ? "pointer" : "default",
         }}
+        title={editable ? `Click to edit: ${row.name || "—"}` : (row.name || "—")}
       >
         <Typography
           variant="body2"
           sx={{
-            fontWeight: 700,
+            fontWeight: 600,
             fontSize: "0.875rem",
-            color: "#101828",
+          
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
+            width: "100%",
             lineHeight: 1.3,
-            "&:hover": onOpenProfile ? { color: "#0088FF" } : {},
           }}
         >
           {row.name || "—"}
@@ -295,80 +319,135 @@ export default function LeadCell({
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
+            width: "100%",
             lineHeight: 1.3,
             mt: 0.25,
           }}
         >
-          {formatLeadDateTime(row.joiningDate) || "—"}
+          {formatLeadDate(row.joiningDate) || "—"}
         </Typography>
       </Box>
     );
   }
 
-  // 2. Phone + Message Action View
+  // 2. Phone View with same standard Cell UI
   if (isPhone && !isEditing) {
     const rawPhone = row.phone || "";
+    const isPhoneMasked = Boolean(!rawPhone && row.raw?.isPhoneMasked);
     return wrap(
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, width: "100%" }}>
-        <Box
-          onClick={editable ? onStartEdit : undefined}
+      <Box
+        onClick={editable && !isPhoneMasked ? onStartEdit : undefined}
+        sx={readSx(editable && !isPhoneMasked)}
+        title={isPhoneMasked ? "Phone is masked by user privacy settings" : rawPhone}
+      >
+        <Typography
+          variant="body2"
           sx={{
-            ...readSx(editable),
-            flex: 1,
-            justifyContent: "flex-start",
+            color: rawPhone ? "#101828" : isPhoneMasked ? "#64748B" : "#98A2B3",
+            fontSize: "0.875rem",
+            fontWeight:  500,
+            fontStyle: isPhoneMasked ? "italic" : "normal",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
           }}
-          title={rawPhone}
         >
-          <Typography
-            variant="body2"
-            sx={{
-              color: rawPhone ? "#101828" : "#98A2B3",
-              fontSize: "0.875rem",
-              fontWeight: 500,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
-            {rawPhone || "-"}
+          {rawPhone || (isPhoneMasked ? "•••••••••• (Masked)" : "-")}
+        </Typography>
+      </Box>
+    );
+  }
+
+  // 3. Channels View (WhatsApp, Instagram, LinkedIn icons)
+  if (isChannels && !isEditing) {
+    const ch = row.channels || row.raw?.channels || {};
+    const rawPhone = row.phone || row.raw?.phone || "";
+    const whatsappNum = (ch.whatsapp || rawPhone || "").replace(/\D/g, "");
+    const instagramUrl = ch.instagram
+      ? (ch.instagram.startsWith("http") ? ch.instagram : `https://instagram.com/${ch.instagram.replace(/^@/, "")}`)
+      : null;
+    const linkedinUrl = ch.linkedin
+      ? (ch.linkedin.startsWith("http") ? ch.linkedin : `https://linkedin.com/in/${ch.linkedin.replace(/^\/+/, "")}`)
+      : null;
+    const whatsappUrl = whatsappNum ? `https://wa.me/${whatsappNum}` : null;
+
+    const hasAny = Boolean(whatsappUrl || instagramUrl || linkedinUrl);
+
+    if (!hasAny) {
+      return wrap(
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", minHeight: 38 }}>
+          <Typography variant="body2" sx={{ color: "#98A2B3", px: 0.5 }}>
+            -
           </Typography>
         </Box>
-        <Tooltip title="Send WhatsApp Message" arrow>
-          <Box
-            component="a"
-            href={rawPhone ? `https://wa.me/${rawPhone.replace(/\D/g, "")}` : undefined}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (!rawPhone) e.preventDefault();
-            }}
-            sx={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 38,
-              height: 38,
-              borderRadius: "8px",
-              border: "1px solid #EAECF0",
-              backgroundColor: "#FFFFFF",
-              color: "#039855",
-              textDecoration: "none",
-              flexShrink: 0,
-              cursor: rawPhone ? "pointer" : "default",
-              transition: "all 0.15s ease",
-              "&:hover": rawPhone
-                ? {
-                    backgroundColor: "#ECFDF3",
-                    borderColor: "#A6F4C5",
-                    transform: "scale(1.05)",
-                  }
-                : {},
-            }}
-          >
-            <ChatIcon style={{ color: rawPhone ? "#12B76A" : "#D0D5DD" }} />
-          </Box>
-        </Tooltip>
+      );
+    }
+
+    return wrap(
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", gap: 1.5, minHeight: 38 }}>
+        {whatsappUrl && (
+          <Tooltip title="Chat on WhatsApp" arrow>
+            <Box
+              component="a"
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              sx={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#25D366",
+                transition: "transform 0.15s ease",
+                "&:hover": { transform: "scale(1.2)" },
+              }}
+            >
+              <WhatsAppIcon sx={{ fontSize: 22 }} />
+            </Box>
+          </Tooltip>
+        )}
+        {instagramUrl && (
+          <Tooltip title="View Instagram Profile" arrow>
+            <Box
+              component="a"
+              href={instagramUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              sx={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#E1306C",
+                transition: "transform 0.15s ease",
+                "&:hover": { transform: "scale(1.2)" },
+              }}
+            >
+              <InstagramIcon sx={{ fontSize: 20 }} />
+            </Box>
+          </Tooltip>
+        )}
+        {linkedinUrl && (
+          <Tooltip title="View LinkedIn Profile" arrow>
+            <Box
+              component="a"
+              href={linkedinUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              sx={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#0A66C2",
+                transition: "transform 0.15s ease",
+                "&:hover": { transform: "scale(1.2)" },
+              }}
+            >
+              <LinkedInIcon sx={{ fontSize: 20 }} />
+            </Box>
+          </Tooltip>
+        )}
       </Box>
     );
   }
@@ -473,7 +552,7 @@ export default function LeadCell({
     }
 
     const allowedRoles = isViewerAdmin
-      ? ["ADMIN", "CHAIRPERSON", "MEMBER", "STAFF", "STUDENT", "ALUMNI"]
+      ? ["ADMIN", "WARDEN", "MEMBER", "STAFF", "STUDENT", "ALUMNI"]
       : ["MEMBER", "STAFF", "STUDENT", "ALUMNI"];
 
     return wrap(
@@ -540,13 +619,18 @@ export default function LeadCell({
 
   if (field.type === "select" && field.options?.length) {
     const rawVal = field.isInternal ? row[field.slug] : leadFieldValue(row.raw, field._id);
+    const isEmployment = (field.slug || "").toLowerCase().includes("employment");
+    const filteredOptions = isEmployment
+      ? field.options.filter(opt => !["Self-Employed", "Other", "—", "-", ""].includes(opt))
+      : field.options;
+
     return wrap(
       <Select
         fullWidth
         size="small"
         autoFocus
         defaultOpen
-        value={rawVal || ""}
+        value={rawVal || (isEmployment ? (filteredOptions[0] || "Employed") : "")}
         onChange={(e) => {
           if (field.isInternal) {
             onChangeRef(row.id, field.slug, e.target.value);
@@ -558,8 +642,8 @@ export default function LeadCell({
         onClose={onStopEdit}
         sx={selectSx}
       >
-        <MenuItem value="">—</MenuItem>
-        {field.options.map((opt) => (
+        {!isEmployment && <MenuItem value="">—</MenuItem>}
+        {filteredOptions.map((opt) => (
           <MenuItem key={opt} value={opt}>
             {opt}
           </MenuItem>
@@ -599,4 +683,6 @@ LeadCell.propTypes = {
   onChangeRef: PropTypes.func.isRequired,
   onChangeField: PropTypes.func.isRequired,
   onOpenProfile: PropTypes.func,
+  sx: PropTypes.object,
+  className: PropTypes.string,
 };

@@ -103,9 +103,9 @@ const UserManagement = () => {
           if (res.data?.success) {
             const u = res.data.data.user;
 
-            // Security check: CHAIRPERSONs cannot edit ADMINs or other CHAIRPERSONs
-            if (currentUser?.role === 'CHAIRPERSON' && ['ADMIN', 'CHAIRPERSON'].includes(u.role)) {
-              const permErr = 'Chairpersons do not have permission to edit Admin or Chairperson accounts.';
+            // Security check: WARDENs cannot edit ADMINs or other WARDENs
+            if (currentUser?.role === 'WARDEN' && ['ADMIN', 'WARDEN'].includes(u.role)) {
+              const permErr = 'Wardens do not have permission to edit Admin or Warden accounts.';
               setFormError(permErr);
               enqueueSnackbar(permErr, { variant: 'error' });
               setLoading(false);
@@ -180,7 +180,7 @@ const UserManagement = () => {
       if (localLanguageDetails) {
         const words = localLanguageDetails.trim().split(/\s+/).filter(Boolean);
         if (words.length < 15 || words.length > 20) {
-          const langErr = `Local language details must be exactly between 15 and 20 words (currently ${words.length} words).`;
+          const langErr = `Kannada Overview must be exactly between 15 and 20 words (currently ${words.length} words).`;
           setFormError(langErr);
           enqueueSnackbar(langErr, { variant: 'warning' });
           setLoading(false);
@@ -276,8 +276,8 @@ const UserManagement = () => {
                         <MenuItem value="ALUMNI">ALUMNI</MenuItem>
                         <MenuItem value="MEMBER">MEMBER</MenuItem>
                         <MenuItem value="STAFF">STAFF</MenuItem>
-                        {currentUser?.role !== 'CHAIRPERSON' && <MenuItem value="CHAIRPERSON">CHAIRPERSON</MenuItem>}
-                        {currentUser?.role !== 'CHAIRPERSON' && <MenuItem value="ADMIN">ADMIN (Warden/Chairperson)</MenuItem>}
+                        {currentUser?.role !== 'WARDEN' && <MenuItem value="WARDEN">WARDEN</MenuItem>}
+                        {currentUser?.role !== 'WARDEN' && <MenuItem value="ADMIN">ADMIN</MenuItem>}
                       </Select>
                     </FormControl>
                   </Grid>
@@ -550,13 +550,13 @@ const UserManagement = () => {
       {/* Tabs list */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={tabValue} onChange={handleTabChange} textColor="primary" indicatorColor="primary">
-          <Tab label="Chairpersons" />
+          <Tab label="Wardens" />
           <Tab label="Staff" />
         </Tabs>
       </Box>
 
       {/* Tab Panels */}
-      {tabValue === 0 && <UserDirectory directoryRole="CHAIRPERSON" title="Manage Chairpersons" />}
+      {tabValue === 0 && <UserDirectory directoryRole="WARDEN" title="Manage Wardens" />}
       {tabValue === 1 && <UserDirectory directoryRole="STAFF" title="Manage Staff" />}
     </Box>
   );

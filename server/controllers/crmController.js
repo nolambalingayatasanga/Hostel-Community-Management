@@ -9,7 +9,45 @@ const TableLayout = require('../models/TableLayout');
  */
 exports.getMetadata = async (req, res, next) => {
   try {
-    const customFields = await CustomField.find({}).sort({ order: 1 });
+    let customFields = await CustomField.find({}).sort({ order: 1 });
+
+    // Auto-ensure Relative Name and Channels exist
+    const slugs = customFields.map(f => (f.slug || '').toLowerCase());
+    let added = false;
+    let maxOrder = customFields.reduce((max, f) => Math.max(max, f.order || 0), 7);
+
+    if (!slugs.includes('relativename')) {
+      maxOrder += 1;
+      const f = await CustomField.create({
+        name: 'Relative Name',
+        slug: 'relativeName',
+        type: 'text',
+        isInternal: true,
+        order: maxOrder,
+        isVisible: true
+      });
+      customFields.push(f);
+      added = true;
+    }
+
+    if (!slugs.includes('channels')) {
+      maxOrder += 1;
+      const f = await CustomField.create({
+        name: 'Channels',
+        slug: 'channels',
+        type: 'text',
+        isInternal: true,
+        order: maxOrder,
+        isVisible: true
+      });
+      customFields.push(f);
+      added = true;
+    }
+
+    if (added) {
+      customFields.sort((a, b) => (a.order || 0) - (b.order || 0));
+    }
+
     const statusGroups = await StatusGroup.find({}).populate({
       path: 'statuses',
       options: { sort: { order: 1 } }

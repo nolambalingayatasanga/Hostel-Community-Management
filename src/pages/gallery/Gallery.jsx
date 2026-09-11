@@ -55,7 +55,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useSnackbar } from 'notistack';
 
 const FOLDER_COLORS = [
-  '#0F9D58', '#0088ff', '#EA4335', '#FBBC04', 
+  '#0F9D58', '#0088ff', '#EA4335', '#FBBC04',
   '#8B5CF6', '#EC4899', '#6366F1', '#14B8A6'
 ];
 
@@ -65,7 +65,7 @@ const Gallery = () => {
 
   // Tab State: 'all' | 'folders'
   const [activeTab, setActiveTab] = useState('all');
-  
+
   // Active Folder State (null if viewing root folders list)
   const [currentFolder, setCurrentFolder] = useState(null);
 
@@ -118,7 +118,7 @@ const Gallery = () => {
   // Sentinel for Infinite Scrolling
   const observerTarget = useRef(null);
 
-  const isAdminOrChairperson = ['ADMIN', 'CHAIRPERSON'].includes(user?.role);
+  const isAdminOrWarden = ['ADMIN', 'WARDEN'].includes(user?.role);
 
   // -------------------------------------------------------------
   // 1. Fetch Folders
@@ -160,7 +160,7 @@ const Gallery = () => {
       const res = await API.get('/gallery', { params });
       if (res.data?.success) {
         const { photos: fetchedPhotos, pagination } = res.data.data;
-        
+
         if (append) {
           setPhotos(prev => [...prev, ...fetchedPhotos]);
         } else {
@@ -404,7 +404,7 @@ const Gallery = () => {
           formData.append('folderId', targetFolder);
         }
         formData.append('photo', file);
-        
+
         const endpoint = targetFolder
           ? `/gallery?folderId=${encodeURIComponent(targetFolder)}`
           : '/gallery';
@@ -430,7 +430,7 @@ const Gallery = () => {
         const successMsg = failedCount > 0
           ? `Uploaded ${successfulUploads.length} item(s). Failed: ${failedCount}.`
           : `Successfully uploaded all ${successfulUploads.length} item(s)!`;
-        
+
         enqueueSnackbar(successMsg, { variant: 'success' });
 
         const isCurrentFolderMatch = currentFolder && targetFolder && String(targetFolder) === String(currentFolder._id);
@@ -615,25 +615,25 @@ const Gallery = () => {
       {/* ------------------------------------------------------------- */}
       {/* Top Header & Navigation Bar */}
       {/* ------------------------------------------------------------- */}
-      <Box 
-        sx={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
           flexWrap: 'wrap',
           gap: 2,
-          mb: 3 
+          mb: 3
         }}
       >
         {/* Left Side: Tabs or Folder Breadcrumbs */}
         {activeTab === 'folders' && currentFolder ? (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <IconButton 
+            <IconButton
               onClick={handleBackToFolders}
-              sx={{ 
-                bgcolor: '#F1F5F9', 
+              sx={{
+                bgcolor: '#F1F5F9',
                 color: '#1E293B',
-                '&:hover': { bgcolor: '#E2E8F0' } 
+                '&:hover': { bgcolor: '#E2E8F0' }
               }}
               size="small"
             >
@@ -646,9 +646,9 @@ const Gallery = () => {
                 variant="h6"
                 onClick={handleBackToFolders}
                 underline="hover"
-                sx={{ 
-                  color: '#64748B', 
-                  fontWeight: 600, 
+                sx={{
+                  color: '#64748B',
+                  fontWeight: 600,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
@@ -659,35 +659,35 @@ const Gallery = () => {
                 Folders
               </Link>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography 
-                  variant="h6" 
-                  sx={{ 
-                    fontWeight: 700, 
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontWeight: 700,
                     color: '#1E293B',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 0.75
                   }}
                 >
-                  <Box 
-                    sx={{ 
-                      width: 12, 
-                      height: 12, 
-                      borderRadius: '4px', 
-                      bgcolor: currentFolder.color || '#0F9D58' 
-                    }} 
+                  <Box
+                    sx={{
+                      width: 12,
+                      height: 12,
+                      borderRadius: '4px',
+                      bgcolor: currentFolder.color || '#0F9D58'
+                    }}
                   />
                   {currentFolder.name}
                 </Typography>
-                <Chip 
-                  label={`${totalPhotos} items`} 
-                  size="small" 
-                  sx={{ 
-                    fontWeight: 600, 
-                    bgcolor: '#F1F5F9', 
+                <Chip
+                  label={`${totalPhotos} items`}
+                  size="small"
+                  sx={{
+                    fontWeight: 600,
+                    bgcolor: '#F1F5F9',
                     color: '#475569',
-                    fontSize: '12px' 
-                  }} 
+                    fontSize: '12px'
+                  }}
                 />
               </Box>
             </Breadcrumbs>
@@ -782,7 +782,7 @@ const Gallery = () => {
                 startIcon={<DownloadIcon />}
                 onClick={handleDownloadSelected}
                 sx={{
-                  borderRadius: '24px',
+                  borderRadius: '8px',
                   textTransform: 'none',
                   fontWeight: 600,
                   borderColor: '#D0D5DD',
@@ -793,13 +793,13 @@ const Gallery = () => {
                 Download ({selectedIds.length})
               </Button>
 
-              {isAdminOrChairperson && (
+              {isAdminOrWarden && (
                 <Button
                   variant="outlined"
                   color="error"
                   startIcon={<DeleteIcon />}
                   onClick={handleDeleteSelectedPhotosClick}
-                  sx={{ borderRadius: '24px', textTransform: 'none', fontWeight: 600 }}
+                  sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 600 }}
                 >
                   Delete ({selectedIds.length})
                 </Button>
@@ -807,7 +807,7 @@ const Gallery = () => {
             </>
           )}
 
-          {isAdminOrChairperson && (
+          {isAdminOrWarden && (
             <>
               {/* If on Folders tab (root), show "New folder" */}
               {activeTab === 'folders' && !currentFolder && (
@@ -853,7 +853,7 @@ const Gallery = () => {
                   }
                 }}
               >
-Add photos
+                Add photos
               </Button>
             </>
           )}
@@ -879,9 +879,9 @@ Add photos
                   Select all ({photos.length})
                 </Typography>
               </Box>
-              <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 500 }}>
+              {/* <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 500 }}>
                 Showing {photos.length} of {totalPhotos} media assets
-              </Typography>
+              </Typography> */}
             </Box>
           )}
 
@@ -892,9 +892,9 @@ Add photos
                 <CircularProgress sx={{ color: '#0088ff' }} />
               </Box>
             ) : photos.length === 0 ? (
-              <EmptyGalleryCard 
-                isAdmin={isAdminOrChairperson} 
-                onUpload={handleOpenUpload} 
+              <EmptyGalleryCard
+                isAdmin={isAdminOrWarden}
+                onUpload={handleOpenUpload}
                 title="No Media Found"
                 subtitle="Upload media to share them with your community."
               />
@@ -938,7 +938,7 @@ Add photos
                 </Box>
               ) : folders.length === 0 ? (
                 <EmptyGalleryCard
-                  isAdmin={isAdminOrChairperson}
+                  isAdmin={isAdminOrWarden}
                   onUpload={handleOpenCreateFolderDialog}
                   buttonLabel="Create Folder"
                   title="No Folders Found"
@@ -1018,7 +1018,7 @@ Add photos
                               </Typography>
                             </Box>
 
-                            {isAdminOrChairperson && (
+                            {isAdminOrWarden && (
                               <IconButton
                                 size="small"
                                 onClick={(e) => {
@@ -1109,13 +1109,13 @@ Add photos
                                 )
                               ) : (
                                 /* Preload Skeleton of Media when no image uploaded */
-                                <Box 
-                                  sx={{ 
-                                    width: '100%', 
-                                    height: '100%', 
-                                    p: 2, 
-                                    display: 'flex', 
-                                    flexDirection: 'column', 
+                                <Box
+                                  sx={{
+                                    width: '100%',
+                                    height: '100%',
+                                    p: 2,
+                                    display: 'flex',
+                                    flexDirection: 'column',
                                     justifyContent: 'space-between',
                                     bgcolor: '#FAFAFA'
                                   }}
@@ -1127,7 +1127,7 @@ Add photos
                                       <Skeleton variant="text" width="40%" height={12} sx={{ bgcolor: '#F0F4F8' }} />
                                     </Box>
                                   </Box>
-                                  
+
                                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                                     <Skeleton variant="rectangular" width="100%" height={8} sx={{ borderRadius: '4px', bgcolor: '#F0F4F8' }} />
                                     <Skeleton variant="rectangular" width="85%" height={8} sx={{ borderRadius: '4px', bgcolor: '#F0F4F8' }} />
@@ -1259,7 +1259,7 @@ Add photos
                   </Box>
                 ) : photos.length === 0 ? (
                   <EmptyGalleryCard
-                    isAdmin={isAdminOrChairperson}
+                    isAdmin={isAdminOrWarden}
                     onUpload={handleOpenUpload}
                     title="No Media Found"
                     subtitle="Add photos and videos directly into this folder."
@@ -1351,7 +1351,7 @@ Add photos
           <Typography variant="h6" sx={{ fontWeight: 800, color: '#1E293B', letterSpacing: '-0.02em' }}>
             {folderDialogMode === 'create' ? 'New Folder' : 'Edit Folder'}
           </Typography>
-          <IconButton 
+          <IconButton
             onClick={() => !folderSubmitting && setFolderDialogOpen(false)}
             size="small"
             sx={{ bgcolor: '#F1F5F9' }}
@@ -1457,7 +1457,7 @@ Add photos
           <Typography variant="h6" sx={{ fontWeight: 800, color: '#1E293B', letterSpacing: '-0.02em' }}>
             Upload Media
           </Typography>
-          <IconButton 
+          <IconButton
             onClick={() => !uploading && setUploadOpen(false)}
             disabled={uploading}
             size="small"
@@ -1470,17 +1470,15 @@ Add photos
         <form onSubmit={handleUploadSubmit}>
           <DialogContent sx={{ px: 3, py: 2 }}>
             {/* Target Folder Selector */}
-            <FormControl fullWidth sx={{ mb: 2.5 }} size="small">
+            <FormControl fullWidth sx={{ mb: 2.5 }} size="small" disabled={uploading}>
               <InputLabel id="upload-folder-select-label">Destination Folder</InputLabel>
               <Select
                 labelId="upload-folder-select-label"
                 value={uploadFolderId}
                 label="Destination Folder"
                 onChange={(e) => setUploadFolderId(e.target.value)}
+                disabled={uploading}
               >
-                <MenuItem value="">
-                  <em>General Gallery (No specific folder)</em>
-                </MenuItem>
                 {folders.map((f) => (
                   <MenuItem key={f._id} value={f._id}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1503,9 +1501,12 @@ Add photos
                 backgroundColor: '#F8FAFC',
                 mb: 2,
                 position: 'relative',
-                cursor: 'pointer',
+                cursor: uploading ? 'not-allowed' : 'pointer',
+                pointerEvents: uploading ? 'none' : 'auto',
+                opacity: uploading ? 0.6 : 1,
+                userSelect: uploading ? 'none' : 'auto',
                 transition: 'all 0.2s ease-in-out',
-                '&:hover': {
+                '&:hover': uploading ? {} : {
                   backgroundColor: 'rgba(0, 136, 255, 0.02)',
                   borderColor: '#0088ff',
                   '& .upload-icon-box': {
@@ -1517,15 +1518,15 @@ Add photos
               }}
               component="label"
             >
-              <input 
-                type="file" 
-                accept="image/*,video/*" 
-                multiple 
-                style={{ display: 'none' }} 
-                onChange={handleFileChange} 
-                disabled={uploading} 
+              <input
+                type="file"
+                accept="image/*,video/*"
+                multiple
+                style={{ display: 'none' }}
+                onChange={handleFileChange}
+                disabled={uploading}
               />
-              
+
               {filePreviews.length > 0 ? (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <Box
@@ -1584,6 +1585,7 @@ Add photos
                           )}
                           <IconButton
                             size="small"
+                            disabled={uploading}
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
@@ -1608,15 +1610,17 @@ Add photos
 
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569' }}>
-                      {selectedFiles.length} file(s) selected
+                      Selected  {selectedFiles.length}
                     </Typography>
                     <Button
                       variant="text"
+                      startIcon={<AddIcon />}
                       size="small"
+                      disabled={uploading}
                       component="span"
                       sx={{ textTransform: 'none', fontWeight: 600 }}
                     >
-                      + Add more
+                      Add more
                     </Button>
                   </Box>
                 </Box>
@@ -1643,11 +1647,9 @@ Add photos
                     Click to select files
                   </Typography>
                   <Typography variant="caption" sx={{ color: '#64748B', display: 'block' }}>
-                    Images (up to 9.8 MB) & Videos (up to 99 MB)
+                    Images (upto 10 MB) & Videos (upto 100 MB)
                   </Typography>
-                  <Typography variant="caption" sx={{ color: '#94A3B8', display: 'block', fontSize: '11px' }}>
-                    Cloudinary chunked upload enabled (0.2 MB buffer limit)
-                  </Typography>
+
                 </Box>
               )}
             </Box>
@@ -1656,8 +1658,8 @@ Add photos
             {uploading && (
               <Box sx={{ mt: 2, p: 2, bgcolor: '#EFF6FF', borderRadius: '12px', border: '1px solid #BFDBFE' }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#1E40AF' }}>
-                    {uploadProgress < 100 ? `Uploading to server (${uploadProgress}%)...` : 'Processing & uploading to Cloudinary...'}
+                  <Typography variant="body2" sx={{ color: '#0088ff', display: 'block', mt: 0.75, }}>
+                    Please keep this dialog open untill the process finishes.
                   </Typography>
                   <Typography variant="caption" sx={{ fontWeight: 700, color: '#2563EB' }}>
                     {uploadProgress}%
@@ -1673,17 +1675,15 @@ Add photos
                     '& .MuiLinearProgress-bar': { bgcolor: '#0088ff' }
                   }}
                 />
-                <Typography variant="caption" sx={{ color: '#64748B', display: 'block', mt: 0.75, fontSize: '11px' }}>
-                  Please keep this dialog open. Large files and videos are chunked for reliability.
-                </Typography>
+
               </Box>
             )}
           </DialogContent>
 
           <DialogActions sx={{ p: 3, display: 'flex', gap: 1.5 }}>
-            <Button 
-              onClick={() => setUploadOpen(false)} 
-              color="inherit" 
+            <Button
+              onClick={() => setUploadOpen(false)}
+              color="inherit"
               disabled={uploading}
               sx={{ textTransform: 'none', fontWeight: 600, borderRadius: '10px' }}
             >
@@ -1709,8 +1709,7 @@ Add photos
                   <span>{uploadProgress < 100 ? `Uploading (${uploadProgress}%)...` : 'Processing...'}</span>
                 </Box>
               ) : (
-                `Upload ${selectedFiles.length > 0 ? `(${selectedFiles.length})` : ''}`
-              )}
+                "Upload")}
             </Button>
           </DialogActions>
         </form>
@@ -1740,8 +1739,8 @@ Add photos
             {deleteTarget?.type === 'folder'
               ? `Are you sure you want to delete folder "${deleteTarget.name}"? All ${deleteTarget.count || 0} media assets inside this folder will also be permanently deleted.`
               : deleteTarget?.type === 'bulk-photos'
-              ? `Are you sure you want to delete the ${deleteTarget.ids?.length} selected media assets?`
-              : 'Are you sure you want to permanently delete this media item? This action cannot be undone.'}
+                ? `Are you sure you want to delete the ${deleteTarget.ids?.length} selected media assets?`
+                : 'Are you sure you want to permanently delete this media item? This action cannot be undone.'}
           </Typography>
         </DialogContent>
         <DialogActions sx={{ p: 3, display: 'flex', gap: 1.5 }}>
@@ -2016,7 +2015,7 @@ Add photos
             </Box>
 
             {/* Delete button - Top Right */}
-            {isAdminOrChairperson && (
+            {isAdminOrWarden && (
               <IconButton
                 onClick={(e) => {
                   e.stopPropagation();
@@ -2093,7 +2092,7 @@ function EmptyGalleryCard({ isAdmin, onUpload, title, subtitle, buttonLabel = 'U
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight:"70vh",
+        minHeight: "70vh",
         m: 'auto',
       }}
     >

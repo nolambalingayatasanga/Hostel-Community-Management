@@ -9,12 +9,13 @@ const connectDB = async () => {
     try {
       const CustomField = require('../models/CustomField');
       const schemaFields = [
-        { name: 'SL NO', slug: 'slNo', type: 'number', isInternal: true },
-        { name: 'Registration Number', slug: 'registrationNumber', type: 'text', isInternal: true },
+        { name: 'Slot No.', slug: 'slNo', type: 'number', isInternal: true },
+        { name: 'Reg No.', slug: 'registrationNumber', type: 'text', isInternal: true },
         { name: 'Receipt No', slug: 'receiptNo', type: 'text', isInternal: true },
-        { name: 'Local Language Details', slug: 'localLanguageDetails', type: 'text', isInternal: true },
+        { name: 'Kanada Overview', slug: 'localLanguageDetails', type: 'text', isInternal: true },
         { name: 'Adhaar', slug: 'adhaar', type: 'text', isInternal: true },
-        
+        { name: 'Relative Name', slug: 'relativeName', type: 'text', isInternal: true },
+        { name: 'Channels', slug: 'channels', type: 'text', isInternal: true },
         { name: 'Street', slug: 'address.street', type: 'text', isInternal: true },
         { name: 'Area', slug: 'address.area', type: 'text', isInternal: true },
         { name: 'Landmark', slug: 'address.landmark', type: 'text', isInternal: true },
@@ -34,7 +35,7 @@ const connectDB = async () => {
         { name: 'Organization', slug: 'employment.organization', type: 'text', isInternal: true },
         { name: 'Industry', slug: 'employment.industry', type: 'text', isInternal: true },
         { name: 'Work Location', slug: 'employment.workLocation', type: 'text', isInternal: true },
-        { name: 'Employment Status', slug: 'employment.employmentStatus', type: 'select', options: ['Employed', 'Self-Employed', 'Business Owner', 'Entrepreneur', 'Higher Studies', 'Government Service', 'Retired', 'Unemployed', 'Other'], isInternal: true },
+        { name: 'Employment', slug: 'employment.employmentStatus', type: 'select', options: ['Employed', 'Business Owner', 'Entrepreneur', 'Higher Studies', 'Government Service', 'Retired', 'Unemployed'], isInternal: true },
         { name: 'Business Name', slug: 'employment.businessName', type: 'text', isInternal: true },
         { name: 'Business Type', slug: 'employment.businessType', type: 'text', isInternal: true }
       ];
@@ -59,6 +60,14 @@ const connectDB = async () => {
       }
     } catch (err) {
       console.error('Error auto-seeding schema fields into CustomFields:', err);
+    }
+
+    // Unset empty string emails to prevent sparse unique index collisions
+    try {
+      const User = require('../models/User');
+      await User.updateMany({ email: '' }, { $unset: { email: 1 } });
+    } catch (err) {
+      console.error('Error cleaning up empty string emails:', err);
     }
 
   } catch (error) {

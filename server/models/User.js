@@ -16,7 +16,6 @@ const AddressSchema = new mongoose.Schema({
 const RelationSchema = new mongoose.Schema({
   relationshipType: {
     type: String,
-    enum: ['w/o', 's/o', 'd/o', 'h/o', 'f/o', 'other'],
     trim: true
   },
   relatedPersonName: { type: String, trim: true } // Name of the related person (spouse/parent/sibling)
@@ -38,7 +37,7 @@ const MemberInfoSchema = new mongoose.Schema({
 const UserSchema = new mongoose.Schema({
   role: {
     type: String,
-    enum: ['ADMIN', 'CHAIRPERSON', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'],
+    enum: ['ADMIN', 'WARDEN', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'],
     required: true
   },
   status: {
@@ -49,6 +48,14 @@ const UserSchema = new mongoose.Schema({
     type: String,
     enum: ['ACTIVE', 'INACTIVE', 'SUSPENDED'],
     default: 'ACTIVE'
+  },
+  isDropped: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+  droppedAt: {
+    type: Date
   },
   lead_data: [{
     customField: {
@@ -69,9 +76,10 @@ const UserSchema = new mongoose.Schema({
   email: {
     type: String,
     unique: true,
-    sparse: true,   // Allows multiple documents with no email (null is not considered duplicate)
+    sparse: true,   // Allows multiple documents with no email (null or undefined is not considered duplicate)
     lowercase: true,
-    trim: true
+    trim: true,
+    set: v => (v && typeof v === 'string' && v.trim() !== '' ? v.toLowerCase().trim() : undefined)
   },
   // Phone is optional structurally but filled for all imported members
   // Not unique because: (a) members may share phones, (b) many have no phone (null)
@@ -89,7 +97,8 @@ const UserSchema = new mongoose.Schema({
   },
   registrationNumber: {
     type: String,
-    trim: true
+    trim: true,
+    set: v => (v && typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined)
   },
   localLanguageDetails: {
     type: String,
@@ -112,6 +121,11 @@ const UserSchema = new mongoose.Schema({
     type: String,
     trim: true,
     default: ''
+  },
+  privacySettings: {
+    maskPhone: { type: Boolean, default: false },
+    maskEmail: { type: Boolean, default: false },
+    maskAdhaar: { type: Boolean, default: false }
   },
   address: { type: AddressSchema },
 
@@ -145,7 +159,7 @@ const UserSchema = new mongoose.Schema({
     workLocation: { type: String, trim: true },
     employmentStatus: {
       type: String,
-      enum: ['Employed', 'Self-Employed', 'Business Owner', 'Entrepreneur', 'Higher Studies', 'Government Service', 'Retired', 'Unemployed', 'Other']
+      enum: ['Employed', 'Business Owner', 'Entrepreneur', 'Higher Studies', 'Government Service', 'Retired', 'Unemployed']
     },
     // For business owners
     businessName: { type: String, trim: true },
@@ -156,6 +170,12 @@ const UserSchema = new mongoose.Schema({
       course: { type: String, trim: true },
       location: { type: String, trim: true }
     }
+  },
+  // Social & communication channels (Instagram, LinkedIn, WhatsApp)
+  channels: {
+    instagram: { type: String, trim: true, default: '' },
+    linkedin: { type: String, trim: true, default: '' },
+    whatsapp: { type: String, trim: true, default: '' }
   },
   joiningDate: {
     type: Date,
@@ -187,11 +207,17 @@ const UserSchema = new mongoose.Schema({
 // Pre-save hook: Hash password if modified & compute age from DOB (Mongoose 8/9 async hook)
 UserSchema.pre('save', async function () {
   // Sync dob and dateOfBirth fields
-  if (this.dob && !this.dateOfBirth) {
+  if (this.isModified('dob')) {
     this.dateOfBirth = this.dob;
-  }
-  if (this.dateOfBirth && !this.dob) {
+  } else if (this.isModified('dateOfBirth')) {
     this.dob = this.dateOfBirth;
+  } else {
+    if (this.dob && !this.dateOfBirth) {
+      this.dateOfBirth = this.dob;
+    }
+    if (this.dateOfBirth && !this.dob) {
+      this.dob = this.dateOfBirth;
+    }
   }
 
   // Calculate age automatically from birth date
@@ -202,6 +228,8 @@ UserSchema.pre('save', async function () {
     if (!isNaN(calculatedAge) && calculatedAge >= 0) {
       this.age = calculatedAge;
     }
+  } else {
+    this.age = undefined;
   }
 
   if (!this.isModified('passwordHash')) return;
@@ -220,6 +248,8 @@ UserSchema.methods.comparePassword = async function (candidatePassword) {
 UserSchema.index({ role: 1 });
 UserSchema.index({ status: 1 });
 UserSchema.index({ name: 1 });
+UserSchema.index({ dob: 1 });
+UserSchema.index({ 'relation.relatedPersonName': 1 });
 UserSchema.index({ 'education.college': 1 });
 UserSchema.index({ 'education.course': 1 });
 UserSchema.index({ 'education.endYear': 1 });

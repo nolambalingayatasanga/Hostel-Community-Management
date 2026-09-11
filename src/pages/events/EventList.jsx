@@ -1345,7 +1345,7 @@ function EventFormDialog({ open, onClose, onSubmit, isEdit, defaultDate, initial
             </Box>
 
             {/* Location Tab Content Container - maintains identical height across tabs */}
-            <Box sx={{ minHeight: "140px" }}>
+            <Box>
               {/* Mode A: Search by Name */}
               {locationMode === "search" && (
                 <ClickAwayListener onClickAway={() => setShowLocationSuggestions(false)}>
@@ -1601,7 +1601,7 @@ function EventFormDialog({ open, onClose, onSubmit, isEdit, defaultDate, initial
                 <iframe
                   title="Event Location Pin"
                   width="100%"
-                   height={locationMode === "search" ? "205" : "130"}
+                   height={locationMode === "search" ? "200" : "130"}
                   style={{ border: 0, display: "block" }}
                   loading="lazy"
                   src={embedMapUrl}
@@ -1659,7 +1659,7 @@ export default function EventList() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
-  const canManage = ["ADMIN", "CHAIRPERSON"].includes(user?.role);
+  const canManage = ["ADMIN", "WARDEN"].includes(user?.role);
 
   const [view, setView] = useState("month");
   const [currentDate, setCurrentDate] = useState(dayjs());

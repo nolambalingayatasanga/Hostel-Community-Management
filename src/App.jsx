@@ -30,6 +30,8 @@ import Gallery from './pages/gallery/Gallery';
 
 // Admin Page
 import UserManagement from './pages/admin/UserManagement';
+import AccessControl from './pages/access/AccessControl';
+import NotFound from './pages/common/NotFound';
 
 const queryClient = new QueryClient();
 
@@ -66,19 +68,20 @@ function App() {
                     <Route path="/events" element={<EventList />} />
                     <Route path="/events/:id" element={<EventDetail />} />
                     <Route path="/gallery" element={<Gallery />} />
+                    <Route path="/access-control" element={<AccessControl />} />
                   </Route>
                 </Route>
 
-                {/* Admin & Chairperson Routes - Dashboard layout and ADMIN/CHAIRPERSON role restriction */}
-                <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'CHAIRPERSON']} />}>
+                {/* Admin & Warden Routes */}
+                <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'WARDEN']} />}>
                   <Route element={<DashboardLayout />}>
                     <Route path="/admin/users" element={<UserManagement />} />
                   </Route>
                 </Route>
 
-                {/* Redirects */}
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                {/* Redirects and 404 catch-all */}
+                <Route path="/" element={<Navigate to="/profile" replace />} />
+                <Route path="*" element={<NotFound />} />
               </Routes>
             </Router>
           </AuthProvider>

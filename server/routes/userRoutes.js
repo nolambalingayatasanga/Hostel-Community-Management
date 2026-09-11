@@ -12,16 +12,20 @@ router.use(protect);
 router.patch('/profile', userController.updateOwnProfile);
 router.post('/profile/photo', upload.single('profilePhoto'), userController.uploadProfilePhoto);
 router.post('/profile/transition', restrictTo('STUDENT'), userController.transitionToAlumni);
+router.post('/translate-kannada', userController.translateToKannada);
+router.post('/translate-english', userController.translateToEnglish);
 
-// Admin & Chairperson management endpoints
-router.post('/', restrictTo('ADMIN', 'CHAIRPERSON'), userController.adminCreateUser);
-router.patch('/:id/status', restrictTo('ADMIN', 'CHAIRPERSON'), userController.adminUpdateUserStatus);
-router.post('/:id/transition', restrictTo('ADMIN', 'CHAIRPERSON'), userController.adminTransitionStudent);
-router.patch('/:id', restrictTo('ADMIN', 'CHAIRPERSON'), userController.adminUpdateUser);
-router.delete('/:id', restrictTo('ADMIN', 'CHAIRPERSON'), userController.adminDeleteUser);
+// Admin & Warden management endpoints
+router.post('/bulk-drop', restrictTo('ADMIN', 'WARDEN'), userController.bulkDropUsers);
+router.post('/:id/photo', restrictTo('ADMIN', 'WARDEN'), upload.single('profilePhoto'), userController.uploadProfilePhoto);
+router.post('/', restrictTo('ADMIN', 'WARDEN'), userController.adminCreateUser);
+router.patch('/:id/status', restrictTo('ADMIN', 'WARDEN'), userController.adminUpdateUserStatus);
+router.post('/:id/transition', restrictTo('ADMIN', 'WARDEN'), userController.adminTransitionStudent);
+router.patch('/:id', restrictTo('ADMIN', 'WARDEN'), userController.adminUpdateUser);
+router.delete('/:id', restrictTo('ADMIN', 'WARDEN'), userController.adminDeleteUser);
 
 // Directories (accessible by all authenticated users, sanitized inside userController)
-router.get('/dashboard/stats', restrictTo('ADMIN', 'CHAIRPERSON'), userController.getDashboardStats);
+router.get('/dashboard/stats', userController.getDashboardStats);
 router.get('/', userController.getUsers);
 router.get('/:id', userController.getUser);
 

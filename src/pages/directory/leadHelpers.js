@@ -31,7 +31,9 @@ export const INTERNAL_SLUGS = {
   WORK_LOCATION: "employment.workLocation",
   EMPLOYMENT_STATUS: "employment.employmentStatus",
   BUSINESS_NAME: "employment.businessName",
-  BUSINESS_TYPE: "employment.businessType"
+  BUSINESS_TYPE: "employment.businessType",
+  RELATIVE_NAME: "relativeName",
+  CHANNELS: "channels"
 };
 
 export const columnWidth = (field) => {
@@ -44,21 +46,36 @@ export const columnWidth = (field) => {
   if (slug === "gender") return 130;
   if (slug === "joiningdate") return 160;
   if (slug === "adhaar") return 190;
-  if (slug === "slno") return 100;
-  if (slug === "registrationnumber") return 190;
+  if (slug === "slno" || slug === "sl_no") return 130;
+  if (slug === "registrationnumber" || slug === "registration_number") return 160;
   if (slug === "receiptno") return 150;
-  if (slug === "locallanguagedetails") return 320;
+  if (slug === "relativename" || slug === "relation") return 180;
+  if (slug === "channels") return 140;
+  if (slug === "locallanguagedetails" || slug === "local_language_details") return 300;
+  if (slug.includes("businessname") || slug.includes("business_name")) return 240;
+  if (slug.includes("businesstype") || slug.includes("business_type")) return 220;
+  if (slug.includes("employmentstatus") || slug.includes("employment_status") || slug === "employment") return 180;
   if (slug.endsWith("street")) return 260;
-  if (slug.endsWith("area")) return 150;
-  if (slug.endsWith("landmark")) return 150;
+  if (slug.endsWith("area")) return 160;
+  if (slug.endsWith("landmark")) return 160;
   if (slug.endsWith("location")) return 180;
-  if (slug.endsWith("city")) return 130;
-  if (slug.endsWith("district")) return 140;
-  if (slug.endsWith("taluk")) return 140;
-  if (slug.endsWith("pincode")) return 100;
+  if (slug.endsWith("city")) return 140;
+  if (slug.endsWith("district")) return 150;
+  if (slug.endsWith("taluk")) return 150;
+  if (slug.endsWith("pincode")) return 140;
   if (slug.includes("address")) return 300;
   if (slug.includes("college") || slug.includes("organization") || slug.includes("institution")) return 220;
   return 150;
+};
+
+export const getColumnDisplayName = (field) => {
+  if (!field) return "";
+  const slug = (field.slug || "").toLowerCase();
+  if (slug === "locallanguagedetails" || slug === "local_language_details") return "Kanada Overview";
+  if (slug === "slno" || slug === "sl_no") return "Slot No.";
+  if (slug === "registrationnumber" || slug === "registration_number") return "Reg No.";
+  if (slug === "employment.employmentstatus" || slug === "employmentstatus" || slug === "employment_status" || slug.includes("employmentstatus")) return "Employment";
+  return field.name || "";
 };
 
 export const leadFieldValue = (lead, fieldId) => {
@@ -97,6 +114,51 @@ const formatAddress = (addr) => {
   return parts.join(", ");
 };
 
+export const splitNameAndRelation = (rawName, existingRelation = {}) => {
+  if (!rawName || typeof rawName !== "string") {
+    return {
+      cleanName: rawName || "",
+      relativeName: existingRelation?.relatedPersonName || "",
+      relationType: existingRelation?.relationshipType || ""
+    };
+  }
+
+  // Matches S/o, D/o, W/o, H/o, C/o, F/o, Son of, Daughter of, Wife of, Husband of, Father of, Mother of
+  const relRegex = /\b(s\/o|d\/o|w\/o|h\/o|c\/o|f\/o|son\s+of|daughter\s+of|wife\s+of|husband\s+of|care\s+of|father\s+of|mother\s+of)\b/i;
+  const match = rawName.match(relRegex);
+
+  if (!match) {
+    return {
+      cleanName: rawName.trim(),
+      relativeName: existingRelation?.relatedPersonName || "",
+      relationType: existingRelation?.relationshipType || ""
+    };
+  }
+
+  const indicator = match[1].toLowerCase();
+  let relType = existingRelation?.relationshipType || "";
+  if (!relType) {
+    if (indicator.includes("s/o") || indicator.includes("son")) relType = "Father";
+    else if (indicator.includes("d/o") || indicator.includes("daughter")) relType = "Father";
+    else if (indicator.includes("w/o") || indicator.includes("wife")) relType = "Spouse";
+    else if (indicator.includes("h/o") || indicator.includes("husband")) relType = "Spouse";
+    else if (indicator.includes("c/o") || indicator.includes("care")) relType = "Guardian";
+    else if (indicator.includes("f/o") || indicator.includes("father")) relType = "Son";
+    else if (indicator.includes("mother")) relType = "Son";
+  }
+
+  const cleanName = rawName.substring(0, match.index).replace(/[-,\s.]+$/, "").trim();
+  const extractedRelative = rawName.substring(match.index + match[0].length).replace(/^[-,\s.:]+/, "").replace(/[-,\s.]+$/, "").trim();
+
+  const finalRelativeName = existingRelation?.relatedPersonName || extractedRelative;
+
+  return {
+    cleanName: cleanName || rawName.trim(),
+    relativeName: finalRelativeName,
+    relationType: relType
+  };
+};
+
 export const toRow = (lead) => {
   const regNo = lead.registrationNumber || lead.memberInfo?.registrationNo || "";
   const localDetails = lead.localLanguageDetails || lead.memberInfo?.rawNameAddressKannada || "";
@@ -112,10 +174,13 @@ export const toRow = (lead) => {
     if (!isNaN(a) && a >= 0) computedAge = a;
   }
 
+  // Strictly separate name and relative name so they are NEVER combined in table
+  const { cleanName, relativeName: parsedRelative, relationType: parsedRelType } = splitNameAndRelation(lead.name, lead.relation || {});
+
   return {
     id: String(lead._id || lead.id),
     raw: lead,
-    name: lead.name || "",
+    name: cleanName,
     email: lead.email || "",
     phone: lead.phone || "",
     role: lead.role || "",
@@ -144,6 +209,19 @@ export const toRow = (lead) => {
     // Local Language (Kannada)
     localLanguageDetails: localDetails,
     locallanguagedetails: localDetails,
+
+    // Relation / Family Details (strictly separate column)
+    relativeName: parsedRelative,
+    relativename: parsedRelative,
+    relationType: parsedRelType,
+    relation: parsedRelative
+      ? `${parsedRelType ? parsedRelType + ' of ' : ''}${parsedRelative}`
+      : (parsedRelType || ""),
+    "relation.relationshipType": parsedRelType || "",
+    "relation.relatedPersonName": parsedRelative || "",
+
+    // Social & Communication Channels
+    channels: lead.channels || {},
 
     "address.street": lead.address?.street || "",
     "address.area": lead.address?.area || "",
@@ -215,6 +293,11 @@ export const isFieldNonEditable = (field) => {
   const name = (field.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
   
   const nonEditableKeys = [
+    "profilephoto",
+    "photo",
+    "avatar",
+    "picture",
+    "image",
     "joiningdate",
     "registereddate",
     "joindate",

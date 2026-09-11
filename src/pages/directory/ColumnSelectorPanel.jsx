@@ -27,6 +27,7 @@ import {
 
 import { useCustomFieldMutations } from "./crmHooks";
 import AddFieldForm from "./AddFieldForm";
+import { getColumnDisplayName } from "./leadHelpers";
 
 export default function ColumnSelectorPanel({
   open,
@@ -57,8 +58,12 @@ export default function ColumnSelectorPanel({
 
     const sorted = all.map(f => ({
       ...f,
-      isVisible: hiddenSet.has(String(f._id)) ? false : (f.isVisible !== false)
+      isVisible: ((f.slug || '').toLowerCase() === 'name' || (f.name || '').toLowerCase() === 'name') ? true : (hiddenSet.has(String(f._id)) ? false : (f.isVisible !== false))
     })).sort((a, b) => {
+      const isNameA = (a.slug || '').toLowerCase() === 'name' || (a.name || '').toLowerCase() === 'name';
+      const isNameB = (b.slug || '').toLowerCase() === 'name' || (b.name || '').toLowerCase() === 'name';
+      if (isNameA) return -1;
+      if (isNameB) return 1;
       if (orderMap) {
         const idxA = orderMap.has(String(a._id)) ? orderMap.get(String(a._id)) : 9999 + (a.order ?? 0);
         const idxB = orderMap.has(String(b._id)) ? orderMap.get(String(b._id)) : 9999 + (b.order ?? 0);
@@ -85,9 +90,11 @@ export default function ColumnSelectorPanel({
 
   const toggle = (id) =>
     setDraft((prev) =>
-      prev.map((f) =>
-        String(f._id) === String(id) ? { ...f, isVisible: !f.isVisible } : f,
-      ),
+      prev.map((f) => {
+        const isName = (f.slug || '').toLowerCase() === 'name' || (f.name || '').toLowerCase() === 'name';
+        if (isName) return f;
+        return String(f._id) === String(id) ? { ...f, isVisible: !f.isVisible } : f;
+      }),
     );
 
   const handleDragEnd = (result) => {
@@ -96,6 +103,12 @@ export default function ColumnSelectorPanel({
       const next = Array.from(prev);
       const [moved] = next.splice(result.source.index, 1);
       next.splice(result.destination.index, 0, moved);
+      // Guarantee Name remains strictly at index 0
+      const nameIdx = next.findIndex(f => (f.slug || '').toLowerCase() === 'name' || (f.name || '').toLowerCase() === 'name');
+      if (nameIdx > 0) {
+        const [nameItem] = next.splice(nameIdx, 1);
+        next.unshift(nameItem);
+      }
       return next;
     });
   };
@@ -180,7 +193,7 @@ export default function ColumnSelectorPanel({
               placeholder="Search fields..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              InputProps={{ sx: { borderRadius: "8px" } }}
+              slotProps={{ input: { sx: { borderRadius: "8px" } } }}
             />
           </Box>
 
@@ -195,12 +208,13 @@ export default function ColumnSelectorPanel({
                   >
                     {shown.map((field, index) => {
                       const isInternal = field.isInternal;
+                      const isName = (field.slug || '').toLowerCase() === 'name' || (field.name || '').toLowerCase() === 'name';
                       return (
                         <Draggable
                           key={field._id}
                           draggableId={field._id}
                           index={index}
-                          isDragDisabled={!canReorder}
+                          isDragDisabled={!canReorder || isName}
                         >
                           {(provided, snapshot) => (
                             <Stack
@@ -226,7 +240,7 @@ export default function ColumnSelectorPanel({
                               }}
                             >
                               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                {canReorder ? (
+                                {canReorder && !isName ? (
                                   <Box
                                     {...provided.dragHandleProps}
                                     sx={{
@@ -242,24 +256,30 @@ export default function ColumnSelectorPanel({
                                   <Box sx={{ width: 20 }} />
                                 )}
 
-                                <Checkbox
-                                  size="small"
-                                  checked={Boolean(field.isVisible)}
-                                  onChange={() => toggle(field._id)}
-                                  sx={{ p: 0.5, color: "#0088ff", "&.Mui-checked": { color: "#0088ff" } }}
-                                />
+                                <Tooltip title={isName ? "Name is a fixed required column" : ""} arrow>
+                                  <span>
+                                    <Checkbox
+                                      size="small"
+                                      disabled={isName}
+                                      checked={Boolean(field.isVisible)}
+                                      onChange={() => toggle(field._id)}
+                                      sx={{ p: 0.5, color: "#0088ff", "&.Mui-checked": { color: "#0088ff" } }}
+                                    />
+                                  </span>
+                                </Tooltip>
 
                                 <Typography
                                   variant="body2"
                                   sx={{
                                     color: "#344054",
-                                    fontWeight: 500,
+                                    fontWeight: isName ? 600 : 500,
                                     lineHeight: 1,
                                     display: "inline-flex",
                                     alignItems: "center",
                                   }}
                                 >
-                                  {field.name}
+                                  {getColumnDisplayName(field)}
+                              
                                 </Typography>
                               </Box>
 

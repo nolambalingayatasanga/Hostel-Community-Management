@@ -5,6 +5,50 @@ const StatusGroup = require('../models/StatusGroup');
 const { uploadImage, deleteImage } = require('../config/cloudinary');
 const { sanitizeUser } = require('../middleware/authMiddleware');
 
+const splitNameAndRelation = (rawName, existingRelation = {}) => {
+  if (!rawName || typeof rawName !== 'string') {
+    return {
+      cleanName: rawName || '',
+      relativeName: existingRelation?.relatedPersonName || '',
+      relationType: existingRelation?.relationshipType || ''
+    };
+  }
+
+  const relRegex = /\b(s\/o|d\/o|w\/o|h\/o|c\/o|f\/o|son\s+of|daughter\s+of|wife\s+of|husband\s+of|care\s+of|father\s+of|mother\s+of)\b/i;
+  const match = rawName.match(relRegex);
+
+  if (!match) {
+    return {
+      cleanName: rawName.trim(),
+      relativeName: existingRelation?.relatedPersonName || '',
+      relationType: existingRelation?.relationshipType || ''
+    };
+  }
+
+  const indicator = match[1].toLowerCase();
+  let relType = existingRelation?.relationshipType || '';
+  if (!relType) {
+    if (indicator.includes('s/o') || indicator.includes('son')) relType = 'Father';
+    else if (indicator.includes('d/o') || indicator.includes('daughter')) relType = 'Father';
+    else if (indicator.includes('w/o') || indicator.includes('wife')) relType = 'Spouse';
+    else if (indicator.includes('h/o') || indicator.includes('husband')) relType = 'Spouse';
+    else if (indicator.includes('c/o') || indicator.includes('care')) relType = 'Guardian';
+    else if (indicator.includes('f/o') || indicator.includes('father')) relType = 'Son';
+    else if (indicator.includes('mother')) relType = 'Son';
+  }
+
+  const cleanName = rawName.substring(0, match.index).replace(/[-,\s.]+$/, '').trim();
+  const extractedRelative = rawName.substring(match.index + match[0].length).replace(/^[-,\s.:]+/, '').replace(/[-,\s.]+$/, '').trim();
+
+  const finalRelativeName = existingRelation?.relatedPersonName || extractedRelative;
+
+  return {
+    cleanName: cleanName || rawName.trim(),
+    relativeName: finalRelativeName,
+    relationType: relType
+  };
+};
+
 /**
  * Get all users with advanced filters, search, sorting and pagination
  */
@@ -62,6 +106,8 @@ exports.getUsers = async (req, res, next) => {
         { 'education.course': searchRegex },
         { 'employment.occupation': searchRegex },
         { 'employment.organization': searchRegex },
+        { 'relation.relatedPersonName': searchRegex },
+        { 'relation.relationshipType': searchRegex },
         { 'address.street': searchRegex },
         { 'address.area': searchRegex },
         { 'address.landmark': searchRegex },
@@ -90,6 +136,14 @@ exports.getUsers = async (req, res, next) => {
       } else if (mongoose.Types.ObjectId.isValid(status)) {
         query.status = status;
       }
+    }
+
+    // Dropped contacts filter
+    const isDroppedTab = statusGroup === 'dropped' || filters.statusGroup === 'dropped' || filters.isDropped === true;
+    if (isDroppedTab) {
+      query.isDropped = true;
+    } else {
+      query.isDropped = { $ne: true };
     }
 
     // Filter by Status Group (stages inside group)
@@ -175,6 +229,8 @@ exports.getUsers = async (req, res, next) => {
     // Construct base query for status group counts and "All" count (excluding status group filters)
     const baseQuery = { ...query };
     delete baseQuery.status;
+    delete baseQuery.statusGroup;
+    baseQuery.isDropped = { $ne: true };
 
     const totalAllLeads = await User.countDocuments(baseQuery);
 
@@ -187,8 +243,21 @@ exports.getUsers = async (req, res, next) => {
       .skip(skip)
       .limit(limit);
 
-    // Apply privacy sanitation before returning
-    const sanitizedUsers = users.map(u => sanitizeUser(u, req.user));
+    // Apply privacy sanitation and name/relation separation before returning
+    const sanitizedUsers = users.map(u => {
+      const sanitized = sanitizeUser(u, req.user);
+      if (sanitized && sanitized.name) {
+        const { cleanName, relativeName, relationType } = splitNameAndRelation(sanitized.name, sanitized.relation || {});
+        sanitized.name = cleanName;
+        if (!sanitized.relation || !sanitized.relation.relatedPersonName) {
+          sanitized.relation = {
+            relationshipType: relationType || (sanitized.relation?.relationshipType || ''),
+            relatedPersonName: relativeName
+          };
+        }
+      }
+      return sanitized;
+    });
 
     // Compute status group counts dynamically based on search/date filters
     const groups = await StatusGroup.find({});
@@ -222,6 +291,10 @@ exports.getUsers = async (req, res, next) => {
       const count = await User.countDocuments(gQuery);
       statusGroupsCount[g.name] = count;
     }
+
+    const droppedCount = await User.countDocuments({ isDropped: true });
+    statusGroupsCount['dropped'] = droppedCount;
+    statusGroupsCount['Dropped'] = droppedCount;
 
     res.status(200).json({
       success: true,
@@ -267,6 +340,16 @@ exports.getUser = async (req, res, next) => {
 
     // Sanitize user data according to privacy rules
     const sanitized = sanitizeUser(user, req.user);
+    if (sanitized && sanitized.name) {
+      const { cleanName, relativeName, relationType } = splitNameAndRelation(sanitized.name, sanitized.relation || {});
+      sanitized.name = cleanName;
+      if (!sanitized.relation || !sanitized.relation.relatedPersonName) {
+        sanitized.relation = {
+          relationshipType: relationType || (sanitized.relation?.relationshipType || ''),
+          relatedPersonName: relativeName
+        };
+      }
+    }
 
     res.status(200).json({
       success: true,
@@ -304,24 +387,25 @@ exports.updateOwnProfile = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    // 1. Check unique email constraint if email is changing
-    if (email && email.toLowerCase().trim() !== user.email) {
-      const normalizedEmail = email.toLowerCase().trim();
-      const emailExists = await User.findOne({ email: normalizedEmail, _id: { $ne: userId } });
-      if (emailExists) {
-        return res.status(400).json({ success: false, message: 'This email is already in use by another account.' });
+    // 1. Check unique email constraint if non-empty email is changing; if empty/null, unset it
+    if (email !== undefined) {
+      if (email && typeof email === 'string' && email.trim()) {
+        const normalizedEmail = email.toLowerCase().trim();
+        if (normalizedEmail !== user.email) {
+          const emailExists = await User.findOne({ email: normalizedEmail, _id: { $ne: userId } });
+          if (emailExists) {
+            return res.status(400).json({ success: false, message: 'This email is already in use by another account.' });
+          }
+          user.email = normalizedEmail;
+        }
+      } else {
+        user.email = undefined;
       }
-      user.email = normalizedEmail;
     }
 
-    // 2. Check unique phone constraint if phone is changing
-    if (phone && phone.trim() !== user.phone) {
-      const normalizedPhone = phone.trim();
-      const phoneExists = await User.findOne({ phone: normalizedPhone, _id: { $ne: userId } });
-      if (phoneExists) {
-        return res.status(400).json({ success: false, message: 'This phone number is already in use by another account.' });
-      }
-      user.phone = normalizedPhone;
+    // 2. Handle phone update (optional field)
+    if (phone !== undefined) {
+      user.phone = phone && typeof phone === 'string' ? phone.trim() : '';
     }
 
     // 3. Handle password update if password is provided
@@ -333,6 +417,68 @@ exports.updateOwnProfile = async (req, res, next) => {
     }
 
 
+
+    // Handle DOB / Date of Birth sanitization
+    if (profileData.dob !== undefined || profileData.dateOfBirth !== undefined) {
+      const rawDob = profileData.dob || profileData.dateOfBirth;
+      if (rawDob && !isNaN(new Date(rawDob).getTime())) {
+        user.dob = new Date(rawDob);
+        user.dateOfBirth = new Date(rawDob);
+      } else {
+        user.dob = null;
+        user.dateOfBirth = null;
+        user.age = null;
+      }
+      delete profileData.dob;
+      delete profileData.dateOfBirth;
+    }
+
+    // Handle Relation object sanitization
+    if (profileData.relation !== undefined) {
+      if (profileData.relation && (profileData.relation.relationshipType || profileData.relation.relatedPersonName)) {
+        user.relation = {
+          relationshipType: (profileData.relation.relationshipType || '').trim(),
+          relatedPersonName: (profileData.relation.relatedPersonName || '').trim()
+        };
+      } else {
+        user.relation = undefined;
+      }
+      delete profileData.relation;
+    }
+
+    // Handle privacy data mask settings
+    if (profileData.privacySettings) {
+      user.privacySettings = {
+        maskPhone: Boolean(profileData.privacySettings.maskPhone),
+        maskEmail: Boolean(profileData.privacySettings.maskEmail),
+        maskAdhaar: Boolean(profileData.privacySettings.maskAdhaar)
+      };
+      delete profileData.privacySettings;
+    }
+
+    // Handle social & communication channels
+    if (profileData.channels !== undefined) {
+      user.channels = {
+        instagram: (profileData.channels?.instagram || '').trim(),
+        linkedin: (profileData.channels?.linkedin || '').trim(),
+        whatsapp: (profileData.channels?.whatsapp || '').trim()
+      };
+      delete profileData.channels;
+    }
+
+    // Handle education numeric casting to avoid cast errors
+    if (profileData.education) {
+      const edu = { ...profileData.education };
+      ['startYear', 'endYear', 'startMonth', 'endMonth'].forEach((field) => {
+        if (edu[field] === '' || edu[field] === null || isNaN(Number(edu[field]))) {
+          edu[field] = null;
+        } else {
+          edu[field] = Number(edu[field]);
+        }
+      });
+      user.education = edu;
+      delete profileData.education;
+    }
 
     // Apply updates
     Object.keys(profileData).forEach((key) => {
@@ -370,7 +516,11 @@ exports.uploadProfilePhoto = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please upload an image file.' });
     }
 
-    const user = await User.findById(req.user._id);
+    const targetUserId = (req.params.id && ['ADMIN', 'CHAIRPERSON'].includes(req.user.role))
+      ? req.params.id
+      : req.user._id;
+
+    const user = await User.findById(targetUserId);
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
@@ -505,35 +655,37 @@ exports.adminCreateUser = async (req, res, next) => {
     } = req.body;
 
     // Check required basic fields
-    if (!name || !email || !phone || !password || !role) {
+    if (!name || !name.trim()) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide name, email, phone, password and role.'
+        message: 'Please provide a full name.'
       });
     }
 
+    const assignedRole = (role || 'MEMBER').toUpperCase();
+
     // Security check: If request is by a CHAIRPERSON, they cannot create ADMIN or CHAIRPERSON accounts
-    if (req.user.role === 'CHAIRPERSON' && ['ADMIN', 'CHAIRPERSON'].includes(role.toUpperCase())) {
+    if (req.user.role === 'CHAIRPERSON' && ['ADMIN', 'CHAIRPERSON'].includes(assignedRole)) {
       return res.status(403).json({
         success: false,
         message: 'Chairpersons do not have permission to create Admin or Chairperson accounts.'
       });
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
-    const normalizedPhone = phone.trim();
-
-    // Check if unique values conflict
-    const existingUser = await User.findOne({
-      $or: [{ email: normalizedEmail }, { phone: normalizedPhone }]
-    });
-
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: 'User with this email or phone number already exists.'
-      });
+    let normalizedEmail = undefined;
+    if (email && typeof email === 'string' && email.trim()) {
+      normalizedEmail = email.toLowerCase().trim();
+      const existingUser = await User.findOne({ email: normalizedEmail });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'A user with this email already exists.'
+        });
+      }
     }
+
+    const normalizedPhone = (phone && typeof phone === 'string') ? phone.trim() : '';
+    const initialPassword = password || normalizedPhone || 'Member@123';
 
     // Resolve status and accountStatus
     let finalStatus = undefined;
@@ -557,13 +709,32 @@ exports.adminCreateUser = async (req, res, next) => {
       name,
       email: normalizedEmail,
       phone: normalizedPhone,
-      passwordHash: password, // Pre-save hook hashes this
-      role: role.toUpperCase(),
+      passwordHash: initialPassword, // Pre-save hook hashes this
+      role: assignedRole,
       status: finalStatus,
       accountStatus: finalAccountStatus,
       lead_data: req.body.lead_data || [],
       gender,
       adhaar: adhaar || aadhaarNumber || '',
+      dob: req.body.dob ? new Date(req.body.dob) : (req.body.dateOfBirth ? new Date(req.body.dateOfBirth) : undefined),
+      dateOfBirth: req.body.dob ? new Date(req.body.dob) : (req.body.dateOfBirth ? new Date(req.body.dateOfBirth) : undefined),
+      relation: req.body.relation ? {
+        relationshipType: (req.body.relation.relationshipType || '').trim(),
+        relatedPersonName: (req.body.relation.relatedPersonName || '').trim()
+      } : (req.body.relativeName ? {
+        relationshipType: '',
+        relatedPersonName: req.body.relativeName.trim()
+      } : undefined),
+      privacySettings: {
+        maskPhone: Boolean(req.body.privacySettings?.maskPhone),
+        maskEmail: Boolean(req.body.privacySettings?.maskEmail),
+        maskAdhaar: Boolean(req.body.privacySettings?.maskAdhaar)
+      },
+      channels: req.body.channels ? {
+        instagram: (req.body.channels.instagram || '').trim(),
+        linkedin: (req.body.channels.linkedin || '').trim(),
+        whatsapp: (req.body.channels.whatsapp || '').trim()
+      } : undefined,
       registrationNumber,
       localLanguageDetails,
       address,
@@ -628,13 +799,116 @@ exports.adminUpdateUser = async (req, res, next) => {
       user.passwordHash = updates.password; // hashed on save
     }
 
-    // Normalizing email and phone if they are changing
-    if (updates.email) updates.email = updates.email.toLowerCase().trim();
-    if (updates.phone) updates.phone = updates.phone.trim();
+    // Normalizing email, phone, and separating name and relative name if combined
+    if (updates.email !== undefined) {
+      if (updates.email && typeof updates.email === 'string' && updates.email.trim()) {
+        const normalizedEmail = updates.email.toLowerCase().trim();
+        const emailExists = await User.findOne({ email: normalizedEmail, _id: { $ne: user._id } });
+        if (emailExists) {
+          return res.status(400).json({ success: false, message: 'This email is already in use by another account.' });
+        }
+        user.email = normalizedEmail;
+      } else {
+        user.email = undefined;
+      }
+      delete updates.email;
+    }
+
+    if (updates.phone !== undefined) {
+      user.phone = updates.phone && typeof updates.phone === 'string' ? updates.phone.trim() : '';
+      delete updates.phone;
+    }
+    if (updates.name) {
+      const { cleanName, relativeName, relationType } = splitNameAndRelation(updates.name, updates.relation || user.relation || {});
+      updates.name = cleanName;
+      if (relativeName && (!updates.relation || !updates.relation.relatedPersonName)) {
+        if (!user.relation) user.relation = { relationshipType: '', relatedPersonName: '' };
+        user.relation.relatedPersonName = relativeName;
+        if (relationType && !user.relation.relationshipType) {
+          user.relation.relationshipType = relationType;
+        }
+      }
+    }
 
     // Map aadhaarNumber to adhaar if needed
     if (updates.aadhaarNumber && !updates.adhaar) {
       updates.adhaar = updates.aadhaarNumber;
+    }
+
+    // Non-editable system identifiers: slNo and receiptNo
+    delete updates.slNo;
+    delete updates.receiptNo;
+    if (updates.memberInfo) {
+      delete updates.memberInfo.slNo;
+      delete updates.memberInfo.receiptNo;
+    }
+
+    // Handle DOB / Date of Birth sanitization
+    if (updates.dob !== undefined || updates.dateOfBirth !== undefined) {
+      const rawDob = updates.dob || updates.dateOfBirth;
+      if (rawDob && !isNaN(new Date(rawDob).getTime())) {
+        user.dob = new Date(rawDob);
+        user.dateOfBirth = new Date(rawDob);
+      } else {
+        user.dob = null;
+        user.dateOfBirth = null;
+        user.age = null;
+      }
+      delete updates.dob;
+      delete updates.dateOfBirth;
+    }
+
+    // Handle Relation object sanitization
+    if (updates.relation !== undefined) {
+      if (updates.relation && (updates.relation.relationshipType || updates.relation.relatedPersonName)) {
+        user.relation = {
+          relationshipType: (updates.relation.relationshipType || '').trim(),
+          relatedPersonName: (updates.relation.relatedPersonName || '').trim()
+        };
+      } else {
+        user.relation = undefined;
+      }
+      delete updates.relation;
+    } else if (updates.relativeName !== undefined) {
+      if (!user.relation) {
+        user.relation = { relationshipType: '', relatedPersonName: '' };
+      }
+      user.relation.relatedPersonName = (updates.relativeName || '').trim();
+      delete updates.relativeName;
+    }
+
+    // Handle privacy data mask settings
+    if (updates.privacySettings) {
+      user.privacySettings = {
+        maskPhone: Boolean(updates.privacySettings.maskPhone),
+        maskEmail: Boolean(updates.privacySettings.maskEmail),
+        maskAdhaar: Boolean(updates.privacySettings.maskAdhaar)
+      };
+      delete updates.privacySettings;
+    }
+
+    // Handle social & communication channels
+    if (updates.channels !== undefined) {
+      user.channels = {
+        instagram: (updates.channels?.instagram || '').trim(),
+        linkedin: (updates.channels?.linkedin || '').trim(),
+        whatsapp: (updates.channels?.whatsapp || '').trim()
+      };
+      delete updates.channels;
+    }
+
+    // Handle education numeric casting to avoid cast errors
+    if (updates.education) {
+      const edu = { ...updates.education };
+      ['startYear', 'endYear', 'startMonth', 'endMonth'].forEach((field) => {
+        if (edu[field] === '' || edu[field] === null || isNaN(Number(edu[field]))) {
+          edu[field] = null;
+        } else {
+          edu[field] = Number(edu[field]);
+        }
+      });
+      user.education = edu;
+      delete updates.education;
     }
 
     // Apply updates
@@ -797,7 +1071,7 @@ exports.getDashboardStats = async (req, res, next) => {
     const totalAlumni = await User.countDocuments({ role: 'ALUMNI' });
     const totalMembers = await User.countDocuments({ role: 'MEMBER' });
     const totalStaff = await User.countDocuments({ role: 'STAFF' });
-    const totalChairpersons = await User.countDocuments({ role: 'CHAIRPERSON' });
+    const totalWardens = await User.countDocuments({ role: { $in: ['WARDEN', 'CHAIRPERSON'] } });
     const totalAdmins = await User.countDocuments({ role: 'ADMIN' });
     const totalUsers = await User.countDocuments();
     
@@ -926,3 +1200,124 @@ exports.getDashboardStats = async (req, res, next) => {
     next(error);
   }
 };
+
+const kannadaToEnglishDigits = (str) => {
+  if (!str) return str;
+  const knDigits = ['೦', '೧', '೨', '೩', '೪', '೫', '೬', '೭', '೮', '೯'];
+  return String(str).replace(/[೦-೯]/g, (char) => {
+    const idx = knDigits.indexOf(char);
+    return idx !== -1 ? String(idx) : char;
+  });
+};
+
+/**
+ * Translate English text to Kannada using Google Translate service
+ * Numbers/pincodes are normalized to Arabic numerals
+ */
+exports.translateToKannada = async (req, res, next) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ success: false, message: 'Text to translate is required.' });
+    }
+
+    const encodedText = encodeURIComponent(text.trim());
+    const googleUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=kn&dt=t&q=${encodedText}`;
+
+    const response = await fetch(googleUrl);
+    if (!response.ok) {
+      throw new Error(`Google Translate service returned status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    let translatedText = Array.isArray(data?.[0])
+      ? data[0].map((chunk) => chunk?.[0] || '').join('')
+      : '';
+
+    // Ensure pincodes/numerals are kept as standard English/Arabic digits (0-9)
+    translatedText = kannadaToEnglishDigits(translatedText);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        original: text,
+        translatedText
+      }
+    });
+  } catch (error) {
+    console.error('Translation error in userController:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to translate to Kannada: ' + error.message
+    });
+  }
+};
+
+/**
+ * Translate Kannada text to English using Google Translate service
+ * Used for auto-mapping Local Language details back to English fields
+ */
+exports.translateToEnglish = async (req, res, next) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ success: false, message: 'Text to translate is required.' });
+    }
+
+    // Convert any Kannada numerals to standard digits before translating
+    const sanitizedInput = kannadaToEnglishDigits(text.trim());
+    const encodedText = encodeURIComponent(sanitizedInput);
+    const googleUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=${encodedText}`;
+
+    const response = await fetch(googleUrl);
+    if (!response.ok) {
+      throw new Error(`Google Translate service returned status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    let translatedText = Array.isArray(data?.[0])
+      ? data[0].map((chunk) => chunk?.[0] || '').join('')
+      : '';
+
+    translatedText = kannadaToEnglishDigits(translatedText);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        original: text,
+        translatedText
+      }
+    });
+  } catch (error) {
+    console.error('Translation error to English in userController:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to translate to English: ' + error.message
+    });
+  }
+};
+
+/**
+ * Bulk drop / restore users
+ */
+exports.bulkDropUsers = async (req, res, next) => {
+  try {
+    const { userIds, drop = true } = req.body;
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'Please provide user IDs.' });
+    }
+
+    await User.updateMany(
+      { _id: { $in: userIds } },
+      { $set: { isDropped: Boolean(drop), droppedAt: drop ? new Date() : null, updatedBy: req.user._id } }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: drop ? `Successfully dropped ${userIds.length} contact(s).` : `Successfully restored ${userIds.length} contact(s).`
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

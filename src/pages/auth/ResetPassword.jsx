@@ -72,7 +72,7 @@ const ResetPassword = () => {
         localStorage.setItem('token', jwtToken);
         localStorage.setItem('user', JSON.stringify(data.user));
         updateUser(data.user);
-        setTimeout(() => navigate('/dashboard'), 2000);
+        setTimeout(() => navigate('/profile'), 2000);
       }
     } catch (err) {
       setLoading(false);
@@ -142,7 +142,7 @@ const ResetPassword = () => {
               fontWeight: 500
             }}
           >
-            {success ? 'Redirecting to your dashboard...' : 'Create a strong password to secure your account'}
+            {success ? 'Redirecting to your profile...' : 'Create a strong password to secure your account'}
           </Typography>
         </Box>
 

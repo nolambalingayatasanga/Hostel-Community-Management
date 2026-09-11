@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import API from '../api';
 import {
   Box,
   Drawer,
@@ -15,10 +16,8 @@ import {
   ListItemIcon,
   ListItemText,
   Avatar,
-  Menu,
-  MenuItem,
-  Tooltip,
-  Button
+  Button,
+  CircularProgress
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -31,6 +30,7 @@ import {
   Collections as GalleryIcon,
   ArrowBack as ArrowBackIcon
 } from '@mui/icons-material';
+import NotFound from '../pages/common/NotFound';
 
 const drawerWidth = 240;
 
@@ -57,6 +57,11 @@ const DashboardLayout = () => {
     // Profile page check
     if (path.startsWith('/profile')) {
       return 'Profile';
+    }
+
+    // Access Control page check
+    if (path === '/access-control') {
+      return 'Access Control';
     }
 
     // Default formatting logic
@@ -86,27 +91,66 @@ const DashboardLayout = () => {
     navigate('/login');
   };
 
-  // Nav menu items mapping
-  const menuItems = [
-    { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', roles: ['ADMIN', 'CHAIRPERSON', 'MEMBER'] },
-    { text: 'Members', icon: <PeopleIcon />, path: '/members', roles: ['ADMIN', 'CHAIRPERSON', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'] },
-    { text: 'Events Calendar', icon: <EventIcon />, path: '/events', roles: ['ADMIN', 'CHAIRPERSON', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'] },
-    { text: 'Gallery', icon: <GalleryIcon />, path: '/gallery', roles: ['ADMIN', 'CHAIRPERSON', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'] },
-    { text: 'Profile', icon: <ProfileIcon />, path: '/profile', roles: ['ADMIN', 'CHAIRPERSON', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'] },
-  ];
+  // Icon mapping for backend navigation items
+  const iconMap = {
+    DashboardIcon: <DashboardIcon />,
+    PeopleIcon: <PeopleIcon />,
+    EventIcon: <EventIcon />,
+    GalleryIcon: <GalleryIcon />,
+    ProfileIcon: <ProfileIcon />,
+    AdminIcon: <AdminIcon />
+  };
+
+  // State to hold dynamic navigation tabs sent by backend based on logged-in user's role
+  const [navItems, setNavItems] = useState([]);
+  const [navLoading, setNavLoading] = useState(true);
+
+  // Fetch permitted tabs from backend
+  const fetchNavigation = async () => {
+    try {
+      const res = await API.get('/access/navigation');
+      if (res.data?.success && Array.isArray(res.data?.data)) {
+        setNavItems(res.data.data);
+      }
+    } catch (err) {
+      console.error('Failed to load navigation items from backend:', err);
+    } finally {
+      setNavLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      fetchNavigation();
+    }
+
+    const onPermissionsUpdated = () => {
+      fetchNavigation();
+    };
+    window.addEventListener('access_permissions_updated', onPermissionsUpdated);
+    return () => window.removeEventListener('access_permissions_updated', onPermissionsUpdated);
+  }, [user]);
+
+  // Map route path to access control page ID
+  const getPageIdForPath = (pathname) => {
+    if (pathname === '/dashboard') return 'overview';
+    if (pathname === '/members') return 'users';
+    if (pathname.startsWith('/events')) return 'events';
+    if (pathname.startsWith('/gallery')) return 'gallery';
+    if (pathname.startsWith('/profile')) return 'profile';
+    if (pathname === '/access-control') return 'access_control';
+    return null;
+  };
+
+  const currentPageId = getPageIdForPath(location.pathname);
+  // An accessible page must be present in the backend-returned navItems
+  const isPageAllowed = !currentPageId || navLoading || navItems.some(item => item.id === currentPageId);
 
 
 
 
   const drawerContent = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff', borderRight: '1px solid #e2e8f0' }}>
-      <Toolbar sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-        <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 'bold', background: 'linear-gradient(135deg, #0088ff 0%, #0055cc 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-          Hostel Community
-        </Typography>
-      </Toolbar>
-      
-      <Divider sx={{ borderColor: '#f1f5f9' }} />
       
       <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
         <Avatar
@@ -129,45 +173,43 @@ const DashboardLayout = () => {
       <Divider sx={{ borderColor: '#f1f5f9' }} />
 
       <List sx={{ px: 1, flexGrow: 1 }}>
-        {menuItems
-          .filter(item => item.roles.includes(user?.role))
-          .map((item) => (
-            <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
-              <ListItemButton
-                onClick={() => navigate(item.path)}
-                selected={
-                  location.pathname === item.path ||
-                  (item.path === '/profile' && location.pathname.startsWith('/profile')) ||
-                  (item.path === '/events' && location.pathname.startsWith('/events'))
-                }
-                sx={{
-                  borderRadius: "12px",
-                  color: '#475467',
-                  '&.Mui-selected': {
-                    backgroundColor: 'rgba(0, 136, 255, 0.08)',
+        {navItems.map((item) => (
+          <ListItem key={item.id || item.text} disablePadding sx={{ mb: 0.5 }}>
+            <ListItemButton
+              onClick={() => navigate(item.path)}
+              selected={
+                location.pathname === item.path ||
+                (item.path === '/profile' && location.pathname.startsWith('/profile')) ||
+                (item.path === '/events' && location.pathname.startsWith('/events'))
+              }
+              sx={{
+                borderRadius: "10px",
+                color: '#475467',
+                '&.Mui-selected': {
+                  backgroundColor: 'rgba(0, 136, 255, 0.08)',
+                  color: '#0088ff',
+                  '&:hover': {
+                    backgroundColor: 'rgba(0, 136, 255, 0.12)',
+                  },
+                  '& .MuiListItemIcon-root': {
                     color: '#0088ff',
-                    '&:hover': {
-                      backgroundColor: 'rgba(0, 136, 255, 0.12)',
-                    },
-                    '& .MuiListItemIcon-root': {
-                      color: '#0088ff',
-                    }
                   }
-                }}
-              >
-                <ListItemIcon sx={{ minWidth: 40, color: location.pathname === item.path ? '#0088ff' : '#475467' }}>
-                  {item.icon}
-                </ListItemIcon>
-                <ListItemText
-                  primary={
-                    <Typography sx={{ fontSize: 14, fontWeight: location.pathname === item.path ? 600 : 500 }}>
-                      {item.text}
-                    </Typography>
-                  }
-                />
-              </ListItemButton>
-            </ListItem>
-          ))}
+                }
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 40, color: location.pathname === item.path ? '#0088ff' : '#475467' }}>
+                {iconMap[item.icon] || <DashboardIcon />}
+              </ListItemIcon>
+              <ListItemText
+                primary={
+                  <Typography sx={{ fontSize: 14, fontWeight: location.pathname === item.path ? 600 : 500 }}>
+                    {item.text}
+                  </Typography>
+                }
+              />
+            </ListItemButton>
+          </ListItem>
+        ))}
 
 
       </List>
@@ -252,52 +294,6 @@ const DashboardLayout = () => {
               </Typography>
             )}
           </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Tooltip title="Account settings">
-              <IconButton onClick={handleMenuOpen} size="small" sx={{ ml: 2 }}>
-                <Avatar
-                  src={user?.profilePhoto?.url || ''}
-                  alt={user?.name || 'User'}
-                  sx={{ width: 36, height: 36, border: '1px solid #0088ff' }}
-                >
-                  {user?.name?.charAt(0)}
-                </Avatar>
-              </IconButton>
-            </Tooltip>
-            
-            <Menu
-              anchorEl={anchorEl}
-              open={Boolean(anchorEl)}
-              onClose={handleMenuClose}
-              onClick={handleMenuClose}
-              PaperProps={{
-                sx: {
-                  mt: 1.5,
-                  minWidth: 160,
-                  border: '1px solid #e2e8f0',
-                  backgroundColor: '#ffffff',
-                  boxShadow: '0px 10px 20px rgba(0,0,0,0.05)',
-                  borderRadius: 2
-                }
-              }}
-              transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-              anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-            >
-              <MenuItem onClick={handleProfileClick} sx={{ fontSize: 14, color: '#1e293b' }}>
-                <ListItemIcon sx={{ minWidth: '32px !important' }}>
-                  <ProfileIcon fontSize="small" sx={{ color: '#0088ff' }} />
-                </ListItemIcon>
-                My Profile
-              </MenuItem>
-              <Divider sx={{ my: '4px !important', borderColor: '#f1f5f9' }} />
-              <MenuItem onClick={handleLogoutClick} sx={{ fontSize: 14, color: 'error.main' }}>
-                <ListItemIcon sx={{ minWidth: '32px !important', color: 'error.main' }}>
-                  <LogoutIcon fontSize="small" />
-                </ListItemIcon>
-                Logout
-              </MenuItem>
-            </Menu>
-          </Box>
         </Toolbar>
       </AppBar>
 
@@ -345,7 +341,18 @@ const DashboardLayout = () => {
           mt: 8 // spacing for fixed Appbar
         }}
       >
-        <Outlet />
+        {navLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
+            <CircularProgress sx={{ color: '#0088ff' }} size={36} />
+          </Box>
+        ) : isPageAllowed ? (
+          <Outlet />
+        ) : (
+          <NotFound
+            message="You do not have permission to access this page. Please contact an administrator if you need access."
+            customRedirectPath={navItems[0]?.path || '/profile'}
+          />
+        )}
       </Box>
     </Box>
   );

@@ -1920,26 +1920,9 @@ function ViewAllMediaDialog({
               },
             }}
           >
-            {isAllSelected ? "Deselect All" : "Select All"}
+            {isAllSelected ? "UnSelect All" : "Select All"}
           </Button>
 
-          {selectedIds.length > 0 && (
-            <Chip
-              label={`${selectedIds.length} Selected`}
-              size="small"
-              onDelete={() => setSelectedIds([])}
-              sx={{
-                bgcolor: "#EDE9FE",
-                color: "#7C3AED",
-                fontWeight: 700,
-                fontSize: "12px",
-                "& .MuiChip-deleteIcon": {
-                  color: "#7C3AED",
-                  "&:hover": { color: "#6D28D9" },
-                },
-              }}
-            />
-          )}
         </Stack>
 
         <Stack direction="row" spacing={1.5} alignItems="center">
@@ -2772,7 +2755,7 @@ function ManageMediaDialog({
 
         {images.length === 0 ? (
           <Typography variant="body2" sx={{ color: "#94A3B8", fontStyle: "italic", textAlign: "center", py: 3 }}>
-            No additional gallery media yet. Upload photos and videos above.
+            {/* No additional gallery media yet. Upload photos and videos above. */}
           </Typography>
         ) : (
           <Stack spacing={1.5} sx={{ maxHeight: 300, overflowY: "auto", pr: 1 }}>
@@ -3412,7 +3395,7 @@ function EventCommentsSection({
             const commentLikesCount = comment.likes?.length || 0;
             const likedComment = isLikedByMe(comment.likes);
             const canManageComment =
-              ["ADMIN", "CHAIRPERSON"].includes(user?.role) ||
+              ["ADMIN", "WARDEN"].includes(user?.role) ||
               String(comment.user?._id || comment.user) === String(user?._id);
 
             return (
@@ -3533,7 +3516,7 @@ function EventCommentsSection({
                           const replyLikesCount = reply.likes?.length || 0;
                           const likedReply = isLikedByMe(reply.likes);
                           const canManageReply =
-                            ["ADMIN", "CHAIRPERSON"].includes(user?.role) ||
+                            ["ADMIN", "WARDEN"].includes(user?.role) ||
                             String(reply.user?._id || reply.user) === String(user?._id);
 
                           return (
@@ -4502,10 +4485,10 @@ export default function EventDetail() {
   const { enqueueSnackbar } = useSnackbar();
 
   // Role checks:
-  // 1. Staff/Admin roles: ADMIN, CHAIRPERSON, WARDEN
-  const isStaffOrAdmin = ["ADMIN", "CHAIRPERSON", "WARDEN"].includes(user?.role);
-  // 2. Can manage events: ADMIN & CHAIRPERSON
-  const canManage = ["ADMIN", "CHAIRPERSON"].includes(user?.role);
+  // 1. Staff/Admin roles: ADMIN, WARDEN
+  const isStaffOrAdmin = ["ADMIN", "WARDEN"].includes(user?.role);
+  // 2. Can manage events: ADMIN & WARDEN
+  const canManage = ["ADMIN", "WARDEN"].includes(user?.role);
 
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);

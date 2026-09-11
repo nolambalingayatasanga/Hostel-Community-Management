@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
+import { useQueryClient } from "react-query";
 import {
   Container,
   Card,
@@ -16,6 +17,7 @@ import {
   TextField,
   Avatar,
   Skeleton,
+  Checkbox,
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -39,17 +41,19 @@ import LeadCell from "./LeadCell";
 import AddLeadDialog from "./AddLeadDialog";
 import LeadDetailsDialog from "./LeadDetailsDialog";
 import ColumnSelectorPanel from "./ColumnSelectorPanel";
-import { columnWidth, toRow, formatLeadDate, leadFieldValue } from "./leadHelpers";
+import { columnWidth, toRow, formatLeadDate, leadFieldValue, getColumnDisplayName } from "./leadHelpers";
 import API from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import CustomDateRangePicker from "../../components/CustomDateRangePicker";
 import debounce from "lodash/debounce";
 
 const ALL_TAB = "all";
+const DROPPED_TAB = "dropped";
 
 export default function DirectoryList() {
+  const queryClient = useQueryClient();
   const { user } = useAuth();
-  const isAdminOrChairperson = ["ADMIN", "CHAIRPERSON"].includes(user?.role);
+  const isAdminOrWarden = ["ADMIN", "WARDEN"].includes(user?.role);
 
   const meta = useCrmMeta();
   const { update, updateField, createLead } = useLeadMutations();
@@ -97,6 +101,14 @@ export default function DirectoryList() {
   const [editingCell, setEditingCell] = useState(null);
   const [detailLead, setDetailLead] = useState(null);
   const [columnsOpen, setColumnsOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [dropLoading, setDropLoading] = useState(false);
+
+  // Clear selection whenever tab, page, or search query changes
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [activeTabId, page, debouncedSearch]);
+
   const getStoredTabColumnOrder = (userId, tabId) => {
     try {
       const raw = localStorage.getItem(`tab_col_order_${userId || "default"}_${tabId}`);
@@ -155,7 +167,10 @@ export default function DirectoryList() {
 
   const filters = useMemo(() => {
     const next = {};
-    if (activeTabId !== ALL_TAB) {
+    if (activeTabId === DROPPED_TAB) {
+      next.statusGroup = "dropped";
+      next.isDropped = true;
+    } else if (activeTabId !== ALL_TAB) {
       next.statusGroup = activeTabId;
     } else {
       next.role = "MEMBER";
@@ -195,12 +210,22 @@ export default function DirectoryList() {
     if (activeOrder && activeOrder.length > 0) {
       const orderMap = new Map(activeOrder.map((id, index) => [String(id), index]));
       ordered = [...visibleFields].sort((a, b) => {
+        const isNameA = (a.slug || '').toLowerCase() === 'name' || (a.name || '').toLowerCase() === 'name';
+        const isNameB = (b.slug || '').toLowerCase() === 'name' || (b.name || '').toLowerCase() === 'name';
+        if (isNameA) return -1;
+        if (isNameB) return 1;
         const idxA = orderMap.has(String(a._id)) ? orderMap.get(String(a._id)) : 9999 + (a.order ?? 0);
         const idxB = orderMap.has(String(b._id)) ? orderMap.get(String(b._id)) : 9999 + (b.order ?? 0);
         return idxA - idxB;
       });
     } else {
-      ordered = [...visibleFields].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      ordered = [...visibleFields].sort((a, b) => {
+        const isNameA = (a.slug || '').toLowerCase() === 'name' || (a.name || '').toLowerCase() === 'name';
+        const isNameB = (b.slug || '').toLowerCase() === 'name' || (b.name || '').toLowerCase() === 'name';
+        if (isNameA) return -1;
+        if (isNameB) return 1;
+        return (a.order ?? 0) - (b.order ?? 0);
+      });
     }
 
     // Only show education fields in Students and Alumni status groups
@@ -218,28 +243,37 @@ export default function DirectoryList() {
     });
 
     return filtered.map((field) => {
-      let maxLength = field.name.length;
-      rows.forEach(row => {
-        let val = "";
-        if (field.isInternal) {
-          val = row[field.slug];
-          if (field.slug === "dateOfBirth" && val) {
-            val = formatLeadDate(val);
-          }
-        } else {
-          val = leadFieldValue(row.raw, field._id);
-        }
-        const strVal = val ? String(val) : "";
-        if (strVal.length > maxLength) {
-          maxLength = strVal.length;
-        }
-      });
-      const defaultWidth = 180;
-      const calculatedWidth = Math.max(defaultWidth, maxLength * 9 + 48);
-
-      return { ...field, width: calculatedWidth };
+      const colWidth = columnWidth(field);
+      return { ...field, width: colWidth };
     });
-  }, [meta.data?.customFields, tabColOrders, tabHiddenCols, rows, activeTabId, meta.data?.statusGroups, user?._id]);
+  }, [meta.data?.customFields, tabColOrders, tabHiddenCols, activeTabId, meta.data?.statusGroups, user?._id]);
+
+  // Name column is strictly fixed to the first position on ALL tabs
+  const nameCol = useMemo(() => {
+    const found = columns.find(
+      (c) =>
+        (c.slug || "").toLowerCase() === "name" ||
+        (c.name || "").toLowerCase() === "name"
+    );
+    return (
+      found || {
+        _id: "internal_name",
+        slug: "name",
+        name: "Name",
+        width: 220,
+        isInternal: true,
+      }
+    );
+  }, [columns]);
+
+  // Scrollable columns exclude the pinned Name column
+  const scrollableColumns = useMemo(() => {
+    return columns.filter(
+      (c) =>
+        String(c._id) !== String(nameCol._id) &&
+        (c.slug || "").toLowerCase() !== "name"
+    );
+  }, [columns, nameCol]);
 
   useEffect(() => {
     setPage(1);
@@ -255,45 +289,75 @@ export default function DirectoryList() {
     }
   }, [page]);
 
-  useEffect(() => {
-    const isPrivileged = ["ADMIN", "CHAIRPERSON"].includes(user?.role);
-    if (!isPrivileged && activeTabId === ALL_TAB && meta.data?.statusGroups?.length) {
-      const studentGroup = meta.data.statusGroups.find(
-        (g) => g.name.toLowerCase() === "students"
-      );
-      if (studentGroup) {
-        setActiveTabId(String(studentGroup._id));
-      } else {
-        const allowed = meta.data.statusGroups.find(g =>
-          ["students", "alumni", "staff"].includes(g.name.toLowerCase())
-        );
-        if (allowed) setActiveTabId(String(allowed._id));
+  const [permittedTabs, setPermittedTabs] = useState(null);
+
+  // Fetch allowed tabs for current user's role from Access Control API
+  const fetchPermittedTabs = async () => {
+    try {
+      const res = await API.get('/access/user-tabs/my-access');
+      if (res.data?.success && Array.isArray(res.data?.data)) {
+        setPermittedTabs(res.data.data);
       }
+    } catch (err) {
+      console.error('Failed to fetch permitted user tabs:', err);
     }
-  }, [user?.role, activeTabId, meta.data?.statusGroups]);
+  };
+
+  useEffect(() => {
+    fetchPermittedTabs();
+
+    const onPermissionsUpdated = () => {
+      fetchPermittedTabs();
+    };
+    window.addEventListener('access_permissions_updated', onPermissionsUpdated);
+    return () => window.removeEventListener('access_permissions_updated', onPermissionsUpdated);
+  }, [user?.role]);
 
   const allStatusGroups = useMemo(() => {
     const groups = meta.data?.statusGroups || [];
-    const filtered = groups.filter((group) => {
-      const nameLower = group.name.toLowerCase();
-      const isAdmin = user?.role === "ADMIN";
-      const isChairperson = user?.role === "CHAIRPERSON";
-      if (nameLower === "chairperson") return isAdmin;
-      if (nameLower === "inquiry") return isAdmin || isChairperson;
-      return ["students", "alumni", "staff"].includes(nameLower);
-    });
+    const fullList = [
+      { _id: ALL_TAB, name: "Members" },
+      ...groups,
+      { _id: DROPPED_TAB, name: "Dropped" }
+    ];
 
-    const list = ["ADMIN", "CHAIRPERSON"].includes(user?.role)
-      ? [{ _id: ALL_TAB, name: "Members" }, ...filtered]
-      : filtered;
+    let list;
+    if (permittedTabs && Array.isArray(permittedTabs)) {
+      list = fullList.filter(tab => permittedTabs.includes(String(tab._id)));
+    } else {
+      const isAdmin = ["ADMIN", "CHAIRPERSON", "WARDEN"].includes(user?.role);
+      list = isAdmin
+        ? fullList
+        : fullList.filter(tab => {
+            const nameLower = tab.name.toLowerCase();
+            return nameLower === "students" || nameLower === "alumni";
+          });
+    }
 
     if (tabOrder) {
-      return tabOrder
+      const ordered = tabOrder
         .map(id => list.find(g => String(g._id) === id))
         .filter(Boolean);
+      // Ensure any newly added tabs like Dropped are not omitted
+      list.forEach(item => {
+        if (!ordered.some(o => String(o._id) === String(item._id))) {
+          ordered.push(item);
+        }
+      });
+      return ordered;
     }
     return list;
-  }, [meta.data?.statusGroups, user?.role, tabOrder]);
+  }, [meta.data?.statusGroups, user?.role, tabOrder, permittedTabs]);
+
+  // Ensure active tab is within permitted groups
+  useEffect(() => {
+    if (allStatusGroups.length > 0) {
+      const isAllowed = allStatusGroups.some(g => String(g._id) === String(activeTabId));
+      if (!isAllowed) {
+        setActiveTabId(String(allStatusGroups[0]._id));
+      }
+    }
+  }, [allStatusGroups, activeTabId]);
 
   const totalLeads = data?.totalLeads ?? 0;
   const totalPages = data?.totalPages ?? Math.max(1, Math.ceil(totalLeads / pageSize));
@@ -308,12 +372,15 @@ export default function DirectoryList() {
   const handleColumnDragEnd = (result) => {
     if (!result.destination) return;
 
-    const currentIds = columns.map((c) => String(c._id));
-    const nextIds = reorder(
-      currentIds,
+    const currentScrollableIds = scrollableColumns.map((c) => String(c._id));
+    const nextScrollableIds = reorder(
+      currentScrollableIds,
       result.source.index,
       result.destination.index,
     );
+
+    // Name column is always pinned at the beginning (order 0)
+    const nextIds = [String(nameCol._id), ...nextScrollableIds];
 
     // Optimistic UI update
     setTabColOrders((prev) => ({ ...prev, [activeTabId]: nextIds }));
@@ -347,8 +414,8 @@ export default function DirectoryList() {
       localStorage.setItem(`tab_order_${user?._id}`, JSON.stringify(nextIds));
     } catch { /* ignore */ }
 
-    // Update DB status groups order (filtering out ALL_TAB)
-    const dbItems = items.filter(item => item._id !== ALL_TAB);
+    // Update DB status groups order (filtering out ALL_TAB and DROPPED_TAB)
+    const dbItems = items.filter(item => item._id !== ALL_TAB && item._id !== DROPPED_TAB);
     const payload = dbItems.map((item, idx) => ({
       _id: String(item._id),
       order: idx,
@@ -356,10 +423,61 @@ export default function DirectoryList() {
     reorderGroups.mutate({ statuses: payload });
   };
 
+  // Row selection helpers
+  const isAllSelected = rows.length > 0 && rows.every((r) => selectedIds.has(r.id));
+  const isSomeSelected = rows.some((r) => selectedIds.has(r.id)) && !isAllSelected;
+
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      const all = new Set(rows.map((r) => r.id));
+      setSelectedIds(all);
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleToggleRow = (rowId) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowId)) {
+        next.delete(rowId);
+      } else {
+        next.add(rowId);
+      }
+      return next;
+    });
+  };
+
+  // Bulk drop / restore action
+  const handleBulkDrop = async (drop = true) => {
+    if (selectedIds.size === 0) return;
+    try {
+      setDropLoading(true);
+      await API.post("/users/bulk-drop", {
+        userIds: Array.from(selectedIds),
+        drop,
+      });
+      setSelectedIds(new Set());
+      queryClient.invalidateQueries(["crm-leads"]);
+      queryClient.invalidateQueries(["crm-metadata"]);
+    } catch (err) {
+      console.error("Bulk drop/restore error:", err);
+    } finally {
+      setDropLoading(false);
+    }
+  };
+
   const handleChangeRef = (leadId, key, value) => {
     const rawUser = accumulatedLeads.find((item) => String(item._id || item.id) === String(leadId));
     let updateData = {};
-    if (key.includes(".")) {
+    if (key === "relativeName" || key === "relativename") {
+      updateData = {
+        relation: {
+          ...(rawUser?.relation || {}),
+          relatedPersonName: value
+        }
+      };
+    } else if (key.includes(".")) {
       const parts = key.split(".");
       if (parts.length === 3) {
         const p1 = parts[0];
@@ -565,7 +683,14 @@ export default function DirectoryList() {
         <Stack
           direction="row"
           spacing={2}
-          sx={{ px: 3, py: 2, borderBottom: "1px solid #EAECF0", alignItems: "center" }}
+          sx={{
+            px: 3,
+            py: 2,
+            borderBottom: "1px solid #EAECF0",
+            alignItems: "center",
+            overflowX: "auto",
+            flexWrap: "nowrap"
+          }}
         >
           {/* Static Date Range Input styling */}
           <CustomDateRangePicker
@@ -595,10 +720,12 @@ export default function DirectoryList() {
             placeholder="Search..."
             value={searchTerm}
             onChange={handleSearchChange}
-            InputProps={{
-              startAdornment: <SearchIcon sx={{ color: "text.secondary", mr: 1, fontSize: 18 }} />
+            slotProps={{
+              input: {
+                startAdornment: <SearchIcon sx={{ color: "text.secondary", mr: 1, fontSize: 18 }} />
+              }
             }}
-            sx={{ width: 300, "& .MuiOutlinedInput-root": { borderRadius: "8px" } }}
+            sx={{ width: 300, flexShrink: 0, "& .MuiOutlinedInput-root": { borderRadius: "8px" } }}
           />
 
           {/* Table Fields Settings Button */}
@@ -608,6 +735,7 @@ export default function DirectoryList() {
               borderRadius: "8px",
               borderColor: "#D0D5DD",
               color: "#344054",
+              flexShrink: 0,
               textTransform: "none",
               fontWeight: 600,
               "&:hover": { borderColor: "#D0D5DD", backgroundColor: "#F9FAFB" }
@@ -616,25 +744,87 @@ export default function DirectoryList() {
             <SettingsIcon />
           </IconButton>
 
+          {/* Action button when items are selected */}
+          {selectedIds.size > 0 && (
+            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexShrink: 0 }}>
+              {activeTabId === DROPPED_TAB ? (
+                <Button
+                  variant="contained"
+                  onClick={() => handleBulkDrop(false)}
+                  disabled={dropLoading}
+                  sx={{
+                    height: "40px",
+                    borderRadius: "8px",
+                    backgroundColor: "#039855",
+                    color: "#FFFFFF",
+                    textTransform: "none",
+                    fontWeight: 600,
+                    fontSize: "14px",
+                    boxShadow: "none",
+                    px: 2.5,
+                    whiteSpace: "nowrap",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    flexShrink: 0,
+                    "&:hover": { backgroundColor: "#027A48", boxShadow: "none" }
+                  }}
+                >
+                  {dropLoading ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : "Restore Contacts"}
+                </Button>
+              ) : (
+                <Button
+                  variant="contained"
+                  onClick={() => handleBulkDrop(true)}
+                  disabled={dropLoading}
+                  sx={{
+                    height: "40px",
+                    borderRadius: "8px",
+                    backgroundColor: "#D92D20",
+                    color: "#FFFFFF",
+                    textTransform: "none",
+                    fontWeight: 600,
+                    fontSize: "14px",
+                    boxShadow: "none",
+                    px: 2.5,
+                    whiteSpace: "nowrap",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    flexShrink: 0,
+                    "&:hover": { backgroundColor: "#B42318", boxShadow: "none" }
+                  }}
+                >
+                  {dropLoading ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : `Drop ${selectedIds.size}`}
+                </Button>
+              )}
+            </Stack>
+          )}
+
           <Box sx={{ flexGrow: 1 }} />
 
           {/* Counts */}
-          <Typography variant="body2" sx={{ color: "#475467", fontWeight: 600, mr: 1 }}>
+          <Typography variant="body2" sx={{ color: "#475467", fontWeight: 600, mr: 1, whiteSpace: "nowrap", flexShrink: 0 }}>
             {totalLeads} results
           </Typography>
 
-          {/* Export Button (only for ADMIN & CHAIRPERSON) */}
-          {isAdminOrChairperson && (
+          {/* Export Button (only for ADMIN & WARDEN) */}
+          {isAdminOrWarden && (
             <Button
               variant="outlined"
               startIcon={<DownloadIcon />}
               onClick={handleExport}
               sx={{
+                height: "40px",
                 borderRadius: "8px",
                 borderColor: "#D0D5DD",
                 color: "#344054",
                 textTransform: "none",
                 fontWeight: 600,
+                fontSize: "14px",
+                px: 2,
+                whiteSpace: "nowrap",
+                display: "inline-flex",
+                alignItems: "center",
+                flexShrink: 0,
                 "&:hover": { borderColor: "#D0D5DD", backgroundColor: "#F9FAFB" }
               }}
             >
@@ -642,19 +832,26 @@ export default function DirectoryList() {
             </Button>
           )}
 
-          {/* Add Member Button (only for ADMIN & CHAIRPERSON) */}
-          {isAdminOrChairperson && (
+          {/* Add Member Button (only for ADMIN & WARDEN) */}
+          {isAdminOrWarden && (
             <Button
               variant="contained"
               startIcon={<AddIcon />}
               onClick={() => setAddOpen(true)}
               sx={{
+                height: "40px",
                 borderRadius: "8px",
                 backgroundColor: "#0088ff",
                 color: "#FFFFFF",
                 textTransform: "none",
                 fontWeight: 600,
+                fontSize: "14px",
                 boxShadow: "none",
+                px: 2.5,
+                whiteSpace: "nowrap",
+                display: "inline-flex",
+                alignItems: "center",
+                flexShrink: 0,
                 "&:hover": { backgroundColor: "#0077dd", boxShadow: "none" }
               }}
             >
@@ -684,17 +881,81 @@ export default function DirectoryList() {
               direction="row"
               sx={{
                 height: 44,
-                alignItems: "center",
+                alignItems: "stretch",
                 backgroundColor: "#F9FAFB",
                 borderBottom: "1px solid #EAECF0",
                 position: "sticky",
                 top: 0,
-                zIndex: 2,
+                zIndex: 8,
               }}
             >
-              {/* Photo Header cell instead of bulk check */}
-              <Box sx={{ width: 60, minWidth: 60, flexShrink: 0, px: 2, display: "flex", justifyContent: "center" }}/>
+              {/* Sticky All-Select Checkbox in Header */}
+              <Box
+                sx={{
+                  position: "sticky",
+                  left: 0,
+                  width: 44,
+                  minWidth: 44,
+                  alignSelf: "stretch",
+                  backgroundColor: "#FFFFFF",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  zIndex: 10,
+                }}
+              >
+                <Checkbox
+                  size="small"
+                  checked={isAllSelected}
+                  indeterminate={isSomeSelected}
+                  onChange={handleSelectAll}
+                  disabled={rows.length === 0}
+                  sx={{
+                    color: "#D0D5DD",
+                    "&.Mui-checked, &.MuiCheckbox-indeterminate": { color: "#0088FF" },
+                    p: 0.5,
+                  }}
+                />
+              </Box>
 
+              {/* Sticky Avatar Column Header */}
+              <Box
+                sx={{
+                  position: "sticky",
+                  left: 44,
+                  width: 52,
+                  minWidth: 52,
+                  alignSelf: "stretch",
+                  backgroundColor: "#FFFFFF",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  zIndex: 10,
+                }}
+              />
+
+              {/* Sticky Name Column Header - Fixed and non-draggable */}
+              <Box
+                sx={{
+                  position: "sticky",
+                  left: 96,
+                  width: nameCol.width || 220,
+                  minWidth: nameCol.width || 220,
+                  alignSelf: "stretch",
+                  backgroundColor: "#FFFFFF",
+                  px: 2,
+                  display: "flex",
+                  alignItems: "center",
+                  zIndex: 10,
+                  userSelect: "none",
+                }}
+              >
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#475467" }}>
+                  Name
+                </Typography>
+              </Box>
+
+              {/* Remaining Draggable Columns */}
               <DragDropContext onDragEnd={handleColumnDragEnd}>
                 <Droppable droppableId="columns-droppable" direction="horizontal">
                   {(provided) => (
@@ -704,7 +965,7 @@ export default function DirectoryList() {
                       direction="row"
                       sx={{ alignItems: "center" }}
                     >
-                      {columns.map((col, index) => (
+                      {scrollableColumns.map((col, index) => (
                         <Draggable key={String(col._id)} draggableId={String(col._id)} index={index}>
                           {(dragProvided, snapshot) => (
                             <Box
@@ -717,7 +978,7 @@ export default function DirectoryList() {
                                 flexShrink: 0,
                                 px: 2,
                                 display: "flex",
-                                alignItems: "flex-end",
+                                alignItems: "center",
                                 backgroundColor: snapshot.isDragging ? "#EFF6FF" : "transparent",
                                 cursor: "grab",
                                 ...dragProvided.draggableProps.style,
@@ -740,7 +1001,7 @@ export default function DirectoryList() {
                                 ⁝⁝
                               </Box>
                               <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#475467" }}>
-                                {col.name}
+                                {getColumnDisplayName(col)}
                               </Typography>
                             </Box>
                           )}
@@ -751,12 +1012,10 @@ export default function DirectoryList() {
                   )}
                 </Droppable>
               </DragDropContext>
-
-
             </Stack>
 
             {/* Grid Body */}
-            <Box sx={{ position: "relative", p: 1 }}>
+            <Box sx={{ position: "relative" }}>
               {isLoading && rows.length === 0 ? (
                 Array.from({ length: 5 }).map((_, idx) => (
                   <Stack
@@ -764,18 +1023,24 @@ export default function DirectoryList() {
                     direction="row"
                     sx={{
                       minHeight: 64,
-                      py: 1,
-                      alignItems: "center",
-                    
+                      alignItems: "stretch",
                       width: "max-content",
-                      minWidth: "100%"
+                      minWidth: "100%",
+                      backgroundColor: "#FFFFFF",
+                      borderBottom: "1px solid #EAECF0",
                     }}
                   >
-                    <Box sx={{ width: 60, minWidth: 60, flexShrink: 0, px: 1, display: "flex", justifyContent: "center" }}>
-                      <Skeleton variant="circular" width={40} height={40} />
+                    <Box sx={{ position: "sticky", left: 0, width: 44, minWidth: 44, alignSelf: "stretch", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 4, backgroundColor: "#FFFFFF" }}>
+                      <Skeleton variant="rounded" width={18} height={18} />
                     </Box>
-                    <Stack direction="row" sx={{ alignItems: "center" }}>
-                      {columns.map((col) => (
+                    <Box sx={{ position: "sticky", left: 44, width: 52, minWidth: 52, alignSelf: "stretch", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 4, backgroundColor: "#FFFFFF" }}>
+                      <Skeleton variant="circular" width={38} height={38} />
+                    </Box>
+                    <Box sx={{ position: "sticky", left: 96, width: nameCol.width || 220, minWidth: nameCol.width || 220, alignSelf: "stretch", px: 2, display: "flex", alignItems: "center", zIndex: 4, backgroundColor: "#FFFFFF" }}>
+                      <Skeleton variant="rounded" height={32} sx={{ width: "85%", borderRadius: "8px" }} />
+                    </Box>
+                    <Stack direction="row" sx={{ alignItems: "center", py: 1 }}>
+                      {scrollableColumns.map((col) => (
                         <Box key={col._id} sx={{ width: col.width, minWidth: col.width === "auto" ? 140 : col.width, flexShrink: 0, px: 2 }}>
                           <Skeleton variant="rounded" height={32} sx={{ width: col.width === "auto" ? "120px" : "90%", borderRadius: "8px" }} />
                         </Box>
@@ -793,75 +1058,152 @@ export default function DirectoryList() {
                   </Typography>
                 </Box>
               ) : (
-                rows.map((row) => (
-                  <Stack
-                    key={row.id}
-                    direction="row"
-                    sx={{
-                      minHeight: 64,
-                      py: 1,
-                      alignItems: "center",
-                      backgroundColor: "#FFFFFF",
-                    
-                      transition: "all 0.15s ease",
-                      "&:hover": {
-                        backgroundColor: "#F8FAFC",
-                        boxShadow: "inset 0 0 0 1px rgba(0, 136, 255, 0.1), 0 4px 12px rgba(0, 136, 255, 0.05)",
-                      },
-                    }}
-                  >
-                    {/* Member Profile Avatar in leftmost column - Clickable to open profile details */}
-                    <Box sx={{ width: 60, minWidth: 60, flexShrink: 0, px: 1, display: "flex", justifyContent: "center" }}>
-                      <Tooltip title="View Profile Details" arrow>
-                        <Avatar
-                          src={row.profilePhoto?.url || ""}
-                          onClick={() => setDetailLead(row)}
+                rows.map((row) => {
+                  const isSelected = selectedIds.has(row.id);
+                  const rowBg = isSelected ? "#f8fafc" : "#FFFFFF";
+                  const rowHoverBg = isSelected ? "#f8fafc" : "#f8fafc";
+                  const nameCellId = `${row.id}-${nameCol._id}`;
+                  const isNameEditing = editingCell === nameCellId;
+                  const isOwnRow = String(row.id) === String(user?._id || user?.id);
+                  const nameCellDisabled = (!isAdminOrWarden && !isOwnRow) || update.isLoading || updateField.isLoading;
+
+                  return (
+                    <Stack
+                      key={row.id}
+                      direction="row"
+                      sx={{
+                        minHeight: 64,
+                        alignItems: "stretch",
+                        backgroundColor: rowBg,
+                        borderBottom: "1px solid #EAECF0",
+                        transition: "all 0.15s ease",
+                        "&:hover": {
+                          backgroundColor: rowHoverBg,
+                          "& .sticky-col": {
+                            backgroundColor: rowHoverBg,
+                          }
+                        },
+                        "& .sticky-col": {
+                          backgroundColor: rowBg,
+                        }
+                      }}
+                    >
+                      {/* Sticky Checkbox Cell - Full height solid white background */}
+                      <Box
+                        className="sticky-col"
+                        sx={{
+                          position: "sticky",
+                          left: 0,
+                          width: 44,
+                          minWidth: 44,
+                          alignSelf: "stretch",
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          zIndex: 4,
+                          backgroundColor: rowBg,
+                        }}
+                      >
+                        <Checkbox
+                          size="small"
+                          checked={isSelected}
+                          onChange={() => handleToggleRow(row.id)}
                           sx={{
-                            width: 40,
-                            height: 40,
-                            fontSize: "14px",
-                            bgcolor: row.profilePhoto?.url ? "" : "#0088ff",
-                            cursor: "pointer",
-                            transition: "all 0.2s ease",
-                            "&:hover": {
-                              transform: "scale(1.1)",
-                              boxShadow: "0 0 0 3px rgba(0, 136, 255, 0.25)"
-                            }
+                            color: "#D0D5DD",
+                            "&.Mui-checked": { color: "#0088FF" },
+                            p: 0.5,
                           }}
-                        >
-                          {row.name?.charAt(0)}
-                        </Avatar>
-                      </Tooltip>
-                    </Box>
+                        />
+                      </Box>
 
-                    {/* Columns Cells */}
-                    <Stack direction="row" sx={{ alignItems: "center" }}>
-                      {columns.map((col) => {
-                        const cellId = `${row.id}-${col._id}`;
-                        const isEditing = editingCell === cellId;
-                        const isOwnRow = String(row.id) === String(user?._id || user?.id);
-                        const cellDisabled = (!isAdminOrChairperson && !isOwnRow) || update.isLoading || updateField.isLoading;
-                        return (
-                          <LeadCell
-                            key={col._id}
-                            field={col}
-                            row={row}
-                            meta={cellMeta}
-                            disabled={cellDisabled}
-                            isEditing={isEditing}
-                            onStartEdit={() => setEditingCell(cellId)}
-                            onStopEdit={() => setEditingCell(null)}
-                            onChangeRef={handleChangeRef}
-                            onChangeField={handleChangeField}
-                            onOpenProfile={() => setDetailLead(row)}
-                          />
-                        );
-                      })}
+                      {/* Sticky Avatar Cell - Full height solid white background */}
+                      <Box
+                        className="sticky-col"
+                        sx={{
+                          position: "sticky",
+                          left: 44,
+                          width: 52,
+                          minWidth: 52,
+                          alignSelf: "stretch",
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          zIndex: 4,
+                          backgroundColor: rowBg,
+                        }}
+                      >
+                        <Tooltip title="View Profile Details" arrow>
+                          <Avatar
+                            src={row.profilePhoto?.url || ""}
+                            onClick={() => setDetailLead(row)}
+                            sx={{
+                              width: 38,
+                              height: 38,
+                              fontSize: "14px",
+                              bgcolor: row.profilePhoto?.url ? "" : "#0088ff",
+                              cursor: "pointer",
+                              transition: "all 0.2s ease",
+                              "&:hover": {
+                                transform: "scale(1.08)",
+                                boxShadow: "0 0 0 3px rgba(0, 136, 255, 0.25)"
+                              }
+                            }}
+                          >
+                            {row.name?.charAt(0)}
+                          </Avatar>
+                        </Tooltip>
+                      </Box>
+
+                      {/* Sticky Name Cell - Full height solid white background, no shadow */}
+                      <LeadCell
+                        field={nameCol}
+                        row={row}
+                        meta={cellMeta}
+                        disabled={nameCellDisabled}
+                        isEditing={isNameEditing}
+                        onStartEdit={() => setEditingCell(nameCellId)}
+                        onStopEdit={() => setEditingCell(null)}
+                        onChangeRef={handleChangeRef}
+                        onChangeField={handleChangeField}
+                        onOpenProfile={() => setDetailLead(row)}
+                        className="sticky-col"
+                        sx={{
+                          position: "sticky",
+                          left: 96,
+                          zIndex: 4,
+                          alignSelf: "stretch",
+                          display: "flex",
+                          alignItems: "center",
+                          backgroundColor: rowBg,
+                        }}
+                      />
+
+                      {/* Remaining Scrollable Columns Cells */}
+                      <Stack direction="row" sx={{ alignItems: "center", py: 1 }}>
+                        {scrollableColumns.map((col) => {
+                          const cellId = `${row.id}-${col._id}`;
+                          const isEditing = editingCell === cellId;
+                          const cellDisabled = (!isAdminOrWarden && !isOwnRow) || update.isLoading || updateField.isLoading;
+                          return (
+                            <LeadCell
+                              key={col._id}
+                              field={col}
+                              row={row}
+                              meta={cellMeta}
+                              disabled={cellDisabled}
+                              isEditing={isEditing}
+                              onStartEdit={() => setEditingCell(cellId)}
+                              onStopEdit={() => setEditingCell(null)}
+                              onChangeRef={handleChangeRef}
+                              onChangeField={handleChangeField}
+                              onOpenProfile={() => setDetailLead(row)}
+                            />
+                          );
+                        })}
+                      </Stack>
                     </Stack>
-
-
-                  </Stack>
-                ))
+                  );
+                })
               )}
             </Box>
           </Box>
@@ -1006,12 +1348,15 @@ export default function DirectoryList() {
         canManage={true}
       />
 
-      {/* Add New Member Dialog */}
-      <AddLeadDialog
+      {/* Add New Member Dialog - Uses the exact same Profile Dialog */}
+      <LeadDetailsDialog
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        fields={meta.data?.customFields || []}
-        statuses={meta.data?.statuses || []}
+        isCreate={true}
+        lead={null}
+        onUserUpdated={() => {
+          queryClient.invalidateQueries(["crm-leads"]);
+        }}
       />
 
       {/* Profile Details Dialog */}
@@ -1019,7 +1364,9 @@ export default function DirectoryList() {
         open={Boolean(detailLead)}
         onClose={() => setDetailLead(null)}
         lead={detailLead}
-        customFields={meta.data?.customFields || []}
+        onUserUpdated={() => {
+          queryClient.invalidateQueries(["crm-leads"]);
+        }}
       />
     </Container>
   );

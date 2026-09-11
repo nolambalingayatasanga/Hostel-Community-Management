@@ -78,25 +78,50 @@ const sanitizeUser = (targetUser, currentUser) => {
   
   const target = targetUser.toObject ? targetUser.toObject() : { ...targetUser };
   
-  // If target is current user, or viewer is admin/member, show full details
-  if (currentUser && (currentUser._id.toString() === target._id.toString() || ['ADMIN', 'CHAIRPERSON'].includes(currentUser.role))) {
-    // Remove internal password info just in case
-    delete target.passwordHash;
-    delete target.passwordResetToken;
-    delete target.passwordResetExpires;
-    return target;
-  }
+  // Check if requester is the profile owner or an administrator
+  const isSelf = Boolean(
+    currentUser &&
+    currentUser._id &&
+    target._id &&
+    currentUser._id.toString() === target._id.toString()
+  );
+  const isAdminOrWarden = Boolean(
+    currentUser && ['ADMIN', 'WARDEN'].includes(currentUser.role)
+  );
 
-  // Redact private fields
-  delete target.email;
-  delete target.phone;
-  delete target.address;
-  delete target.dateOfBirth;
+  // Always remove internal password & token secrets
   delete target.passwordHash;
   delete target.passwordResetToken;
   delete target.passwordResetExpires;
   delete target.resetPasswordToken;
   delete target.resetPasswordExpires;
+
+  // If viewer is self or admin/warden, they are authorized to see full details
+  if (isSelf || isAdminOrWarden) {
+    return target;
+  }
+
+  // For any other users: enforce data masking options selected by the user
+  const privacy = target.privacySettings || {};
+
+  if (privacy.maskPhone) {
+    delete target.phone;
+    target.isPhoneMasked = true;
+  }
+  if (privacy.maskEmail) {
+    delete target.email;
+    target.isEmailMasked = true;
+  }
+  if (privacy.maskAdhaar) {
+    delete target.adhaar;
+    target.isAdhaarMasked = true;
+  }
+
+  // Redact sensitive personal fields from other users
+  delete target.address;
+  delete target.dateOfBirth;
+  delete target.dob;
+  delete target.age;
   
   return target;
 };

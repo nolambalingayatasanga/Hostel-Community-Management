@@ -74,6 +74,7 @@ const userRoutes = require('./routes/userRoutes');
 const eventRoutes = require('./routes/eventRoutes');
 const galleryRoutes = require('./routes/galleryRoutes');
 const crmRoutes = require('./routes/crmRoutes');
+const accessRoutes = require('./routes/accessRoutes');
 
 // Mount routes
 app.use('/api/auth', authLimiter, authRoutes);
@@ -81,6 +82,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/gallery', galleryRoutes);
 app.use('/api/crm', crmRoutes);
+app.use('/api/access', accessRoutes);
 
 // Health check endpoints
 app.get('/health', (req, res) => {

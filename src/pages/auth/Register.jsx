@@ -49,6 +49,7 @@ const DRAFT_KEY = 'hostel_register_draft';
 
 // Comprehensive list of prominent colleges & universities for suggestions
 const POPULAR_COLLEGES = [
+  'Rajiv Gandhi University of Health Sciences (RGUHS), Bangalore',
   'RV College of Engineering (RVCE), Bangalore',
   'BMS College of Engineering (BMSCE), Bangalore',
   'M.S. Ramaiah Institute of Technology (MSRIT), Bangalore',
@@ -312,9 +313,16 @@ const Register = () => {
     let sYearStr = '';
     let eYearStr = '';
 
+    const collegeValue = (college || collegeRef.current?.value || '').trim();
+    const courseValue = (course || courseRef.current?.value || '').trim();
+
+    // Ensure state stays synchronized
+    if (collegeValue && college !== collegeValue) setCollege(collegeValue);
+    if (courseValue && course !== courseValue) setCourse(courseValue);
+
     if (role === 'STUDENT' || role === 'ALUMNI') {
-      if (!college.trim()) { notifyWarn('College / University Name is mandatory.'); return; }
-      if (!course.trim()) { notifyWarn('Course / Degree is mandatory.'); return; }
+      if (!collegeValue) { notifyWarn('College / University Name is mandatory.'); return; }
+      if (!courseValue) { notifyWarn('Course / Degree is mandatory.'); return; }
       if (!startYear) { notifyWarn('College Joining Date is mandatory (DD/MM/YYYY).'); return; }
       if (!endYear) { notifyWarn('Graduation Date is mandatory (DD/MM/YYYY).'); return; }
 
@@ -371,8 +379,8 @@ const Register = () => {
       registrationNumber: registrationNumber.trim(),
       password,
       role,
-      college: college.trim(),
-      course: course.trim(),
+      college: collegeValue,
+      course: courseValue,
       startYear: sYearStr,
       endYear: eYearStr
     });
@@ -844,10 +852,16 @@ const Register = () => {
                       </Typography>
                       <Autocomplete
                         freeSolo
+                        clearOnBlur={false}
                         openOnFocus={false}
                         options={collegeSuggestions}
                         value={college}
-                        onInputChange={(event, newInputValue) => {
+                        onChange={(event, newValue) => {
+                          setCollege(newValue || '');
+                        }}
+                        inputValue={college}
+                        onInputChange={(event, newInputValue, reason) => {
+                          if (reason === 'reset') return;
                           setCollege(newInputValue || '');
                         }}
                         renderInput={(params) => (
@@ -856,6 +870,9 @@ const Register = () => {
                             fullWidth
                             size="small"
                             inputRef={collegeRef}
+                            onChange={(e) => {
+                              setCollege(e.target.value);
+                            }}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
                                 e.preventDefault();
@@ -888,10 +905,16 @@ const Register = () => {
                       </Typography>
                       <Autocomplete
                         freeSolo
+                        clearOnBlur={false}
                         openOnFocus={false}
                         options={courseSuggestions}
                         value={course}
-                        onInputChange={(event, newInputValue) => {
+                        onChange={(event, newValue) => {
+                          setCourse(newValue || '');
+                        }}
+                        inputValue={course}
+                        onInputChange={(event, newInputValue, reason) => {
+                          if (reason === 'reset') return;
                           setCourse(newInputValue || '');
                         }}
                         renderInput={(params) => (
@@ -900,6 +923,9 @@ const Register = () => {
                             fullWidth
                             size="small"
                             inputRef={courseRef}
+                            onChange={(e) => {
+                              setCourse(e.target.value);
+                            }}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
                                 e.preventDefault();

@@ -54,25 +54,15 @@ const Dashboard = () => {
   const [error, setError] = useState('');
   const [upcomingEvents, setUpcomingEvents] = useState([]);
 
-  const isStudentAlumniStaff = ['STUDENT', 'ALUMNI', 'STAFF'].includes(user?.role);
-
-  useEffect(() => {
-    if (isStudentAlumniStaff) {
-      navigate('/profile');
-    }
-  }, [isStudentAlumniStaff, navigate]);
-
-  const isAdminOrChairperson = ['ADMIN', 'CHAIRPERSON'].includes(user?.role);
+  const isAdminOrWarden = ['ADMIN', 'WARDEN'].includes(user?.role);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
-        if (isAdminOrChairperson) {
-          const res = await API.get('/users/dashboard/stats');
-          if (res.data?.success) {
-            setStats(res.data.data);
-          }
+        const res = await API.get('/users/dashboard/stats');
+        if (res.data?.success) {
+          setStats(res.data.data);
         }
         
         // Fetch upcoming events for all roles
@@ -86,21 +76,12 @@ const Dashboard = () => {
         console.error('Error fetching dashboard data:', err);
         const errMsg = 'Could not load dashboard statistics.';
         setError(errMsg);
-        enqueueSnackbar(errMsg, { variant: 'error' });
         setLoading(false);
       }
     };
 
     fetchDashboardData();
-  }, [user, isAdminOrChairperson]);
-
-  if (isStudentAlumniStaff) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
-        <CircularProgress sx={{ color: '#0088ff' }} />
-      </Box>
-    );
-  }
+  }, [user]);
 
   if (loading) {
     return (
@@ -111,7 +92,7 @@ const Dashboard = () => {
   }
 
   // 1. NON-PRIVILEGED VIEW (Student, Alumni, Staff, Member)
-  if (!isAdminOrChairperson) {
+  if (!isAdminOrWarden) {
     return (
       <Box sx={{ flexGrow: 1 }}>
         {/* Welcome Banner */}

@@ -151,7 +151,7 @@ export default function AddLeadDialog({ open, onClose, statuses }) {
         };
       }
 
-      if (['ALUMNI', 'MEMBER', 'STAFF', 'CHAIRPERSON', 'ADMIN'].includes(basicValues.role)) {
+      if (['ALUMNI', 'MEMBER', 'STAFF', 'WARDEN', 'ADMIN'].includes(basicValues.role)) {
         payload.employment = {
           occupation: basicValues.employment.occupation || undefined,
           organization: basicValues.employment.organization || undefined,
@@ -172,7 +172,7 @@ export default function AddLeadDialog({ open, onClose, statuses }) {
   };
 
   const showEducation = ["STUDENT", "ALUMNI"].includes(basicValues.role);
-  const showEmployment = ["ALUMNI", "AGENT", "STAFF", "MEMBER", "ADMIN", "CHAIRPERSON"].includes(basicValues.role);
+  const showEmployment = ["ALUMNI", "AGENT", "STAFF", "MEMBER", "ADMIN", "WARDEN"].includes(basicValues.role);
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
@@ -202,7 +202,7 @@ export default function AddLeadDialog({ open, onClose, statuses }) {
                   value={basicValues.role}
                   onChange={(e) => handleBasicChange("role", e.target.value)}
                 >
-                  {['ADMIN', 'CHAIRPERSON', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'].map((role) => (
+                  {['ADMIN', 'WARDEN', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'].map((role) => (
                     <MenuItem key={role} value={role}>
                       {role}
                     </MenuItem>

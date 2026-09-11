@@ -176,9 +176,9 @@ const CustomDateRangePicker = ({
     <div style={{ display: 'inline-block' }}>
       <div className={styles.dateRangePickerContainer}>
         <Stack
-          direction={{ sx: "column", md: "row" }}
+          direction={{ xs: "column", md: "row" }}
           spacing={2}
-          alignItems="center"
+          sx={{ alignItems: "center" }}
         >
           <Button
             onClick={handleCalenderOpen}
@@ -285,7 +285,7 @@ const CustomDateRangePicker = ({
                         ]}
                       />
                       {incApply && (
-                        <Stack alignItems={"end"} sx={{ width: "100%", px: 2 }}>
+                        <Stack sx={{ alignItems: "flex-end", width: "100%", px: 2 }}>
                           <Button
                             onClick={handleCalenderClose}
                             variant="contained"
@@ -309,7 +309,7 @@ const CustomDateRangePicker = ({
                         minDate={minDate}
                       />
                       {incApply && (
-                        <Stack alignItems={"end"} sx={{ width: "100%", px: 2 }}>
+                        <Stack sx={{ alignItems: "flex-end", width: "100%", px: 2 }}>
                           <Button
                             onClick={handleCalenderClose}
                             variant="contained"

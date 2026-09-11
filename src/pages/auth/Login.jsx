@@ -64,7 +64,7 @@ const Login = () => {
     setLoading(false);
     if (result?.success) {
       enqueueSnackbar('Login successful! Welcome back.', { variant: 'success' });
-      navigate('/dashboard');
+      navigate('/profile');
     } else {
       const errMsg = result?.message || 'Login failed. Please check your credentials.';
       setError(errMsg);
@@ -118,16 +118,6 @@ const Login = () => {
             }}
           >
             Welcome Back
-          </Typography>
-          <Typography
-            variant="body2"
-            sx={{
-              color: '#64748B',
-              fontSize: '14px',
-              fontWeight: 500
-            }}
-          >
-            Sign in to your hostel account
           </Typography>
         </Box>
 

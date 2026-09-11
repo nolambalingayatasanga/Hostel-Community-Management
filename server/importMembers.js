@@ -171,10 +171,10 @@ async function syncCustomFields() {
   console.log('Syncing CustomField definitions...');
 
   const desiredFields = [
-    { name: 'SL NO', slug: 'slNo', type: 'number', order: 0, isInternal: true, isVisible: true },
-    { name: 'Registration Number', slug: 'registrationNumber', type: 'text', order: 1, isInternal: true, isVisible: true },
+    { name: 'Slot No.', slug: 'slNo', type: 'number', order: 0, isInternal: true, isVisible: true },
+    { name: 'Reg No.', slug: 'registrationNumber', type: 'text', order: 1, isInternal: true, isVisible: true },
     { name: 'Receipt No', slug: 'receiptNo', type: 'text', order: 2, isInternal: true, isVisible: true },
-    { name: 'Local Language Details', slug: 'localLanguageDetails', type: 'text', order: 3, isInternal: true, isVisible: true },
+    { name: 'Kanada Overview', slug: 'localLanguageDetails', type: 'text', order: 3, isInternal: true, isVisible: true },
     { name: 'Name', slug: 'name', type: 'text', order: 4, isInternal: true, isVisible: true },
     { name: 'Phone', slug: 'phone', type: 'text', order: 5, isInternal: true, isVisible: true },
     { name: 'Role', slug: 'role', type: 'select', options: ['ADMIN', 'CHAIRPERSON', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'], order: 6, isInternal: true, isVisible: true },

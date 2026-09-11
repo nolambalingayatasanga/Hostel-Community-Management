@@ -63,7 +63,7 @@ const ProtectedRoute = ({ allowedRoles }) => {
         <Typography variant="body1" sx={{ color: '#6B7280', mb: 4, maxWidth: 400 }}>
           You do not have the required permissions to access this page.
         </Typography>
-        <Navigate to="/dashboard" replace />
+        <Navigate to="/profile" replace />
       </Box>
     );
   }

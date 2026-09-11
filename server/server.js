@@ -6,6 +6,7 @@ dotenv.config({ path: path.join(__dirname, '../.env') });
 const app = require('./app');
 const connectDB = require('./config/db');
 const { checkAndTransitionStudents } = require('./utils/studentTransition');
+const Access = require('./models/Access');
 
 const PORT = process.env.PORT || 5000;
 
@@ -14,6 +15,13 @@ connectDB().then(() => {
   const server = app.listen(PORT, async () => {
     console.log(`Server is running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
     
+    // Seed default access control permissions if not already present
+    try {
+      await Access.seedDefaults();
+    } catch (accessErr) {
+      console.error('Error seeding default access permissions:', accessErr);
+    }
+
     // Run student transition check on server startup
     await checkAndTransitionStudents();
     
