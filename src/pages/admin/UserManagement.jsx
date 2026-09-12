@@ -311,10 +311,10 @@ const UserManagement = () => {
                         fullWidth
                         label="Temporary Password"
                         required
-                        type="text"
+                        type="password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        placeholder="TempPassword123!"
+                        placeholder="Enter password"
                       />
                     </Grid>
                   )}

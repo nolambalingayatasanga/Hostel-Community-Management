@@ -24,6 +24,11 @@ const GalleryFolderSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
+  },
+  parentFolder: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'GalleryFolder',
+    default: null
   }
 }, {
   timestamps: true,
@@ -32,5 +37,6 @@ const GalleryFolderSchema = new mongoose.Schema({
 });
 
 GalleryFolderSchema.index({ createdBy: 1, createdAt: -1 });
+GalleryFolderSchema.index({ parentFolder: 1, createdAt: -1 });
 
 module.exports = mongoose.model('GalleryFolder', GalleryFolderSchema);

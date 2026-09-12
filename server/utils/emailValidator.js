@@ -63,12 +63,14 @@ async function checkSmtpMailbox(email, mxHost) {
       // Step 0: Server 220 greeting banner
       if (step === 0 && code === 220) {
         step = 1;
-        socket.write('HELO mail.community.org\r\n');
+        const senderDomain = (process.env.EMAIL_USER || '').includes('@') ? process.env.EMAIL_USER.split('@')[1] : 'gmail.com';
+        socket.write(`HELO ${senderDomain}\r\n`);
       }
       // Step 1: HELO acknowledged -> MAIL FROM
       else if (step === 1 && code === 250) {
         step = 2;
-        socket.write('MAIL FROM:<verify@community.org>\r\n');
+        const senderEmail = process.env.EMAIL_USER || 'no-reply@gmail.com';
+        socket.write(`MAIL FROM:<${senderEmail}>\r\n`);
       }
       // Step 2: Sender accepted -> RCPT TO (the target email to verify)
       else if (step === 2 && code === 250) {

@@ -53,15 +53,64 @@ import {
 import API from '../../api';
 import { useAuth } from '../../context/AuthContext';
 import { useSnackbar } from 'notistack';
+import { useUploadQueue } from '../../context/UploadQueueContext';
 
 const FOLDER_COLORS = [
   '#0F9D58', '#0088ff', '#EA4335', '#FBBC04',
   '#8B5CF6', '#EC4899', '#6366F1', '#14B8A6'
 ];
 
+/**
+ * Safely extracts parent folder ID whether populated as an object or stored as an ObjectId string
+ */
+const getParentId = (folder) => {
+  if (!folder || !folder.parentFolder) return null;
+  return typeof folder.parentFolder === 'object' ? folder.parentFolder._id : folder.parentFolder;
+};
+
+/**
+ * Traverses upwards to compute the full breadcrumb trail from root down to activeFolder
+ */
+const getBreadcrumbs = (activeFolder, allFolders) => {
+  if (!activeFolder) return [];
+  const trail = [];
+  let curr = activeFolder;
+  const visited = new Set();
+  while (curr && !visited.has(curr._id)) {
+    visited.add(curr._id);
+    trail.unshift(curr);
+    const parentId = getParentId(curr);
+    curr = parentId ? allFolders.find((f) => f._id === parentId) : null;
+  }
+  return trail;
+};
+
+/**
+ * Builds a hierarchical list of folders with visual indentations for selection dropdowns
+ */
+const buildFolderTreeOptions = (allFolders) => {
+  const root = allFolders.filter((f) => !getParentId(f));
+  const options = [];
+
+  const traverse = (folder, depth = 0, path = '') => {
+    const currentPath = path ? `${path} / ${folder.name}` : folder.name;
+    options.push({
+      ...folder,
+      depth,
+      fullPath: currentPath,
+    });
+    const children = allFolders.filter((f) => getParentId(f) === folder._id);
+    children.forEach((child) => traverse(child, depth + 1, currentPath));
+  };
+
+  root.forEach((r) => traverse(r, 0, ''));
+  return options;
+};
+
 const Gallery = () => {
   const { user } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
+  const { enqueueFiles } = useUploadQueue();
 
   // Tab State: 'all' | 'folders'
   const [activeTab, setActiveTab] = useState('all');
@@ -94,12 +143,13 @@ const Gallery = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  // Folder Dialog State (Create / Edit) - No description input as requested
+  // Folder Dialog State (Create / Edit)
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
   const [folderDialogMode, setFolderDialogMode] = useState('create'); // 'create' | 'edit'
   const [editingFolderId, setEditingFolderId] = useState(null);
   const [folderName, setFolderName] = useState('');
   const [folderColor, setFolderColor] = useState('#0F9D58');
+  const [folderParentId, setFolderParentId] = useState(null);
   const [folderSubmitting, setFolderSubmitting] = useState(false);
 
   // Folder Action Menu State
@@ -119,6 +169,12 @@ const Gallery = () => {
   const observerTarget = useRef(null);
 
   const isAdminOrWarden = ['ADMIN', 'WARDEN'].includes(user?.role);
+
+  // Derived folder hierarchies
+  const folderTrail = getBreadcrumbs(currentFolder, folders);
+  const rootFolders = folders.filter((f) => !getParentId(f));
+  const childFolders = currentFolder ? folders.filter((f) => getParentId(f) === currentFolder._id) : [];
+  const folderTreeOptions = buildFolderTreeOptions(folders);
 
   // -------------------------------------------------------------
   // 1. Fetch Folders
@@ -200,6 +256,31 @@ const Gallery = () => {
     }
   }, [activeTab, currentFolder, fetchPhotos]);
 
+  // Real-time listener for background media uploads
+  useEffect(() => {
+    const handleMediaUploaded = (e) => {
+      const { destinationType, destinationId, result } = e.detail || {};
+      if (destinationType !== 'gallery') return;
+
+      const newPhoto = result?.data?.photo;
+      if (!newPhoto) return;
+
+      const targetFolder = destinationId;
+      const isCurrentFolderMatch =
+        currentFolder && targetFolder && String(targetFolder) === String(currentFolder._id);
+
+      if (activeTab === 'all' || (activeTab === 'folders' && isCurrentFolderMatch)) {
+        setPhotos((prev) => [newPhoto, ...prev.filter((p) => p._id !== newPhoto._id)]);
+        setTotalPhotos((prev) => prev + 1);
+      }
+
+      fetchFolders();
+    };
+
+    window.addEventListener('app:media-uploaded', handleMediaUploaded);
+    return () => window.removeEventListener('app:media-uploaded', handleMediaUploaded);
+  }, [activeTab, currentFolder, fetchFolders]);
+
   // -------------------------------------------------------------
   // 3. Infinite Scroll Intersection Observer
   // -------------------------------------------------------------
@@ -237,8 +318,14 @@ const Gallery = () => {
   };
 
   const handleBackToFolders = () => {
-    setCurrentFolder(null);
-    fetchFolders();
+    if (!currentFolder) return;
+    const parentId = getParentId(currentFolder);
+    if (parentId) {
+      const parent = folders.find((f) => f._id === parentId);
+      setCurrentFolder(parent || null);
+    } else {
+      setCurrentFolder(null);
+    }
   };
 
   const handleTabChange = (event, newTab) => {
@@ -249,14 +336,20 @@ const Gallery = () => {
   };
 
   // -------------------------------------------------------------
-  // 5. Folder CRUD Dialog & Actions (No description field)
+  // 5. Folder CRUD Dialog & Actions
   // -------------------------------------------------------------
-  const handleOpenCreateFolderDialog = () => {
+  const handleOpenCreateFolderDialog = (parentId = null) => {
     setFolderDialogMode('create');
     setFolderName('');
     setFolderColor('#0F9D58');
     setEditingFolderId(null);
+    setFolderParentId(parentId !== null ? parentId : (currentFolder ? currentFolder._id : null));
     setFolderDialogOpen(true);
+  };
+
+  const handleOpenCreateSubfolder = (folder) => {
+    setFolderMenuAnchor(null);
+    handleOpenCreateFolderDialog(folder._id);
   };
 
   const handleOpenEditFolderDialog = (folder) => {
@@ -264,6 +357,7 @@ const Gallery = () => {
     setEditingFolderId(folder._id);
     setFolderName(folder.name || '');
     setFolderColor(folder.color || '#0F9D58');
+    setFolderParentId(getParentId(folder));
     setFolderMenuAnchor(null);
     setFolderDialogOpen(true);
   };
@@ -278,13 +372,32 @@ const Gallery = () => {
     try {
       setFolderSubmitting(true);
       if (folderDialogMode === 'create') {
-        const res = await API.post('/gallery/folders', {
+        const payload = {
           name: folderName.trim(),
           color: folderColor
-        });
+        };
+        if (folderParentId) {
+          payload.parentFolder = folderParentId;
+        }
+
+        const res = await API.post('/gallery/folders', payload);
         if (res.data?.success) {
-          enqueueSnackbar('Folder created successfully!', { variant: 'success' });
-          setFolders(prev => [res.data.data.folder, ...prev]);
+          const createdFolder = res.data.data.folder;
+          enqueueSnackbar(folderParentId ? 'Subfolder created successfully!' : 'Folder created successfully!', { variant: 'success' });
+          setFolders((prev) => [createdFolder, ...prev]);
+
+          // Update parent folder subfolderCount
+          if (folderParentId) {
+            setFolders((prev) =>
+              prev.map((f) =>
+                f._id === folderParentId ? { ...f, subfolderCount: (f.subfolderCount || 0) + 1 } : f
+              )
+            );
+            if (currentFolder && currentFolder._id === folderParentId) {
+              setCurrentFolder((prev) => ({ ...prev, subfolderCount: (prev.subfolderCount || 0) + 1 }));
+            }
+          }
+
           setFolderDialogOpen(false);
         }
       } else {
@@ -295,9 +408,9 @@ const Gallery = () => {
         if (res.data?.success) {
           enqueueSnackbar('Folder updated successfully!', { variant: 'success' });
           const updated = res.data.data.folder;
-          setFolders(prev => prev.map(f => (f._id === updated._id ? { ...f, ...updated } : f)));
+          setFolders((prev) => prev.map((f) => (f._id === updated._id ? { ...f, ...updated } : f)));
           if (currentFolder && currentFolder._id === updated._id) {
-            setCurrentFolder(prev => ({ ...prev, ...updated }));
+            setCurrentFolder((prev) => ({ ...prev, ...updated }));
           }
           setFolderDialogOpen(false);
         }
@@ -312,7 +425,13 @@ const Gallery = () => {
 
   const handleDeleteFolderClick = (folder) => {
     setFolderMenuAnchor(null);
-    setDeleteTarget({ type: 'folder', id: folder._id, name: folder.name, count: folder.itemCount || 0 });
+    setDeleteTarget({
+      type: 'folder',
+      id: folder._id,
+      name: folder.name,
+      count: folder.itemCount || 0,
+      subfolderCount: folder.subfolderCount || 0
+    });
     setDeleteConfirmOpen(true);
   };
 
@@ -382,78 +501,29 @@ const Gallery = () => {
     });
   };
 
-  const handleUploadSubmit = async (e) => {
+  const handleUploadSubmit = (e) => {
     e.preventDefault();
     if (selectedFiles.length === 0) {
       enqueueSnackbar('Please select at least one file to upload.', { variant: 'warning' });
       return;
     }
 
-    try {
-      setUploading(true);
-      setUploadProgress(0);
-      setError('');
-      setSuccess('');
+    const targetFolder = uploadFolderId || (currentFolder ? currentFolder._id : null);
+    const destinationName = targetFolder
+      ? `Folder: ${folders.find((f) => f._id === targetFolder)?.name || 'Selected'}`
+      : 'General Gallery';
 
-      const targetFolder = uploadFolderId || (currentFolder ? currentFolder._id : null);
+    const { queuedCount } = enqueueFiles(selectedFiles, {
+      destinationType: 'gallery',
+      destinationId: targetFolder,
+      destinationName,
+    });
 
-      const uploadPromises = selectedFiles.map(async (file) => {
-        const formData = new FormData();
-        // IMPORTANT: Append folderId before photo so Multer receives fields first
-        if (targetFolder) {
-          formData.append('folderId', targetFolder);
-        }
-        formData.append('photo', file);
-
-        const endpoint = targetFolder
-          ? `/gallery?folderId=${encodeURIComponent(targetFolder)}`
-          : '/gallery';
-
-        const res = await API.post(endpoint, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          timeout: 0, // No client timeout for large media/video uploads
-          onUploadProgress: (progressEvent) => {
-            if (progressEvent.total) {
-              const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-              setUploadProgress(percent);
-            }
-          }
-        });
-        return res.data;
-      });
-
-      const results = await Promise.all(uploadPromises);
-      const successfulUploads = results.filter(r => r?.success).map(r => r.data.photo);
-      const failedCount = results.length - successfulUploads.length;
-
-      if (successfulUploads.length > 0) {
-        const successMsg = failedCount > 0
-          ? `Uploaded ${successfulUploads.length} item(s). Failed: ${failedCount}.`
-          : `Successfully uploaded all ${successfulUploads.length} item(s)!`;
-
-        enqueueSnackbar(successMsg, { variant: 'success' });
-
-        const isCurrentFolderMatch = currentFolder && targetFolder && String(targetFolder) === String(currentFolder._id);
-        if (activeTab === 'all' || (activeTab === 'folders' && isCurrentFolderMatch)) {
-          setPhotos(prev => [...successfulUploads, ...prev]);
-          setTotalPhotos(prev => prev + successfulUploads.length);
-        }
-
-        fetchFolders();
-
-        setUploadOpen(false);
-        filePreviews.forEach(url => URL.revokeObjectURL(url));
-        setSelectedFiles([]);
-        setFilePreviews([]);
-        setUploadProgress(0);
-      } else {
-        enqueueSnackbar('Failed to upload media. Please try again.', { variant: 'error' });
-      }
-    } catch (err) {
-      const errMsg = err.response?.data?.message || err.message || 'Failed to upload media.';
-      enqueueSnackbar(errMsg, { variant: 'error' });
-    } finally {
-      setUploading(false);
+    if (queuedCount > 0) {
+      filePreviews.forEach((url) => URL.revokeObjectURL(url));
+      setSelectedFiles([]);
+      setFilePreviews([]);
+      setUploadOpen(false);
     }
   };
 
@@ -479,11 +549,15 @@ const Gallery = () => {
       if (deleteTarget.type === 'folder') {
         const res = await API.delete(`/gallery/folders/${deleteTarget.id}`);
         if (res.data?.success) {
-          enqueueSnackbar('Folder and its media deleted successfully.', { variant: 'success' });
-          setFolders(prev => prev.filter(f => f._id !== deleteTarget.id));
-          if (currentFolder && currentFolder._id === deleteTarget.id) {
-            setCurrentFolder(null);
+          enqueueSnackbar('Folder, subfolders, and media deleted successfully.', { variant: 'success' });
+          const deletedIds = res.data?.data?.deletedFolderIds || [deleteTarget.id];
+          setFolders((prev) => prev.filter((f) => !deletedIds.includes(f._id)));
+          if (currentFolder && deletedIds.includes(currentFolder._id)) {
+            const parentId = getParentId(currentFolder);
+            const parent = parentId && !deletedIds.includes(parentId) ? folders.find((f) => f._id === parentId) : null;
+            setCurrentFolder(parent || null);
           }
+          fetchFolders();
         }
       } else if (deleteTarget.type === 'photo') {
         const res = await API.delete(`/gallery/${deleteTarget.id}`);
@@ -644,7 +718,7 @@ const Gallery = () => {
               <Link
                 component="button"
                 variant="h6"
-                onClick={handleBackToFolders}
+                onClick={() => setCurrentFolder(null)}
                 underline="hover"
                 sx={{
                   color: '#64748B',
@@ -658,38 +732,72 @@ const Gallery = () => {
                 <FolderIcon sx={{ fontSize: 20 }} />
                 Folders
               </Link>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography
-                  variant="h6"
-                  sx={{
-                    fontWeight: 700,
-                    color: '#1E293B',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 0.75
-                  }}
-                >
-                  <Box
+              {folderTrail.map((folderCrumb, idx) => {
+                const isLast = idx === folderTrail.length - 1;
+                if (isLast) {
+                  return (
+                    <Box key={folderCrumb._id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography
+                        variant="h6"
+                        sx={{
+                          fontWeight: 700,
+                          color: '#1E293B',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 0.75
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            width: 12,
+                            height: 12,
+                            borderRadius: '4px',
+                            bgcolor: folderCrumb.color || '#0F9D58'
+                          }}
+                        />
+                        {folderCrumb.name}
+                      </Typography>
+                      <Chip
+                        label={`${totalPhotos} items`}
+                        size="small"
+                        sx={{
+                          fontWeight: 600,
+                          bgcolor: '#F1F5F9',
+                          color: '#475569',
+                          fontSize: '12px'
+                        }}
+                      />
+                    </Box>
+                  );
+                }
+                return (
+                  <Link
+                    key={folderCrumb._id}
+                    component="button"
+                    variant="h6"
+                    onClick={() => setCurrentFolder(folderCrumb)}
+                    underline="hover"
                     sx={{
-                      width: 12,
-                      height: 12,
-                      borderRadius: '4px',
-                      bgcolor: currentFolder.color || '#0F9D58'
+                      color: '#64748B',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 0.5
                     }}
-                  />
-                  {currentFolder.name}
-                </Typography>
-                <Chip
-                  label={`${totalPhotos} items`}
-                  size="small"
-                  sx={{
-                    fontWeight: 600,
-                    bgcolor: '#F1F5F9',
-                    color: '#475569',
-                    fontSize: '12px'
-                  }}
-                />
-              </Box>
+                  >
+                    <Box
+                      sx={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: '3px',
+                        bgcolor: folderCrumb.color || '#0F9D58'
+                      }}
+                    />
+                    {folderCrumb.name}
+                  </Link>
+                );
+              })}
             </Breadcrumbs>
           </Box>
         ) : (
@@ -809,12 +917,12 @@ const Gallery = () => {
 
           {isAdminOrWarden && (
             <>
-              {/* If on Folders tab (root), show "New folder" */}
-              {activeTab === 'folders' && !currentFolder && (
+              {/* If on Folders tab, show "New folder" or "New subfolder" */}
+              {activeTab === 'folders' && (
                 <Button
                   variant="outlined"
                   startIcon={<CreateNewFolderIcon />}
-                  onClick={handleOpenCreateFolderDialog}
+                  onClick={() => handleOpenCreateFolderDialog(currentFolder ? currentFolder._id : null)}
                   sx={{
                     borderRadius: '8px',
                     borderColor: '#0088ff',
@@ -829,7 +937,7 @@ const Gallery = () => {
                     }
                   }}
                 >
-                  New folder
+                  {currentFolder ? 'New subfolder' : 'New folder'}
                 </Button>
               )}
 
@@ -936,10 +1044,10 @@ const Gallery = () => {
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 12 }}>
                   <CircularProgress sx={{ color: '#0088ff' }} />
                 </Box>
-              ) : folders.length === 0 ? (
+              ) : rootFolders.length === 0 ? (
                 <EmptyGalleryCard
                   isAdmin={isAdminOrWarden}
-                  onUpload={handleOpenCreateFolderDialog}
+                  onUpload={() => handleOpenCreateFolderDialog(null)}
                   buttonLabel="Create Folder"
                   title="No Folders Found"
                   subtitle="Organize your events and memories by creating folders."
@@ -947,346 +1055,147 @@ const Gallery = () => {
                 />
               ) : (
                 <Grid container spacing={3}>
-                  {folders.map((folder) => {
-                    const folderColorHex = folder.color || '#0F9D58';
-                    const creatorName = folder.createdBy?.name || 'Administrator';
-                    const isSelf = user?._id === folder.createdBy?._id;
-                    const shortDateText = formatShortDate(folder.updatedAt || folder.createdAt);
-                    const fullDateText = formatFullDate(folder.createdAt);
-
-                    return (
-                      <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={folder._id}>
-                        <Card
-                          onClick={() => handleOpenFolder(folder)}
-                          sx={{
-                            p: 2,
-                            borderRadius: '18px',
-                            cursor: 'pointer',
-                            backgroundColor: '#EFF4FA', // Google Drive exact card background
-                            border: '1px solid rgba(0, 0, 0, 0.05)',
-                            boxShadow: 'none',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 1.5,
-                            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                            '&:hover': {
-                              transform: 'translateY(-2px)',
-                              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.08)',
-                              backgroundColor: '#E7EEF8',
-                              '& .preview-media-content': {
-                                filter: 'blur(5px) brightness(0.85)',
-                                transform: 'scale(1.05)'
-                              },
-                              '& .folder-preview-overlay': {
-                                opacity: 1
-                              }
-                            }
-                          }}
-                        >
-                          {/* 1. Header: Folder Color Badge + Title + 3-Dots Menu */}
-                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0, flex: 1 }}>
-                              {/* Selected Color Badge instead of generic icon */}
-                              <Box
-                                sx={{
-                                  width: 26,
-                                  height: 26,
-                                  borderRadius: '6px',
-                                  bgcolor: folderColorHex,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  flexShrink: 0,
-                                  boxShadow: `0 2px 6px ${folderColorHex}40`
-                                }}
-                              >
-                                <FolderIcon sx={{ color: '#FFFFFF', fontSize: 16 }} />
-                              </Box>
-
-                              {/* Title */}
-                              <Typography
-                                variant="subtitle1"
-                                noWrap
-                                sx={{
-                                  fontWeight: 600,
-                                  color: '#1F1F1F',
-                                  fontSize: '15px',
-                                  letterSpacing: '-0.01em'
-                                }}
-                              >
-                                {folder.name}
-                              </Typography>
-                            </Box>
-
-                            {isAdminOrWarden && (
-                              <IconButton
-                                size="small"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveMenuFolder(folder);
-                                  setFolderMenuAnchor(e.currentTarget);
-                                }}
-                                sx={{
-                                  color: '#444746',
-                                  p: 0.5,
-                                  ml: 0.5,
-                                  '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.06)' }
-                                }}
-                              >
-                                <MoreVertIcon fontSize="small" />
-                              </IconButton>
-                            )}
-                          </Box>
-
-                          {/* 2. Middle Inset Preview Box with Hover Overlay */}
-                          <Box
-                            sx={{
-                              width: '100%',
-                              height: 155,
-                              backgroundColor: '#FFFFFF',
-                              borderRadius: '12px',
-                              overflow: 'hidden',
-                              border: '1px solid rgba(0, 0, 0, 0.04)',
-                              position: 'relative'
-                            }}
-                          >
-                            {/* Inner Preview Content (Blurs on Hover) */}
-                            <Box
-                              className="preview-media-content"
-                              sx={{
-                                width: '100%',
-                                height: '100%',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-                              }}
-                            >
-                              {folder.coverUrl ? (
-                                folder.coverResourceType === 'video' ? (
-                                  <Box sx={{ width: '100%', height: '100%', position: 'relative' }}>
-                                    <video
-                                      src={folder.coverUrl}
-                                      preload="metadata"
-                                      style={{
-                                        width: '100%',
-                                        height: '100%',
-                                        objectFit: 'cover',
-                                        display: 'block'
-                                      }}
-                                    />
-                                    <Box
-                                      sx={{
-                                        position: 'absolute',
-                                        top: '50%',
-                                        left: '50%',
-                                        transform: 'translate(-50%, -50%)',
-                                        width: 40,
-                                        height: 40,
-                                        borderRadius: '50%',
-                                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        color: '#FFFFFF'
-                                      }}
-                                    >
-                                      <PlayArrowIcon sx={{ fontSize: 24 }} />
-                                    </Box>
-                                  </Box>
-                                ) : (
-                                  <img
-                                    src={folder.coverUrl}
-                                    alt={folder.name}
-                                    loading="lazy"
-                                    style={{
-                                      width: '100%',
-                                      height: '100%',
-                                      objectFit: 'cover',
-                                      display: 'block'
-                                    }}
-                                  />
-                                )
-                              ) : (
-                                /* Preload Skeleton of Media when no image uploaded */
-                                <Box
-                                  sx={{
-                                    width: '100%',
-                                    height: '100%',
-                                    p: 2,
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    justifyContent: 'space-between',
-                                    bgcolor: '#FAFAFA'
-                                  }}
-                                >
-                                  <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
-                                    <Skeleton variant="rounded" width={36} height={36} sx={{ borderRadius: '8px', bgcolor: '#EBEFF5' }} />
-                                    <Box sx={{ flex: 1 }}>
-                                      <Skeleton variant="text" width="70%" height={16} sx={{ bgcolor: '#EBEFF5' }} />
-                                      <Skeleton variant="text" width="40%" height={12} sx={{ bgcolor: '#F0F4F8' }} />
-                                    </Box>
-                                  </Box>
-
-                                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                    <Skeleton variant="rectangular" width="100%" height={8} sx={{ borderRadius: '4px', bgcolor: '#F0F4F8' }} />
-                                    <Skeleton variant="rectangular" width="85%" height={8} sx={{ borderRadius: '4px', bgcolor: '#F0F4F8' }} />
-                                    <Skeleton variant="rectangular" width="60%" height={8} sx={{ borderRadius: '4px', bgcolor: '#F0F4F8' }} />
-                                  </Box>
-
-                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <Skeleton variant="text" width={50} height={12} sx={{ bgcolor: '#EBEFF5' }} />
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, opacity: 0.4 }}>
-                                      <ImageIcon sx={{ fontSize: 16, color: folderColorHex }} />
-                                      <Typography variant="caption" sx={{ fontSize: '10px', color: '#64748B', fontWeight: 600 }}>
-                                        Empty
-                                      </Typography>
-                                    </Box>
-                                  </Box>
-                                </Box>
-                              )}
-                            </Box>
-
-                            {/* Hover Overlay Above Blurred Preview */}
-                            <Box
-                              className="folder-preview-overlay"
-                              sx={{
-                                position: 'absolute',
-                                inset: 0,
-                                zIndex: 3,
-                                bgcolor: 'rgba(15, 23, 42, 0.65)',
-                                backdropFilter: 'blur(2px)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                p: 2,
-                                textAlign: 'center',
-                                opacity: 0,
-                                transition: 'opacity 0.25s ease',
-                                pointerEvents: 'none'
-                              }}
-                            >
-                              <Typography
-                                variant="subtitle2"
-                                sx={{
-                                  fontWeight: 700,
-                                  color: '#FFFFFF',
-                                  fontSize: '14px',
-                                  textShadow: '0 2px 4px rgba(0,0,0,0.6)',
-                                  mb: 0.5,
-                                  lineHeight: 1.3
-                                }}
-                              >
-                                Created by {creatorName}
-                              </Typography>
-                              <Typography
-                                variant="caption"
-                                sx={{
-                                  color: 'rgba(255, 255, 255, 0.9)',
-                                  fontSize: '12px',
-                                  fontWeight: 500,
-                                  textShadow: '0 1px 3px rgba(0,0,0,0.6)'
-                                }}
-                              >
-                                {fullDateText}
-                              </Typography>
-                            </Box>
-                          </Box>
-
-                          {/* 3. Footer: Avatar + Date Info */}
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, pt: 0.25, minHeight: '28px' }}>
-                            <Avatar
-                              src={folder.createdBy?.profilePhoto?.url || ''}
-                              sx={{
-                                width: 26,
-                                height: 26,
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                bgcolor: folderColorHex,
-                                color: '#FFFFFF'
-                              }}
-                            >
-                              {creatorName.charAt(0).toUpperCase()}
-                            </Avatar>
-
-                            <Typography
-                              variant="body2"
-                              noWrap
-                              sx={{
-                                fontSize: '13px',
-                                color: '#444746',
-                                fontWeight: 400
-                              }}
-                            >
-                              {isSelf ? 'You opened' : creatorName} • {shortDateText}
-                            </Typography>
-                          </Box>
-                        </Card>
-                      </Grid>
-                    );
-                  })}
+                  {rootFolders.map((folder) => renderFolderCard(folder))}
                 </Grid>
               )}
             </Box>
           ) : (
-            /* View 2B: Inside Folder Photos View */
+            /* View 2B: Inside Folder View (Subfolders + Media) */
             <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-              {photos.length > 0 && (
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Checkbox
-                      checked={photos.length > 0 && selectedIds.length === photos.length}
-                      indeterminate={selectedIds.length > 0 && selectedIds.length < photos.length}
-                      onChange={handleSelectAll}
-                      sx={{ color: '#667085', '&.Mui-checked': { color: '#0088ff' } }}
-                    />
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#344054' }}>
-                      Select all
+              {/* 1. Subfolders Section if any exist inside current folder */}
+              {childFolders.length > 0 && (
+                <Box sx={{ mb: 4 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <FolderIcon sx={{ fontSize: 20, color: '#64748B' }} />
+                      Folders
+                      <Chip label={childFolders.length} size="small" sx={{ height: 20, fontSize: '11px', fontWeight: 700, bgcolor: '#E2E8F0', color: '#475569' }} />
                     </Typography>
+                    {isAdminOrWarden && (
+                      <Button
+                        size="small"
+                        startIcon={<CreateNewFolderIcon fontSize="small" />}
+                        onClick={() => handleOpenCreateFolderDialog(currentFolder._id)}
+                        sx={{ textTransform: 'none', fontWeight: 600, color: '#0088ff' }}
+                      >
+                        New subfolder
+                      </Button>
+                    )}
                   </Box>
-                  <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 500 }}>
-                    Showing {photos.length} of {totalPhotos} items
-                  </Typography>
+                  <Grid container spacing={3}>
+                    {childFolders.map((folder) => renderFolderCard(folder))}
+                  </Grid>
                 </Box>
               )}
 
-              {/* Photos Grid inside Folder */}
-              <Box sx={{ flex: 1 }}>
+              {/* 2. Media Section inside this folder */}
+              <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                {childFolders.length > 0 && (photos.length > 0 || photosLoading) && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <CollectionsIcon sx={{ fontSize: 20, color: '#64748B' }} />
+                      Media
+                      {totalPhotos > 0 && (
+                        <Chip label={totalPhotos} size="small" sx={{ height: 20, fontSize: '11px', fontWeight: 700, bgcolor: '#E2E8F0', color: '#475569' }} />
+                      )}
+                    </Typography>
+                  </Box>
+                )}
+
+                {/* Photos selection bar */}
+                {photos.length > 0 && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Checkbox
+                        checked={photos.length > 0 && selectedIds.length === photos.length}
+                        indeterminate={selectedIds.length > 0 && selectedIds.length < photos.length}
+                        onChange={handleSelectAll}
+                        sx={{ color: '#667085', '&.Mui-checked': { color: '#0088ff' } }}
+                      />
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#344054' }}>
+                        Select all
+                      </Typography>
+                    </Box>
+                    <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 500 }}>
+                      Showing {photos.length} of {totalPhotos} items
+                    </Typography>
+                  </Box>
+                )}
+
                 {photosLoading ? (
                   <Box sx={{ display: 'flex', justifyContent: 'center', py: 12 }}>
                     <CircularProgress sx={{ color: '#0088ff' }} />
                   </Box>
                 ) : photos.length === 0 ? (
-                  <EmptyGalleryCard
-                    isAdmin={isAdminOrWarden}
-                    onUpload={handleOpenUpload}
-                    title="No Media Found"
-                    subtitle="Add photos and videos directly into this folder."
-                    buttonLabel="Upload to Folder"
-                  />
+                  childFolders.length > 0 ? (
+                    <Box
+                      sx={{
+                        p: 4,
+                        textAlign: 'center',
+                        backgroundColor: '#F8FAFC',
+                        border: '1px dashed #E2E8F0',
+                        borderRadius: '16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 1.5,
+                        my: 2
+                      }}
+                    >
+                      <ImageIcon sx={{ fontSize: 36, color: '#94A3B8' }} />
+                      <Typography variant="body2" sx={{ color: '#64748B', fontWeight: 500 }}>
+                        No media uploaded directly into this folder yet.
+                      </Typography>
+                      {isAdminOrWarden && (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<UploadIcon />}
+                          onClick={handleOpenUpload}
+                          sx={{ textTransform: 'none', fontWeight: 600, borderRadius: '8px', mt: 0.5 }}
+                        >
+                          Upload to this folder
+                        </Button>
+                      )}
+                    </Box>
+                  ) : (
+                    <EmptyGalleryCard
+                      isAdmin={isAdminOrWarden}
+                      onUpload={handleOpenUpload}
+                      title="Folder is Empty"
+                      // subtitle="Create subfolders to organize your events, or upload photos and videos directly here."
+                      buttonLabel="Upload to Folder"
+                      icon={<FolderOpenIcon sx={{ fontSize: 40, color: currentFolder.color || '#0F9D58' }} />}
+                      secondaryButton={{
+                        label: 'New Subfolder',
+                        icon: <CreateNewFolderIcon />,
+                        onClick: () => handleOpenCreateFolderDialog(currentFolder._id)
+                      }}
+                    />
+                  )
                 ) : (
                   <Grid container spacing={2.5}>
                     {photos.map((photo) => renderPhotoCard(photo))}
                   </Grid>
                 )}
-              </Box>
 
-              {/* Infinite Scroll Sentinel inside Folder (Pushed to bottom of page) */}
-              <Box ref={observerTarget} sx={{ mt: 'auto', pt: 6, pb: 2, display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' }}>
-                {photosLoadingMore && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: '#0088ff' }}>
-                    <CircularProgress size={22} color="inherit" />
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      Loading more items in {currentFolder.name}...
+                {/* Infinite Scroll Sentinel inside Folder */}
+                <Box ref={observerTarget} sx={{ mt: 'auto', pt: 6, pb: 2, display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' }}>
+                  {photosLoadingMore && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: '#0088ff' }}>
+                      <CircularProgress size={22} color="inherit" />
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        Loading more items in {currentFolder.name}...
+                      </Typography>
+                    </Box>
+                  )}
+                  {!hasMore && photos.length > 0 && !photosLoading && (
+                    <Typography variant="body2" sx={{ color: '#94A3B8', fontWeight: 500, textAlign: 'center' }}>
+                      All items in this folder loaded.
                     </Typography>
-                  </Box>
-                )}
-                {!hasMore && photos.length > 0 && !photosLoading && (
-                  <Typography variant="body2" sx={{ color: '#94A3B8', fontWeight: 500, textAlign: 'center' }}>
-                    All items in this folder loaded.
-                  </Typography>
-                )}
+                  )}
+                </Box>
               </Box>
             </Box>
           )}
@@ -1304,10 +1213,20 @@ const Gallery = () => {
           sx: {
             borderRadius: '12px',
             boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
-            minWidth: 160
+            minWidth: 170
           }
         }}
       >
+        <MenuItem
+          onClick={() => {
+            if (activeMenuFolder) handleOpenCreateSubfolder(activeMenuFolder);
+          }}
+        >
+          <ListItemIcon>
+            <CreateNewFolderIcon fontSize="small" sx={{ color: '#0088ff' }} />
+          </ListItemIcon>
+          <ListItemText primary="New Subfolder" />
+        </MenuItem>
         <MenuItem
           onClick={() => {
             if (activeMenuFolder) handleOpenEditFolderDialog(activeMenuFolder);
@@ -1349,7 +1268,7 @@ const Gallery = () => {
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 3, pt: 3, pb: 1 }}>
           <Typography variant="h6" sx={{ fontWeight: 800, color: '#1E293B', letterSpacing: '-0.02em' }}>
-            {folderDialogMode === 'create' ? 'New Folder' : 'Edit Folder'}
+            {folderDialogMode === 'create' ? (folderParentId ? 'New Subfolder' : 'New Folder') : 'Edit Folder'}
           </Typography>
           <IconButton
             onClick={() => !folderSubmitting && setFolderDialogOpen(false)}
@@ -1362,6 +1281,29 @@ const Gallery = () => {
 
         <form onSubmit={handleFolderSubmit}>
           <DialogContent sx={{ px: 3, py: 2 }}>
+            {folderDialogMode === 'create' && folderParentId && (
+              <Box
+                sx={{
+                  mb: 2.5,
+                  p: 1.5,
+                  bgcolor: '#F8FAFC',
+                  borderRadius: '12px',
+                  border: '1px solid #E2E8F0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1
+                }}
+              >
+                <FolderIcon sx={{ color: '#64748B', fontSize: 18 }} />
+                <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 500 }}>
+                  Parent Folder:
+                </Typography>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: '#1E293B' }}>
+                  {folders.find((f) => f._id === folderParentId)?.name || 'Parent folder'}
+                </Typography>
+              </Box>
+            )}
+
             <TextField
               label="Folder Name"
               fullWidth
@@ -1369,7 +1311,7 @@ const Gallery = () => {
               required
               value={folderName}
               onChange={(e) => setFolderName(e.target.value)}
-              placeholder="e.g. Side bar"
+              placeholder={folderParentId ? "e.g. 2024 Photos" : "e.g. Events"}
               sx={{ mb: 3 }}
             />
 
@@ -1427,7 +1369,7 @@ const Gallery = () => {
               {folderSubmitting ? (
                 <CircularProgress size={20} sx={{ color: '#fff' }} />
               ) : folderDialogMode === 'create' ? (
-                'Create Folder'
+                folderParentId ? 'Create Subfolder' : 'Create Folder'
               ) : (
                 'Save Changes'
               )}
@@ -1441,13 +1383,13 @@ const Gallery = () => {
       {/* ------------------------------------------------------------- */}
       <Dialog
         open={uploadOpen}
-        onClose={() => !uploading && setUploadOpen(false)}
+        onClose={() => setUploadOpen(false)}
         maxWidth="sm"
         fullWidth
         PaperProps={{
           sx: {
             backgroundColor: '#ffffff',
-            borderRadius: '8px',
+            borderRadius: '12px',
             boxShadow: '0 20px 40px rgba(0, 0, 0, 0.1)',
             overflow: 'hidden'
           }
@@ -1458,8 +1400,7 @@ const Gallery = () => {
             Upload Media
           </Typography>
           <IconButton
-            onClick={() => !uploading && setUploadOpen(false)}
-            disabled={uploading}
+            onClick={() => setUploadOpen(false)}
             size="small"
             sx={{ bgcolor: '#F1F5F9' }}
           >
@@ -1470,20 +1411,26 @@ const Gallery = () => {
         <form onSubmit={handleUploadSubmit}>
           <DialogContent sx={{ px: 3, py: 2 }}>
             {/* Target Folder Selector */}
-            <FormControl fullWidth sx={{ mb: 2.5 }} size="small" disabled={uploading}>
+            <FormControl fullWidth sx={{ mb: 2.5 }} size="small">
               <InputLabel id="upload-folder-select-label">Destination Folder</InputLabel>
               <Select
                 labelId="upload-folder-select-label"
                 value={uploadFolderId}
                 label="Destination Folder"
                 onChange={(e) => setUploadFolderId(e.target.value)}
-                disabled={uploading}
               >
-                {folders.map((f) => (
-                  <MenuItem key={f._id} value={f._id}>
+                {folderTreeOptions.map((f) => (
+                  <MenuItem key={f._id} value={f._id} sx={{ pl: 2 + f.depth * 2 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Box sx={{ width: 10, height: 10, borderRadius: '3px', bgcolor: f.color || '#0F9D58' }} />
-                      <span>{f.name}</span>
+                      <Box sx={{ width: 10, height: 10, borderRadius: '3px', bgcolor: f.color || '#0F9D58', flexShrink: 0 }} />
+                      <Typography variant="body2" sx={{ fontWeight: f.depth === 0 ? 600 : 400 }}>
+                        {f.depth > 0 ? `↳ ${f.name}` : f.name}
+                      </Typography>
+                      {f.depth > 0 && (
+                        <Typography variant="caption" sx={{ color: '#94A3B8', fontSize: '11px', ml: 0.5 }}>
+                          ({f.fullPath})
+                        </Typography>
+                      )}
                     </Box>
                   </MenuItem>
                 ))}
@@ -1501,12 +1448,9 @@ const Gallery = () => {
                 backgroundColor: '#F8FAFC',
                 mb: 2,
                 position: 'relative',
-                cursor: uploading ? 'not-allowed' : 'pointer',
-                pointerEvents: uploading ? 'none' : 'auto',
-                opacity: uploading ? 0.6 : 1,
-                userSelect: uploading ? 'none' : 'auto',
+                cursor: 'pointer',
                 transition: 'all 0.2s ease-in-out',
-                '&:hover': uploading ? {} : {
+                '&:hover': {
                   backgroundColor: 'rgba(0, 136, 255, 0.02)',
                   borderColor: '#0088ff',
                   '& .upload-icon-box': {
@@ -1524,7 +1468,6 @@ const Gallery = () => {
                 multiple
                 style={{ display: 'none' }}
                 onChange={handleFileChange}
-                disabled={uploading}
               />
 
               {filePreviews.length > 0 ? (
@@ -1585,7 +1528,6 @@ const Gallery = () => {
                           )}
                           <IconButton
                             size="small"
-                            disabled={uploading}
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
@@ -1610,13 +1552,12 @@ const Gallery = () => {
 
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569' }}>
-                      Selected  {selectedFiles.length}
+                      Selected {selectedFiles.length} file(s)
                     </Typography>
                     <Button
                       variant="text"
                       startIcon={<AddIcon />}
                       size="small"
-                      disabled={uploading}
                       component="span"
                       sx={{ textTransform: 'none', fontWeight: 600 }}
                     >
@@ -1644,47 +1585,38 @@ const Gallery = () => {
                     <UploadIcon sx={{ fontSize: 26 }} />
                   </Box>
                   <Typography variant="body1" sx={{ fontWeight: 600, color: '#334155', mb: 0.5 }}>
-                    Click to select files
+                    Click to select multiple files
                   </Typography>
                   <Typography variant="caption" sx={{ color: '#64748B', display: 'block' }}>
-                    Images (upto 10 MB) & Videos (upto 100 MB)
+                    Images (up to 9.8 MB) & Videos (up to 99 MB) • Any number of files
                   </Typography>
-
                 </Box>
               )}
             </Box>
 
-            {/* Live Upload Progress Indicator */}
-            {uploading && (
-              <Box sx={{ mt: 2, p: 2, bgcolor: '#EFF6FF', borderRadius: '12px', border: '1px solid #BFDBFE' }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                  <Typography variant="body2" sx={{ color: '#0088ff', display: 'block', mt: 0.75, }}>
-                    Please keep this dialog open untill the process finishes.
-                  </Typography>
-                  <Typography variant="caption" sx={{ fontWeight: 700, color: '#2563EB' }}>
-                    {uploadProgress}%
-                  </Typography>
-                </Box>
-                <LinearProgress
-                  variant={uploadProgress > 0 ? "determinate" : "indeterminate"}
-                  value={uploadProgress}
-                  sx={{
-                    height: 8,
-                    borderRadius: 4,
-                    bgcolor: '#DBEAFE',
-                    '& .MuiLinearProgress-bar': { bgcolor: '#0088ff' }
-                  }}
-                />
-
-              </Box>
-            )}
+            {/* Sequential Background Queue Info Banner */}
+            <Box
+              sx={{
+                p: 1.8,
+                bgcolor: '#F0FDF4',
+                borderRadius: '12px',
+                border: '1px solid #BBF7D0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1.5,
+              }}
+            >
+              <UploadIcon sx={{ color: '#16A34A', fontSize: 22 }} />
+              <Typography variant="caption" sx={{ color: '#166534', fontWeight: 500, lineHeight: 1.4 }}>
+                Files upload 1-by-1 in a background queue. You can safely close this popup at any time and continue browsing!
+              </Typography>
+            </Box>
           </DialogContent>
 
           <DialogActions sx={{ p: 3, display: 'flex', gap: 1.5 }}>
             <Button
               onClick={() => setUploadOpen(false)}
               color="inherit"
-              disabled={uploading}
               sx={{ textTransform: 'none', fontWeight: 600, borderRadius: '10px' }}
             >
               Cancel
@@ -1692,7 +1624,7 @@ const Gallery = () => {
             <Button
               type="submit"
               variant="contained"
-              disabled={uploading || selectedFiles.length === 0}
+              disabled={selectedFiles.length === 0}
               sx={{
                 background: '#0088ff',
                 fontWeight: 600,
@@ -1703,13 +1635,7 @@ const Gallery = () => {
                 '&:hover': { background: '#0077ee' }
               }}
             >
-              {uploading ? (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <CircularProgress size={18} sx={{ color: '#fff' }} />
-                  <span>{uploadProgress < 100 ? `Uploading (${uploadProgress}%)...` : 'Processing...'}</span>
-                </Box>
-              ) : (
-                "Upload")}
+              {selectedFiles.length > 0 ? `Upload ${selectedFiles.length} item(s)` : 'Upload'}
             </Button>
           </DialogActions>
         </form>
@@ -1737,7 +1663,7 @@ const Gallery = () => {
         <DialogContent sx={{ pb: 1 }}>
           <Typography variant="body1" sx={{ color: '#64748B', lineHeight: 1.5 }}>
             {deleteTarget?.type === 'folder'
-              ? `Are you sure you want to delete folder "${deleteTarget.name}"? All ${deleteTarget.count || 0} media assets inside this folder will also be permanently deleted.`
+              ? `Are you sure you want to delete folder "${deleteTarget.name}"? This folder${deleteTarget.subfolderCount ? `, all its ${deleteTarget.subfolderCount} subfolder(s),` : ''} and all ${deleteTarget.count || 0} media assets inside will be permanently deleted.`
               : deleteTarget?.type === 'bulk-photos'
                 ? `Are you sure you want to delete the ${deleteTarget.ids?.length} selected media assets?`
                 : 'Are you sure you want to permanently delete this media item? This action cannot be undone.'}
@@ -1860,6 +1786,327 @@ const Gallery = () => {
       </Modal>
     </Box>
   );
+
+  // -------------------------------------------------------------
+  // Helper Component: Render Single Folder Card
+  // -------------------------------------------------------------
+  function renderFolderCard(folder) {
+    const folderColorHex = folder.color || '#0F9D58';
+    const creatorName = folder.createdBy?.name || 'Administrator';
+    const isSelf = user?._id === folder.createdBy?._id;
+    const shortDateText = formatShortDate(folder.updatedAt || folder.createdAt);
+    const fullDateText = formatFullDate(folder.createdAt);
+
+    return (
+      <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={folder._id}>
+        <Card
+          onClick={() => handleOpenFolder(folder)}
+          sx={{
+            p: 2,
+            borderRadius: '18px',
+            cursor: 'pointer',
+            backgroundColor: '#EFF4FA', // Google Drive exact card background
+            border: '1px solid rgba(0, 0, 0, 0.05)',
+            boxShadow: 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1.5,
+            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.08)',
+              backgroundColor: '#E7EEF8',
+              '& .preview-media-content': {
+                filter: 'blur(5px) brightness(0.85)',
+                transform: 'scale(1.05)'
+              },
+              '& .folder-preview-overlay': {
+                opacity: 1
+              }
+            }
+          }}
+        >
+          {/* 1. Header: Folder Color Badge + Title + 3-Dots Menu */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0, flex: 1 }}>
+              {/* Selected Color Badge */}
+              <Box
+                sx={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: '6px',
+                  bgcolor: folderColorHex,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  boxShadow: `0 2px 6px ${folderColorHex}40`
+                }}
+              >
+                <FolderIcon sx={{ color: '#FFFFFF', fontSize: 16 }} />
+              </Box>
+
+              {/* Title */}
+              <Typography
+                variant="subtitle1"
+                noWrap
+                sx={{
+                  fontWeight: 600,
+                  color: '#1F1F1F',
+                  fontSize: '15px',
+                  letterSpacing: '-0.01em'
+                }}
+              >
+                {folder.name}
+              </Typography>
+            </Box>
+
+            {isAdminOrWarden && (
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveMenuFolder(folder);
+                  setFolderMenuAnchor(e.currentTarget);
+                }}
+                sx={{
+                  color: '#444746',
+                  p: 0.5,
+                  ml: 0.5,
+                  '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.06)' }
+                }}
+              >
+                <MoreVertIcon fontSize="small" />
+              </IconButton>
+            )}
+          </Box>
+
+          {/* 2. Middle Inset Preview Box with Hover Overlay */}
+          <Box
+            sx={{
+              width: '100%',
+              height: 155,
+              backgroundColor: '#FFFFFF',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              border: '1px solid rgba(0, 0, 0, 0.04)',
+              position: 'relative'
+            }}
+          >
+            {/* Inner Preview Content (Blurs on Hover) */}
+            <Box
+              className="preview-media-content"
+              sx={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+              }}
+            >
+              {folder.coverUrl ? (
+                folder.coverResourceType === 'video' ? (
+                  <Box sx={{ width: '100%', height: '100%', position: 'relative' }}>
+                    <video
+                      src={folder.coverUrl}
+                      preload="metadata"
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        display: 'block'
+                      }}
+                    />
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        width: 40,
+                        height: 40,
+                        borderRadius: '50%',
+                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#FFFFFF'
+                      }}
+                    >
+                      <PlayArrowIcon sx={{ fontSize: 24 }} />
+                    </Box>
+                  </Box>
+                ) : (
+                  <img
+                    src={folder.coverUrl}
+                    alt={folder.name}
+                    loading="lazy"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      display: 'block'
+                    }}
+                  />
+                )
+              ) : (
+                /* Preload Skeleton of Media when no image uploaded */
+                <Box
+                  sx={{
+                    width: '100%',
+                    height: '100%',
+                    p: 2,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    bgcolor: '#FAFAFA'
+                  }}
+                >
+                  <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+                    <Skeleton variant="rounded" width={36} height={36} sx={{ borderRadius: '8px', bgcolor: '#EBEFF5' }} />
+                    <Box sx={{ flex: 1 }}>
+                      <Skeleton variant="text" width="70%" height={16} sx={{ bgcolor: '#EBEFF5' }} />
+                      <Skeleton variant="text" width="40%" height={12} sx={{ bgcolor: '#F0F4F8' }} />
+                    </Box>
+                  </Box>
+
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Skeleton variant="rectangular" width="100%" height={8} sx={{ borderRadius: '4px', bgcolor: '#F0F4F8' }} />
+                    <Skeleton variant="rectangular" width="85%" height={8} sx={{ borderRadius: '4px', bgcolor: '#F0F4F8' }} />
+                    <Skeleton variant="rectangular" width="60%" height={8} sx={{ borderRadius: '4px', bgcolor: '#F0F4F8' }} />
+                  </Box>
+
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Skeleton variant="text" width={50} height={12} sx={{ bgcolor: '#EBEFF5' }} />
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, opacity: 0.4 }}>
+                      <ImageIcon sx={{ fontSize: 16, color: folderColorHex }} />
+                      <Typography variant="caption" sx={{ fontSize: '10px', color: '#64748B', fontWeight: 600 }}>
+                        Empty
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              )}
+            </Box>
+
+            {/* Hover Overlay Above Blurred Preview */}
+            <Box
+              className="folder-preview-overlay"
+              sx={{
+                position: 'absolute',
+                inset: 0,
+                zIndex: 3,
+                bgcolor: 'rgba(15, 23, 42, 0.65)',
+                backdropFilter: 'blur(2px)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                p: 2,
+                textAlign: 'center',
+                opacity: 0,
+                transition: 'opacity 0.25s ease',
+                pointerEvents: 'none'
+              }}
+            >
+              <Typography
+                variant="subtitle2"
+                sx={{
+                  fontWeight: 700,
+                  color: '#FFFFFF',
+                  fontSize: '14px',
+                  textShadow: '0 2px 4px rgba(0,0,0,0.6)',
+                  mb: 0.5,
+                  lineHeight: 1.3
+                }}
+              >
+                Created by {creatorName}
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: 'rgba(255, 255, 255, 0.9)',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  textShadow: '0 1px 3px rgba(0,0,0,0.6)'
+                }}
+              >
+                {fullDateText}
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* 3. Footer: Avatar + Date Info + Item & Subfolder Counts */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pt: 0.25, minHeight: '28px', gap: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0, flex: 1 }}>
+              <Avatar
+                src={folder.createdBy?.profilePhoto?.url || ''}
+                sx={{
+                  width: 26,
+                  height: 26,
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  bgcolor: folderColorHex,
+                  color: '#FFFFFF',
+                  flexShrink: 0
+                }}
+              >
+                {creatorName.charAt(0).toUpperCase()}
+              </Avatar>
+
+              <Typography
+                variant="body2"
+                noWrap
+                sx={{
+                  fontSize: '13px',
+                  color: '#444746',
+                  fontWeight: 400
+                }}
+              >
+                {isSelf ? 'You opened' : creatorName} • {shortDateText}
+              </Typography>
+            </Box>
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
+              {folder.subfolderCount > 0 && (
+                <Tooltip title={`${folder.subfolderCount} subfolder${folder.subfolderCount > 1 ? 's' : ''}`}>
+                  <Chip
+                    icon={<FolderIcon sx={{ fontSize: '12px !important', color: `${folderColorHex} !important` }} />}
+                    label={folder.subfolderCount}
+                    size="small"
+                    sx={{
+                      height: 20,
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      bgcolor: '#FFFFFF',
+                      border: '1px solid rgba(0,0,0,0.08)'
+                    }}
+                  />
+                </Tooltip>
+              )}
+              {folder.itemCount > 0 && (
+                <Tooltip title={`${folder.itemCount} item${folder.itemCount > 1 ? 's' : ''}`}>
+                  <Chip
+                    icon={<ImageIcon sx={{ fontSize: '12px !important', color: '#64748B !important' }} />}
+                    label={folder.itemCount}
+                    size="small"
+                    sx={{
+                      height: 20,
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      bgcolor: '#FFFFFF',
+                      border: '1px solid rgba(0,0,0,0.08)'
+                    }}
+                  />
+                </Tooltip>
+              )}
+            </Box>
+          </Box>
+        </Card>
+      </Grid>
+    );
+  }
 
   // -------------------------------------------------------------
   // Helper Component: Render Single Photo Card
@@ -2078,30 +2325,30 @@ const Gallery = () => {
 // -------------------------------------------------------------
 // Helper Component: Empty State Card
 // -------------------------------------------------------------
-function EmptyGalleryCard({ isAdmin, onUpload, title, subtitle, buttonLabel = 'Upload Media', icon }) {
+function EmptyGalleryCard({ isAdmin, onUpload, title, subtitle, buttonLabel = 'Upload Media', icon, secondaryButton = null }) {
   return (
     <Card
       sx={{
         p: 6,
         textAlign: 'center',
-        backgroundColor: '#ffffff',
-        border: '1px dashed #E2E8F0',
-        borderRadius: '24px',
+        backgroundColor: 'transparent',
+        // borderRadius: '24px',
+        border:"none",
         boxShadow: 'none',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: "70vh",
+        minHeight: "60vh",
         m: 'auto',
       }}
     >
-      {/* <Box
+      <Box
         sx={{
-          width: 88,
-          height: 88,
-          borderRadius: '24px',
-          border: '2px solid #F1F5F9',
+          width: 80,
+          height: 80,
+          borderRadius: '20px',
+          border: '2px solid #d5d5d5ff',
           background: 'linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)',
           display: 'flex',
           alignItems: 'center',
@@ -2109,37 +2356,65 @@ function EmptyGalleryCard({ isAdmin, onUpload, title, subtitle, buttonLabel = 'U
           mb: 2.5
         }}
       >
-        {icon || <CameraIcon sx={{ fontSize: 38, color: '#0088ff' }} />}
-      </Box> */}
+        {icon || <CameraIcon sx={{ fontSize: 36, color: '#0088ff' }} />}
+      </Box>
 
       <Typography variant="h6" sx={{ fontWeight: 700, color: '#1E293B', mb: 1 }}>
         {title}
       </Typography>
 
-      <Typography variant="body2" sx={{ color: '#64748B', maxWidth: 400, mb: 3 }}>
+      <Typography variant="body2" sx={{ color: '#64748B', maxWidth: 440, mb: 3 }}>
         {subtitle}
       </Typography>
 
       {isAdmin && (
-        <Button
-          variant="contained"
-          startIcon={<UploadIcon />}
-          onClick={onUpload}
-          sx={{
-            borderRadius: '12px',
-            textTransform: 'none',
-            fontWeight: 600,
-            px: 3.5,
-            py: 1.2,
-            fontSize: '14px',
-            background: '#0088ff',
-            '&:hover': {
-              background: '#0077ee'
-            }
-          }}
-        >
-          {buttonLabel}
-        </Button>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
+          {secondaryButton && (
+            <Button
+              variant="outlined"
+              startIcon={secondaryButton.icon || <CreateNewFolderIcon />}
+              onClick={secondaryButton.onClick}
+              sx={{
+                borderRadius: '12px',
+                textTransform: 'none',
+                fontWeight: 600,
+                px: 3,
+                py: 1.1,
+                fontSize: '14px',
+                borderColor: '#0088ff',
+                color: '#0088ff',
+                '&:hover': {
+                  borderColor: '#0077ee',
+                  backgroundColor: 'rgba(0, 136, 255, 0.04)'
+                }
+              }}
+            >
+              {secondaryButton.label}
+            </Button>
+          )}
+
+          {onUpload && (
+            <Button
+              variant="contained"
+              startIcon={<UploadIcon />}
+              onClick={onUpload}
+              sx={{
+                borderRadius: '12px',
+                textTransform: 'none',
+                fontWeight: 600,
+                px: 3.5,
+                py: 1.2,
+                fontSize: '14px',
+                background: '#0088ff',
+                '&:hover': {
+                  background: '#0077ee'
+                }
+              }}
+            >
+              {buttonLabel}
+            </Button>
+          )}
+        </Box>
       )}
     </Card>
   );

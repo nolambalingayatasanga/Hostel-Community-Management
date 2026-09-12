@@ -156,20 +156,44 @@ exports.deleteGalleryPhoto = async (req, res, next) => {
 };
 
 /**
- * Get all gallery folders with item counts & cover preview
+ * Helper to recursively retrieve all descendant folder IDs for a given folder
+ */
+const getAllDescendantFolderIds = async (folderId) => {
+  const ids = [folderId];
+  const queue = [folderId];
+  while (queue.length > 0) {
+    const currId = queue.shift();
+    const children = await GalleryFolder.find({ parentFolder: currId }, '_id').lean();
+    for (const child of children) {
+      ids.push(child._id);
+      queue.push(child._id);
+    }
+  }
+  return ids;
+};
+
+/**
+ * Get all gallery folders with item counts, subfolder counts & cover preview
  */
 exports.getGalleryFolders = async (req, res, next) => {
   try {
     const folders = await GalleryFolder.find()
       .sort({ createdAt: -1 })
       .populate('createdBy', 'name profilePhoto')
+      .populate('parentFolder', 'name color')
       .lean();
 
     // Aggregate photo count and cover per folder
-    const counts = await GalleryPhoto.aggregate([
-      { $match: { folder: { $ne: null } } },
-      { $sort: { createdAt: -1 } },
-      { $group: { _id: '$folder', count: { $sum: 1 }, latestUrl: { $first: '$url' }, latestResourceType: { $first: '$resourceType' } } }
+    const [counts, subfolderCounts] = await Promise.all([
+      GalleryPhoto.aggregate([
+        { $match: { folder: { $ne: null } } },
+        { $sort: { createdAt: -1 } },
+        { $group: { _id: '$folder', count: { $sum: 1 }, latestUrl: { $first: '$url' }, latestResourceType: { $first: '$resourceType' } } }
+      ]),
+      GalleryFolder.aggregate([
+        { $match: { parentFolder: { $ne: null } } },
+        { $group: { _id: '$parentFolder', count: { $sum: 1 } } }
+      ])
     ]);
 
     const countMap = {};
@@ -177,9 +201,15 @@ exports.getGalleryFolders = async (req, res, next) => {
       countMap[c._id.toString()] = { count: c.count, latestUrl: c.latestUrl, latestResourceType: c.latestResourceType };
     });
 
+    const subfolderCountMap = {};
+    subfolderCounts.forEach(s => {
+      if (s._id) subfolderCountMap[s._id.toString()] = s.count;
+    });
+
     const enrichedFolders = folders.map(f => ({
       ...f,
       itemCount: countMap[f._id.toString()]?.count || 0,
+      subfolderCount: subfolderCountMap[f._id.toString()] || 0,
       coverUrl: countMap[f._id.toString()]?.latestUrl || '',
       coverResourceType: countMap[f._id.toString()]?.latestResourceType || 'image'
     }));
@@ -198,25 +228,38 @@ exports.getGalleryFolders = async (req, res, next) => {
  */
 exports.createGalleryFolder = async (req, res, next) => {
   try {
-    const { name, description, color } = req.body;
+    const { name, description, color, parentFolder } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, message: 'Folder name is required.' });
+    }
+
+    let validParentId = null;
+    if (parentFolder && parentFolder !== 'null' && parentFolder !== 'undefined') {
+      const parentExists = await GalleryFolder.findById(parentFolder);
+      if (!parentExists) {
+        return res.status(404).json({ success: false, message: 'Parent folder not found.' });
+      }
+      validParentId = parentExists._id;
     }
 
     const newFolder = await GalleryFolder.create({
       name: name.trim(),
       description: description ? description.trim() : '',
       color: color || '#0F9D58',
+      parentFolder: validParentId,
       createdBy: req.user._id
     });
 
     await newFolder.populate('createdBy', 'name profilePhoto');
+    if (validParentId) {
+      await newFolder.populate('parentFolder', 'name color');
+    }
 
     res.status(201).json({
       success: true,
-      message: 'Folder created successfully.',
-      data: { folder: { ...newFolder.toObject(), itemCount: 0, coverUrl: '' } }
+      message: validParentId ? 'Subfolder created successfully.' : 'Folder created successfully.',
+      data: { folder: { ...newFolder.toObject(), itemCount: 0, subfolderCount: 0, coverUrl: '' } }
     });
   } catch (error) {
     next(error);
@@ -229,7 +272,7 @@ exports.createGalleryFolder = async (req, res, next) => {
 exports.updateGalleryFolder = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, description, color } = req.body;
+    const { name, description, color, parentFolder } = req.body;
 
     const folder = await GalleryFolder.findById(id);
     if (!folder) {
@@ -240,15 +283,36 @@ exports.updateGalleryFolder = async (req, res, next) => {
     if (description !== undefined) folder.description = description.trim();
     if (color) folder.color = color;
 
+    if (parentFolder !== undefined) {
+      if (parentFolder && parentFolder !== 'null' && parentFolder !== 'undefined') {
+        if (String(parentFolder) === String(folder._id)) {
+          return res.status(400).json({ success: false, message: 'Folder cannot be a parent of itself.' });
+        }
+        const descendantIds = await getAllDescendantFolderIds(folder._id);
+        if (descendantIds.some(dId => String(dId) === String(parentFolder))) {
+          return res.status(400).json({ success: false, message: 'Folder cannot have one of its descendant subfolders as its parent.' });
+        }
+        folder.parentFolder = parentFolder;
+      } else {
+        folder.parentFolder = null;
+      }
+    }
+
     await folder.save();
     await folder.populate('createdBy', 'name profilePhoto');
+    if (folder.parentFolder) {
+      await folder.populate('parentFolder', 'name color');
+    }
 
-    const itemCount = await GalleryPhoto.countDocuments({ folder: folder._id });
+    const [itemCount, subfolderCount] = await Promise.all([
+      GalleryPhoto.countDocuments({ folder: folder._id }),
+      GalleryFolder.countDocuments({ parentFolder: folder._id })
+    ]);
 
     res.status(200).json({
       success: true,
       message: 'Folder updated successfully.',
-      data: { folder: { ...folder.toObject(), itemCount } }
+      data: { folder: { ...folder.toObject(), itemCount, subfolderCount } }
     });
   } catch (error) {
     next(error);
@@ -256,7 +320,7 @@ exports.updateGalleryFolder = async (req, res, next) => {
 };
 
 /**
- * Delete a gallery folder and its contents (deletes Cloudinary assets first)
+ * Delete a gallery folder and all its subfolders and contents (deletes Cloudinary assets first)
  */
 exports.deleteGalleryFolder = async (req, res, next) => {
   try {
@@ -267,19 +331,23 @@ exports.deleteGalleryFolder = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Folder not found.' });
     }
 
-    // 1. Find and delete all photos in this folder from Cloudinary first
-    const photos = await GalleryPhoto.find({ folder: id });
+    // 1. Recursively find all descendant folder IDs
+    const allFolderIds = await getAllDescendantFolderIds(id);
+
+    // 2. Find and delete all photos in this folder and descendant subfolders from Cloudinary
+    const photos = await GalleryPhoto.find({ folder: { $in: allFolderIds } });
     if (photos.length > 0) {
       await deleteMultipleMedia(photos);
     }
 
-    // 2. Delete database records
-    await GalleryPhoto.deleteMany({ folder: id });
-    await folder.deleteOne();
+    // 3. Delete database records for photos and all folders
+    await GalleryPhoto.deleteMany({ folder: { $in: allFolderIds } });
+    await GalleryFolder.deleteMany({ _id: { $in: allFolderIds } });
 
     res.status(200).json({
       success: true,
-      message: 'Folder and its media contents deleted successfully.'
+      message: 'Folder, subfolders, and all media contents deleted successfully.',
+      data: { deletedFolderIds: allFolderIds }
     });
   } catch (error) {
     next(error);

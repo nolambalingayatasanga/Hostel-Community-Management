@@ -946,7 +946,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                         size="small"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        placeholder="John Doe"
+                        placeholder="Enter full name"
                       />
                     </Grid>
                     {/* Relative Name (Merged with Relationship dropdown) */}

@@ -82,6 +82,7 @@ import API from "../../api";
 import { LocalizationProvider, DatePicker, TimePicker } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { useSnackbar } from "notistack";
+import { useUploadQueue } from "../../context/UploadQueueContext";
 
 dayjs.extend(relativeTime);
 
@@ -2567,9 +2568,9 @@ function ManageMediaDialog({
   onUpdated,
 }) {
   const [images, setImages] = useState([]);
-  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const { enqueueSnackbar } = useSnackbar();
+  const { enqueueFiles } = useUploadQueue();
 
   useEffect(() => {
     if (open) {
@@ -2578,73 +2579,34 @@ function ManageMediaDialog({
     }
   }, [open, additionalImages]);
 
-  const handleFileSelectAndUpload = async (e) => {
+  // Real-time listener for background event media uploads
+  useEffect(() => {
+    const handleMediaUploaded = (e) => {
+      const { destinationType, destinationId, result } = e.detail || {};
+      if (destinationType === "event" && String(destinationId) === String(eventId)) {
+        const updatedList = result?.data?.additionalImages;
+        if (updatedList) {
+          setImages(updatedList);
+          if (onUpdated) onUpdated(updatedList);
+        }
+      }
+    };
+
+    window.addEventListener("app:media-uploaded", handleMediaUploaded);
+    return () => window.removeEventListener("app:media-uploaded", handleMediaUploaded);
+  }, [eventId, onUpdated]);
+
+  const handleFileSelectAndUpload = (e) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const rawFiles = Array.from(e.target.files);
 
-    const MAX_IMAGE_SIZE = 9.8 * 1024 * 1024; // 9.8 MB (0.2 MB buffer below Cloudinary's 10 MB limit)
-    const MAX_VIDEO_SIZE = 99 * 1024 * 1024;  // 99 MB (within Cloudinary's 100 MB limit)
-
-    const validFiles = [];
-    for (const file of rawFiles) {
-      const isVideo = file.type.startsWith("video/") || file.name.match(/\.(mp4|webm|mov|ogg)$/i);
-      const isImage = file.type.startsWith("image/");
-
-      if (!isImage && !isVideo) {
-        const msg = `"${file.name}" has an unsupported format. Please select image or video files.`;
-        setError(msg);
-        enqueueSnackbar(msg, { variant: "warning" });
-        return;
-      }
-      if (isImage && file.size > MAX_IMAGE_SIZE) {
-        const msg = `Image "${file.name}" exceeds 9.8 MB limit (kept 0.2 MB below Cloudinary's 10 MB limit). Selected size: ${(file.size / (1024 * 1024)).toFixed(2)} MB.`;
-        setError(msg);
-        enqueueSnackbar(msg, { variant: "warning" });
-        return;
-      }
-      if (isVideo && file.size > MAX_VIDEO_SIZE) {
-        const msg = `Video "${file.name}" exceeds 99 MB limit. Selected size: ${(file.size / (1024 * 1024)).toFixed(2)} MB.`;
-        setError(msg);
-        enqueueSnackbar(msg, { variant: "warning" });
-        return;
-      }
-      validFiles.push(file);
-    }
-
-    if (validFiles.length === 0) {
-      const msg = "Please select valid image or video files.";
-      setError(msg);
-      enqueueSnackbar(msg, { variant: "warning" });
-      return;
-    }
-
-    setUploading(true);
-    setError("");
-
-    const formData = new FormData();
-    validFiles.forEach((file) => {
-      formData.append("galleryImages", file);
+    enqueueFiles(rawFiles, {
+      destinationType: "event",
+      destinationId: eventId,
+      destinationName: "Event Gallery",
     });
 
-    try {
-      const res = await API.post(`/events/${eventId}/gallery`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-        timeout: 0,
-      });
-      if (res.data?.success) {
-        const updatedList = res.data.data.additionalImages || [];
-        setImages(updatedList);
-        onUpdated(updatedList);
-        enqueueSnackbar("Media uploaded successfully to Cloudinary!", { variant: "success" });
-      }
-    } catch (err) {
-      const errMsg = err.response?.data?.message || "Failed to upload media.";
-      setError(errMsg);
-      enqueueSnackbar(errMsg, { variant: "error" });
-    } finally {
-      setUploading(false);
-      e.target.value = "";
-    }
+    e.target.value = "";
   };
 
   const handleDeleteImage = async (imageId, isVideo = false) => {
@@ -2707,16 +2669,16 @@ function ManageMediaDialog({
           sx={{
             border: "2px dashed #D0D5DD",
             p: 3,
-            borderRadius: "8px",
+            borderRadius: "12px",
             textAlign: "center",
             bgcolor: "#F8FAFC",
-            cursor: uploading ? "default" : "pointer",
-            mb: 3.5,
+            cursor: "pointer",
+            mb: 2,
             transition: "all 0.2s",
             "&:hover": { borderColor: "#7C3AED", bgcolor: "rgba(124, 58, 237, 0.03)" },
           }}
           onClick={() => {
-            if (!uploading) document.getElementById("manage-media-direct-upload").click();
+            document.getElementById("manage-media-direct-upload").click();
           }}
         >
           <input
@@ -2726,26 +2688,33 @@ function ManageMediaDialog({
             accept="image/*,video/*"
             style={{ display: "none" }}
             onChange={handleFileSelectAndUpload}
-            disabled={uploading}
           />
-          {uploading ? (
-            <Stack alignItems="center" spacing={1}>
-              <CircularProgress size={32} sx={{ color: "#7C3AED" }} />
-              <Typography variant="body2" sx={{ fontWeight: 700, color: "#7C3AED" }}>
-                Uploading to Cloudinary...
-              </Typography>
-            </Stack>
-          ) : (
-            <>
-              <CloudUploadIcon sx={{ fontSize: 36, color: "#7C3AED", mb: 1 }} />
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#334155", mb: 0.5 }}>
-                Click to Select and Upload Photos & Videos
-              </Typography>
-              <Typography variant="caption" sx={{ color: "#64748B", display: "block" }}>
-                Images up to 9.8 MB, Videos up to 99 MB (Supports JPG, PNG, WEBP, MP4, WEBM, MOV)
-              </Typography>
-            </>
-          )}
+          <CloudUploadIcon sx={{ fontSize: 36, color: "#7C3AED", mb: 1 }} />
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#334155", mb: 0.5 }}>
+            Click to Select and Upload Photos & Videos
+          </Typography>
+          <Typography variant="caption" sx={{ color: "#64748B", display: "block" }}>
+            Images up to 9.8 MB, Videos up to 99 MB • Any number of files
+          </Typography>
+        </Box>
+
+        {/* Sequential Background Queue Info Banner */}
+        <Box
+          sx={{
+            p: 1.8,
+            bgcolor: "#F5F3FF",
+            borderRadius: "12px",
+            border: "1px solid #DDD6FE",
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            mb: 3,
+          }}
+        >
+          <CloudUploadIcon sx={{ color: "#7C3AED", fontSize: 22 }} />
+          <Typography variant="caption" sx={{ color: "#5B21B6", fontWeight: 500, lineHeight: 1.4 }}>
+            Files upload 1-by-1 in a background queue. You can safely close this dialog anytime while uploads continue!
+          </Typography>
         </Box>
 
         {/* Existing Media List */}
@@ -4535,6 +4504,22 @@ export default function EventDetail() {
   useEffect(() => {
     fetchEvent();
   }, [fetchEvent]);
+
+  // Real-time listener for background media uploads for this event
+  useEffect(() => {
+    const handleMediaUploaded = (e) => {
+      const { destinationType, destinationId, result } = e.detail || {};
+      if (destinationType === 'event' && String(destinationId) === String(id)) {
+        const updatedList = result?.data?.additionalImages;
+        if (updatedList) {
+          setEvent((prev) => (prev ? { ...prev, additionalImages: updatedList } : prev));
+        }
+      }
+    };
+
+    window.addEventListener('app:media-uploaded', handleMediaUploaded);
+    return () => window.removeEventListener('app:media-uploaded', handleMediaUploaded);
+  }, [id]);
 
   // Quick Rate (instant submission on click, no comment requested)
   const handleQuickRate = async (starValue) => {

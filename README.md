@@ -95,39 +95,21 @@ npm install
 cd ..
 ```
 
-### 2. Seed the Database
+### 2. Verify System Defaults
 
-To clear the database and populate default accounts (Admin, Students, Alumni, Staff, Events):
+To ensure system custom fields, pipeline status groups, and access permissions are configured:
 ```bash
 npm run seed
 ```
 
-*Note: Default seeded credentials will be printed to the terminal console upon completion.*
-
 ### 3. Run Development Servers
 
-Run the backend server (starts on Port 5000 by default):
+Run the backend server:
 ```bash
 npm run server
 ```
 
-Run the Vite React frontend (starts on http://localhost:5173 by default):
+Run the Vite React frontend (http://localhost:5173):
 ```bash
 npm run dev
 ```
-
----
-
-## Seed login credentials
-
-The database seed script sets up the following initial accounts:
-
-- **Admin User**:
-  - Email: `admin@hostelcomm.org` OR Phone: `9988776655`
-  - Password: `AdminPassword123!`
-- **Student User**:
-  - Email: `amit.student@hostelcomm.org` OR Phone: `9876543210`
-  - Password: `StudentPassword123!`
-- **Alumni User**:
-  - Email: `nikhil.alumni@hostelcomm.org` OR Phone: `9876543212`
-  - Password: `AlumniPassword123!`

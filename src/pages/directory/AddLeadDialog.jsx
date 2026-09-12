@@ -49,7 +49,7 @@ const INITIAL_STATE = {
   name: "",
   email: "",
   phone: "",
-  password: "Password123!",
+  password: "",
   role: "STUDENT",
   status: "",
   gender: "MALE",
@@ -255,7 +255,7 @@ export default function AddLeadDialog({ open, onClose, statuses }) {
               <TextField fullWidth size="small" label="Phone Number" required value={basicValues.phone} onChange={(e) => handleBasicChange("phone", e.target.value)} />
             </Grid>
             <Grid item xs={12} sm={6}>
-              <TextField fullWidth size="small" label="Temporary Password" required value={basicValues.password} onChange={(e) => handleBasicChange("password", e.target.value)} />
+              <TextField fullWidth size="small" label="Temporary Password" type="password" placeholder="Enter password" required value={basicValues.password} onChange={(e) => handleBasicChange("password", e.target.value)} />
             </Grid>
 
             {basicValues.role !== 'STUDENT' && (

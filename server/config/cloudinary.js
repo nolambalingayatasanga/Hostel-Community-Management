@@ -48,27 +48,7 @@ const uploadImage = async (fileSource, folder, mimetype = 'image/jpeg', resource
   }
 
   if (!isConfigured) {
-    // Return a mock URL/ID fallback
-    console.log(`[Mock Cloudinary Upload] Uploading to folder: ${folder} (${resolvedResourceType})`);
-    const mockId = `mock_${Date.now()}`;
-
-    // Determine placeholder URL depending on profile vs event vs video
-    let fallbackUrl = 'https://res.cloudinary.com/demo/image/upload/v1312461204/sample.jpg';
-    if (resolvedResourceType === 'video') {
-      fallbackUrl = 'https://res.cloudinary.com/demo/video/upload/v1612461204/sample_video.mp4';
-    } else if (folder.includes('profiles')) {
-      fallbackUrl = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=250&q=80';
-    } else if (folder.includes('events')) {
-      fallbackUrl = 'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=800&q=80';
-    } else if (folder.includes('gallery')) {
-      fallbackUrl = 'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=800&q=80';
-    }
-
-    return {
-      url: fallbackUrl,
-      publicId: mockId,
-      resourceType: resolvedResourceType
-    };
+    throw new Error('Cloudinary is not configured. Please ensure CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET are set in environment variables.');
   }
 
   // Determine file extension for temp file
@@ -218,9 +198,8 @@ const deleteImage = async (publicIdOrUrl, resourceType = 'image') => {
   const targetId = parsed.publicId;
   const targetType = parsed.resourceType || resourceType || 'image';
 
-  if (!isConfigured || targetId.startsWith('mock_')) {
-    console.log(`[Mock Cloudinary Delete] Deleting resource: ${targetId} (${targetType})`);
-    return { result: 'ok' };
+  if (!isConfigured) {
+    return { result: 'not_configured' };
   }
 
   try {
