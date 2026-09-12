@@ -37,7 +37,11 @@ export const INTERNAL_SLUGS = {
 };
 
 export const columnWidth = (field) => {
+  if (!field) return 170;
   const slug = (field.slug || "").toLowerCase();
+  const name = (field.name || "").toLowerCase();
+
+  // Core Identity & Directory Profile
   if (slug === "name") return 220;
   if (slug === "email") return 260;
   if (slug === "phone") return 210;
@@ -53,9 +57,26 @@ export const columnWidth = (field) => {
   if (slug === "channels") return 140;
   if (slug === "logindetails") return 190;
   if (slug === "locallanguagedetails" || slug === "local_language_details") return 300;
+
+  // Education Columns (proper width preventing header wrapping)
+  if (slug.includes("startmonth") || name.includes("start month")) return 195;
+  if (slug.includes("startyear") || name.includes("start year")) return 195;
+  if (slug.includes("endmonth") || name.includes("end month")) return 195;
+  if (slug.includes("endyear") || name.includes("end year")) return 195;
+  if (slug.includes("college") || name.includes("college")) return 240;
+  if (slug.includes("course") || name.includes("course")) return 190;
+  if (slug.includes("higherstudies") || name.includes("higher studies")) return 240;
+
+  // Employment Columns
   if (slug.includes("businessname") || slug.includes("business_name")) return 240;
   if (slug.includes("businesstype") || slug.includes("business_type")) return 220;
   if (slug.includes("employmentstatus") || slug.includes("employment_status") || slug === "employment") return 180;
+  if (slug.includes("occupation") || name.includes("occupation")) return 200;
+  if (slug.includes("organization") || name.includes("organization") || slug.includes("institution")) return 220;
+  if (slug.includes("industry") || name.includes("industry")) return 190;
+  if (slug.includes("worklocation") || slug.includes("work_location") || name.includes("work location")) return 190;
+
+  // Address Columns
   if (slug.endsWith("street")) return 260;
   if (slug.endsWith("area")) return 160;
   if (slug.endsWith("landmark")) return 160;
@@ -65,8 +86,8 @@ export const columnWidth = (field) => {
   if (slug.endsWith("taluk")) return 150;
   if (slug.endsWith("pincode")) return 140;
   if (slug.includes("address")) return 300;
-  if (slug.includes("college") || slug.includes("organization") || slug.includes("institution")) return 220;
-  return 150;
+
+  return 170;
 };
 
 export const getColumnDisplayName = (field) => {

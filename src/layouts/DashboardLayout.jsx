@@ -31,7 +31,6 @@ import {
   AdminPanelSettings as AdminIcon,
   Collections as GalleryIcon,
   ArrowBack as ArrowBackIcon,
-  KeyboardArrowDown as KeyboardArrowDownIcon
 } from '@mui/icons-material';
 import NotFound from '../pages/common/NotFound';
 
@@ -46,7 +45,7 @@ const DashboardLayout = () => {
 
   const getPageTitle = () => {
     const path = location.pathname;
-    
+
     // Event details page check
     if (path.startsWith('/events/') && path !== '/events/new') {
       return 'Event Details';
@@ -56,7 +55,7 @@ const DashboardLayout = () => {
     if (path === '/events') {
       return 'Event Calendar';
     }
-    
+
     // Profile page check
     if (path.startsWith('/profile')) {
       return 'Profile';
@@ -154,7 +153,7 @@ const DashboardLayout = () => {
 
   const drawerContent = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff', borderRight: '1px solid #e2e8f0' }}>
-      
+
       <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
         <Avatar
           src={user?.profilePhoto?.url || ''}
@@ -172,7 +171,7 @@ const DashboardLayout = () => {
           </Typography>
         </Box>
       </Box>
-      
+
       <Divider sx={{ borderColor: '#f1f5f9' }} />
 
       <List sx={{ px: 1, flexGrow: 1 }}>
@@ -218,7 +217,7 @@ const DashboardLayout = () => {
       </List>
 
       <Divider sx={{ borderColor: '#f1f5f9' }} />
-      
+
       <List sx={{ p: 1 }}>
         <ListItem disablePadding>
           <ListItemButton
@@ -266,7 +265,7 @@ const DashboardLayout = () => {
             >
               <MenuIcon />
             </IconButton>
-            
+
             {location.pathname.startsWith('/events/') && location.pathname !== '/events/new' ? (
               <Button
                 startIcon={<ArrowBackIcon sx={{ fontSize: 18 }} />}
@@ -301,47 +300,7 @@ const DashboardLayout = () => {
           {/* Right side header actions & user profile */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Box id="dashboard-header-actions" sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }} />
-{/* 
-            <Box
-              onClick={handleMenuOpen}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 0.8,
-                cursor: 'pointer',
-                p: '3px 8px 3px 3px',
-                borderRadius: '24px',
-                border: '1px solid #E2E8F0',
-                backgroundColor: '#FFFFFF',
-                transition: 'all 0.15s ease',
-                '&:hover': {
-                  backgroundColor: '#F8FAFC',
-                  borderColor: '#CBD5E1'
-                }
-              }}
-            >
-              <Avatar
-                src={user?.profilePhoto?.url || ''}
-                alt={user?.name || 'User'}
-                sx={{
-                  width: 32,
-                  height: 32,
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  bgcolor: '#E2E8F0',
-                  color: '#1E293B'
-                }}
-              >
-                {(() => {
-                  if (!user?.name) return 'MK';
-                  const parts = user.name.trim().split(/\s+/);
-                  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
-                  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-                })()}
-              </Avatar>
-              <KeyboardArrowDownIcon sx={{ fontSize: 18, color: '#64748B' }} />
-            </Box> */}
-
+         
             <Menu
               anchorEl={anchorEl}
               open={Boolean(anchorEl)}
@@ -385,7 +344,7 @@ const DashboardLayout = () => {
         >
           {drawerContent}
         </Drawer>
-        
+
         {/* Desktop permanent drawer */}
         <Drawer
           variant="permanent"

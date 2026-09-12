@@ -1039,7 +1039,7 @@ export default function DirectoryList() {
                               >
                                 ⁝⁝
                               </Box>
-                              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#475467" }}>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#475467", whiteSpace: "nowrap" }}>
                                 {getColumnDisplayName(col)}
                               </Typography>
                             </Box>
