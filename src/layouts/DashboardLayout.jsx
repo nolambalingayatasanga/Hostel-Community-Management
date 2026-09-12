@@ -17,7 +17,9 @@ import {
   ListItemText,
   Avatar,
   Button,
-  CircularProgress
+  CircularProgress,
+  Menu,
+  MenuItem
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -28,7 +30,8 @@ import {
   ExitToApp as LogoutIcon,
   AdminPanelSettings as AdminIcon,
   Collections as GalleryIcon,
-  ArrowBack as ArrowBackIcon
+  ArrowBack as ArrowBackIcon,
+  KeyboardArrowDown as KeyboardArrowDownIcon
 } from '@mui/icons-material';
 import NotFound from '../pages/common/NotFound';
 
@@ -293,6 +296,71 @@ const DashboardLayout = () => {
                 {getPageTitle()}
               </Typography>
             )}
+          </Box>
+
+          {/* Right side header actions & user profile */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box id="dashboard-header-actions" sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }} />
+
+            <Box
+              onClick={handleMenuOpen}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.8,
+                cursor: 'pointer',
+                p: '3px 8px 3px 3px',
+                borderRadius: '24px',
+                border: '1px solid #E2E8F0',
+                backgroundColor: '#FFFFFF',
+                transition: 'all 0.15s ease',
+                '&:hover': {
+                  backgroundColor: '#F8FAFC',
+                  borderColor: '#CBD5E1'
+                }
+              }}
+            >
+              <Avatar
+                src={user?.profilePhoto?.url || ''}
+                alt={user?.name || 'User'}
+                sx={{
+                  width: 32,
+                  height: 32,
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  bgcolor: '#E2E8F0',
+                  color: '#1E293B'
+                }}
+              >
+                {(() => {
+                  if (!user?.name) return 'MK';
+                  const parts = user.name.trim().split(/\s+/);
+                  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+                  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+                })()}
+              </Avatar>
+              <KeyboardArrowDownIcon sx={{ fontSize: 18, color: '#64748B' }} />
+            </Box>
+
+            <Menu
+              anchorEl={anchorEl}
+              open={Boolean(anchorEl)}
+              onClose={handleMenuClose}
+              PaperProps={{
+                elevation: 3,
+                sx: { borderRadius: '12px', mt: 1, minWidth: 160 }
+              }}
+            >
+              <MenuItem onClick={handleProfileClick}>
+                <ListItemIcon><ProfileIcon fontSize="small" /></ListItemIcon>
+                Profile
+              </MenuItem>
+              <Divider />
+              <MenuItem onClick={handleLogoutClick} sx={{ color: 'error.main' }}>
+                <ListItemIcon><LogoutIcon fontSize="small" sx={{ color: 'error.main' }} /></ListItemIcon>
+                Logout
+              </MenuItem>
+            </Menu>
           </Box>
         </Toolbar>
       </AppBar>

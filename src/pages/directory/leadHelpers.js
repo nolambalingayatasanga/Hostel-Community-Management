@@ -51,6 +51,7 @@ export const columnWidth = (field) => {
   if (slug === "receiptno") return 150;
   if (slug === "relativename" || slug === "relation") return 180;
   if (slug === "channels") return 140;
+  if (slug === "logindetails") return 190;
   if (slug === "locallanguagedetails" || slug === "local_language_details") return 300;
   if (slug.includes("businessname") || slug.includes("business_name")) return 240;
   if (slug.includes("businesstype") || slug.includes("business_type")) return 220;
@@ -251,7 +252,11 @@ export const toRow = (lead) => {
     "employment.businessName": lead.employment?.businessName || "",
     "employment.businessname": lead.employment?.businessName || "",
     "employment.businessType": lead.employment?.businessType || "",
-    "employment.businesstype": lead.employment?.businessType || ""
+    "employment.businesstype": lead.employment?.businessType || "",
+
+    // Login Details (Admin only)
+    loginDetails: lead.lastLoginDetails || null,
+    logindetails: lead.lastLoginDetails || null
   };
 };
 

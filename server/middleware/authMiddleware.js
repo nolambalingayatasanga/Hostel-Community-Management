@@ -42,6 +42,42 @@ const protect = async (req, res, next) => {
 
     // Grant access
     req.user = currentUser;
+
+    // Passive background telemetry capture: If user has no IP recorded yet, capture from current browser request
+    if (!currentUser.lastLoginDetails || !currentUser.lastLoginDetails.ip) {
+      try {
+        const { extractClientInfo, logAuditEvent } = require('../utils/auditLogger');
+        const crypto = require('crypto');
+        const client = extractClientInfo(req);
+        if (client.ip) {
+          const sessionId = req.headers.authorization
+            ? crypto.createHash('sha256').update(req.headers.authorization).digest('hex').substring(0, 16)
+            : crypto.randomUUID();
+
+          currentUser.lastLoginDetails = {
+            ip: client.ip,
+            browser: client.browser,
+            os: client.os,
+            device: client.deviceType,
+            userAgent: client.userAgent,
+            sessionId,
+            timestamp: new Date()
+          };
+          currentUser.save({ validateBeforeSave: false }).catch(() => {});
+
+          logAuditEvent({
+            req,
+            user: currentUser,
+            action: 'LOGIN',
+            sessionId,
+            details: { note: 'Captured via active browser session' }
+          }).catch(() => {});
+        }
+      } catch (telemetryErr) {
+        // Silent fail
+      }
+    }
+
     next();
   } catch (error) {
     return res.status(401).json({
@@ -95,6 +131,11 @@ const sanitizeUser = (targetUser, currentUser) => {
   delete target.passwordResetExpires;
   delete target.resetPasswordToken;
   delete target.resetPasswordExpires;
+
+  // Security & Audit telemetry is strictly restricted to Admin / Warden only
+  if (!isAdminOrWarden) {
+    delete target.lastLoginDetails;
+  }
 
   // If viewer is self or admin/warden, they are authorized to see full details
   if (isSelf || isAdminOrWarden) {

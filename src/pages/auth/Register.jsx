@@ -299,13 +299,19 @@ const Register = () => {
     if (!name.trim()) { notifyWarn('Full Name is mandatory.'); return; }
     if (!email.trim()) { notifyWarn('Email Address is mandatory.'); return; }
     if (!phone.trim()) { notifyWarn('Phone Number is mandatory.'); return; }
-    if (!adhaar.trim()) { notifyWarn('Aadhaar Number is mandatory.'); return; }
     if (!gender) { notifyWarn('Gender is mandatory.'); return; }
-    if (!dob) { notifyWarn('Date of Birth is mandatory (DD/MM/YYYY).'); return; }
 
-    const cleanAdhaar = adhaar.replace(/\s+/g, '');
-    if (cleanAdhaar.length !== 12 || !/^\d{12}$/.test(cleanAdhaar)) {
-      notifyWarn('Aadhaar Number must be exactly 12 digits.');
+    let cleanAdhaar = '';
+    if (adhaar && adhaar.trim()) {
+      cleanAdhaar = adhaar.replace(/\s+/g, '');
+      if (cleanAdhaar.length !== 12 || !/^\d{12}$/.test(cleanAdhaar)) {
+        notifyWarn('Aadhaar Number must be exactly 12 digits if provided.');
+        return;
+      }
+    }
+
+    if (dob && !dayjs(dob).isValid()) {
+      notifyWarn('Please enter a valid Date of Birth (DD/MM/YYYY).');
       return;
     }
 
@@ -373,9 +379,9 @@ const Register = () => {
       name: name.trim(),
       email: email.trim(),
       phone: phone.trim(),
-      adhaar: cleanAdhaar,
+      adhaar: cleanAdhaar || undefined,
       gender,
-      dob,
+      dob: dob || undefined,
       registrationNumber: registrationNumber.trim(),
       password,
       role,
@@ -746,8 +752,8 @@ const Register = () => {
 
                 {/* Common Fields: Aadhaar Number, Phone Number, Date of Birth */}
                 <Box>
-                  <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                    Aadhaar Number <span style={{ color: '#EF4444' }}>*</span>
+                  <Typography component="label" sx={{ display: 'flex', alignItems: 'center', gap: 0.7, fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
+                    Aadhaar Number <span style={{ color: '#94A3B8', fontWeight: 400, fontSize: '12px' }}>(Optional)</span>
                   </Typography>
                   <TextField
                     fullWidth
@@ -808,8 +814,8 @@ const Register = () => {
                 </Box>
 
                 <Box>
-                  <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                    Date of Birth <span style={{ color: '#EF4444' }}>*</span>
+                  <Typography component="label" sx={{ display: 'flex', alignItems: 'center', gap: 0.7, fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
+                    Date of Birth <span style={{ color: '#94A3B8', fontWeight: 400, fontSize: '12px' }}>(Optional)</span>
                   </Typography>
                   <DatePicker
                     format="DD/MM/YYYY"

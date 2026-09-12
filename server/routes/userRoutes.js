@@ -24,6 +24,9 @@ router.post('/:id/transition', restrictTo('ADMIN', 'WARDEN'), userController.adm
 router.patch('/:id', restrictTo('ADMIN', 'WARDEN'), userController.adminUpdateUser);
 router.delete('/:id', restrictTo('ADMIN', 'WARDEN'), userController.adminDeleteUser);
 
+// Admin audit logs
+router.get('/:id/audit-logs', restrictTo('ADMIN'), userController.getUserAuditLogs);
+
 // Directories (accessible by all authenticated users, sanitized inside userController)
 router.get('/dashboard/stats', userController.getDashboardStats);
 router.get('/', userController.getUsers);

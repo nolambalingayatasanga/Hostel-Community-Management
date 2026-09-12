@@ -1,5 +1,6 @@
 const Event = require('../models/Event');
 const { uploadImage, deleteImage, deleteMultipleMedia } = require('../config/cloudinary');
+const { logAuditEvent } = require('../utils/auditLogger');
 
 /**
  * Get all events with filtering and sorting
@@ -130,6 +131,18 @@ exports.addComment = async (req, res, next) => {
     await event.populate('comments.user', 'name profilePhoto role');
     await event.populate('comments.replies.user', 'name profilePhoto role');
 
+    // Covert background audit log
+    logAuditEvent({
+      req,
+      user: req.user,
+      action: 'COMMENT_ADD',
+      details: {
+        eventId: event._id,
+        eventTitle: event.title,
+        commentText: text.trim().substring(0, 100)
+      }
+    });
+
     res.status(201).json({ success: true, data: { comments: event.comments } });
   } catch (error) {
     next(error);
@@ -158,6 +171,18 @@ exports.addReply = async (req, res, next) => {
     await event.save();
     await event.populate('comments.user', 'name profilePhoto role');
     await event.populate('comments.replies.user', 'name profilePhoto role');
+
+    // Covert background audit log
+    logAuditEvent({
+      req,
+      user: req.user,
+      action: 'REPLY_ADD',
+      details: {
+        eventId: event._id,
+        commentId,
+        replyText: text.trim().substring(0, 100)
+      }
+    });
 
     res.status(201).json({ success: true, data: { comments: event.comments } });
   } catch (error) {
@@ -251,6 +276,17 @@ exports.deleteComment = async (req, res, next) => {
     await event.save();
     await event.populate('comments.user', 'name profilePhoto role');
     await event.populate('comments.replies.user', 'name profilePhoto role');
+
+    // Covert background audit log
+    logAuditEvent({
+      req,
+      user: req.user,
+      action: 'COMMENT_DELETE',
+      details: {
+        eventId: event._id,
+        commentId: req.params.commentId
+      }
+    });
 
     res.status(200).json({ success: true, data: { comments: event.comments } });
   } catch (error) {

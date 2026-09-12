@@ -14,6 +14,7 @@ const connectDB = async () => {
         { name: 'Receipt No', slug: 'receiptNo', type: 'text', isInternal: true },
         { name: 'Kanada Overview', slug: 'localLanguageDetails', type: 'text', isInternal: true },
         { name: 'Adhaar', slug: 'adhaar', type: 'text', isInternal: true },
+        { name: 'Role', slug: 'role', type: 'select', options: ['ADMIN', 'WARDEN', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'], isInternal: true },
         { name: 'Relative Name', slug: 'relativeName', type: 'text', isInternal: true },
         { name: 'Channels', slug: 'channels', type: 'text', isInternal: true },
         { name: 'Street', slug: 'address.street', type: 'text', isInternal: true },
@@ -37,7 +38,8 @@ const connectDB = async () => {
         { name: 'Work Location', slug: 'employment.workLocation', type: 'text', isInternal: true },
         { name: 'Employment', slug: 'employment.employmentStatus', type: 'select', options: ['Employed', 'Business Owner', 'Entrepreneur', 'Higher Studies', 'Government Service', 'Retired', 'Unemployed'], isInternal: true },
         { name: 'Business Name', slug: 'employment.businessName', type: 'text', isInternal: true },
-        { name: 'Business Type', slug: 'employment.businessType', type: 'text', isInternal: true }
+        { name: 'Business Type', slug: 'employment.businessType', type: 'text', isInternal: true },
+        { name: 'Login Details', slug: 'loginDetails', type: 'text', isInternal: true }
       ];
 
       let maxOrder = 7;

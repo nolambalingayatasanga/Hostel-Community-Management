@@ -44,9 +44,44 @@ exports.getMetadata = async (req, res, next) => {
       added = true;
     }
 
+    if (!slugs.includes('role')) {
+      maxOrder += 1;
+      const f = await CustomField.create({
+        name: 'Role',
+        slug: 'role',
+        type: 'select',
+        options: ['ADMIN', 'WARDEN', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'],
+        isInternal: true,
+        order: maxOrder,
+        isVisible: true
+      });
+      customFields.push(f);
+      added = true;
+    }
+
+    if (!slugs.includes('logindetails')) {
+      maxOrder += 1;
+      const f = await CustomField.create({
+        name: 'Login Details',
+        slug: 'loginDetails',
+        type: 'text',
+        isInternal: true,
+        order: maxOrder,
+        isVisible: true
+      });
+      customFields.push(f);
+      added = true;
+    }
+
     if (added) {
       customFields.sort((a, b) => (a.order || 0) - (b.order || 0));
     }
+
+    // Only Admin can see Login Details column in table metadata
+    const isAdmin = req.user && req.user.role === 'ADMIN';
+    const returnedCustomFields = isAdmin
+      ? customFields
+      : customFields.filter(f => (f.slug || '').toLowerCase() !== 'logindetails');
 
     const statusGroups = await StatusGroup.find({}).populate({
       path: 'statuses',
@@ -59,7 +94,7 @@ exports.getMetadata = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: {
-        customFields,
+        customFields: returnedCustomFields,
         statusGroups,
         statuses,
         teams: [],

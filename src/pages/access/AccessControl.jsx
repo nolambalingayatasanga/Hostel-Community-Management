@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import {
   Box,
   Card,
-  CardContent,
   Typography,
   Checkbox,
   FormControlLabel,
@@ -17,8 +17,6 @@ import {
   TableRow,
   Paper,
   Chip,
-  IconButton,
-  Tooltip,
   Divider,
   Stack
 } from '@mui/material';
@@ -29,34 +27,46 @@ import {
   Collections as GalleryIcon,
   AccountCircle as ProfileIcon,
   AdminPanelSettings as AdminIcon,
-  Save as SaveIcon,
-  Refresh as RefreshIcon,
-  CheckCircle as CheckCircleIcon,
-  Block as BlockIcon,
   Security as SecurityIcon,
-  Tune as TuneIcon
+  TuneRounded as TuneIcon,
+  GridViewRounded as GridViewIcon,
+  CheckCircleRounded as CheckCircleIcon,
+  CheckRounded as CheckIcon,
+  BlockRounded as BlockIcon,
+  RemoveRedEyeOutlined as FullAccessIcon,
+  VisibilityOutlined as ViewIcon,
+  AddRounded as CreateIcon,
+  EditOutlined as UpdateIcon,
+  EditRounded as EditIcon,
+  DeleteOutlineRounded as DeleteIcon,
+  AssignmentIndRounded as PrivilegesIcon,
+  PersonRounded as PersonIcon,
+  SchoolRounded as SchoolIcon,
+  GroupsRounded as GroupsIcon,
+  RestartAltRounded as ResetIcon,
+  LockRounded as LockIcon
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import API from '../../api';
 
-// Page definitions with icons
+// Page definitions with icons (matching sidebar)
 const PAGE_DEFINITIONS = [
-  { id: 'overview', label: 'Overview', icon: <DashboardIcon fontSize="small" /> },
-  { id: 'users', label: 'Users', icon: <PeopleIcon fontSize="small" /> },
-  { id: 'events', label: 'Events', icon: <EventIcon fontSize="small" /> },
-  { id: 'gallery', label: 'Gallery', icon: <GalleryIcon fontSize="small" /> },
-  { id: 'profile', label: 'Profile', icon: <ProfileIcon fontSize="small" /> },
-  { id: 'access_control', label: 'Access Control', icon: <AdminIcon fontSize="small" /> },
+  { id: 'overview', label: 'Overview', icon: <DashboardIcon sx={{ fontSize: 18 }} /> },
+  { id: 'users', label: 'Users', icon: <GroupsIcon sx={{ fontSize: 18 }} /> },
+  { id: 'events', label: 'Events', icon: <EventIcon sx={{ fontSize: 18 }} /> },
+  { id: 'gallery', label: 'Gallery', icon: <GalleryIcon sx={{ fontSize: 18 }} /> },
+  { id: 'profile', label: 'Profile', icon: <ProfileIcon sx={{ fontSize: 18 }} /> },
+  { id: 'access_control', label: 'Access Control', icon: <AdminIcon sx={{ fontSize: 18 }} /> },
 ];
 
-// User roles definition
+// User roles definition with icons
 const ROLE_DEFINITIONS = [
-  { id: 'ADMIN', label: 'ADMIN' },
-  { id: 'WARDEN', label: 'WARDEN' },
-  { id: 'STAFF', label: 'STAFF' },
-  { id: 'ALUMNI', label: 'ALUMNI' },
-  { id: 'STUDENT', label: 'STUDENT' },
-  { id: 'MEMBER', label: 'MEMBER' },
+  { id: 'ADMIN', label: 'ADMIN', icon: <AdminIcon sx={{ fontSize: 16 }} /> },
+  { id: 'WARDEN', label: 'WARDEN', icon: <SecurityIcon sx={{ fontSize: 16 }} /> },
+  { id: 'STAFF', label: 'STAFF', icon: <PeopleIcon sx={{ fontSize: 16 }} /> },
+  { id: 'ALUMNI', label: 'ALUMNI', icon: <SchoolIcon sx={{ fontSize: 16 }} /> },
+  { id: 'STUDENT', label: 'STUDENT', icon: <PersonIcon sx={{ fontSize: 16 }} /> },
+  { id: 'MEMBER', label: 'MEMBER', icon: <PeopleIcon sx={{ fontSize: 16 }} /> },
 ];
 
 const DEFAULT_PERMISSIONS = {
@@ -70,8 +80,8 @@ const DEFAULT_PERMISSIONS = {
 
 const AccessControl = () => {
   const { enqueueSnackbar } = useSnackbar();
-  
-  // Active selected page and role for the 2-row header control
+
+  // Active selected page and role
   const [selectedPage, setSelectedPage] = useState('overview');
   const [selectedRole, setSelectedRole] = useState('ADMIN');
 
@@ -81,9 +91,17 @@ const AccessControl = () => {
   const [saving, setSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  // Dynamic user tabs fetched from API (never hardcoded)
+  // Dynamic user tabs fetched from API
   const [userTabs, setUserTabs] = useState([]);
   const [loadingUserTabs, setLoadingUserTabs] = useState(false);
+
+  // Target portal node in top AppBar header
+  const [portalNode, setPortalNode] = useState(null);
+
+  useEffect(() => {
+    const el = document.getElementById('dashboard-header-actions');
+    if (el) setPortalNode(el);
+  }, []);
 
   // Fetch dynamic user tabs from API
   const fetchUserTabs = async () => {
@@ -197,7 +215,6 @@ const AccessControl = () => {
     if (roleTabPerms && tabSlug && roleTabPerms[tabSlug] !== undefined) {
       return !!roleTabPerms[tabSlug];
     }
-    // Default values if not yet configured
     if (selectedRole === 'ADMIN' || selectedRole === 'WARDEN') {
       return true;
     }
@@ -233,11 +250,10 @@ const AccessControl = () => {
     setHasUnsavedChanges(true);
   };
 
-  // Save current active permissions or full matrix
+  // Save permissions
   const handleSave = async () => {
     try {
       setSaving(true);
-      // Flatten all updates to send to backend
       const updates = [];
       PAGE_DEFINITIONS.forEach(p => {
         ROLE_DEFINITIONS.forEach(r => {
@@ -264,7 +280,6 @@ const AccessControl = () => {
       if (res.data?.success) {
         enqueueSnackbar('Access permissions saved successfully!', { variant: 'success' });
         setHasUnsavedChanges(false);
-        // Trigger event so sidebar and directory tabs immediately update dynamic tabs without page reload
         window.dispatchEvent(new Event('access_permissions_updated'));
       }
     } catch (err) {
@@ -298,151 +313,251 @@ const AccessControl = () => {
 
   const getPageLabel = (id) => PAGE_DEFINITIONS.find(p => p.id === id)?.label || id;
 
+  // Header Action Buttons component (rendered in Topbar via portal & fallback in page header)
+  const headerActionButtons = (
+    <Stack direction="row" spacing={1.5} alignItems="center">
+      <Button
+        variant="outlined"
+        startIcon={<ResetIcon sx={{ fontSize: 18 }} />}
+        onClick={handleResetDefaults}
+        disabled={saving}
+        sx={{
+          textTransform: 'none',
+          borderRadius: '10px',
+          borderColor: '#E2E8F0',
+          backgroundColor: '#FFFFFF',
+          color: '#475569',
+          fontWeight: 600,
+          fontSize: '13.5px',
+          px: 2,
+          py: 0.8,
+          boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+          transition: 'all 0.15s ease',
+          '&:hover': {
+            borderColor: '#CBD5E1',
+            backgroundColor: '#F8FAFC',
+            color: '#1E293B'
+          }
+        }}
+      >
+        Reset Defaults
+      </Button>
+
+      <Button
+        variant="contained"
+        startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <LockIcon sx={{ fontSize: 17 }} />}
+        onClick={handleSave}
+        disabled={saving}
+        sx={{
+          backgroundColor: '#0088ff',
+          color: '#FFFFFF',
+          fontWeight: 700,
+          fontSize: '13.5px',
+          borderRadius: '10px',
+          textTransform: 'none',
+          px: 2.5,
+          py: 0.8,
+          boxShadow: 'none',
+          transition: 'all 0.15s ease',
+          '&:hover': {
+            backgroundColor: '#1465D0',
+            boxShadow: '0 6px 18px rgba(24, 119, 242, 0.45)'
+          }
+        }}
+      >
+        {saving ? 'Saving Config...' : 'Save Configuration'}
+      </Button>
+    </Stack>
+  );
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-        <CircularProgress sx={{ color: '#0088ff' }} size={40} />
-        <Typography variant="body2" sx={{ mt: 2, color: '#64748b' }}>
+        <CircularProgress sx={{ color: '#1877F2' }} size={42} />
+        <Typography variant="body2" sx={{ mt: 2, color: '#64748B', fontWeight: 500 }}>
           Loading Access Control permissions...
         </Typography>
       </Box>
     );
   }
 
+  // Privilege card configurations
+  const PRIVILEGE_CARDS = [
+    {
+      key: 'fullAccess',
+      title: 'Full Access',
+      subtitle: 'Grant all permissions',
+      icon: <FullAccessIcon sx={{ fontSize: 24 }} />,
+      themeColor: '#1877F2',
+      activeBg: '#EFF6FF',
+      activeBorder: '#1877F2',
+      isActive: !!currentPermissions.fullAccess,
+      toggle: () => handlePermissionChange('fullAccess', !currentPermissions.fullAccess)
+    },
+    {
+      key: 'view',
+      title: 'View',
+      subtitle: 'Read-only visibility',
+      icon: <ViewIcon sx={{ fontSize: 24 }} />,
+      themeColor: '#10B981',
+      activeBg: '#F0FDF4',
+      activeBorder: '#10B981',
+      isActive: !!currentPermissions.view,
+      toggle: () => handlePermissionChange('view', !currentPermissions.view)
+    },
+    {
+      key: 'create',
+      title: 'Create',
+      subtitle: 'Add new entries',
+      icon: <CreateIcon sx={{ fontSize: 24 }} />,
+      themeColor: '#8B5CF6',
+      activeBg: '#FAF5FF',
+      activeBorder: '#8B5CF6',
+      isActive: !!currentPermissions.create,
+      toggle: () => handlePermissionChange('create', !currentPermissions.create)
+    },
+    {
+      key: 'update',
+      title: 'Update',
+      subtitle: 'Edit / modify data',
+      icon: <UpdateIcon sx={{ fontSize: 24 }} />,
+      themeColor: '#F59E0B',
+      activeBg: '#FFFBEB',
+      activeBorder: '#F59E0B',
+      isActive: !!currentPermissions.update,
+      toggle: () => handlePermissionChange('update', !currentPermissions.update)
+    },
+    {
+      key: 'delete',
+      title: 'Delete',
+      subtitle: 'Remove records',
+      icon: <DeleteIcon sx={{ fontSize: 24 }} />,
+      themeColor: '#EF4444',
+      activeBg: '#FEF2F2',
+      activeBorder: '#EF4444',
+      isActive: !!currentPermissions.delete,
+      toggle: () => handlePermissionChange('delete', !currentPermissions.delete)
+    },
+    {
+      key: 'noAccess',
+      title: 'No Access',
+      subtitle: 'Block page & tab',
+      icon: <BlockIcon sx={{ fontSize: 24 }} />,
+      themeColor: '#475569',
+      activeBg: '#F8FAFC',
+      activeBorder: '#64748B',
+      isActive: !!currentPermissions.noAccess,
+      toggle: () => handlePermissionChange('noAccess', !currentPermissions.noAccess)
+    }
+  ];
+
   return (
-    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1400, margin: '0 auto' }}>
-      {/* Top Header Title */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box
-            sx={{
-              width: 44,
-              height: 44,
-              borderRadius: '12px',
-              backgroundColor: 'rgba(0, 136, 255, 0.1)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#0088ff'
-            }}
-          >
-            <SecurityIcon fontSize="medium" />
-          </Box>
-          <Box>
-            <Typography variant="h5" sx={{ fontWeight: 700, color: '#1e293b' }}>
-              Access Control
-            </Typography>
-            <Typography variant="body2" sx={{ color: '#64748b' }}>
-              Configure role-based page and action privileges across all sidebar pages
-            </Typography>
-          </Box>
-        </Box>
+    <Box sx={{ p: 2, maxWidth: 1440, margin: '0 auto' }}>
+      {/* Portal buttons into DashboardLayout AppBar Header */}
+      {portalNode && ReactDOM.createPortal(headerActionButtons, portalNode)}
 
-        <Stack direction="row" spacing={1.5}>
-          <Button
-            variant="outlined"
-            startIcon={<RefreshIcon />}
-            onClick={handleResetDefaults}
-            disabled={saving}
-            sx={{
-              textTransform: 'none',
-              borderRadius: '8px',
-              borderColor: '#cbd5e1',
-              color: '#475569',
-              fontWeight: 600,
-              '&:hover': { borderColor: '#94a3b8', backgroundColor: '#f8fafc' }
-            }}
-          >
-            Reset Defaults
-          </Button>
 
-          <Button
-            variant="contained"
-            startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
-            onClick={handleSave}
-            disabled={saving}
-            sx={{
-              backgroundColor: '#0088ff',
-              color: '#fff',
-              fontWeight: 600,
-              borderRadius: '8px',
-              textTransform: 'none',
-              px: 3,
-              boxShadow: '0 4px 12px rgba(0, 136, 255, 0.25)',
-              '&:hover': {
-                backgroundColor: '#0070d2'
-              }
-            }}
-          >
-            {saving ? 'Saving...' : 'Save Permissions'}
-          </Button>
-        </Stack>
-      </Box>
 
       {hasUnsavedChanges && (
-        <Alert severity="warning" sx={{ mb: 3, borderRadius: '8px' }}>
-          You have unsaved permission changes. Click <strong>"Save Permissions"</strong> above to apply them.
+        <Alert
+          severity="warning"
+          sx={{
+            mb: 3,
+            borderRadius: '12px',
+            fontWeight: 500,
+            border: '1px solid #FDE68A',
+            backgroundColor: '#FFFBEB',
+            color: '#92400E'
+          }}
+        >
+          You have unsaved permission changes. Click <strong>"Save Permissions"</strong> in the header to apply them.
         </Alert>
       )}
 
-      {/* Main 2-Row Header Table Card */}
+      {/* CARD 1: Access Configuration Selector */}
       <Card
         elevation={0}
         sx={{
-          borderRadius: '14px',
-          border: '1px solid #e2e8f0',
-          backgroundColor: '#ffffff',
-          overflow: 'hidden',
-          mb: 4
+          borderRadius: '8px',
+          border: '1px solid #E2E8F0',
+          backgroundColor: '#FFFFFF',
+          p: { xs: 2.5, md: 3 },
+          mb: 3,
+          boxShadow: 'none'
         }}
       >
-        <Box sx={{ p: 2.5, backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 1 }}>
-            <TuneIcon sx={{ color: '#0088ff', fontSize: 20 }} />
-            Access Configuration Selector
-          </Typography>
-          <Typography variant="caption" sx={{ color: '#64748b' }}>
-            Select a sidebar page in the 1st row and a user role in the 2nd row to manage the 6 permission checkboxes.
-          </Typography>
-        </Box>
-
-        {/* 2-ROW HEADER CONTAINER */}
-        <Box sx={{ p: 2.5 }}>
-          {/* ROW 1: Sidebar Pages */}
-          <Box sx={{ mb: 2.5 }}>
-            <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, color: '#64748b', display: 'block', mb: 1.2 }}>
-              Row 1: Sidebar Pages
-            </Typography>
+        {/* Card Header */}
+        <Box sx={{ mb: 2.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Box
               sx={{
+                width: 28,
+                height: 28,
+                borderRadius: '8px',
+                backgroundColor: '#EFF6FF',
                 display: 'flex',
-                flexWrap: 'wrap',
-                gap: 1.2,
-                backgroundColor: '#f1f5f9',
-                p: 1,
-                borderRadius: '10px'
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#1877F2'
               }}
             >
+              <TuneIcon sx={{ fontSize: 18 }} />
+            </Box>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0F172A', fontSize: '15.5px' }}>
+              Access Configuration Selector
+            </Typography>
+          </Box>
+        </Box>
+
+        {/* 2-ROW SELECTOR */}
+        <Stack spacing={2}>
+          {/* Row 1: Page */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              p: '6px 10px',
+              borderRadius: '8px',
+              backgroundColor: '#F8FAFC',
+              border: '1px solid #E2E8F0'
+            }}
+          >
+            <Typography
+              sx={{
+                fontWeight: 700,
+                color: '#475569',
+                fontSize: '13px',
+                minWidth: { xs: 50, sm: 65 },
+                pl: 1
+              }}
+            >
+              Page
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, flexGrow: 1 }}>
               {PAGE_DEFINITIONS.map(p => {
                 const isActive = selectedPage === p.id;
                 return (
                   <Button
                     key={p.id}
-                    variant={isActive ? 'contained' : 'text'}
-                    startIcon={p.icon}
                     onClick={() => setSelectedPage(p.id)}
+                    startIcon={React.cloneElement(p.icon, {
+                      sx: { fontSize: 18, color: isActive ? '#FFFFFF' : '#64748B' }
+                    })}
                     sx={{
-                      borderRadius: '8px',
                       textTransform: 'none',
-                      fontWeight: isActive ? 700 : 500,
+                      borderRadius: '8px',
                       px: 2,
-                      py: 1,
-                      fontSize: '0.9rem',
-                      backgroundColor: isActive ? '#0088ff' : 'transparent',
-                      color: isActive ? '#ffffff' : '#334155',
-                      boxShadow: isActive ? '0 2px 8px rgba(0, 136, 255, 0.3)' : 'none',
+                      py: 0.75,
+                      fontWeight: isActive ? 700 : 600,
+                      fontSize: '13px',
+                      backgroundColor: isActive ? '#0088ff' : '#FFFFFF',
+                      color: isActive ? '#FFFFFF' : '#475569',
+                      border: isActive ? '1px solid #0088ff' : '1px solid #E2E8F0',
+                      boxShadow: "none",
+                      transition: 'all 0.15s ease',
                       '&:hover': {
-                        backgroundColor: isActive ? '#0070d2' : 'rgba(255, 255, 255, 0.7)',
+                        backgroundColor: isActive ? '#0066cc' : '#F1F5F9',
+                        borderColor: isActive ? '#0066cc' : '#CBD5E1'
                       }
                     }}
                   >
@@ -453,43 +568,53 @@ const AccessControl = () => {
             </Box>
           </Box>
 
-          {/* ROW 2: User Roles */}
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, color: '#64748b', display: 'block', mb: 1.2 }}>
-              Row 2: User Types / Roles
-            </Typography>
-            <Box
+          {/* Row 2: Role */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              p: '6px 10px',
+              borderRadius: '8px',
+              backgroundColor: '#F8FAFC',
+              border: '1px solid #E2E8F0'
+            }}
+          >
+            <Typography
               sx={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: 1.2,
-                backgroundColor: '#f8fafc',
-                p: 1,
-                borderRadius: '10px',
-                border: '1px solid #e2e8f0'
+                fontWeight: 700,
+                color: '#475569',
+                fontSize: '13px',
+                minWidth: { xs: 50, sm: 65 },
+                pl: 1
               }}
             >
+              Role
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, flexGrow: 1 }}>
               {ROLE_DEFINITIONS.map(r => {
                 const isActive = selectedRole === r.id;
                 return (
                   <Button
                     key={r.id}
-                    variant={isActive ? 'contained' : 'outlined'}
                     onClick={() => setSelectedRole(r.id)}
+                    startIcon={React.cloneElement(r.icon, {
+                      sx: { fontSize: 16, color: isActive ? '#FFFFFF' : '#64748B' }
+                    })}
                     sx={{
-                      borderRadius: '8px',
                       textTransform: 'none',
+                      borderRadius: '8px',
+                      px: 2,
+                      py: 0.75,
                       fontWeight: isActive ? 700 : 600,
-                      px: 2.2,
-                      py: 0.8,
-                      fontSize: '0.875rem',
-                      borderColor: isActive ? '#0f172a' : '#cbd5e1',
-                      backgroundColor: isActive ? '#0f172a' : '#ffffff',
-                      color: isActive ? '#ffffff' : '#475569',
-                      boxShadow: isActive ? '0 2px 8px rgba(15, 23, 42, 0.25)' : 'none',
+                      fontSize: '13px',
+                      backgroundColor: isActive ? '#0F172A' : '#FFFFFF',
+                      color: isActive ? '#FFFFFF' : '#475569',
+                      border: isActive ? '1px solid #0F172A' : '1px solid #E2E8F0',
+                      boxShadow: 'none',
+                      transition: 'all 0.15s ease',
                       '&:hover': {
-                        backgroundColor: isActive ? '#1e293b' : '#f1f5f9',
-                        borderColor: isActive ? '#1e293b' : '#94a3b8'
+                        backgroundColor: isActive ? '#1E293B' : '#F1F5F9',
+                        borderColor: isActive ? '#1E293B' : '#CBD5E1'
                       }
                     }}
                   >
@@ -499,400 +624,309 @@ const AccessControl = () => {
               })}
             </Box>
           </Box>
-
-          <Divider sx={{ my: 2.5, borderColor: '#f1f5f9' }} />
-
-          {/* ACTIVE TAB PERMISSION CHECKBOXES (6 OPTIONS) */}
-          <Box
-            sx={{
-              p: 3,
-              backgroundColor: '#fafcff',
-              borderRadius: '12px',
-              border: '1.5px solid #dbeafe'
-            }}
-          >
-            {/* Header info badge for active combination */}
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5, flexWrap: 'wrap', gap: 1 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <Typography variant="body1" sx={{ fontWeight: 600, color: '#334155' }}>
-                  Active Privileges for:
-                </Typography>
-                <Chip
-                  label={getPageLabel(selectedPage)}
-                  color="primary"
-                  size="small"
-                  sx={{ fontWeight: 700, backgroundColor: '#0088ff' }}
-                />
-                <Typography variant="body2" sx={{ color: '#94a3b8' }}>
-                  →
-                </Typography>
-                <Chip
-                  label={selectedRole}
-                  variant="outlined"
-                  size="small"
-                  sx={{ fontWeight: 700, borderColor: '#0f172a', color: '#0f172a' }}
-                />
-              </Box>
-
-              {currentPermissions.noAccess ? (
-                <Chip
-                  icon={<BlockIcon sx={{ fontSize: '16px !important' }} />}
-                  label="No Access"
-                  color="error"
-                  size="small"
-                  variant="outlined"
-                  sx={{ fontWeight: 600 }}
-                />
-              ) : currentPermissions.fullAccess ? (
-                <Chip
-                  icon={<CheckCircleIcon sx={{ fontSize: '16px !important' }} />}
-                  label="Full Access Granted"
-                  color="success"
-                  size="small"
-                  sx={{ fontWeight: 600 }}
-                />
-              ) : (
-                <Chip
-                  label="Custom Access"
-                  size="small"
-                  sx={{ fontWeight: 600, backgroundColor: '#e0f2fe', color: '#0284c7' }}
-                />
-              )}
-            </Box>
-
-            {/* The 6 Checkboxes */}
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)', lg: 'repeat(6, 1fr)' },
-                gap: 2
-              }}
-            >
-              {/* 1. Full Access */}
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: '10px',
-                  backgroundColor: currentPermissions.fullAccess ? 'rgba(0, 136, 255, 0.08)' : '#ffffff',
-                  border: currentPermissions.fullAccess ? '2px solid #0088ff' : '1px solid #e2e8f0',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={!!currentPermissions.fullAccess}
-                      onChange={(e) => handlePermissionChange('fullAccess', e.target.checked)}
-                      sx={{ color: '#0088ff', '&.Mui-checked': { color: '#0088ff' } }}
-                    />
-                  }
-                  label={
-                    <Box>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: currentPermissions.fullAccess ? '#0088ff' : '#1e293b' }}>
-                        Full Access
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: '#64748b' }}>
-                        Grant all permissions
-                      </Typography>
-                    </Box>
-                  }
-                  sx={{ width: '100%', m: 0 }}
-                />
-              </Box>
-
-              {/* 2. View */}
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: '10px',
-                  backgroundColor: currentPermissions.view ? 'rgba(16, 185, 129, 0.08)' : '#ffffff',
-                  border: currentPermissions.view ? '2px solid #10b981' : '1px solid #e2e8f0',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={!!currentPermissions.view}
-                      onChange={(e) => handlePermissionChange('view', e.target.checked)}
-                      sx={{ color: '#10b981', '&.Mui-checked': { color: '#10b981' } }}
-                    />
-                  }
-                  label={
-                    <Box>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: currentPermissions.view ? '#059669' : '#1e293b' }}>
-                        View
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: '#64748b' }}>
-                        Read-only visibility
-                      </Typography>
-                    </Box>
-                  }
-                  sx={{ width: '100%', m: 0 }}
-                />
-              </Box>
-
-              {/* 3. Create */}
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: '10px',
-                  backgroundColor: currentPermissions.create ? 'rgba(99, 102, 241, 0.08)' : '#ffffff',
-                  border: currentPermissions.create ? '2px solid #6366f1' : '1px solid #e2e8f0',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={!!currentPermissions.create}
-                      onChange={(e) => handlePermissionChange('create', e.target.checked)}
-                      sx={{ color: '#6366f1', '&.Mui-checked': { color: '#6366f1' } }}
-                    />
-                  }
-                  label={
-                    <Box>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: currentPermissions.create ? '#4f46e5' : '#1e293b' }}>
-                        Create
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: '#64748b' }}>
-                        Add new entries
-                      </Typography>
-                    </Box>
-                  }
-                  sx={{ width: '100%', m: 0 }}
-                />
-              </Box>
-
-              {/* 4. Update */}
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: '10px',
-                  backgroundColor: currentPermissions.update ? 'rgba(245, 158, 11, 0.08)' : '#ffffff',
-                  border: currentPermissions.update ? '2px solid #f59e0b' : '1px solid #e2e8f0',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={!!currentPermissions.update}
-                      onChange={(e) => handlePermissionChange('update', e.target.checked)}
-                      sx={{ color: '#f59e0b', '&.Mui-checked': { color: '#f59e0b' } }}
-                    />
-                  }
-                  label={
-                    <Box>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: currentPermissions.update ? '#d97706' : '#1e293b' }}>
-                        Update
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: '#64748b' }}>
-                        Edit / modify data
-                      </Typography>
-                    </Box>
-                  }
-                  sx={{ width: '100%', m: 0 }}
-                />
-              </Box>
-
-              {/* 5. Delete */}
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: '10px',
-                  backgroundColor: currentPermissions.delete ? 'rgba(239, 68, 68, 0.08)' : '#ffffff',
-                  border: currentPermissions.delete ? '2px solid #ef4444' : '1px solid #e2e8f0',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={!!currentPermissions.delete}
-                      onChange={(e) => handlePermissionChange('delete', e.target.checked)}
-                      sx={{ color: '#ef4444', '&.Mui-checked': { color: '#ef4444' } }}
-                    />
-                  }
-                  label={
-                    <Box>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: currentPermissions.delete ? '#dc2626' : '#1e293b' }}>
-                        Delete
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: '#64748b' }}>
-                        Remove records
-                      </Typography>
-                    </Box>
-                  }
-                  sx={{ width: '100%', m: 0 }}
-                />
-              </Box>
-
-              {/* 6. No Access */}
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: '10px',
-                  backgroundColor: currentPermissions.noAccess ? 'rgba(100, 116, 139, 0.12)' : '#ffffff',
-                  border: currentPermissions.noAccess ? '2px solid #475569' : '1px solid #e2e8f0',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={!!currentPermissions.noAccess}
-                      onChange={(e) => handlePermissionChange('noAccess', e.target.checked)}
-                      sx={{ color: '#475569', '&.Mui-checked': { color: '#475569' } }}
-                    />
-                  }
-                  label={
-                    <Box>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: currentPermissions.noAccess ? '#334155' : '#1e293b' }}>
-                        No Access
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: '#64748b' }}>
-                        Block page & tab
-                      </Typography>
-                    </Box>
-                  }
-                  sx={{ width: '100%', m: 0 }}
-                />
-              </Box>
-            </Box>
-          </Box>
-
-          {/* USERS SUB-TABS VISIBILITY (LIVE VIEW CHECKBOX CARDS FETCHED FROM API) */}
-          {selectedPage === 'users' && (
-            <Box
-              sx={{
-                mt: 3,
-                p: 3,
-                backgroundColor: '#ffffff',
-                borderRadius: '12px',
-                border: '1.5px solid #e2e8f0'
-              }}
-            >
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <PeopleIcon sx={{ color: '#0088ff', fontSize: 20 }} />
-                  Users Sub-Tabs Visibility
-                </Typography>
-                <Typography variant="caption" sx={{ color: '#64748b' }}>
-                  Manage which directory sub-tabs are visible for role <strong>{selectedRole}</strong> inside the Users page. (Fetched dynamically from API)
-                </Typography>
-              </Box>
-
-              {loadingUserTabs ? (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 2 }}>
-                  <CircularProgress size={20} sx={{ color: '#10b981' }} />
-                  <Typography variant="caption" sx={{ color: '#64748b' }}>
-                    Loading dynamic tabs from API...
-                  </Typography>
-                </Box>
-              ) : (
-                <Box
-                  sx={{
-                    display: 'grid',
-                    gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' },
-                    gap: 2
-                  }}
-                >
-                  {userTabs.map(tab => {
-                    const isChecked = getTabPermission(tab.id, tab.slug || tab.name.toLowerCase());
-                    return (
-                      <Box
-                        key={tab.id}
-                        sx={{
-                          p: 2,
-                          borderRadius: '12px',
-                          backgroundColor: isChecked ? 'rgba(16, 185, 129, 0.08)' : '#ffffff',
-                          border: isChecked ? '2px solid #10b981' : '1px solid #e2e8f0',
-                          transition: 'all 0.15s ease',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          justifyContent: 'space-between'
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1e293b' }}>
-                            {tab.name}
-                          </Typography>
-                          {tab.isSystem && (
-                            <Chip
-                              label="System"
-                              size="small"
-                              sx={{ fontSize: '0.65rem', height: 18, backgroundColor: '#f1f5f9', color: '#64748b' }}
-                            />
-                          )}
-                        </Box>
-
-                        {/* Live View Checkbox Card matching user's Image 2 */}
-                        <Box
-                          sx={{
-                            pt: 1,
-                            borderTop: '1px dashed #e2e8f0'
-                          }}
-                        >
-                          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#059669', mb: 0.5 }}>
-                            View
-                          </Typography>
-                          <FormControlLabel
-                            control={
-                              <Checkbox
-                                checked={isChecked}
-                                onChange={(e) => handleTabPermissionToggle(tab.id, e.target.checked)}
-                                sx={{
-                                  color: '#10b981',
-                                  '&.Mui-checked': { color: '#10b981' },
-                                  p: 0.5
-                                }}
-                              />
-                            }
-                            label={
-                              <Typography variant="body2" sx={{ color: '#475467', fontSize: '0.85rem' }}>
-                                Read-only visibility
-                              </Typography>
-                            }
-                            sx={{ m: 0 }}
-                          />
-                        </Box>
-                      </Box>
-                    );
-                  })}
-                </Box>
-              )}
-            </Box>
-          )}
-        </Box>
+        </Stack>
       </Card>
 
-      {/* OVERVIEW PERMISSIONS MATRIX TABLE */}
+      {/* CARD 2: Active Privileges */}
       <Card
         elevation={0}
         sx={{
-          borderRadius: '14px',
-          border: '1px solid #e2e8f0',
-          backgroundColor: '#ffffff',
-          overflow: 'hidden'
+          borderRadius: '8px',
+          border: '1px solid #E2E8F0',
+          backgroundColor: '#FFFFFF',
+          p: { xs: 2.5, md: 3 },
+          mb: 3,
+          boxShadow: 'none'
         }}
       >
-        <Box sx={{ p: 2.5, backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Box>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0f172a' }}>
-              Full Permissions Matrix
+        {/* Header of Active Privileges Card */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5, flexWrap: 'wrap', gap: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, flexWrap: 'wrap' }}>
+            <Chip
+              icon={React.cloneElement(PAGE_DEFINITIONS.find(p => p.id === selectedPage)?.icon || <DashboardIcon />, {
+                sx: { fontSize: '15px !important', color: '#FFFFFF !important' }
+              })}
+              label={getPageLabel(selectedPage)}
+              sx={{
+                backgroundColor: '#0088ff',
+                color: '#FFFFFF',
+                fontWeight: 700,
+                fontSize: '13px',
+                borderRadius: '6px',
+                height: 28
+              }}
+            />
+            <Typography sx={{ color: '#94A3B8', fontWeight: 700, fontSize: '14px' }}>
+              →
             </Typography>
-            <Typography variant="caption" sx={{ color: '#64748b' }}>
-              Click any cell to immediately select and edit that page & user role combination above
-            </Typography>
+            <Chip
+              icon={React.cloneElement(ROLE_DEFINITIONS.find(r => r.id === selectedRole)?.icon || <PersonIcon />, {
+                sx: { fontSize: '15px !important', color: '#FFFFFF !important' }
+              })}
+              label={selectedRole}
+              sx={{
+                backgroundColor: '#0F172A',
+                color: '#FFFFFF',
+                fontWeight: 700,
+                fontSize: '13px',
+                borderRadius: '6px',
+                height: 28
+              }}
+            />
           </Box>
+
+          {/* Right Status Badge */}
+          {currentPermissions.noAccess ? (
+            <Chip
+              icon={<BlockIcon sx={{ fontSize: '16px !important', color: '#DC2626 !important' }} />}
+              label="No Access"
+              sx={{
+                backgroundColor: '#FEE2E2',
+                color: '#DC2626',
+                border: '1px solid #FCA5A5',
+                fontWeight: 700,
+                fontSize: '12.5px',
+                borderRadius: '6px',
+                height: 28
+              }}
+            />
+          ) : currentPermissions.fullAccess ? (
+            <Chip
+              icon={<CheckCircleIcon sx={{ fontSize: '16px !important', color: '#16A34A !important' }} />}
+              label="Full Access Granted"
+              sx={{
+                backgroundColor: '#DCFCE7',
+                color: '#15803D',
+                border: '1px solid #86EFAC',
+                fontWeight: 700,
+                fontSize: '12.5px',
+                borderRadius: '6px',
+                height: 28
+              }}
+            />
+          ) : (
+            <Chip
+              label="Custom Access"
+              sx={{
+                backgroundColor: '#E0F2FE',
+                color: '#0284C7',
+                border: '1px solid #BAE6FD',
+                fontWeight: 700,
+                fontSize: '12.5px',
+                borderRadius: '6px',
+                height: 28
+              }}
+            />
+          )}
         </Box>
 
-        <TableContainer component={Paper} elevation={0} sx={{ maxHeight: 600 }}>
-          <Table stickyHeader size="small">
+        {/* 6 Privilege Checkbox Cards in a responsive Row/Grid */}
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: {
+              xs: '1fr',
+              sm: 'repeat(2, 1fr)',
+              md: 'repeat(3, 1fr)',
+              lg: 'repeat(6, 1fr)'
+            },
+            gap: 2
+          }}
+        >
+          {PRIVILEGE_CARDS.map((item) => (
+            <Box
+              key={item.key}
+              onClick={item.toggle}
+              sx={{
+                p: 2.2,
+                borderRadius: '8px',
+                border: item.isActive ? `2px solid ${item.activeBorder}` : '1.5px solid #E2E8F0',
+                backgroundColor: item.isActive ? item.activeBg : '#FFFFFF',
+                cursor: 'pointer',
+                position: 'relative',
+                transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
+                boxShadow: item.isActive ? `0 4px 12px ${item.themeColor}15` : '0 1px 3px rgba(0,0,0,0.02)',
+                '&:hover': {
+                  transform: 'translateY(-2px)',
+                  boxShadow: `0 6px 16px ${item.themeColor}20`,
+                  borderColor: item.themeColor
+                }
+              }}
+            >
+              {/* Top-Right Indicator Circle */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: 12,
+                  right: 12,
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: item.isActive ? item.themeColor : 'transparent',
+                  border: item.isActive ? 'none' : '1.5px solid #CBD5E1',
+                  color: '#FFFFFF'
+                }}
+              >
+                {item.isActive && <CheckIcon sx={{ fontSize: 13, fontWeight: 800 }} />}
+              </Box>
+
+              {/* Theme Icon in round squircle */}
+              <Box
+                sx={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: '10px',
+                  backgroundColor: `${item.themeColor}15`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: item.themeColor,
+                  mb: 1.5
+                }}
+              >
+                {item.icon}
+              </Box>
+
+              <Typography
+                variant="subtitle2"
+                sx={{
+                  fontWeight: 700,
+                  fontSize: '15px',
+                  color: item.isActive ? item.themeColor : '#0F172A',
+                  mb: 0.3
+                }}
+              >
+                {item.title}
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#64748B', fontSize: '12px', display: 'block' }}>
+                {item.subtitle}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+
+        {/* Dynamic Users Sub-Tabs Visibility (kept when selectedPage === 'users') */}
+        {selectedPage === 'users' && (
+          <Box
+            sx={{
+              mt: 3.5,
+              pt: 3,
+              borderTop: '1px dashed #E2E8F0'
+            }}
+          >
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 1, fontSize: '15px' }}>
+                <GroupsIcon sx={{ color: '#0088ff', fontSize: 20 }} />
+                Users Role Access Configuration
+              </Typography>
+            </Box>
+
+            {loadingUserTabs ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 2 }}>
+                <CircularProgress size={20} sx={{ color: '#10B981' }} />
+                <Typography variant="caption" sx={{ color: '#64748B' }}>
+                  Loading dynamic tabs from API...
+                </Typography>
+              </Box>
+            ) : (
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' },
+                  gap: 2
+                }}
+              >
+                {userTabs.map(tab => {
+                  const isChecked = getTabPermission(tab.id, tab.slug || tab.name.toLowerCase());
+                  return (
+                    <Box
+                      key={tab.id}
+                      onClick={() => handleTabPermissionToggle(tab.id, !isChecked)}
+                      sx={{
+                        p: 2,
+                        borderRadius: '12px',
+                        backgroundColor: isChecked ? '#F0FDF4' : '#FFFFFF',
+                        border: isChecked ? '2px solid #10B981' : '1.5px solid #E2E8F0',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        '&:hover': {
+                          borderColor: '#10B981',
+                          transform: 'translateY(-1px)'
+                        }
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1E293B', fontSize: '14px' }}>
+                          {tab.name}
+                        </Typography>
+                        {tab.isSystem && (
+                          <Chip
+                            label="System"
+                            size="small"
+                            sx={{ fontSize: '0.65rem', height: 18, backgroundColor: '#F1F5F9', color: '#64748B' }}
+                          />
+                        )}
+                      </Box>
+
+                      <Box sx={{ pt: 1, borderTop: '1px dashed #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Box>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#059669', fontSize: '13px' }}>
+                            View
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: '#64748B', fontSize: '11.5px' }}>
+                            Read-only visibility
+                          </Typography>
+                        </Box>
+                        <Box
+                          sx={{
+                            width: 20,
+                            height: 20,
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: isChecked ? '#10B981' : 'transparent',
+                            border: isChecked ? 'none' : '1.5px solid #CBD5E1',
+                            color: '#FFFFFF'
+                          }}
+                        >
+                          {isChecked && <CheckIcon sx={{ fontSize: 13, fontWeight: 800 }} />}
+                        </Box>
+                      </Box>
+                    </Box>
+                  );
+                })}
+              </Box>
+            )}
+          </Box>
+        )}
+      </Card>
+
+      {/* CARD 3: Full Permissions Matrix */}
+      <Card
+        elevation={0}
+        sx={{
+          borderRadius: '8px',
+          border: '1px solid #E2E8F0',
+          backgroundColor: '#FFFFFF',
+          overflow: 'hidden',
+          boxShadow: 'none'
+        }}
+      >
+   
+
+        {/* Matrix Table */}
+        <TableContainer component={Paper} elevation={0}>
+          <Table size="medium">
             <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 700, backgroundColor: '#f1f5f9', color: '#334155', minWidth: 160 }}>
+              <TableRow sx={{ backgroundColor: '#F8FAFC' }}>
+                <TableCell sx={{ fontWeight: 700, color: '#334155', fontSize: '13.5px', py: 1.8, px: 3, minWidth: 160, borderBottom: '1px solid #E2E8F0' }}>
                   Page
                 </TableCell>
                 {ROLE_DEFINITIONS.map(r => (
@@ -901,12 +935,19 @@ const AccessControl = () => {
                     align="center"
                     sx={{
                       fontWeight: 700,
-                      backgroundColor: selectedRole === r.id ? '#e2e8f0' : '#f1f5f9',
-                      color: '#1e293b',
-                      minWidth: 150
+                      color: selectedRole === r.id ? '#1877F2' : '#334155',
+                      fontSize: '13px',
+                      py: 1.8,
+                      minWidth: 140,
+                      borderBottom: '1px solid #E2E8F0'
                     }}
                   >
-                    {r.label}
+                    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6 }}>
+                      {React.cloneElement(r.icon, {
+                        sx: { fontSize: 16, color: selectedRole === r.id ? '#1877F2' : '#64748B' }
+                      })}
+                      {r.label}
+                    </Box>
                   </TableCell>
                 ))}
               </TableRow>
@@ -919,22 +960,30 @@ const AccessControl = () => {
                     key={p.id}
                     hover
                     sx={{
-                      backgroundColor: isRowActive ? 'rgba(0, 136, 255, 0.03)' : 'transparent',
+                      backgroundColor: isRowActive ? 'rgba(24, 119, 242, 0.02)' : 'transparent',
+                      transition: 'background-color 0.12s ease'
                     }}
                   >
+                    {/* Page Name Cell */}
                     <TableCell
                       sx={{
                         fontWeight: 600,
-                        color: isRowActive ? '#0088ff' : '#334155',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1
+                        color: isRowActive ? '#1877F2' : '#1E293B',
+                        fontSize: '13.5px',
+                        py: 1.8,
+                        px: 3,
+                        borderBottom: '1px solid #F1F5F9'
                       }}
                     >
-                      {p.icon}
-                      {p.label}
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+                        {React.cloneElement(p.icon, {
+                          sx: { fontSize: 18, color: isRowActive ? '#1877F2' : '#64748B' }
+                        })}
+                        {p.label}
+                      </Box>
                     </TableCell>
 
+                    {/* Role Permission Cells */}
                     {ROLE_DEFINITIONS.map(r => {
                       const perms = matrix[p.id]?.[r.id] || DEFAULT_PERMISSIONS;
                       const isCellActive = selectedPage === p.id && selectedRole === r.id;
@@ -943,48 +992,95 @@ const AccessControl = () => {
                       if (perms.noAccess) {
                         cellBadge = (
                           <Chip
+                            icon={<BlockIcon sx={{ fontSize: '13px !important', color: '#DC2626 !important' }} />}
                             label="No Access"
                             size="small"
                             sx={{
-                              backgroundColor: '#fee2e2',
-                              color: '#991b1b',
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
-                              height: 22
+                              backgroundColor: '#FEE2E2',
+                              color: '#DC2626',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              height: 26,
+                              borderRadius: '13px',
+                              px: 0.5,
+                              '& .MuiChip-label': { px: 1 }
                             }}
                           />
                         );
                       } else if (perms.fullAccess) {
                         cellBadge = (
                           <Chip
+                            icon={<CheckIcon sx={{ fontSize: '14px !important', color: '#16A34A !important', fontWeight: 800 }} />}
                             label="Full Access"
                             size="small"
                             sx={{
-                              backgroundColor: '#dcfce7',
-                              color: '#166534',
-                              fontSize: '0.75rem',
+                              backgroundColor: '#DCFCE7',
+                              color: '#15803D',
+                              fontSize: '12px',
                               fontWeight: 700,
-                              height: 22
+                              height: 26,
+                              borderRadius: '13px',
+                              px: 0.5,
+                              '& .MuiChip-label': { px: 1 }
+                            }}
+                          />
+                        );
+                      } else if (perms.view && perms.update && !perms.create && !perms.delete) {
+                        cellBadge = (
+                          <Chip
+                            icon={<EditIcon sx={{ fontSize: '13px !important', color: '#D97706 !important' }} />}
+                            label="View, Update"
+                            size="small"
+                            sx={{
+                              backgroundColor: '#FEF3C7',
+                              color: '#D97706',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              height: 26,
+                              borderRadius: '13px',
+                              px: 0.5,
+                              '& .MuiChip-label': { px: 1 }
+                            }}
+                          />
+                        );
+                      } else if (perms.view && !perms.create && !perms.update && !perms.delete) {
+                        cellBadge = (
+                          <Chip
+                            icon={<ViewIcon sx={{ fontSize: '13px !important', color: '#0284C7 !important' }} />}
+                            label="View"
+                            size="small"
+                            sx={{
+                              backgroundColor: '#E0F2FE',
+                              color: '#0284C7',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              height: 26,
+                              borderRadius: '13px',
+                              px: 0.5,
+                              '& .MuiChip-label': { px: 1 }
                             }}
                           />
                         );
                       } else {
                         const activeList = [];
-                        if (perms.view) activeList.push('V');
-                        if (perms.create) activeList.push('C');
-                        if (perms.update) activeList.push('U');
-                        if (perms.delete) activeList.push('D');
+                        if (perms.view) activeList.push('View');
+                        if (perms.create) activeList.push('Create');
+                        if (perms.update) activeList.push('Update');
+                        if (perms.delete) activeList.push('Delete');
 
                         cellBadge = (
                           <Chip
-                            label={activeList.length ? activeList.join(', ') : 'None'}
+                            label={activeList.length ? activeList.join(', ') : 'No Access'}
                             size="small"
                             sx={{
-                              backgroundColor: '#e0f2fe',
-                              color: '#0369a1',
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
-                              height: 22
+                              backgroundColor: '#EFF6FF',
+                              color: '#1D4ED8',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              height: 26,
+                              borderRadius: '13px',
+                              px: 0.5,
+                              '& .MuiChip-label': { px: 1 }
                             }}
                           />
                         );
@@ -1000,11 +1096,14 @@ const AccessControl = () => {
                           }}
                           sx={{
                             cursor: 'pointer',
-                            outline: isCellActive ? '2px solid #0088ff' : 'none',
+                            py: 1.8,
+                            borderBottom: '1px solid #F1F5F9',
+                            outline: isCellActive ? '2px solid #1877F2' : 'none',
                             outlineOffset: '-2px',
-                            backgroundColor: isCellActive ? 'rgba(0, 136, 255, 0.08)' : 'inherit',
+                            backgroundColor: isCellActive ? 'rgba(24, 119, 242, 0.05)' : 'transparent',
+                            transition: 'all 0.12s ease',
                             '&:hover': {
-                              backgroundColor: 'rgba(0, 136, 255, 0.05)'
+                              backgroundColor: 'rgba(24, 119, 242, 0.08)'
                             }
                           }}
                         >

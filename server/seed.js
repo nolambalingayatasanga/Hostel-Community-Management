@@ -74,7 +74,7 @@ const seedData = async () => {
       accountStatus: 'ACTIVE',
       status: statusActiveStaff._id,
       name: 'madhan',
-      email: 'madhaku635@gmail',
+      email: 'madhanku635@gmail.com',
       phone: '9988776655',
       passwordHash: '123123', // will be hashed by mongoose pre-save hook
       registrationNumber: 'REG-ADM-01',

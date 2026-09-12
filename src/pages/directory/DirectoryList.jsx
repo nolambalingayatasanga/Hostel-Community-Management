@@ -41,6 +41,7 @@ import LeadCell from "./LeadCell";
 import AddLeadDialog from "./AddLeadDialog";
 import LeadDetailsDialog from "./LeadDetailsDialog";
 import ColumnSelectorPanel from "./ColumnSelectorPanel";
+import LoginDetailsModal from "./LoginDetailsModal";
 import { columnWidth, toRow, formatLeadDate, leadFieldValue, getColumnDisplayName } from "./leadHelpers";
 import API from "../../api";
 import { useAuth } from "../../context/AuthContext";
@@ -53,7 +54,7 @@ const DROPPED_TAB = "dropped";
 export default function DirectoryList() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const isAdminOrWarden = ["ADMIN", "WARDEN"].includes(user?.role);
+  const isAdminOrWarden = ["ADMIN", "WARDEN", "CHAIRPERSON"].includes(user?.role);
 
   const meta = useCrmMeta();
   const { update, updateField, createLead } = useLeadMutations();
@@ -101,6 +102,8 @@ export default function DirectoryList() {
   const [editingCell, setEditingCell] = useState(null);
   const [detailLead, setDetailLead] = useState(null);
   const [columnsOpen, setColumnsOpen] = useState(false);
+  const [auditUserRow, setAuditUserRow] = useState(null);
+  const [auditModalOpen, setAuditModalOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [dropLoading, setDropLoading] = useState(false);
 
@@ -242,11 +245,33 @@ export default function DirectoryList() {
       return true;
     });
 
-    return filtered.map((field) => {
+    const isUserAdmin = user?.role === "ADMIN";
+    let finalFiltered = filtered;
+    if (isUserAdmin) {
+      const hasLoginDetails = finalFiltered.some((f) => (f.slug || "").toLowerCase() === "logindetails");
+      if (!hasLoginDetails) {
+        finalFiltered = [
+          ...finalFiltered,
+          {
+            _id: "internal_logindetails",
+            name: "Login Details",
+            slug: "loginDetails",
+            type: "text",
+            isInternal: true,
+            order: 9999,
+            isVisible: true,
+          },
+        ];
+      }
+    } else {
+      finalFiltered = finalFiltered.filter((f) => (f.slug || "").toLowerCase() !== "logindetails");
+    }
+
+    return finalFiltered.map((field) => {
       const colWidth = columnWidth(field);
       return { ...field, width: colWidth };
     });
-  }, [meta.data?.customFields, tabColOrders, tabHiddenCols, activeTabId, meta.data?.statusGroups, user?._id]);
+  }, [meta.data?.customFields, tabColOrders, tabHiddenCols, activeTabId, meta.data?.statusGroups, user?._id, user?.role]);
 
   // Name column is strictly fixed to the first position on ALL tabs
   const nameCol = useMemo(() => {
@@ -468,15 +493,29 @@ export default function DirectoryList() {
   };
 
   const handleChangeRef = (leadId, key, value) => {
-    const rawUser = accumulatedLeads.find((item) => String(item._id || item.id) === String(leadId));
+    const rawUser =
+      leads.find((item) => String(item._id || item.id) === String(leadId)) ||
+      rows.find((item) => String(item.id) === String(leadId))?.raw;
     let updateData = {};
-    if (key === "relativeName" || key === "relativename") {
+    const lowerKey = (key || "").toLowerCase();
+
+    if (lowerKey === "relativename" || lowerKey === "relation") {
       updateData = {
         relation: {
           ...(rawUser?.relation || {}),
-          relatedPersonName: value
-        }
+          relatedPersonName: value,
+        },
       };
+    } else if (lowerKey === "role") {
+      updateData = { role: String(value).toUpperCase() };
+    } else if (lowerKey === "adhaar" || lowerKey === "aadhaar") {
+      updateData = { adhaar: String(value).trim() };
+    } else if (lowerKey === "email") {
+      updateData = { email: String(value).toLowerCase().trim() };
+    } else if (lowerKey === "phone") {
+      updateData = { phone: String(value).trim() };
+    } else if (lowerKey === "name") {
+      updateData = { name: String(value).trim() };
     } else if (key.includes(".")) {
       const parts = key.split(".");
       if (parts.length === 3) {
@@ -488,9 +527,9 @@ export default function DirectoryList() {
             ...(rawUser?.[p1] || {}),
             [p2]: {
               ...(rawUser?.[p1]?.[p2] || {}),
-              [p3]: value
-            }
-          }
+              [p3]: value,
+            },
+          },
         };
       } else if (parts.length === 2) {
         const parentKey = parts[0];
@@ -498,8 +537,8 @@ export default function DirectoryList() {
         updateData = {
           [parentKey]: {
             ...(rawUser?.[parentKey] || {}),
-            [childKey]: value
-          }
+            [childKey]: value,
+          },
         };
       }
     } else {
@@ -1065,7 +1104,7 @@ export default function DirectoryList() {
                   const nameCellId = `${row.id}-${nameCol._id}`;
                   const isNameEditing = editingCell === nameCellId;
                   const isOwnRow = String(row.id) === String(user?._id || user?.id);
-                  const nameCellDisabled = (!isAdminOrWarden && !isOwnRow) || update.isLoading || updateField.isLoading;
+                  const nameCellDisabled = !isAdminOrWarden && !isOwnRow;
 
                   return (
                     <Stack
@@ -1132,7 +1171,49 @@ export default function DirectoryList() {
                           backgroundColor: rowBg,
                         }}
                       >
-                        <Tooltip title="View Profile Details" arrow>
+                        <Tooltip
+                          arrow
+                          placement="right"
+                          enterDelay={150}
+                          leaveDelay={100}
+                          slotProps={{
+                            tooltip: {
+                              sx: {
+                                bgcolor: "transparent",
+                                boxShadow: "none",
+                                borderRadius: "16px",
+                                p: 0.75,
+                                border: "1px solid #EAECF0",
+                                "& .MuiTooltip-arrow": {
+                                  color: "#ffffff",
+                                  "&::before": {
+                                    border: "1px solid #EAECF0"
+                                  }
+                                }
+                              }
+                            }
+                          }}
+                          title={
+                            <Avatar
+                              src={row.profilePhoto?.url || ""}
+                              sx={{
+                                width: 180,
+                                height: 180,
+                                borderRadius: "50%",
+                                border: "2px solid #0088FF",
+                                fontSize: "2.4rem",
+                                fontWeight: 700,
+                                bgcolor: "#0088ff",
+                                "& .MuiAvatar-img": {
+                                  borderRadius: "50%",
+                                  objectFit: "cover"
+                                }
+                              }}
+                            >
+                              {row.name?.charAt(0)}
+                            </Avatar>
+                          }
+                        >
                           <Avatar
                             src={row.profilePhoto?.url || ""}
                             onClick={() => setDetailLead(row)}
@@ -1144,8 +1225,8 @@ export default function DirectoryList() {
                               cursor: "pointer",
                               transition: "all 0.2s ease",
                               "&:hover": {
-                                transform: "scale(1.08)",
-                                boxShadow: "0 0 0 3px rgba(0, 136, 255, 0.25)"
+                                transform: "scale(1.1)",
+                                boxShadow: "0 0 0 3px rgba(0, 136, 255, 0.3)"
                               }
                             }}
                           >
@@ -1183,7 +1264,7 @@ export default function DirectoryList() {
                         {scrollableColumns.map((col) => {
                           const cellId = `${row.id}-${col._id}`;
                           const isEditing = editingCell === cellId;
-                          const cellDisabled = (!isAdminOrWarden && !isOwnRow) || update.isLoading || updateField.isLoading;
+                          const cellDisabled = !isAdminOrWarden && !isOwnRow;
                           return (
                             <LeadCell
                               key={col._id}
@@ -1197,6 +1278,10 @@ export default function DirectoryList() {
                               onChangeRef={handleChangeRef}
                               onChangeField={handleChangeField}
                               onOpenProfile={() => setDetailLead(row)}
+                              onOpenAuditModal={(r) => {
+                                setAuditUserRow(r);
+                                setAuditModalOpen(true);
+                              }}
                             />
                           );
                         })}
@@ -1367,6 +1452,13 @@ export default function DirectoryList() {
         onUserUpdated={() => {
           queryClient.invalidateQueries(["crm-leads"]);
         }}
+      />
+
+      {/* Admin Security Telemetry & Audit Logs Modal */}
+      <LoginDetailsModal
+        open={auditModalOpen}
+        onClose={() => setAuditModalOpen(false)}
+        userRow={auditUserRow}
       />
     </Container>
   );

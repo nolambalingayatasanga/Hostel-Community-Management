@@ -92,8 +92,14 @@ const UserSchema = new mongoose.Schema({
     type: String
   },
   profilePhoto: {
-    url: { type: String, default: '' },
-    publicId: { type: String, default: '' }
+    url: {
+      type: String,
+      default: 'https://res.cloudinary.com/mkifnpvk/image/upload/v1789187464/hostel-community/profiles/vzsuddpebsujc0ayuku3.jpg'
+    },
+    publicId: {
+      type: String,
+      default: 'hostel-community/profiles/vzsuddpebsujc0ayuku3'
+    }
   },
   registrationNumber: {
     type: String,
@@ -183,6 +189,15 @@ const UserSchema = new mongoose.Schema({
   },
   lastLoginAt: {
     type: Date
+  },
+  lastLoginDetails: {
+    ip: { type: String, default: '' },
+    browser: { type: String, default: '' },
+    os: { type: String, default: '' },
+    device: { type: String, default: '' },
+    userAgent: { type: String, default: '' },
+    sessionId: { type: String, default: '' },
+    timestamp: { type: Date }
   },
   lastActive: {
     type: Date,

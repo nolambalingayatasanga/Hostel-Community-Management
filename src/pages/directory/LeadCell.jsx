@@ -6,6 +6,8 @@ import {
   WhatsApp as WhatsAppIcon,
   Instagram as InstagramIcon,
   LinkedIn as LinkedInIcon,
+  CheckCircle as CheckCircleIcon,
+  Shield as SecurityIcon,
 } from "@mui/icons-material";
 import debounce from "lodash/debounce";
 
@@ -91,25 +93,42 @@ function InlineTextEditor({
 }) {
   const [val, setVal] = useState(initialValue === "—" ? "" : (initialValue || ""));
   const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const lastSavedRef = useRef(initialValue === "—" ? "" : (initialValue || ""));
+  const onSaveRef = useRef(onSave);
+  const successTimerRef = useRef(null);
 
-  // Debounced auto-save handler triggered after user pauses typing (700ms)
+  useEffect(() => {
+    onSaveRef.current = onSave;
+  }, [onSave]);
+
+  useEffect(() => {
+    return () => {
+      if (successTimerRef.current) clearTimeout(successTimerRef.current);
+    };
+  }, []);
+
+  // Debounced auto-save handler triggered after user pauses typing (650ms)
   const debouncedSave = useMemo(
     () =>
       debounce(async (newVal) => {
         if (newVal !== lastSavedRef.current) {
           setIsSaving(true);
+          setSaveSuccess(false);
           try {
-            await onSave(newVal);
+            await onSaveRef.current(newVal);
             lastSavedRef.current = newVal;
+            setSaveSuccess(true);
+            if (successTimerRef.current) clearTimeout(successTimerRef.current);
+            successTimerRef.current = setTimeout(() => setSaveSuccess(false), 2000);
           } catch (err) {
             console.error("Failed to auto-save field:", err);
           } finally {
             setIsSaving(false);
           }
         }
-      }, 700),
-    [onSave]
+      }, 650),
+    []
   );
 
   useEffect(() => {
@@ -129,7 +148,7 @@ function InlineTextEditor({
     if (val !== lastSavedRef.current) {
       setIsSaving(true);
       try {
-        await onSave(val);
+        await onSaveRef.current(val);
         lastSavedRef.current = val;
       } catch (err) {
         console.error("Failed to save field on blur:", err);
@@ -163,7 +182,9 @@ function InlineTextEditor({
       slotProps={{
         input: {
           endAdornment: isSaving ? (
-            <CircularProgress size={14} sx={{ color: "#0088FF", mr: 0.5, flexShrink: 0 }} />
+            <CircularProgress size={16} sx={{ color: "#0088FF", mr: 0.5, flexShrink: 0 }} />
+          ) : saveSuccess ? (
+            <CheckCircleIcon sx={{ fontSize: 16, color: "#12B76A", mr: 0.5, flexShrink: 0 }} />
           ) : null,
         },
       }}
@@ -171,7 +192,8 @@ function InlineTextEditor({
         ...inputSx,
         "& .MuiOutlinedInput-root": {
           ...inputSx["& .MuiOutlinedInput-root"],
-          borderColor: isSaving ? "#0088FF" : undefined,
+          borderColor: isSaving ? "#0088FF" : saveSuccess ? "#12B76A" : undefined,
+          transition: "border-color 0.2s ease",
         },
       }}
     />
@@ -189,6 +211,7 @@ export default function LeadCell({
   onChangeRef,
   onChangeField,
   onOpenProfile,
+  onOpenAuditModal,
   sx = {},
   className = "",
 }) {
@@ -219,18 +242,21 @@ export default function LeadCell({
   const isJoiningDate = (field.slug || "").toLowerCase().includes("joiningdate") || (field.slug || "").toLowerCase().includes("registereddate");
   const isChannels = field.slug === INTERNAL_SLUGS.CHANNELS || (field.slug || "").toLowerCase() === "channels";
   const isRelativeName = field.slug === INTERNAL_SLUGS.RELATIVE_NAME || (field.slug || "").toLowerCase() === "relativename" || (field.slug || "").toLowerCase() === "relation";
+  const isLoginDetails = (field.slug || "").toLowerCase() === "logindetails";
 
   const { user } = useAuth();
   const currentViewerRole = user?.role;
   const isViewerAdmin = currentViewerRole === "ADMIN";
   const isViewerWarden = currentViewerRole === "WARDEN";
+  const isViewerChairperson = currentViewerRole === "CHAIRPERSON";
+  const canEditRole = isViewerAdmin || isViewerChairperson || isViewerWarden;
 
   // Strict check: Joining Date, Registration Number, Receipt NO, and SL No are non-editable by ANY user (even admin)
   const isLocked = isFieldNonEditable(field);
-  const editable = !disabled && !isLocked && (!isRole || isViewerAdmin || isViewerWarden);
+  const editable = !disabled && !isLocked && (!isRole || canEditRole);
 
   const hasPicker =
-    (isRole && (isViewerAdmin || isViewerWarden)) ||
+    (isRole && canEditRole) ||
     isStatus ||
     isGender ||
     field.type === "select";
@@ -255,25 +281,34 @@ export default function LeadCell({
     if (isJoiningDate) return formatLeadDate(row.joiningDate) || "";
     if (isRelativeName) return row.relativeName || row.relativename || row.raw?.relation?.relatedPersonName || "";
 
-    // Handle any other schema-mapped fields
-    if (field.isInternal && field.slug) {
+    // Handle any schema-mapped fields by slug
+    if (field.slug) {
       let val = row[field.slug];
       if (val === undefined || val === null || val === "") {
         val = row[field.slug.toLowerCase()];
       }
       if (val === undefined || val === null || val === "") {
-        val = row.raw?.[field.slug] ?? row.raw?.memberInfo?.[field.slug];
+        val = row.raw?.[field.slug] ?? row.raw?.[field.slug.toLowerCase()] ?? row.raw?.memberInfo?.[field.slug];
       }
-      if (field.slug === "dateOfBirth" && val) {
+      if ((val === undefined || val === null || val === "") && field.slug.includes(".")) {
+        const parts = field.slug.split(".");
+        let curr = row.raw;
+        for (const p of parts) {
+          if (!curr) break;
+          curr = curr[p];
+        }
+        val = curr;
+      }
+      if ((field.slug === "dateOfBirth" || field.slug === "dob") && val) {
         return formatLeadDate(val);
       }
-      if ((field.slug === "email" || field.slug === "email") && (!val || val === "") && row.raw?.isEmailMasked) {
-        return "••••@••••.•• (Masked)";
+      if ((field.slug === "email" || field.slug.toLowerCase() === "email") && (!val || val === "") && row.raw?.isEmailMasked && !forEdit) {
+        return "••••@••••.••";
       }
-      if ((field.slug === "adhaar" || field.slug === "aadhaar") && (!val || val === "") && row.raw?.isAdhaarMasked) {
-        return "•••• •••• •••• (Masked)";
+      if ((field.slug === "adhaar" || field.slug === "aadhaar") && (!val || val === "") && row.raw?.isAdhaarMasked && !forEdit) {
+        return "•••• •••• ••••";
       }
-      return val != null && val !== "" ? String(val) : "";
+      if (val != null && val !== "") return String(val);
     }
 
     // Custom fields value retrieval
@@ -352,7 +387,7 @@ export default function LeadCell({
             textOverflow: "ellipsis",
           }}
         >
-          {rawPhone || (isPhoneMasked ? "•••••••••• (Masked)" : "-")}
+          {rawPhone || (isPhoneMasked ? "••••••••••" : "-")}
         </Typography>
       </Box>
     );
@@ -452,6 +487,72 @@ export default function LeadCell({
     );
   }
 
+  // Login Details View (Admin Only Telemetry & Audit Logs)
+  if (isLoginDetails) {
+    const loginData = row.raw?.lastLoginDetails;
+    const hasLogins = Boolean(loginData?.ip || row.raw?.lastLoginAt);
+
+    return wrap(
+      <Box
+        onClick={() => onOpenAuditModal?.(row)}
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          cursor: "pointer",
+          p: 0.6,
+          px: 1,
+          borderRadius: "8px",
+          transition: "all 0.15s ease",
+          bgcolor: hasLogins ? "#F0FDF4" : "#F8FAFC",
+          border: `1px solid ${hasLogins ? "#BBF7D0" : "#E2E8F0"}`,
+          "&:hover": {
+            bgcolor: hasLogins ? "#DCFCE7" : "#EDF2F7",
+            borderColor: hasLogins ? "#86EFAC" : "#CBD5E1",
+            transform: "translateY(-1px)",
+            boxShadow: "0 2px 6px rgba(0,0,0,0.06)"
+          }
+        }}
+        title="Click to view full login telemetry and security audit logs"
+      >
+        <SecurityIcon sx={{ fontSize: 16, color: hasLogins ? "#16A34A" : "#64748B", flexShrink: 0 }} />
+        <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+          <Typography
+            variant="caption"
+            sx={{
+              fontWeight: 700,
+              fontSize: "11px",
+              color: hasLogins ? "#15803D" : "#475467",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              display: "block",
+              lineHeight: 1.2
+            }}
+          >
+            {hasLogins ? (loginData?.ip ? `${loginData.ip}` : "Logged In") : "View Details"}
+          </Typography>
+          <Typography
+            variant="caption"
+            sx={{
+              fontSize: "10px",
+              color: "#94A3B8",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              display: "block",
+              lineHeight: 1.2
+            }}
+          >
+            {hasLogins
+              ? (loginData?.browser ? `${loginData.browser} • ${loginData.os || ''}` : "View telemetry")
+              : "No logins recorded"}
+          </Typography>
+        </Box>
+      </Box>
+    );
+  }
+
   // 3. Status Badge View
   if (isStatus && !isEditing) {
     const currentStatusName = meta.statusById.get(row.statusId)?.name || row.statusName || "";
@@ -540,7 +641,7 @@ export default function LeadCell({
   };
 
   if (isRole) {
-    if (!isViewerAdmin && !isViewerChairperson) {
+    if (!canEditRole) {
       const shown = displayValue();
       return wrap(
         <Box sx={readSx(false)} title={shown}>
@@ -551,9 +652,11 @@ export default function LeadCell({
       );
     }
 
-    const allowedRoles = isViewerAdmin
+    const allowedRoles = (isViewerAdmin || isViewerChairperson)
       ? ["ADMIN", "WARDEN", "MEMBER", "STAFF", "STUDENT", "ALUMNI"]
       : ["MEMBER", "STAFF", "STUDENT", "ALUMNI"];
+
+    const currentRoleUpper = (row.role || "").toUpperCase();
 
     return wrap(
       <Select
@@ -561,8 +664,11 @@ export default function LeadCell({
         size="small"
         autoFocus
         defaultOpen
-        value={allowedRoles.includes(row.role) ? row.role : ""}
-        onChange={commitRef("role")}
+        value={allowedRoles.includes(currentRoleUpper) ? currentRoleUpper : ""}
+        onChange={(e) => {
+          onChangeRef(row.id, "role", e.target.value);
+          onStopEdit();
+        }}
         onClose={onStopEdit}
         sx={selectSx}
       >
@@ -618,7 +724,8 @@ export default function LeadCell({
   }
 
   if (field.type === "select" && field.options?.length) {
-    const rawVal = field.isInternal ? row[field.slug] : leadFieldValue(row.raw, field._id);
+    const isSlugField = Boolean(field.slug);
+    const rawVal = isSlugField ? row[field.slug] : leadFieldValue(row.raw, field._id);
     const isEmployment = (field.slug || "").toLowerCase().includes("employment");
     const filteredOptions = isEmployment
       ? field.options.filter(opt => !["Self-Employed", "Other", "—", "-", ""].includes(opt))
@@ -632,7 +739,7 @@ export default function LeadCell({
         defaultOpen
         value={rawVal || (isEmployment ? (filteredOptions[0] || "Employed") : "")}
         onChange={(e) => {
-          if (field.isInternal) {
+          if (isSlugField) {
             onChangeRef(row.id, field.slug, e.target.value);
           } else {
             onChangeField(row.id, field._id, e.target.value);
@@ -653,14 +760,15 @@ export default function LeadCell({
   }
 
   // Default editable text/number input with real-time debounce auto-save
-  const stored = isInternal ? displayValue(true) : leadFieldValue(row.raw, field._id);
+  const hasSlug = Boolean(field.slug);
+  const stored = hasSlug ? displayValue(true) : leadFieldValue(row.raw, field._id);
 
   return wrap(
     <InlineTextEditor
       initialValue={stored}
       type={field.type === "number" || isAge ? "number" : "text"}
       onSave={(newVal) => {
-        if (isInternal) {
+        if (hasSlug) {
           return onChangeRef(row.id, field.slug, newVal);
         } else {
           return onChangeField(row.id, field._id, newVal);

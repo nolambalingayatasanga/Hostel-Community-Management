@@ -66,7 +66,8 @@ import {
   CloudUpload as CloudUploadIcon,
   Instagram as InstagramIcon,
   LinkedIn as LinkedInIcon,
-  Share as ShareIcon
+  Share as ShareIcon,
+  VideocamOff as CameraOffIcon
 } from '@mui/icons-material';
 
 
@@ -199,6 +200,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [gender, setGender] = useState('');
+  const [role, setRole] = useState('MEMBER');
   const [dob, setDob] = useState('');
   const [adhaar, setAdhaar] = useState('');
   const [registrationNumber, setRegistrationNumber] = useState('');
@@ -248,8 +250,12 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
   const [photoUploading, setPhotoUploading] = useState(false);
 
   // Photo upload & Camera Dialog State
+  const [photoMenuAnchor, setPhotoMenuAnchor] = useState(null);
   const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
+  const [viewPhotoOpen, setViewPhotoOpen] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraLoading, setCameraLoading] = useState(false);
+  const [cameraError, setCameraError] = useState('');
   const [cameraStream, setCameraStream] = useState(null);
   const [facingMode, setFacingMode] = useState('user'); // 'user' (front) or 'environment' (back)
   const [capturedImage, setCapturedImage] = useState(null);
@@ -264,6 +270,16 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
       }
     };
   }, [cameraStream]);
+
+  // Synchronize video element with cameraStream whenever available
+  useEffect(() => {
+    if (cameraOpen && cameraStream && videoRef.current) {
+      if (videoRef.current.srcObject !== cameraStream) {
+        videoRef.current.srcObject = cameraStream;
+      }
+      videoRef.current.play().catch(e => console.log('Camera video playback handled:', e));
+    }
+  }, [cameraOpen, cameraStream]);
 
   // Student Transition Dialog State
   const [transitionOpen, setTransitionOpen] = useState(false);
@@ -298,6 +314,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
         setPhone(u.phone || '');
         setPassword('');
         setGender(u.gender || 'MALE');
+        setRole(u.role || 'MEMBER');
         setDob(u.dob || u.dateOfBirth ? (dayjs(u.dob || u.dateOfBirth).isValid() ? dayjs(u.dob || u.dateOfBirth).format('YYYY-MM-DD') : '') : '');
         setAdhaar(u.adhaar || '');
         setRegistrationNumber(u.registrationNumber || '');
@@ -434,26 +451,60 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
   };
 
   const startCamera = async (mode = facingMode) => {
+    setCameraLoading(true);
+    setCameraError('');
     try {
       if (cameraStream) {
         cameraStream.getTracks().forEach(track => track.stop());
+        setCameraStream(null);
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: mode },
-        audio: false
-      });
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera is not supported or not accessible on this device/browser.');
+      }
+
+      let stream = null;
+      try {
+        // Try with requested facingMode first
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: mode,
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        });
+      } catch (constraintErr) {
+        console.warn('facingMode constraint failed, falling back to basic video:', constraintErr);
+        // Fallback without facingMode constraint (essential for desktop webcams, FaceTime HD, etc.)
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        });
+      }
 
       setCameraStream(stream);
+      setCameraLoading(false);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
       }
     } catch (err) {
       console.error('Camera access error:', err);
-      const camErr = 'Could not access the camera. Please check permissions.';
-      setError(camErr);
+      setCameraLoading(false);
+      let camErr = 'Could not access the camera. Please check permissions.';
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        camErr = 'Camera permission was denied. Please allow camera access in your browser site settings.';
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        camErr = 'No camera device found on this system.';
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        camErr = 'Camera is in use by another application. Please close other camera apps and retry.';
+      } else if (err.message) {
+        camErr = err.message;
+      }
+      setCameraError(camErr);
       enqueueSnackbar(camErr, { variant: 'error' });
-      setCameraOpen(false);
+      // Keep camera dialog open so the user sees the error and can retry or choose device photo
     }
   };
 
@@ -469,16 +520,19 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
     setCameraOpen(true);
     setCapturedImage(null);
     setFacingMode('user');
-    // Start camera stream after a minor delay to ensure elements are rendered
+    setCameraError('');
+    // Minor delay to ensure dialog has opened and video element is mounted
     setTimeout(() => {
       startCamera('user');
-    }, 150);
+    }, 200);
   };
 
   const handleCloseCamera = () => {
     stopCamera();
     setCameraOpen(false);
     setCapturedImage(null);
+    setCameraError('');
+    setCameraLoading(false);
   };
 
   const toggleCameraFacingMode = () => {
@@ -564,11 +618,18 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
           translated = res.data.data.translatedText;
         }
       } catch (apiErr) {
-        // Fallback directly to Google Translate endpoint if needed
-        const googleUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=kn&dt=t&q=${encodeURIComponent(textToTranslate)}`;
-        const fbRes = await fetch(googleUrl);
-        const fbData = await fbRes.json();
-        translated = Array.isArray(fbData?.[0]) ? fbData[0].map(chunk => chunk?.[0] || '').join('') : '';
+        // Fallback directly to reliable Google Translate endpoint if needed
+        try {
+          const googleUrl = `https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=en&tl=kn&q=${encodeURIComponent(textToTranslate)}`;
+          const fbRes = await fetch(googleUrl);
+          const fbData = await fbRes.json();
+          translated = Array.isArray(fbData) ? (typeof fbData[0] === 'string' ? fbData.join('') : (fbData[0]?.[0] || '')) : '';
+        } catch (e) {
+          const mmUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(textToTranslate)}&langpair=en|kn`;
+          const mmRes = await fetch(mmUrl);
+          const mmData = await mmRes.json();
+          translated = mmData?.responseData?.translatedText || '';
+        }
       }
 
       if (translated) {
@@ -609,10 +670,17 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
         }
       } catch (apiErr) {
         // Fallback directly to Google Translate endpoint if needed
-        const googleUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=${encodeURIComponent(sanitizedText)}`;
-        const fbRes = await fetch(googleUrl);
-        const fbData = await fbRes.json();
-        translated = Array.isArray(fbData?.[0]) ? fbData[0].map(chunk => chunk?.[0] || '').join('') : '';
+        try {
+          const googleUrl = `https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=kn&tl=en&q=${encodeURIComponent(sanitizedText)}`;
+          const fbRes = await fetch(googleUrl);
+          const fbData = await fbRes.json();
+          translated = Array.isArray(fbData) ? (typeof fbData[0] === 'string' ? fbData.join('') : (fbData[0]?.[0] || '')) : '';
+        } catch (e) {
+          const mmUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(sanitizedText)}&langpair=kn|en`;
+          const mmRes = await fetch(mmUrl);
+          const mmData = await mmRes.json();
+          translated = mmData?.responseData?.translatedText || '';
+        }
       }
 
       if (translated) {
@@ -746,6 +814,10 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
         channels: channels || {},
       };
 
+      if (isAdmin && role) {
+        payload.role = role;
+      }
+
       if (password) {
         payload.password = password;
       }
@@ -757,7 +829,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
           enqueueSnackbar(msg, { variant: 'warning' });
           return;
         }
-        payload.role = user?.role || 'MEMBER';
+        payload.role = (isAdmin && role) ? role : (user?.role || 'MEMBER');
         const res = await API.post('/users', payload);
         if (res.data?.success) {
           const msg = 'Member added successfully!';
@@ -852,24 +924,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Box sx={{ flexGrow: 1, maxWidth: 1200, mx: 'auto', p: isDialog ? { xs: 1.5, sm: 2.5 } : 2 }}>
-        {isDialog && (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5, pb: 1.5, borderBottom: '1px solid #EAECF0' }}>
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 800, color: '#1E293B', fontSize: '1.25rem' }}>
-                {isCreate ? 'Add New Member' : (name || user?.name ? `${name || user?.name}` : 'Member Profile Details')}
-              </Typography>
-              <Typography variant="caption" sx={{ color: '#64748B' }}>
-                {isCreate ? 'Fill member details to add to the directory' : (canEdit ? (isOwnProfile ? 'Editing your profile' : 'Administrator Edit Mode') : 'View-only mode')}
-              </Typography>
-            </Box>
-            {onClose && (
-              <IconButton onClick={onClose} sx={{ color: '#64748B', '&:hover': { bgcolor: '#F1F5F9' } }}>
-                <CloseIcon />
-              </IconButton>
-            )}
-          </Box>
-        )}
-      <Grid container spacing={4} sx={{ alignItems: 'flex-start' }}>
+      <Grid container spacing={4}>
         {/* LEFT COLUMN: EDIT PROFILE FORM */}
         <Grid size={{ xs: 12, md: 8 }}>
           <Card sx={{ borderRadius: "12px", border: "1px solid #E2E8F0", boxShadow: "none", overflow: "hidden" }}>
@@ -988,6 +1043,29 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                         </Select>
                       </FormControl>
                     </Grid>
+
+                    {/* Role (Admin/Warden only) */}
+                    {isAdmin && (
+                      <Grid size={{ xs: 12, sm: 6 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', mb: 0.75 }}>
+                          Role
+                        </Typography>
+                        <FormControl fullWidth size="small">
+                          <Select
+                            value={role || 'MEMBER'}
+                            onChange={(e) => setRole(e.target.value)}
+                            disabled={!canEdit}
+                            MenuProps={{ disableScrollLock: true }}
+                          >
+                            {['ADMIN', 'WARDEN', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'].map((r) => (
+                              <MenuItem key={r} value={r}>
+                                {r}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                    )}
 
                     {user?.role !== 'STUDENT' && (
                       <Grid size={{ xs: 12, sm: 6 }}>
@@ -1643,38 +1721,46 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
         <Grid
           size={{ xs: 12, md: 4 }}
           sx={{
-            position: { md: 'sticky' },
-            top: 0,
-            alignSelf: 'flex-start',
-            zIndex: 10
+            display: 'flex',
+            flexDirection: 'column'
           }}
         >
           <Box
             sx={{
-              width: '100%',
-              boxSizing: 'border-box',
-              bgcolor: '#F8FAFC',
-              borderRadius: '12px',
-              border: '1px solid #EAECF0',
-              p: { xs: 2, sm: 3 },
-              py: 2,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center'
+              position: { md: 'sticky' },
+              top: { md: isDialog ? 0 : 84 },
+              zIndex: 10,
+              width: '100%'
             }}
           >
             <Card
               sx={{
                 width: '100%',
-                borderRadius: '12px',
+                borderRadius: '16px',
                 bgcolor: '#ffffff',
-                minHeight:"78dvh",
                 border: '1px solid #EAECF0',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.03)',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.04)',
+                maxHeight: { md: isDialog ? 'calc(85vh - 40px)' : 'calc(100vh - 104px)' },
+                display: 'flex',
+                flexDirection: 'column',
                 overflow: 'hidden'
               }}
             >
-              <CardContent sx={{ p: { xs: 2.5, md: 3 }, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <CardContent
+                sx={{
+                  p: { xs: 2, sm: 2.5, md: 3 },
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  overflowY: 'auto',
+                  flexGrow: 1,
+                  minHeight: 0,
+                  '&::-webkit-scrollbar': { width: 5 },
+                  '&::-webkit-scrollbar-thumb': { bgcolor: '#CBD5E1', borderRadius: 4 },
+                  '&::-webkit-scrollbar-track': { bgcolor: 'transparent' },
+                  '&:last-child': { pb: 3 }
+                }}
+              >
               {/* Centered Avatar with Upload Profile Image Logic */}
               <Box sx={{ position: 'relative', mb: 2 }}>
                 <Avatar
@@ -1698,8 +1784,8 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                     },
                     '&:hover': canEdit ? { borderColor: '#0088ff' } : {}
                   }}
-                  onClick={() => {
-                    if (canEdit) setPhotoDialogOpen(true);
+                  onClick={(e) => {
+                    if (canEdit) setPhotoMenuAnchor(e.currentTarget);
                   }}
                 >
                   {(user?.name || name)?.charAt(0)}
@@ -1708,7 +1794,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                   <Box sx={{ position: 'absolute', bottom: -2, right: -2 }}>
                     <IconButton
                       size="small"
-                      onClick={() => setPhotoDialogOpen(true)}
+                      onClick={(e) => setPhotoMenuAnchor(e.currentTarget)}
                       disabled={photoUploading}
                       sx={{
                         backgroundColor: '#ffffff',
@@ -1722,6 +1808,58 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                     </IconButton>
                   </Box>
                 )}
+
+                {/* Photo Selection Menu */}
+                <Menu
+                  anchorEl={photoMenuAnchor}
+                  open={Boolean(photoMenuAnchor)}
+                  onClose={() => setPhotoMenuAnchor(null)}
+                  disableScrollLock
+                  anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                  transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                  PaperProps={{
+                    sx: {
+                      borderRadius: '12px',
+                      mt: 1,
+                      p: 0.5,
+                      boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+                      border: '1px solid #E2E8F0',
+                      minWidth: 190
+                    }
+                  }}
+                >
+                  <MenuItem
+                    onClick={() => {
+                      setPhotoMenuAnchor(null);
+                      document.getElementById('icon-button-file-hidden')?.click();
+                    }}
+                    sx={{ borderRadius: '8px', py: 1, fontSize: 14, fontWeight: 600, color: '#334155', gap: 1.5 }}
+                  >
+                    <CloudUploadIcon sx={{ fontSize: 20, color: '#0088ff' }} />
+                    Update Profile Photo
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      setPhotoMenuAnchor(null);
+                      handleOpenCamera();
+                    }}
+                    sx={{ borderRadius: '8px', py: 1, fontSize: 14, fontWeight: 600, color: '#334155', gap: 1.5 }}
+                  >
+                    <CameraIcon sx={{ fontSize: 20, color: '#10B981' }} />
+                    Take Profile Photo
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      setPhotoMenuAnchor(null);
+                      setViewPhotoOpen(true);
+                    }}
+                    sx={{ borderRadius: '8px', py: 1, fontSize: 14, fontWeight: 600, color: '#334155', gap: 1.5 }}
+                  >
+                    <VisibilityIcon sx={{ fontSize: 20, color: '#6366F1' }} />
+                    View Profile Preview
+                  </MenuItem>
+                </Menu>
+
                 <input
                   accept="image/*"
                   style={{ display: 'none' }}
@@ -1731,13 +1869,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                 />
               </Box>
 
-                {/* Centered Name */}
-                {/* <Typography variant="h6" sx={{ fontWeight: 800, color: '#1E293B', mb: 1, textAlign: 'center' }}>
-                  {name || user?.name || 'User'}
-                </Typography> */}
-
-                {/* Info List Items */}
-                <Stack spacing={2} sx={{ width: '100%' }}>
+              <Stack spacing={2} sx={{ width: '100%' }}>
                   {/* Registration Number */}
                   {(registrationNumber || user?.registrationNumber || user?.role !== 'STUDENT') && (
                     <Stack direction="row" spacing={2} alignItems="center">
@@ -1821,12 +1953,12 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                           Phone
                         </Typography>
                         {privacySettings.maskPhone && (
-                          <Tooltip title="Masked from public / other users. Visible only to you and administrators.">
+                          <Tooltip title="Masked from public users. Visible only to you.">
                             <Chip
                               size="small"
-                              icon={<LockIcon sx={{ fontSize: '11px !important' }} />}
+                              icon={<LockIcon color="#fff" sx={{ fontSize: '11px !important', borderRadius: '10px' }} />}
                               label="Masked"
-                              sx={{ height: 18, fontSize: 10, bgcolor: '#FEF3C7', color: '#92400E', fontWeight: 700 }}
+                              sx={{ height: 18, fontSize: 10, bgcolor: '#0088ff', color: '#fff', fontWeight: 700 }}
                             />
                           </Tooltip>
                         )}
@@ -1848,12 +1980,12 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                           Email
                         </Typography>
                         {privacySettings.maskEmail && (
-                          <Tooltip title="Masked from public / other users. Visible only to you and administrators.">
+                          <Tooltip title="Masked from public users. Visible only to you.">
                             <Chip
                               size="small"
-                              icon={<LockIcon sx={{ fontSize: '11px !important' }} />}
+                              icon={<LockIcon color="#fff" sx={{ fontSize: '11px !important', borderRadius: '10px' }} />}
                               label="Masked"
-                              sx={{ height: 18, fontSize: 10, bgcolor: '#FEF3C7', color: '#92400E', fontWeight: 700 }}
+                              sx={{ height: 18, fontSize: 10, bgcolor: '#0088ff', color: '#fff', fontWeight: 700 }}
                             />
                           </Tooltip>
                         )}
@@ -1919,8 +2051,8 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                   </Stack>
                        {/* Address */}
                   <Stack direction="row" spacing={2} alignItems="flex-start">
-                    <PlaceIcon sx={{ color: '#64748B', fontSize: 20 }} />
-                    <Typography variant="body2" sx={{  lineHeight: 1.5 }}>
+                    <PlaceIcon sx={{ color: '#64748B', fontSize: 20, mt: 0.25, flexShrink: 0 }} />
+                    <Typography variant="body2" sx={{ lineHeight: 1.5, wordBreak: 'break-word', overflowWrap: 'anywhere', flexGrow: 1, minWidth: 0, color: '#334155' }}>
                       {[
                         address.street,
                         address.area,
@@ -1937,12 +2069,12 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                   {/* Local Details (Kannada) */}
                   {(localLanguageDetails || user?.localLanguageDetails) && (
                     <Stack direction="row" spacing={2} alignItems="flex-start">
-                      <WebIcon sx={{  fontSize: 20, mt: 0.25 }} />
-                      <Box>
-                        <Typography variant="caption" sx={{  display: 'block', fontSize: 12, fontWeight: 600, lineHeight: 1.1 }}>
+                      <WebIcon sx={{ fontSize: 20, mt: 0.25, color: '#64748B', flexShrink: 0 }} />
+                      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                        <Typography variant="caption" sx={{ display: 'block', fontSize: 12, fontWeight: 600, lineHeight: 1.1, color: '#94A3B8' }}>
                           ಕನ್ನಡ ವಿವರ (Kannada)
                         </Typography>
-                        <Typography variant="body2" sx={{ color: '#1E293B', fontWeight: 500, lineHeight: 1.5 }}>
+                        <Typography variant="body2" sx={{ color: '#1E293B', fontWeight: 500, lineHeight: 1.5, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                           {kannadaToEnglishDigits(localLanguageDetails || user?.localLanguageDetails)}
                         </Typography>
                       </Box>
@@ -2044,6 +2176,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
         onClose={handleCloseCamera}
         maxWidth="sm"
         fullWidth
+        disableScrollLock
         PaperProps={{
           sx: {
             backgroundColor: '#ffffff',
@@ -2056,99 +2189,152 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
         {/* <DialogTitle sx={{ fontWeight: 'bold', color: 'text.primary', borderBottom: '1px solid #EAECF0', pb: 2 }}>
           Take Profile Photo
         </DialogTitle> */}
-        <DialogContent sx={{  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <Box sx={{
-            position: 'relative',
-            width: '100%',
-            aspectRatio: '4/3',
-            borderRadius: 2,
-            overflow: 'hidden',
-            border: '2px solid rgba(0, 136, 255, 0.3)',
-            backgroundColor: '#F8FAFC',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            mb: 3
-          }}>
-            {!capturedImage ? (
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  transform: facingMode === 'user' ? 'scaleX(-1)' : 'none'
-                }}
-              />
-            ) : (
-              <img
-                src={capturedImage}
-                alt="Captured profile preview"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover'
-                }}
-              />
-            )}
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300 }}>
+          {cameraError ? (
+            <Box sx={{ py: 3, px: 2, textAlign: 'center', width: '100%' }}>
+              <CameraOffIcon sx={{ fontSize: 48, color: '#EF4444', mb: 1.5 }} />
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1E293B', mb: 0.5 }}>
+                Camera Unavailable
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#64748B', maxWidth: 360, mx: 'auto', mb: 3 }}>
+                {cameraError}
+              </Typography>
+              <Stack direction="row" spacing={1.5} justifyContent="center">
+                <Button
+                  variant="outlined"
+                  onClick={() => startCamera(facingMode)}
+                  sx={{ textTransform: 'none', fontWeight: 600, borderColor: '#CBD5E1', color: '#334155' }}
+                >
+                  Try Again
+                </Button>
+                <Button
+                  variant="contained"
+                  component="label"
+                  startIcon={<CameraIcon />}
+                  sx={{ textTransform: 'none', fontWeight: 600, bgcolor: '#0088ff', color: '#fff' }}
+                >
+                  Snap Photo with Device
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="user"
+                    hidden
+                    onChange={(e) => {
+                      handleCloseCamera();
+                      handlePhotoUpload(e);
+                    }}
+                  />
+                </Button>
+              </Stack>
+            </Box>
+          ) : (
+            <Box sx={{
+              position: 'relative',
+              width: '100%',
+              aspectRatio: '4/3',
+              borderRadius: 2,
+              overflow: 'hidden',
+              border: '2px solid rgba(0, 136, 255, 0.3)',
+              backgroundColor: '#0F172A',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              mb: 2
+            }}>
+              {cameraLoading && !cameraStream && (
+                <Box sx={{ position: 'absolute', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                  <CircularProgress size={36} sx={{ color: '#0088ff' }} />
+                  <Typography variant="caption" sx={{ color: '#94A3B8', fontWeight: 600 }}>
+                    Accessing camera...
+                  </Typography>
+                </Box>
+              )}
 
-            {/* Hidden canvas for snapshot capture */}
-            <canvas ref={canvasRef} style={{ display: 'none' }} />
-          </Box>
+              {!capturedImage ? (
+                <video
+                  ref={(el) => {
+                    videoRef.current = el;
+                    if (el && cameraStream && el.srcObject !== cameraStream) {
+                      el.srcObject = cameraStream;
+                      el.play().catch(() => {});
+                    }
+                  }}
+                  autoPlay
+                  playsInline
+                  muted
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    transform: facingMode === 'user' ? 'scaleX(-1)' : 'none'
+                  }}
+                />
+              ) : (
+                <img
+                  src={capturedImage}
+                  alt="Captured profile preview"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover'
+                  }}
+                />
+              )}
 
-          {/* <Typography variant="caption" sx={{ color: 'text.secondary', textAlign: 'center', display: 'block', mb: 1 }}>
-            {!capturedImage ? "Center your face and take a picture." : "Check your photo. Click Save to upload."}
-          </Typography> */}
+              {/* Hidden canvas for snapshot capture */}
+              <canvas ref={canvasRef} style={{ display: 'none' }} />
+            </Box>
+          )}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3, justifyContent: 'space-between', borderTop: '1px solid #EAECF0', pt: 2 }}>
           <Button onClick={handleCloseCamera} variant="outlined" sx={{ color: 'text.secondary', borderColor: '#D0D5DD' }}>
             Cancel
           </Button>
 
-          <Box sx={{ display: 'flex', gap: 1.5 }}>
-            {!capturedImage ? (
-              <>
-                <Button
-                  onClick={toggleCameraFacingMode}
-                  variant="outlined"
-                  startIcon={<SwitchCameraIcon />}
-                  sx={{ borderColor: 'rgba(0, 136, 255, 0.3)', color: '#0088ff' }}
-                >
-                  Switch Camera
-                </Button>
-                <Button
-                  onClick={capturePhoto}
-                  variant="contained"
-                  startIcon={<CameraIcon />}
-                  sx={{ background: '#0088ff', color: '#fff', fontWeight: 'bold' }}
-                >
-                  Capture
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  onClick={retakePhoto}
-                  variant="outlined"
-                  startIcon={<RefreshIcon />}
-                  sx={{ borderColor: '#D0D5DD', color: 'text.secondary' }}
-                >
-                  Retake
-                </Button>
-                <Button
-                  onClick={uploadCapturedPhoto}
-                  variant="contained"
-                  startIcon={<SaveIcon />}
-                  sx={{ background: '#0088ff', color: '#fff', fontWeight: 'bold', '&:hover': { background: '#0077EE' } }}
-                >
-                  Save & Upload
-                </Button>
-              </>
-            )}
-          </Box>
+          {!cameraError && (
+            <Box sx={{ display: 'flex', gap: 1.5 }}>
+              {!capturedImage ? (
+                <>
+                  <Button
+                    onClick={toggleCameraFacingMode}
+                    variant="outlined"
+                    startIcon={<SwitchCameraIcon />}
+                    sx={{ borderColor: 'rgba(0, 136, 255, 0.3)', color: '#0088ff' }}
+                  >
+                    Switch Camera
+                  </Button>
+                  <Button
+                    onClick={capturePhoto}
+                    variant="contained"
+                    disabled={cameraLoading || !cameraStream}
+                    startIcon={<CameraIcon />}
+                    sx={{ background: '#0088ff', color: '#fff', fontWeight: 'bold' }}
+                  >
+                    Capture
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    onClick={retakePhoto}
+                    variant="outlined"
+                    startIcon={<RefreshIcon />}
+                    sx={{ borderColor: '#D0D5DD', color: 'text.secondary' }}
+                  >
+                    Retake
+                  </Button>
+                  <Button
+                    onClick={uploadCapturedPhoto}
+                    variant="contained"
+                    startIcon={<SaveIcon />}
+                    sx={{ background: '#0088ff', color: '#fff', fontWeight: 'bold', '&:hover': { background: '#0077EE' } }}
+                  >
+                    Save & Upload
+                  </Button>
+                </>
+              )}
+            </Box>
+          )}
         </DialogActions>
       </Dialog>
       </Box>
@@ -2219,7 +2405,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
               </Box>
               <Box sx={{ flexGrow: 1 }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1E293B' }}>
-                  Upload from Device
+Update Profile Photo
                 </Typography>
               
               </Box>
@@ -2229,7 +2415,9 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
             <Box
               onClick={() => {
                 setPhotoDialogOpen(false);
-                handleOpenCamera();
+                setTimeout(() => {
+                  handleOpenCamera();
+                }, 200);
               }}
               sx={{
                 p: 2,
@@ -2264,9 +2452,52 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
               </Box>
               <Box sx={{ flexGrow: 1 }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1E293B' }}>
-                  Take Photo with Camera
+                  Take Profile Photo
                 </Typography>
-            
+              </Box>
+            </Box>
+
+            {/* Option 3: View Preview */}
+            <Box
+              onClick={() => {
+                setPhotoDialogOpen(false);
+                setViewPhotoOpen(true);
+              }}
+              sx={{
+                p: 2,
+                borderRadius: '12px',
+                border: '1.5px solid #E2E8F0',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  borderColor: '#6366F1',
+                  bgcolor: '#F5F3FF',
+                  transform: 'translateY(-1px)'
+                }
+              }}
+            >
+              <Box
+                sx={{
+                  width: 46,
+                  height: 46,
+                  borderRadius: '10px',
+                  bgcolor: '#EEF2FF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#6366F1',
+                  flexShrink: 0
+                }}
+              >
+                <VisibilityIcon sx={{ fontSize: 24 }} />
+              </Box>
+              <Box sx={{ flexGrow: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1E293B' }}>
+                  View Profile Preview
+                </Typography>
               </Box>
             </Box>
           </Stack>
@@ -2285,6 +2516,83 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
             }}
           >
             Cancel
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Profile Photo Circular Avatar Preview Dialog */}
+      <Dialog
+        open={viewPhotoOpen}
+        onClose={() => setViewPhotoOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: '20px',
+            p: 2,
+            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+            textAlign: 'center'
+          }
+        }}
+      >
+        <DialogContent sx={{ py: 3, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <Box sx={{ position: 'relative', mb: 2.5 }}>
+            <Avatar
+              src={user?.profilePhoto?.url || ''}
+              alt={user?.name || name}
+              sx={{
+                width: 250,
+                height: 250,
+                borderRadius: '50%',
+                border: '3px dashed #0088FF',
+                fontSize: '4rem',
+                fontWeight: 700,
+                '& .MuiAvatar-img': {
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  width: '100%',
+                  height: '100%'
+                }
+              }}
+            >
+              {(user?.name || name)?.charAt(0)}
+            </Avatar>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 2, pb: 1, pt: 0, justifyContent: 'center' }}>
+          {canEdit && (
+            <Button
+              variant="outlined"
+              startIcon={<CameraIcon />}
+              onClick={() => {
+                setViewPhotoOpen(false);
+                setPhotoDialogOpen(true);
+              }}
+              sx={{
+                borderRadius: '10px',
+                textTransform: 'none',
+                fontWeight: 600,
+                borderColor: '#CBD5E1',
+                color: '#334155',
+                mr: 1
+              }}
+            >
+              Change Photo
+            </Button>
+          )}
+          <Button
+            onClick={() => setViewPhotoOpen(false)}
+            variant="contained"
+            sx={{
+              borderRadius: '10px',
+              textTransform: 'none',
+              fontWeight: 600,
+              bgcolor: '#0088ff',
+              boxShadow: 'none',
+              '&:hover': { bgcolor: '#0066cc', boxShadow: 'none' }
+            }}
+          >
+            Close
           </Button>
         </DialogActions>
       </Dialog>

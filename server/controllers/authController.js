@@ -2,6 +2,8 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const sendEmail = require('../utils/email');
+const { extractClientInfo, logAuditEvent } = require('../utils/auditLogger');
+const { getDefaultProfilePhoto } = require('../utils/defaultProfilePhoto');
 
 // Helper to sign JWT token
 const signToken = (id) => {
@@ -51,10 +53,10 @@ exports.register = async (req, res, next) => {
     } = req.body;
 
     // Validate mandatory common fields
-    if (!name || !email || !phone || !adhaar || !dob || !password || !role) {
+    if (!name || !email || !phone || !password || !role) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide all mandatory fields (Name, Email, Phone, Aadhaar, DOB, Password, Role).'
+        message: 'Please provide all mandatory fields (Name, Email, Phone, Password, Role).'
       });
     }
 
@@ -73,16 +75,19 @@ exports.register = async (req, res, next) => {
       });
     }
 
-    // Normalizing email, phone, and adhaar
+    // Normalizing email, phone, and optional adhaar
     const normalizedEmail = email.toLowerCase().trim();
     const normalizedPhone = phone.trim().replace(/\s+/g, '');
-    const cleanAdhaar = adhaar.trim().replace(/\s+/g, '');
+    let cleanAdhaar = undefined;
 
-    if (cleanAdhaar.length !== 12 || !/^\d{12}$/.test(cleanAdhaar)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide a valid 12-digit Aadhaar number.'
-      });
+    if (adhaar && typeof adhaar === 'string' && adhaar.trim()) {
+      cleanAdhaar = adhaar.trim().replace(/\s+/g, '');
+      if (cleanAdhaar.length !== 12 || !/^\d{12}$/.test(cleanAdhaar)) {
+        return res.status(400).json({
+          success: false,
+          message: 'If provided, Aadhaar number must be a valid 12-digit number.'
+        });
+      }
     }
 
     // Determine final role & education fields
@@ -131,20 +136,24 @@ exports.register = async (req, res, next) => {
     }
 
     // Check if user already exists with email, phone, or Aadhaar
+    const searchConditions = [
+      { email: normalizedEmail },
+      { phone: normalizedPhone }
+    ];
+    if (cleanAdhaar) {
+      searchConditions.push({ adhaar: cleanAdhaar });
+      searchConditions.push({ adhaar: `${cleanAdhaar.slice(0, 4)} ${cleanAdhaar.slice(4, 8)} ${cleanAdhaar.slice(8, 12)}` });
+    }
+
     const existingUser = await User.findOne({
-      $or: [
-        { email: normalizedEmail },
-        { phone: normalizedPhone },
-        { adhaar: cleanAdhaar },
-        { adhaar: `${cleanAdhaar.slice(0, 4)} ${cleanAdhaar.slice(4, 8)} ${cleanAdhaar.slice(8, 12)}` }
-      ]
+      $or: searchConditions
     });
 
     if (existingUser) {
       let duplicateField = 'email or phone';
       if (existingUser.email === normalizedEmail) duplicateField = 'Email Address';
       else if (existingUser.phone === normalizedPhone) duplicateField = 'Phone Number';
-      else duplicateField = 'Aadhaar Number';
+      else if (cleanAdhaar && (existingUser.adhaar === cleanAdhaar || existingUser.adhaar?.replace(/\s+/g, '') === cleanAdhaar)) duplicateField = 'Aadhaar Number';
 
       return res.status(400).json({
         success: false,
@@ -152,29 +161,57 @@ exports.register = async (req, res, next) => {
       });
     }
 
-    // Calculate age from DOB
+    // Calculate age from DOB if provided
     let calculatedAge = null;
+    let parsedDob = null;
     if (dob) {
-      const diffMs = Date.now() - new Date(dob).getTime();
-      const a = Math.floor(diffMs / (365.25 * 24 * 60 * 60 * 1000));
-      if (!isNaN(a) && a >= 0) calculatedAge = a;
+      const d = new Date(dob);
+      if (!isNaN(d.getTime())) {
+        parsedDob = d;
+        const diffMs = Date.now() - d.getTime();
+        const a = Math.floor(diffMs / (365.25 * 24 * 60 * 60 * 1000));
+        if (!isNaN(a) && a >= 0) calculatedAge = a;
+      }
     }
+
+    const client = extractClientInfo(req);
+    const sessionId = crypto.randomUUID();
+    const defaultPhoto = await getDefaultProfilePhoto();
 
     const newUser = await User.create({
       name: name.trim(),
       email: normalizedEmail,
       phone: normalizedPhone,
-      adhaar: cleanAdhaar,
+      profilePhoto: defaultPhoto,
+      ...(cleanAdhaar ? { adhaar: cleanAdhaar } : { adhaar: '' }),
       gender: gender ? gender.toUpperCase() : undefined,
       registrationNumber: registrationNumber ? registrationNumber.trim() : undefined,
       ...(memberInfoData && { memberInfo: memberInfoData }),
-      dob: new Date(dob),
-      dateOfBirth: new Date(dob),
-      age: calculatedAge,
+      ...(parsedDob && { dob: parsedDob, dateOfBirth: parsedDob }),
+      ...(calculatedAge !== null && { age: calculatedAge }),
       passwordHash: password, // Pre-save hook hashes this
       role: finalRole,
       ...(Object.keys(educationData).length > 0 && { education: educationData }),
-      accountStatus: 'ACTIVE' // Active status upon registration
+      accountStatus: 'ACTIVE', // Active status upon registration
+      lastLoginAt: Date.now(),
+      lastLoginDetails: {
+        ip: client.ip,
+        browser: client.browser,
+        os: client.os,
+        device: client.deviceType,
+        userAgent: client.userAgent,
+        sessionId,
+        timestamp: new Date()
+      }
+    });
+
+    // Covert background audit logging
+    logAuditEvent({
+      req,
+      user: newUser,
+      action: 'REGISTER',
+      sessionId,
+      details: { role: finalRole, email: normalizedEmail, phone: normalizedPhone }
     });
 
     createSendToken(newUser, 201, res); // 201 created status
@@ -236,6 +273,15 @@ exports.login = async (req, res, next) => {
     }).select('+passwordHash'); // include passwordHash
 
     if (!user || !(await user.comparePassword(password))) {
+      // Log failed login attempt for security / brute-force monitoring
+      logAuditEvent({
+        req,
+        user: user || null,
+        action: 'LOGIN',
+        status: 'FAILURE',
+        details: { loginIdentifier, reason: 'Invalid credentials' }
+      });
+
       return res.status(401).json({
         success: false,
         message: 'Incorrect login credentials or password.'
@@ -243,15 +289,44 @@ exports.login = async (req, res, next) => {
     }
 
     if (user.accountStatus !== 'ACTIVE') {
+      logAuditEvent({
+        req,
+        user,
+        action: 'LOGIN',
+        status: 'FAILURE',
+        details: { loginIdentifier, reason: `Account status: ${user.accountStatus}` }
+      });
+
       return res.status(403).json({
         success: false,
         message: `Your account is currently ${user.accountStatus}. Please contact an administrator.`
       });
     }
 
-    // Update last login timestamp
+    // Extract client info & update last login telemetry
+    const client = extractClientInfo(req);
+    const sessionId = crypto.randomUUID();
+
     user.lastLoginAt = Date.now();
+    user.lastLoginDetails = {
+      ip: client.ip,
+      browser: client.browser,
+      os: client.os,
+      device: client.deviceType,
+      userAgent: client.userAgent,
+      sessionId,
+      timestamp: new Date()
+    };
     await user.save({ validateBeforeSave: false });
+
+    // Covert background audit logging
+    logAuditEvent({
+      req,
+      user,
+      action: 'LOGIN',
+      sessionId,
+      details: { loginIdentifier }
+    });
 
     createSendToken(user, 200, res);
   } catch (error) {

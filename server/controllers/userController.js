@@ -1,9 +1,12 @@
 const mongoose = require('mongoose');
 const User = require('../models/User');
+const AuditLog = require('../models/AuditLog');
 const Status = require('../models/Status');
 const StatusGroup = require('../models/StatusGroup');
 const { uploadImage, deleteImage } = require('../config/cloudinary');
 const { sanitizeUser } = require('../middleware/authMiddleware');
+const { logAuditEvent } = require('../utils/auditLogger');
+const { getDefaultProfilePhoto } = require('../utils/defaultProfilePhoto');
 
 const splitNameAndRelation = (rawName, existingRelation = {}) => {
   if (!rawName || typeof rawName !== 'string') {
@@ -492,6 +495,14 @@ exports.updateOwnProfile = async (req, res, next) => {
     user.updatedBy = userId;
     await user.save();
 
+    // Covert background audit logging
+    logAuditEvent({
+      req,
+      user,
+      action: 'PROFILE_EDIT',
+      details: { updatedFields: Object.keys(profileData || {}) }
+    });
+
     // Strip password fields from output
     const sanitizedUser = user.toObject();
     delete sanitizedUser.passwordHash;
@@ -540,7 +551,12 @@ exports.uploadProfilePhoto = async (req, res, next) => {
     await user.save();
 
     // Delete previous image from Cloudinary ONLY after new image is successfully added and saved
-    if (oldMedia) {
+    // Protect the master default ProfileIcon from deletion if shared
+    const isMasterDefault = oldMedia && (
+      oldMedia === 'hostel-community/profiles/vzsuddpebsujc0ayuku3' ||
+      oldMedia.includes('vzsuddpebsujc0ayuku3')
+    );
+    if (oldMedia && !isMasterDefault) {
       try {
         await deleteImage(oldMedia);
       } catch (deleteError) {
@@ -704,11 +720,14 @@ exports.adminCreateUser = async (req, res, next) => {
       if (defaultStatus) finalStatus = defaultStatus._id;
     }
 
-    // Create user
+    // Create user with default ProfileIcon
+    const defaultPhoto = await getDefaultProfilePhoto();
+
     const newUser = new User({
       name,
       email: normalizedEmail,
       phone: normalizedPhone,
+      profilePhoto: defaultPhoto,
       passwordHash: initialPassword, // Pre-save hook hashes this
       role: assignedRole,
       status: finalStatus,
@@ -830,9 +849,36 @@ exports.adminUpdateUser = async (req, res, next) => {
       }
     }
 
+    // Handle Role update
+    if (updates.role !== undefined) {
+      const normalizedRole = String(updates.role).toUpperCase().trim();
+      const validRoles = ['ADMIN', 'WARDEN', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'];
+      if (validRoles.includes(normalizedRole)) {
+        user.role = normalizedRole;
+      }
+      delete updates.role;
+    }
+
     // Map aadhaarNumber to adhaar if needed
     if (updates.aadhaarNumber && !updates.adhaar) {
       updates.adhaar = updates.aadhaarNumber;
+    }
+    delete updates.aadhaarNumber;
+
+    if (updates.adhaar !== undefined) {
+      user.adhaar = updates.adhaar ? String(updates.adhaar).trim() : '';
+      delete updates.adhaar;
+    }
+
+    // Handle Status update
+    if (updates.status !== undefined) {
+      const mongoose = require('mongoose');
+      if (updates.status && mongoose.Types.ObjectId.isValid(updates.status)) {
+        user.status = updates.status;
+      } else if (!updates.status) {
+        user.status = undefined;
+      }
+      delete updates.status;
     }
 
     // Non-editable system identifiers: slNo and receiptNo
@@ -911,6 +957,30 @@ exports.adminUpdateUser = async (req, res, next) => {
       delete updates.education;
     }
 
+    // Handle partial address updates
+    if (updates.address) {
+      user.address = {
+        ...(user.address ? (user.address.toObject ? user.address.toObject() : user.address) : {}),
+        ...updates.address
+      };
+      delete updates.address;
+    }
+
+    // Handle partial employment updates
+    if (updates.employment) {
+      user.employment = {
+        ...(user.employment ? (user.employment.toObject ? user.employment.toObject() : user.employment) : {}),
+        ...updates.employment
+      };
+      delete updates.employment;
+    }
+
+    // Handle localLanguageDetails
+    if (updates.localLanguageDetails !== undefined) {
+      user.localLanguageDetails = updates.localLanguageDetails ? String(updates.localLanguageDetails).trim() : '';
+      delete updates.localLanguageDetails;
+    }
+
     // Apply updates
     Object.keys(updates).forEach((key) => {
       if (key !== 'password') {
@@ -924,6 +994,18 @@ exports.adminUpdateUser = async (req, res, next) => {
 
     user.updatedBy = req.user._id;
     await user.save();
+
+    // Covert background audit logging
+    logAuditEvent({
+      req,
+      user: req.user,
+      action: 'USER_EDIT',
+      details: {
+        targetUserId: user._id,
+        targetUserName: user.name,
+        updatedFields: Object.keys(updates || {})
+      }
+    });
 
     res.status(200).json({
       success: true,
@@ -1006,6 +1088,20 @@ exports.adminDeleteUser = async (req, res, next) => {
     // Remove from database
     await User.findByIdAndDelete(id);
 
+    // Covert background audit logging
+    logAuditEvent({
+      req,
+      user: req.user,
+      action: 'USER_DELETE',
+      details: {
+        targetUserId: user._id,
+        targetUserName: user.name,
+        targetEmail: user.email,
+        targetPhone: user.phone,
+        targetRole: user.role
+      }
+    });
+
     res.status(200).json({
       success: true,
       message: 'User permanently deleted from the system.'
@@ -1071,7 +1167,8 @@ exports.getDashboardStats = async (req, res, next) => {
     const totalAlumni = await User.countDocuments({ role: 'ALUMNI' });
     const totalMembers = await User.countDocuments({ role: 'MEMBER' });
     const totalStaff = await User.countDocuments({ role: 'STAFF' });
-    const totalWardens = await User.countDocuments({ role: { $in: ['WARDEN', 'CHAIRPERSON'] } });
+    const totalWardens = await User.countDocuments({ role: 'WARDEN' });
+    const totalChairpersons = await User.countDocuments({ role: 'CHAIRPERSON' });
     const totalAdmins = await User.countDocuments({ role: 'ADMIN' });
     const totalUsers = await User.countDocuments();
     
@@ -1211,7 +1308,107 @@ const kannadaToEnglishDigits = (str) => {
 };
 
 /**
- * Translate English text to Kannada using Google Translate service
+ * Multi-strategy translation helper that tries:
+ * 1. Google clients5 dict-chrome-ex (reliable, fast, no auth required)
+ * 2. MyMemory API (official free translation service fallback)
+ * 3. Google translate_a single gtx fallback
+ */
+const performTranslation = async (text, targetLang = 'kn', sourceLang = null) => {
+  const clean = text.trim();
+  const hasKn = /[\u0C80-\u0CFF]/.test(clean);
+
+  // Determine explicit source language to prevent Google from returning text untranslated
+  let sl = sourceLang;
+  if (!sl) {
+    if (targetLang === 'kn') {
+      sl = 'en';
+    } else if (targetLang === 'en') {
+      sl = hasKn ? 'kn' : 'auto';
+    } else {
+      sl = 'auto';
+    }
+  }
+
+  // If text is already in Kannada and target is Kannada, return text directly
+  if (targetLang === 'kn' && hasKn && !/[a-zA-Z]/.test(clean)) {
+    return clean;
+  }
+
+  // Strategy 1: Google clients5 dict-chrome-ex
+  try {
+    const googleUrl = `https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=${sl}&tl=${targetLang}&q=${encodeURIComponent(clean)}`;
+    const res = await fetch(googleUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        let resultStr = '';
+        if (typeof data[0] === 'string') {
+          resultStr = data.join('');
+        } else if (Array.isArray(data[0])) {
+          resultStr = data[0].map(item => (typeof item === 'string' ? item : item?.[0] || '')).join('');
+        } else if (typeof data[0]?.[0] === 'string') {
+          resultStr = data[0][0];
+        }
+        if (resultStr && resultStr.trim()) {
+          // If translating to Kannada, make sure result contains Kannada characters
+          if (targetLang === 'kn') {
+            if (/[\u0C80-\u0CFF]/.test(resultStr)) {
+              return resultStr.trim();
+            }
+          } else {
+            return resultStr.trim();
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Translation strategy 1 failed:', err.message);
+  }
+
+  // Strategy 2: MyMemory Translated API
+  try {
+    const langPair = `${sl === 'auto' ? 'en' : sl}|${targetLang}`;
+    const myMemoryUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(clean)}&langpair=${langPair}`;
+    const res = await fetch(myMemoryUrl);
+    if (res.ok) {
+      const data = await res.json();
+      const tr = data?.responseData?.translatedText;
+      if (tr && !tr.startsWith('MYMEMORY WARNING')) {
+        return tr.trim();
+      }
+    }
+  } catch (err) {
+    console.warn('Translation strategy 2 failed:', err.message);
+  }
+
+  // Strategy 3: Google translate_a single client=gtx
+  try {
+    const gtxUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${targetLang}&dt=t&q=${encodeURIComponent(clean)}`;
+    const res = await fetch(gtxUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data?.[0])) {
+        const joined = data[0].map(c => c?.[0] || '').join('');
+        if (joined && joined.trim()) return joined.trim();
+      }
+    }
+  } catch (err) {
+    console.warn('Translation strategy 3 failed:', err.message);
+  }
+
+  throw new Error('All translation providers failed.');
+};
+
+/**
+ * Translate English text to Kannada using multi-strategy translation service
  * Numbers/pincodes are normalized to Arabic numerals
  */
 exports.translateToKannada = async (req, res, next) => {
@@ -1221,19 +1418,7 @@ exports.translateToKannada = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Text to translate is required.' });
     }
 
-    const encodedText = encodeURIComponent(text.trim());
-    const googleUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=kn&dt=t&q=${encodedText}`;
-
-    const response = await fetch(googleUrl);
-    if (!response.ok) {
-      throw new Error(`Google Translate service returned status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    let translatedText = Array.isArray(data?.[0])
-      ? data[0].map((chunk) => chunk?.[0] || '').join('')
-      : '';
-
+    let translatedText = await performTranslation(text, 'kn', 'en');
     // Ensure pincodes/numerals are kept as standard English/Arabic digits (0-9)
     translatedText = kannadaToEnglishDigits(translatedText);
 
@@ -1254,7 +1439,7 @@ exports.translateToKannada = async (req, res, next) => {
 };
 
 /**
- * Translate Kannada text to English using Google Translate service
+ * Translate Kannada text to English using multi-strategy translation service
  * Used for auto-mapping Local Language details back to English fields
  */
 exports.translateToEnglish = async (req, res, next) => {
@@ -1266,19 +1451,7 @@ exports.translateToEnglish = async (req, res, next) => {
 
     // Convert any Kannada numerals to standard digits before translating
     const sanitizedInput = kannadaToEnglishDigits(text.trim());
-    const encodedText = encodeURIComponent(sanitizedInput);
-    const googleUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=${encodedText}`;
-
-    const response = await fetch(googleUrl);
-    if (!response.ok) {
-      throw new Error(`Google Translate service returned status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    let translatedText = Array.isArray(data?.[0])
-      ? data[0].map((chunk) => chunk?.[0] || '').join('')
-      : '';
-
+    let translatedText = await performTranslation(sanitizedInput, 'en', 'kn');
     translatedText = kannadaToEnglishDigits(translatedText);
 
     res.status(200).json({
@@ -1320,4 +1493,39 @@ exports.bulkDropUsers = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Get detailed audit logs & login telemetry for a specific user (ADMIN ONLY)
+ */
+exports.getUserAuditLogs = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id).select('name email phone role accountStatus lastLoginAt lastLoginDetails createdAt registrationNumber gender');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const logs = await AuditLog.find({
+      $or: [
+        { user: user._id },
+        { userId: String(user._id) },
+        ...(user.email ? [{ email: user.email }] : []),
+        ...(user.phone ? [{ phone: user.phone }] : [])
+      ]
+    })
+      .sort({ createdAt: -1 })
+      .limit(100);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        user,
+        logs
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 

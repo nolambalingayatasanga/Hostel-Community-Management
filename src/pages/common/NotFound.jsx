@@ -48,7 +48,7 @@ const NotFound = ({ message, customRedirectPath }) => {
           <LockIcon sx={{ fontSize: 44 }} />
         </Box>
 
-        <Typography
+        {/* <Typography
           variant="h2"
           sx={{
             fontWeight: 900,
@@ -70,7 +70,7 @@ const NotFound = ({ message, customRedirectPath }) => {
           }}
         >
           Page Not Found
-        </Typography>
+        </Typography> */}
 
         <Typography
           variant="body1"
