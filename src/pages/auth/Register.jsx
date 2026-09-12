@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
 import { useAuth } from '../../context/AuthContext';
+import API from '../../api';
 import AuthLayout from '../../layouts/AuthLayout';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -42,7 +43,11 @@ import {
   AccountBalanceOutlined as CollegeIcon,
   WcOutlined as GenderIcon,
   MenuBookOutlined as CourseIcon,
-  AssignmentIndOutlined as RegNoIcon
+  AssignmentIndOutlined as RegNoIcon,
+  Check as CheckIcon,
+  CheckCircle as CheckCircleIcon,
+  Cancel as CancelIcon,
+  WarningAmber as WarningAmberIcon
 } from '@mui/icons-material';
 
 const DRAFT_KEY = 'hostel_register_draft';
@@ -186,6 +191,95 @@ const Register = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Email Deliverability & Existence Validation State
+  const [emailValidation, setEmailValidation] = useState({
+    status: null, // null | 'CHECKING' | 'EXISTS' | 'DOES_NOT_EXIST' | 'UNKNOWN' | 'ALREADY_REGISTERED'
+    message: ''
+  });
+  const validationTimerRef = useRef(null);
+
+  const EMAIL_FORMAT_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+
+  const performEmailValidation = async (emailToVerify) => {
+    const trimmed = (emailToVerify || '').trim().toLowerCase();
+    if (!trimmed) {
+      setEmailValidation({ status: null, message: '' });
+      return null;
+    }
+
+    if (!EMAIL_FORMAT_REGEX.test(trimmed)) {
+      const res = { status: 'DOES_NOT_EXIST', message: "Email doesn't exist" };
+      setEmailValidation(res);
+      return res;
+    }
+
+    setEmailValidation({ status: 'CHECKING', message: 'Validating email deliverability...' });
+
+    try {
+      const res = await API.post('/auth/validate-email', { email: trimmed });
+      const data = res.data;
+      if (data.status === 'EXISTS') {
+        const r = { status: 'EXISTS', message: 'Continue' };
+        setEmailValidation(r);
+        return r;
+      } else if (data.status === 'DOES_NOT_EXIST') {
+        const r = { status: 'DOES_NOT_EXIST', message: "Email doesn't exist" };
+        setEmailValidation(r);
+        return r;
+      } else if (data.status === 'ALREADY_REGISTERED') {
+        const r = { status: 'ALREADY_REGISTERED', message: data.message || 'This email is already registered. Please log in.' };
+        setEmailValidation(r);
+        return r;
+      } else {
+        const r = { status: 'UNKNOWN', message: 'Try with different account' };
+        setEmailValidation(r);
+        return r;
+      }
+    } catch (err) {
+      console.error('Email validation error:', err);
+      const r = { status: 'UNKNOWN', message: 'Try with different account' };
+      setEmailValidation(r);
+      return r;
+    }
+  };
+
+  const handleEmailChange = (e) => {
+    const val = e.target.value;
+    setEmail(val);
+
+    if (validationTimerRef.current) {
+      clearTimeout(validationTimerRef.current);
+    }
+
+    const trimmed = val.trim();
+    if (!trimmed) {
+      setEmailValidation({ status: null, message: '' });
+      return;
+    }
+
+    // Debounce backend check by 500ms
+    validationTimerRef.current = setTimeout(() => {
+      performEmailValidation(trimmed);
+    }, 500);
+  };
+
+  const handleEmailBlur = () => {
+    if (validationTimerRef.current) {
+      clearTimeout(validationTimerRef.current);
+    }
+    if (email.trim() && (!emailValidation.status || emailValidation.status === 'CHECKING')) {
+      performEmailValidation(email.trim());
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (validationTimerRef.current) {
+        clearTimeout(validationTimerRef.current);
+      }
+    };
+  }, []);
+
   const currentYear = new Date().getFullYear();
 
   // Sync to localStorage whenever fields change
@@ -298,6 +392,27 @@ const Register = () => {
     // Common mandatory validations
     if (!name.trim()) { notifyWarn('Full Name is mandatory.'); return; }
     if (!email.trim()) { notifyWarn('Email Address is mandatory.'); return; }
+
+    // Deliverability & Existence Validation Guard
+    let currentEmailStatus = emailValidation.status;
+    if (currentEmailStatus !== 'EXISTS') {
+      const verifyRes = await performEmailValidation(email.trim());
+      currentEmailStatus = verifyRes?.status;
+    }
+
+    if (currentEmailStatus === 'DOES_NOT_EXIST') {
+      notifyWarn("❌ Email doesn't exist");
+      return;
+    }
+    if (currentEmailStatus === 'UNKNOWN') {
+      notifyWarn("⚠️ Try with different account");
+      return;
+    }
+    if (currentEmailStatus === 'ALREADY_REGISTERED') {
+      notifyWarn(emailValidation.message || "This email is already registered. Please log in.");
+      return;
+    }
+
     if (!phone.trim()) { notifyWarn('Phone Number is mandatory.'); return; }
     if (!gender) { notifyWarn('Gender is mandatory.'); return; }
 
@@ -415,6 +530,43 @@ const Register = () => {
       '&.Mui-focused fieldset': { borderColor: '#1877F2', borderWidth: '1.5px' },
     }
   };
+
+  const emailInputStyle = useMemo(() => {
+    let borderColor = '#E2E8F0';
+    let hoverBorderColor = '#CBD5E1';
+    let focusBorderColor = '#1877F2';
+    let bgColor = '#FFFFFF';
+
+    if (emailValidation.status === 'EXISTS') {
+      borderColor = '#16A34A';
+      hoverBorderColor = '#15803D';
+      focusBorderColor = '#16A34A';
+      bgColor = '#F0FDF4';
+    } else if (emailValidation.status === 'DOES_NOT_EXIST' || emailValidation.status === 'ALREADY_REGISTERED') {
+      borderColor = '#DC2626';
+      hoverBorderColor = '#B91C1C';
+      focusBorderColor = '#DC2626';
+      bgColor = '#FEF2F2';
+    } else if (emailValidation.status === 'UNKNOWN') {
+      borderColor = '#D97706';
+      hoverBorderColor = '#B45309';
+      focusBorderColor = '#D97706';
+      bgColor = '#FFFBEB';
+    }
+
+    return {
+      '& .MuiOutlinedInput-root': {
+        borderRadius: '10px',
+        backgroundColor: bgColor,
+        fontSize: '14px',
+        height: '44px',
+        transition: 'all 0.2s ease',
+        '& fieldset': { borderColor, borderWidth: emailValidation.status ? '1.5px' : '1px' },
+        '&:hover fieldset': { borderColor: hoverBorderColor },
+        '&.Mui-focused fieldset': { borderColor: focusBorderColor, borderWidth: '1.5px' },
+      }
+    };
+  }, [emailValidation.status]);
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
@@ -658,7 +810,8 @@ const Register = () => {
                     type="email"
                     inputRef={emailRef}
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={handleEmailChange}
+                    onBlur={handleEmailBlur}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
@@ -673,10 +826,57 @@ const Register = () => {
                             <MailIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
                           </InputAdornment>
                         ),
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            {emailValidation.status === 'CHECKING' && (
+                              <CircularProgress size={18} sx={{ color: '#0088FF' }} />
+                            )}
+                            {emailValidation.status === 'EXISTS' && (
+                              <CheckIcon sx={{ color: '#16A34A', fontSize: 20, fontWeight: 700 }} />
+                            )}
+                            {(emailValidation.status === 'DOES_NOT_EXIST' || emailValidation.status === 'ALREADY_REGISTERED') && (
+                              <CancelIcon sx={{ color: '#DC2626', fontSize: 19 }} />
+                            )}
+                            {emailValidation.status === 'UNKNOWN' && (
+                              <WarningAmberIcon sx={{ color: '#D97706', fontSize: 20 }} />
+                            )}
+                          </InputAdornment>
+                        ),
                       }
                     }}
-                    sx={inputStyle}
+                    sx={emailInputStyle}
                   />
+
+                  {/* Backend Validation Feedback (EXISTS -> Continue, DOESN'T EXIST -> ❌ Email doesn't exist, UNKNOWN -> ⚠️ Try with different account) */}
+                  {emailValidation.status === 'EXISTS' && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, mt: 0.6 }}>
+                      <CheckIcon sx={{ fontSize: 14, color: '#16A34A', fontWeight: 700 }} />
+                      <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#16A34A' }}>
+                        Continue
+                      </Typography>
+                    </Box>
+                  )}
+                  {emailValidation.status === 'DOES_NOT_EXIST' && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, mt: 0.6 }}>
+                      <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#DC2626' }}>
+                        ❌ Email doesn't exist
+                      </Typography>
+                    </Box>
+                  )}
+                  {emailValidation.status === 'UNKNOWN' && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, mt: 0.6 }}>
+                      <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#D97706' }}>
+                        ⚠️ Try with different account
+                      </Typography>
+                    </Box>
+                  )}
+                  {emailValidation.status === 'ALREADY_REGISTERED' && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, mt: 0.6 }}>
+                      <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#DC2626' }}>
+                        ❌ {emailValidation.message || 'This email is already registered. Please log in.'}
+                      </Typography>
+                    </Box>
+                  )}
                 </Box>
 
                 <Box>

@@ -301,7 +301,7 @@ const DashboardLayout = () => {
           {/* Right side header actions & user profile */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Box id="dashboard-header-actions" sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }} />
-
+{/* 
             <Box
               onClick={handleMenuOpen}
               sx={{
@@ -340,7 +340,7 @@ const DashboardLayout = () => {
                 })()}
               </Avatar>
               <KeyboardArrowDownIcon sx={{ fontSize: 18, color: '#64748B' }} />
-            </Box>
+            </Box> */}
 
             <Menu
               anchorEl={anchorEl}

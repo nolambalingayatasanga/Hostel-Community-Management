@@ -4,6 +4,7 @@ const User = require('../models/User');
 const sendEmail = require('../utils/email');
 const { extractClientInfo, logAuditEvent } = require('../utils/auditLogger');
 const { getDefaultProfilePhoto } = require('../utils/defaultProfilePhoto');
+const { verifyEmailDeliverability } = require('../utils/emailValidator');
 
 // Helper to sign JWT token
 const signToken = (id) => {
@@ -78,6 +79,31 @@ exports.register = async (req, res, next) => {
     // Normalizing email, phone, and optional adhaar
     const normalizedEmail = email.toLowerCase().trim();
     const normalizedPhone = phone.trim().replace(/\s+/g, '');
+
+    // Validate email deliverability and existence
+    const emailCheck = await verifyEmailDeliverability(normalizedEmail);
+    if (emailCheck.status === 'DOES_NOT_EXIST') {
+      return res.status(400).json({
+        success: false,
+        status: 'DOES_NOT_EXIST',
+        message: "Email doesn't exist"
+      });
+    }
+    if (emailCheck.status === 'UNKNOWN') {
+      return res.status(400).json({
+        success: false,
+        status: 'UNKNOWN',
+        message: 'Try with different account'
+      });
+    }
+    if (emailCheck.status === 'ALREADY_REGISTERED') {
+      return res.status(400).json({
+        success: false,
+        status: 'ALREADY_REGISTERED',
+        message: 'This email is already registered. Please log in.'
+      });
+    }
+
     let cleanAdhaar = undefined;
 
     if (adhaar && typeof adhaar === 'string' && adhaar.trim()) {
@@ -527,3 +553,34 @@ exports.resetPassword = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Real-time Email Existence / Deliverability Verification
+ * Returns { success: true, status: 'EXISTS' | 'DOES_NOT_EXIST' | 'UNKNOWN' | 'ALREADY_REGISTERED', message: string }
+ */
+exports.validateEmail = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== 'string') {
+      return res.status(200).json({
+        success: true,
+        status: 'DOES_NOT_EXIST',
+        message: "Email doesn't exist"
+      });
+    }
+
+    const result = await verifyEmailDeliverability(email);
+    return res.status(200).json({
+      success: true,
+      ...result
+    });
+  } catch (error) {
+    console.error('Error during email validation endpoint execution:', error);
+    return res.status(200).json({
+      success: true,
+      status: 'UNKNOWN',
+      message: 'Try with different account'
+    });
+  }
+};
+

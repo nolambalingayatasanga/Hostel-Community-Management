@@ -36,8 +36,6 @@ import {
   Language as BrowserIcon,
   Devices as DeviceIcon,
   VpnKey as SessionIcon,
-  Email as EmailIcon,
-  Phone as PhoneIcon,
 } from "@mui/icons-material";
 import { useSnackbar } from "notistack";
 import API from "../../api";
@@ -259,51 +257,11 @@ export default function LoginDetailsModal({ open, onClose, userRow }) {
               <Box
                 sx={{
                   display: "grid",
-                  gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(4, 1fr)" },
+                  gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(3, 1fr)" },
                   gap: 2,
                 }}
               >
-                {/* 1. Verified Email */}
-                <Box sx={{ p: 1.5, borderRadius: "10px", bgcolor: "#F8FAFC", border: "1px solid #E2E8F0" }}>
-                  <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 600, display: "flex", alignItems: "center", gap: 0.5, mb: 0.5 }}>
-                    <EmailIcon sx={{ fontSize: 15, color: "#0088FF" }} />
-                    Verified Email
-                  </Typography>
-                  <Stack direction="row" alignItems="center" spacing={0.75}>
-                    <Typography variant="body2" sx={{ fontWeight: 700, color: (user.email || logs[0]?.email) ? "#0F172A" : "#94A3B8", maxWidth: 150, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {user.email || logs[0]?.email || "No email record"}
-                    </Typography>
-                    {(user.email || logs[0]?.email) && (
-                      <Tooltip title="Copy Email">
-                        <IconButton size="small" onClick={() => handleCopy(user.email || logs[0]?.email, "email")} sx={{ p: "2px" }}>
-                          {copiedKey === "email" ? <CheckIcon sx={{ fontSize: 14, color: "#16A34A" }} /> : <CopyIcon sx={{ fontSize: 14, color: "#94A3B8" }} />}
-                        </IconButton>
-                      </Tooltip>
-                    )}
-                  </Stack>
-                </Box>
-
-                {/* 2. Verified Phone */}
-                <Box sx={{ p: 1.5, borderRadius: "10px", bgcolor: "#F8FAFC", border: "1px solid #E2E8F0" }}>
-                  <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 600, display: "flex", alignItems: "center", gap: 0.5, mb: 0.5 }}>
-                    <PhoneIcon sx={{ fontSize: 15, color: "#10B981" }} />
-                    Verified Phone
-                  </Typography>
-                  <Stack direction="row" alignItems="center" spacing={0.75}>
-                    <Typography variant="body2" sx={{ fontWeight: 700, color: (user.phone || logs[0]?.phone) ? "#0F172A" : "#94A3B8", maxWidth: 150, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {user.phone || logs[0]?.phone || "No phone record"}
-                    </Typography>
-                    {(user.phone || logs[0]?.phone) && (
-                      <Tooltip title="Copy Phone">
-                        <IconButton size="small" onClick={() => handleCopy(user.phone || logs[0]?.phone, "phone")} sx={{ p: "2px" }}>
-                          {copiedKey === "phone" ? <CheckIcon sx={{ fontSize: 14, color: "#16A34A" }} /> : <CopyIcon sx={{ fontSize: 14, color: "#94A3B8" }} />}
-                        </IconButton>
-                      </Tooltip>
-                    )}
-                  </Stack>
-                </Box>
-
-                {/* 3. Public IP Address */}
+                {/* 1. Public IP Address */}
                 <Box sx={{ p: 1.5, borderRadius: "10px", bgcolor: "#F8FAFC", border: "1px solid #E2E8F0" }}>
                   <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 600, display: "flex", alignItems: "center", gap: 0.5, mb: 0.5 }}>
                     <IpIcon sx={{ fontSize: 15, color: "#10B981" }} />
@@ -323,7 +281,18 @@ export default function LoginDetailsModal({ open, onClose, userRow }) {
                   </Stack>
                 </Box>
 
-                {/* 4. Session ID */}
+                {/* 2. Login Timestamp */}
+                <Box sx={{ p: 1.5, borderRadius: "10px", bgcolor: "#F8FAFC", border: "1px solid #E2E8F0" }}>
+                  <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 600, display: "flex", alignItems: "center", gap: 0.5, mb: 0.5 }}>
+                    <TimeIcon sx={{ fontSize: 15, color: "#0088FF" }} />
+                    Login Timestamp
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: lastLogin.timestamp || user.lastLoginAt ? "#1E293B" : "#94A3B8" }}>
+                    {lastLogin.timestamp || user.lastLoginAt ? formatLeadDateTime(lastLogin.timestamp || user.lastLoginAt) : "Never logged in"}
+                  </Typography>
+                </Box>
+
+                {/* 3. Session ID */}
                 <Box sx={{ p: 1.5, borderRadius: "10px", bgcolor: "#F8FAFC", border: "1px solid #E2E8F0" }}>
                   <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 600, display: "flex", alignItems: "center", gap: 0.5, mb: 0.5 }}>
                     <SessionIcon sx={{ fontSize: 15, color: "#06B6D4" }} />
@@ -343,18 +312,7 @@ export default function LoginDetailsModal({ open, onClose, userRow }) {
                   </Stack>
                 </Box>
 
-                {/* 5. Login Timestamp */}
-                <Box sx={{ p: 1.5, borderRadius: "10px", bgcolor: "#F8FAFC", border: "1px solid #E2E8F0" }}>
-                  <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 600, display: "flex", alignItems: "center", gap: 0.5, mb: 0.5 }}>
-                    <TimeIcon sx={{ fontSize: 15, color: "#0088FF" }} />
-                    Login Timestamp
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: lastLogin.timestamp || user.lastLoginAt ? "#1E293B" : "#94A3B8" }}>
-                    {lastLogin.timestamp || user.lastLoginAt ? formatLeadDateTime(lastLogin.timestamp || user.lastLoginAt) : "Never logged in"}
-                  </Typography>
-                </Box>
-
-                {/* 6. Browser */}
+                {/* 4. Browser */}
                 <Box sx={{ p: 1.5, borderRadius: "10px", bgcolor: "#F8FAFC", border: "1px solid #E2E8F0" }}>
                   <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 600, display: "flex", alignItems: "center", gap: 0.5, mb: 0.5 }}>
                     <BrowserIcon sx={{ fontSize: 15, color: "#8B5CF6" }} />
@@ -365,7 +323,7 @@ export default function LoginDetailsModal({ open, onClose, userRow }) {
                   </Typography>
                 </Box>
 
-                {/* 7. Operating System */}
+                {/* 5. Operating System */}
                 <Box sx={{ p: 1.5, borderRadius: "10px", bgcolor: "#F8FAFC", border: "1px solid #E2E8F0" }}>
                   <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 600, display: "flex", alignItems: "center", gap: 0.5, mb: 0.5 }}>
                     <DeviceIcon sx={{ fontSize: 15, color: "#F59E0B" }} />
@@ -376,7 +334,7 @@ export default function LoginDetailsModal({ open, onClose, userRow }) {
                   </Typography>
                 </Box>
 
-                {/* 8. Device Type */}
+                {/* 6. Device Type */}
                 <Box sx={{ p: 1.5, borderRadius: "10px", bgcolor: "#F8FAFC", border: "1px solid #E2E8F0" }}>
                   <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 600, display: "flex", alignItems: "center", gap: 0.5, mb: 0.5 }}>
                     {getDeviceIcon(lastLogin.device)}
