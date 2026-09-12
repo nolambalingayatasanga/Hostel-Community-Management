@@ -40,6 +40,14 @@ const protect = async (req, res, next) => {
       });
     }
 
+    // Check if user is dropped
+    if (currentUser.isDropped) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been dropped. Access is denied.'
+      });
+    }
+
     // Grant access
     req.user = currentUser;
 

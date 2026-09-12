@@ -314,6 +314,21 @@ exports.login = async (req, res, next) => {
       });
     }
 
+    if (user.isDropped) {
+      logAuditEvent({
+        req,
+        user,
+        action: 'LOGIN',
+        status: 'FAILURE',
+        details: { loginIdentifier, reason: 'Account dropped' }
+      });
+
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been dropped. Access is denied. Please contact an administrator.'
+      });
+    }
+
     if (user.accountStatus !== 'ACTIVE') {
       logAuditEvent({
         req,
@@ -399,6 +414,20 @@ exports.forgotPassword = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         message: 'No account found with those credentials.'
+      });
+    }
+
+    if (user.isDropped) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been dropped. Access is denied. Please contact an administrator.'
+      });
+    }
+
+    if (user.accountStatus !== 'ACTIVE') {
+      return res.status(403).json({
+        success: false,
+        message: `Your account is currently ${user.accountStatus}. Please contact an administrator.`
       });
     }
 
@@ -538,6 +567,20 @@ exports.resetPassword = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: 'Password reset token is invalid or has expired.'
+      });
+    }
+
+    if (user.isDropped) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been dropped. Access is denied.'
+      });
+    }
+
+    if (user.accountStatus !== 'ACTIVE') {
+      return res.status(403).json({
+        success: false,
+        message: `Your account status is ${user.accountStatus}. Access is denied.`
       });
     }
 
