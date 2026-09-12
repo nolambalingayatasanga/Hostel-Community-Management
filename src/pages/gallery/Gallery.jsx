@@ -48,7 +48,9 @@ import {
   Edit as EditIcon,
   Collections as CollectionsIcon,
   Image as ImageIcon,
-  FolderOpen as FolderOpenIcon
+  FolderOpen as FolderOpenIcon,
+  ChevronLeft as ChevronLeftIcon,
+  ChevronRight as ChevronRightIcon
 } from '@mui/icons-material';
 import API from '../../api';
 import { useAuth } from '../../context/AuthContext';
@@ -664,6 +666,53 @@ const Gallery = () => {
     setActivePhoto(photo);
     setLightboxOpen(true);
   };
+
+  const currentPhotoIndex = activePhoto ? photos.findIndex((p) => p._id === activePhoto._id) : -1;
+
+  const handlePrevPhoto = useCallback(
+    (e) => {
+      if (e) e.stopPropagation();
+      if (!photos || photos.length <= 1 || currentPhotoIndex === -1) return;
+      const prevIndex = currentPhotoIndex > 0 ? currentPhotoIndex - 1 : photos.length - 1;
+      setActivePhoto(photos[prevIndex]);
+    },
+    [photos, currentPhotoIndex]
+  );
+
+  const handleNextPhoto = useCallback(
+    (e) => {
+      if (e) e.stopPropagation();
+      if (!photos || photos.length <= 1 || currentPhotoIndex === -1) return;
+      const nextIndex = currentPhotoIndex < photos.length - 1 ? currentPhotoIndex + 1 : 0;
+      setActivePhoto(photos[nextIndex]);
+    },
+    [photos, currentPhotoIndex]
+  );
+
+  // Auto fetch more photos if navigating near the end in lightbox
+  useEffect(() => {
+    if (lightboxOpen && currentPhotoIndex >= photos.length - 2 && hasMore && !photosLoading && !photosLoadingMore) {
+      const nextPage = page + 1;
+      const targetFolderId = currentFolder ? currentFolder._id : null;
+      fetchPhotos(nextPage, targetFolderId, true);
+    }
+  }, [lightboxOpen, currentPhotoIndex, photos.length, hasMore, photosLoading, photosLoadingMore, page, currentFolder, fetchPhotos]);
+
+  // Keyboard navigation for lightbox
+  useEffect(() => {
+    if (!lightboxOpen) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'ArrowLeft') {
+        handlePrevPhoto();
+      } else if (e.key === 'ArrowRight') {
+        handleNextPhoto();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxOpen, handlePrevPhoto, handleNextPhoto]);
 
   const formatShortDate = (dateString) => {
     if (!dateString) return 'Recent';
@@ -1741,6 +1790,89 @@ const Gallery = () => {
             <CloseIcon sx={{ fontSize: 24 }} />
           </IconButton>
 
+          {/* Navigation Button - Left End */}
+          {photos.length > 1 && (
+            <IconButton
+              onClick={handlePrevPhoto}
+              aria-label="Previous media"
+              sx={{
+                position: 'fixed',
+                left: { xs: 12, sm: 24, md: 32 },
+                top: '50%',
+                transform: 'translateY(-50%)',
+                zIndex: 1600,
+                color: '#FFFFFF',
+                backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+                width: { xs: 44, sm: 52 },
+                height: { xs: 44, sm: 52 },
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                  transform: 'translateY(-50%) scale(1.08)'
+                }
+              }}
+            >
+              <ChevronLeftIcon sx={{ fontSize: { xs: 28, sm: 36 } }} />
+            </IconButton>
+          )}
+
+          {/* Navigation Button - Right End */}
+          {photos.length > 1 && (
+            <IconButton
+              onClick={handleNextPhoto}
+              aria-label="Next media"
+              sx={{
+                position: 'fixed',
+                right: { xs: 12, sm: 24, md: 32 },
+                top: '50%',
+                transform: 'translateY(-50%)',
+                zIndex: 1600,
+                color: '#FFFFFF',
+                backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+                width: { xs: 44, sm: 52 },
+                height: { xs: 44, sm: 52 },
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                  transform: 'translateY(-50%) scale(1.08)'
+                }
+              }}
+            >
+              <ChevronRightIcon sx={{ fontSize: { xs: 28, sm: 36 } }} />
+            </IconButton>
+          )}
+
+          {/* Media Index Counter Badge at Top Left */}
+          {photos.length > 1 && currentPhotoIndex !== -1 && (
+            <Box
+              sx={{
+                position: 'fixed',
+                top: 24,
+                left: 24,
+                zIndex: 1600,
+                color: '#FFFFFF',
+                backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+                borderRadius: '20px',
+                px: 2,
+                py: 0.75,
+                fontSize: '13px',
+                fontWeight: 600,
+                letterSpacing: '0.5px'
+              }}
+            >
+              {currentPhotoIndex + 1} / {totalPhotos || photos.length}
+            </Box>
+          )}
+
           {activePhoto && (
             <Box
               onClick={(e) => e.stopPropagation()}
@@ -1755,6 +1887,7 @@ const Gallery = () => {
             >
               {activePhoto.resourceType === 'video' ? (
                 <video
+                  key={activePhoto._id || activePhoto.url}
                   src={activePhoto.url}
                   controls
                   autoPlay
@@ -1768,6 +1901,7 @@ const Gallery = () => {
                 />
               ) : (
                 <img
+                  key={activePhoto._id || activePhoto.url}
                   src={activePhoto.url}
                   alt={activePhoto.caption || 'Lightbox'}
                   style={{
