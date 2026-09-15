@@ -222,10 +222,10 @@ const CompleteProfile = () => {
                   </Typography>
                   <Grid container spacing={3} sx={{ mb: 4 }}>
                     <Grid item xs={12} sm={6}>
-                      <TextField fullWidth label="College / Institution" value={college} onChange={(e) => setCollege(e.target.value)} placeholder="e.g. RV College of Engineering" />
+                      <TextField fullWidth label="College / Institution" value={college} onChange={(e) => setCollege(e.target.value)} placeholder=".... College of ...." />
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <TextField fullWidth label="Course / Program" value={course} onChange={(e) => setCourse(e.target.value)} placeholder="e.g. B.E. Computer Science" />
+                      <TextField fullWidth label="Course / Program" value={course} onChange={(e) => setCourse(e.target.value)} placeholder="CSE / MBA / BCA" />
                     </Grid>
                     
                     {/* Education Start Month/Year */}
@@ -281,6 +281,7 @@ const CompleteProfile = () => {
                            <FormControl fullWidth>
                              <InputLabel>Employment</InputLabel>
                              <Select value={employmentStatus} label="Employment" onChange={(e) => setEmploymentStatus(e.target.value)}>
+                               <MenuItem value="Intern">Intern</MenuItem>
                                <MenuItem value="Employed">Employed</MenuItem>
                                <MenuItem value="Business Owner">Business Owner</MenuItem>
                                <MenuItem value="Entrepreneur">Entrepreneur</MenuItem>

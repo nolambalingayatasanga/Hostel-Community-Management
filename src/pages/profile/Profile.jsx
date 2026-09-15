@@ -180,7 +180,11 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
   const { user: currentUser, updateUser: updateAuthUser } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
 
-  const isOwnProfile = !isCreate && ((!id && !propUserId) || (id && currentUser?._id && String(id) === String(currentUser._id)));
+  const isOwnProfile = !isCreate && Boolean(
+    (!id && !propUserId) ||
+    (id && currentUser?._id && String(id) === String(currentUser._id)) ||
+    (propUserId && currentUser?._id && String(propUserId) === String(currentUser._id))
+  );
   const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role === 'WARDEN';
   const isAuthorizedViewer = isCreate || isOwnProfile || isAdmin;
   const canEdit = isCreate || isOwnProfile || isAdmin;
@@ -399,7 +403,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
       setSuccess('');
 
       const targetId = propUserId || id || currentUser?._id;
-      const targetPhotoEndpoint = (isOwnProfile && !propUserId) ? '/users/profile/photo' : `/users/${targetId}/photo`;
+      const targetPhotoEndpoint = isOwnProfile ? '/users/profile/photo' : `/users/${targetId}/photo`;
 
       const res = await API.post(targetPhotoEndpoint, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -808,7 +812,10 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
         localLanguageDetails: localLanguageDetails || '',
         address: address || {},
         education: education || {},
-        employment: employment || {},
+        employment: {
+          ...employment,
+          employmentStatus: (employment?.employmentStatus && employment.employmentStatus.trim()) ? employment.employmentStatus.trim() : undefined
+        },
         privacySettings: privacySettings || {},
         relation: relation || {},
         channels: channels || {},
@@ -847,7 +854,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
       }
 
       const targetId = propUserId || id || (isOwnProfile ? currentUser?._id : id);
-      const targetEndpoint = (isOwnProfile && !propUserId) ? '/users/profile' : `/users/${targetId}`;
+      const targetEndpoint = isOwnProfile ? '/users/profile' : `/users/${targetId}`;
       const res = await API.patch(targetEndpoint, payload);
       if (res.data?.success) {
         const msg = 'Profile saved successfully!';
@@ -1567,6 +1574,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                                 onChange={(e) => handleEmploymentChange('employmentStatus', e.target.value)}
                                 MenuProps={{ disableScrollLock: true }}
                               >
+                                <MenuItem value="Intern">Intern</MenuItem>
                                 <MenuItem value="Employed">Employed</MenuItem>
                                 <MenuItem value="Business Owner">Business Owner</MenuItem>
                                 <MenuItem value="Entrepreneur">Entrepreneur</MenuItem>
@@ -2130,6 +2138,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                   onChange={(e) => setTransEmpStatus(e.target.value)}
                   MenuProps={{ disableScrollLock: true }}
                 >
+                  <MenuItem value="Intern">Intern</MenuItem>
                   <MenuItem value="Employed">Employed</MenuItem>
                   <MenuItem value="Business Owner">Business Owner</MenuItem>
                   <MenuItem value="Entrepreneur">Entrepreneur</MenuItem>

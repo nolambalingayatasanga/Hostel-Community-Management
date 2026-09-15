@@ -36,7 +36,7 @@ const connectDB = async () => {
         { name: 'Organization', slug: 'employment.organization', type: 'text', isInternal: true },
         { name: 'Industry', slug: 'employment.industry', type: 'text', isInternal: true },
         { name: 'Work Location', slug: 'employment.workLocation', type: 'text', isInternal: true },
-        { name: 'Employment', slug: 'employment.employmentStatus', type: 'select', options: ['Employed', 'Business Owner', 'Entrepreneur', 'Higher Studies', 'Government Service', 'Retired', 'Unemployed'], isInternal: true },
+        { name: 'Employment', slug: 'employment.employmentStatus', type: 'select', options: ['Intern', 'Employed', 'Business Owner', 'Entrepreneur', 'Higher Studies', 'Government Service', 'Retired', 'Unemployed'], isInternal: true },
         { name: 'Business Name', slug: 'employment.businessName', type: 'text', isInternal: true },
         { name: 'Business Type', slug: 'employment.businessType', type: 'text', isInternal: true },
         { name: 'Login Details', slug: 'loginDetails', type: 'text', isInternal: true }

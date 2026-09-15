@@ -460,12 +460,14 @@ const UserManagement = () => {
                           <FormControl fullWidth>
                             <InputLabel>Employment Status</InputLabel>
                             <Select value={employmentStatus} label="Employment Status" onChange={(e) => setEmploymentStatus(e.target.value)}>
-                          <MenuItem value="Employed">Employed</MenuItem>
-                          <MenuItem value="Business Owner">Business Owner</MenuItem>
-                          <MenuItem value="Entrepreneur">Entrepreneur</MenuItem>
-                          <MenuItem value="Higher Studies">Higher Studies</MenuItem>
-                          <MenuItem value="Government Service">Government Service</MenuItem>
-                          <MenuItem value="Unemployed">Unemployed</MenuItem>
+                              <MenuItem value="Intern">Intern</MenuItem>
+                              <MenuItem value="Employed">Employed</MenuItem>
+                              <MenuItem value="Business Owner">Business Owner</MenuItem>
+                              <MenuItem value="Entrepreneur">Entrepreneur</MenuItem>
+                              <MenuItem value="Higher Studies">Higher Studies</MenuItem>
+                              <MenuItem value="Government Service">Government Service</MenuItem>
+                              <MenuItem value="Retired">Retired</MenuItem>
+                              <MenuItem value="Unemployed">Unemployed</MenuItem>
                             </Select>
                           </FormControl>
                         </Grid>

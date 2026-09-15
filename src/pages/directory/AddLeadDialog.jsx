@@ -411,7 +411,7 @@ export default function AddLeadDialog({ open, onClose, statuses }) {
                       value={basicValues.employment.employmentStatus}
                       onChange={(e) => handleNestedChange("employment", "employmentStatus", e.target.value)}
                     >
-                      {['Employed', 'Self-Employed', 'Business Owner', 'Entrepreneur', 'Higher Studies', 'Government Service', 'Retired', 'Unemployed', 'Other'].map((status) => (
+                      {['Intern', 'Employed', 'Self-Employed', 'Business Owner', 'Entrepreneur', 'Higher Studies', 'Government Service', 'Retired', 'Unemployed', 'Other'].map((status) => (
                         <MenuItem key={status} value={status}>
                           {status}
                         </MenuItem>

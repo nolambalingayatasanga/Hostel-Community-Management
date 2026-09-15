@@ -486,6 +486,15 @@ exports.updateOwnProfile = async (req, res, next) => {
       delete profileData.education;
     }
 
+    // Handle employment sanitization
+    if (profileData.employment) {
+      const emp = { ...profileData.employment };
+      if (!emp.employmentStatus || !emp.employmentStatus.trim()) {
+        delete emp.employmentStatus;
+      }
+      profileData.employment = emp;
+    }
+
     // Apply updates
     Object.keys(profileData).forEach((key) => {
       user[key] = profileData[key];
@@ -530,7 +539,7 @@ exports.uploadProfilePhoto = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please upload an image file.' });
     }
 
-    const targetUserId = (req.params.id && ['ADMIN', 'CHAIRPERSON'].includes(req.user.role))
+    const targetUserId = (req.params.id && ['ADMIN', 'WARDEN', 'CHAIRPERSON'].includes(req.user.role))
       ? req.params.id
       : req.user._id;
 
@@ -761,7 +770,10 @@ exports.adminCreateUser = async (req, res, next) => {
       localLanguageDetails,
       address,
       education,
-      employment,
+      employment: (employment && typeof employment === 'object') ? {
+        ...employment,
+        employmentStatus: (employment.employmentStatus && employment.employmentStatus.trim()) ? employment.employmentStatus.trim() : undefined
+      } : undefined,
       createdBy: req.user._id
     });
 
@@ -984,9 +996,13 @@ exports.adminUpdateUser = async (req, res, next) => {
 
     // Handle partial employment updates
     if (updates.employment) {
+      const empData = { ...updates.employment };
+      if (empData.employmentStatus !== undefined && (!empData.employmentStatus || !empData.employmentStatus.trim())) {
+        delete empData.employmentStatus;
+      }
       user.employment = {
         ...(user.employment ? (user.employment.toObject ? user.employment.toObject() : user.employment) : {}),
-        ...updates.employment
+        ...empData
       };
       delete updates.employment;
     }
