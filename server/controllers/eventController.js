@@ -1,4 +1,5 @@
 const Event = require('../models/Event');
+const Access = require('../models/Access');
 const { uploadImage, deleteImage, deleteMultipleMedia } = require('../config/cloudinary');
 const { logAuditEvent } = require('../utils/auditLogger');
 
@@ -67,7 +68,8 @@ exports.getEvent = async (req, res, next) => {
       .populate('updatedBy', 'name email')
       .populate('reviews.user', 'name profilePhoto role')
       .populate('comments.user', 'name profilePhoto role')
-      .populate('comments.replies.user', 'name profilePhoto role');
+      .populate('comments.replies.user', 'name profilePhoto role')
+      .populate('additionalImages.uploadedBy', 'name _id');
 
     if (!event) {
       return res.status(404).json({ success: false, message: 'Event not found.' });
@@ -493,6 +495,15 @@ exports.uploadEventGalleryImages = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Event not found.' });
     }
 
+    // Verify Access Control create permission for events
+    const isAdminOrWarden = ['ADMIN', 'WARDEN', 'CHAIRPERSON'].includes(req.user.role);
+    if (!isAdminOrWarden) {
+      const accessRec = await Access.findOne({ page: 'events', role: req.user.role });
+      if (accessRec && (accessRec.permissions?.noAccess || (!accessRec.permissions?.fullAccess && !accessRec.permissions?.create))) {
+        return res.status(403).json({ success: false, message: 'You do not have permission to upload media to events.' });
+      }
+    }
+
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ success: false, message: 'Please select one or more image or video files to upload.' });
     }
@@ -542,13 +553,17 @@ exports.uploadEventGalleryImages = async (req, res, next) => {
       uploadedImages.push({
         url: uploadResult.url,
         publicId: uploadResult.publicId,
-        resourceType
+        resourceType,
+        uploadedBy: req.user._id,
+        createdAt: new Date()
       });
     }
 
     event.additionalImages.push(...uploadedImages);
     event.updatedBy = req.user._id;
     await event.save();
+
+    await event.populate('additionalImages.uploadedBy', 'name _id');
 
     res.status(200).json({
       success: true,
@@ -580,6 +595,22 @@ exports.deleteGalleryImage = async (req, res, next) => {
     }
 
     const imageToDelete = event.additionalImages[imageIndex];
+
+    // Verify Access Control delete permission for events
+    const isAdminOrWarden = ['ADMIN', 'WARDEN', 'CHAIRPERSON'].includes(req.user.role);
+    if (!isAdminOrWarden) {
+      const accessRec = await Access.findOne({ page: 'events', role: req.user.role });
+      if (accessRec && (accessRec.permissions?.noAccess || (!accessRec.permissions?.fullAccess && !accessRec.permissions?.delete))) {
+        return res.status(403).json({ success: false, message: 'You do not have permission to delete event media.' });
+      }
+    }
+
+    // Ownership check: only admin/warden or the uploader can delete
+    const isOwner = imageToDelete.uploadedBy && String(imageToDelete.uploadedBy) === String(req.user._id);
+    if (!isAdminOrWarden && !isOwner) {
+      return res.status(403).json({ success: false, message: 'You can only delete media you uploaded.' });
+    }
+
     if (imageToDelete.publicId || imageToDelete.url) {
       await deleteImage(imageToDelete.publicId || imageToDelete.url, imageToDelete.resourceType || 'image');
     }
@@ -587,6 +618,9 @@ exports.deleteGalleryImage = async (req, res, next) => {
     event.additionalImages.splice(imageIndex, 1);
     event.updatedBy = req.user._id;
     await event.save();
+
+    // Re-populate uploadedBy before returning
+    await event.populate('additionalImages.uploadedBy', 'name _id');
 
     res.status(200).json({
       success: true,

@@ -165,7 +165,7 @@ const UserSchema = new mongoose.Schema({
     workLocation: { type: String, trim: true },
     employmentStatus: {
       type: String,
-      enum: ['Employed', 'Business Owner', 'Entrepreneur', 'Higher Studies', 'Government Service', 'Retired', 'Unemployed']
+      enum: ['Intern', 'Employed', 'Business Owner', 'Entrepreneur', 'Higher Studies', 'Government Service', 'Retired', 'Unemployed']
     },
     // For business owners
     businessName: { type: String, trim: true },

@@ -17,11 +17,10 @@ router.delete('/folders/:id', restrictTo('ADMIN', 'CHAIRPERSON'), galleryControl
 // Read gallery (all authenticated roles)
 router.get('/', galleryController.getGalleryPhotos);
 
-// Upload photo (restricted to ADMIN & CHAIRPERSON)
-router.post('/', restrictTo('ADMIN', 'CHAIRPERSON'), upload.single('photo'), galleryController.uploadGalleryPhoto);
+// Upload photo (any authenticated user)
+router.post('/', upload.single('photo'), galleryController.uploadGalleryPhoto);
 
-// Delete photo from gallery (restricted to ADMIN & CHAIRPERSON)
-router.delete('/:id', restrictTo('ADMIN', 'CHAIRPERSON'), galleryController.deleteGalleryPhoto);
+// Delete photo from gallery (any authenticated user — controller enforces ownership)
+router.delete('/:id', galleryController.deleteGalleryPhoto);
 
 module.exports = router;
-

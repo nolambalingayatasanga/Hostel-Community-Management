@@ -54,6 +54,7 @@ import {
 } from '@mui/icons-material';
 import API from '../../api';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../context/PermissionContext';
 import { useSnackbar } from 'notistack';
 import { useUploadQueue } from '../../context/UploadQueueContext';
 
@@ -170,7 +171,17 @@ const Gallery = () => {
   // Sentinel for Infinite Scrolling
   const observerTarget = useRef(null);
 
-  const isAdminOrWarden = ['ADMIN', 'WARDEN'].includes(user?.role);
+  const { canCreate, canDelete, canUpdate } = usePermissions();
+  const isAdminOrWarden = ['ADMIN', 'WARDEN', 'CHAIRPERSON'].includes(user?.role);
+
+  // Dynamic upload permission from Access Control
+  const canUpload = canCreate('gallery');
+
+  // Can delete if admin/warden OR (has delete permission for gallery AND owns the photo)
+  const canDeletePhoto = (photo) => {
+    if (!user || !photo) return false;
+    return canDelete('gallery', photo.uploadedBy);
+  };
 
   // Derived folder hierarchies
   const folderTrail = getBreadcrumbs(currentFolder, folders);
@@ -609,11 +620,19 @@ const Gallery = () => {
   // -------------------------------------------------------------
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      setSelectedIds(photos.map(p => p._id));
+      // In select-all mode, select all photos the user owns or admin selects all
+      const selectablePhotos = photos.filter(p => canDeletePhoto(p));
+      setSelectedIds(isAdminOrWarden ? photos.map(p => p._id) : selectablePhotos.map(p => p._id));
     } else {
       setSelectedIds([]);
     }
   };
+
+  // Count of selected IDs that the current user can actually delete
+  const deletableSelectedCount = selectedIds.filter(id => {
+    const photo = photos.find(p => p._id === id);
+    return photo && canDeletePhoto(photo);
+  }).length;
 
   const handleToggleSelect = (id, e) => {
     e.stopPropagation();
@@ -950,7 +969,8 @@ const Gallery = () => {
                 Download ({selectedIds.length})
               </Button>
 
-              {isAdminOrWarden && (
+              {/* Show delete for selected only if the user can delete at least one selected item */}
+              {deletableSelectedCount > 0 && (
                 <Button
                   variant="outlined"
                   color="error"
@@ -958,61 +978,59 @@ const Gallery = () => {
                   onClick={handleDeleteSelectedPhotosClick}
                   sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 600 }}
                 >
-                  Delete ({selectedIds.length})
+                  Delete ({deletableSelectedCount})
                 </Button>
               )}
             </>
           )}
 
-          {isAdminOrWarden && (
-            <>
-              {/* If on Folders tab, show "New folder" or "New subfolder" */}
-              {activeTab === 'folders' && (
-                <Button
-                  variant="outlined"
-                  startIcon={<CreateNewFolderIcon />}
-                  onClick={() => handleOpenCreateFolderDialog(currentFolder ? currentFolder._id : null)}
-                  sx={{
-                    borderRadius: '8px',
-                    borderColor: '#0088ff',
-                    color: '#0088ff',
-                    fontWeight: 600,
-                    textTransform: 'none',
-                    px: 2.5,
-                    py: 0.9,
-                    '&:hover': {
-                      borderColor: '#0077ee',
-                      backgroundColor: 'rgba(0, 136, 255, 0.04)'
-                    }
-                  }}
-                >
-                  {currentFolder ? 'New subfolder' : 'New folder'}
-                </Button>
-              )}
+          {/* Folder management stays admin-only */}
+          {isAdminOrWarden && activeTab === 'folders' && (
+            <Button
+              variant="outlined"
+              startIcon={<CreateNewFolderIcon />}
+              onClick={() => handleOpenCreateFolderDialog(currentFolder ? currentFolder._id : null)}
+              sx={{
+                borderRadius: '8px',
+                borderColor: '#0088ff',
+                color: '#0088ff',
+                fontWeight: 600,
+                textTransform: 'none',
+                px: 2.5,
+                py: 0.9,
+                '&:hover': {
+                  borderColor: '#0077ee',
+                  backgroundColor: 'rgba(0, 136, 255, 0.04)'
+                }
+              }}
+            >
+              {currentFolder ? 'New subfolder' : 'New folder'}
+            </Button>
+          )}
 
-              {/* Add photos button */}
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={handleOpenUpload}
-                sx={{
-                  background: '#0088ff',
-                  color: '#fff',
-                  borderRadius: '8px',
-                  px: 3,
-                  py: 1,
-                  fontWeight: 600,
-                  textTransform: 'none',
-                  boxShadow: 'none',
-                  '&:hover': {
-                    background: '#0077ee',
-                    boxShadow: 'none'
-                  }
-                }}
-              >
-                Add photos
-              </Button>
-            </>
+          {/* Add photos button — available only if user has create permission */}
+          {canUpload && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleOpenUpload}
+              sx={{
+                background: '#0088ff',
+                color: '#fff',
+                borderRadius: '8px',
+                px: 3,
+                py: 1,
+                fontWeight: 600,
+                textTransform: 'none',
+                boxShadow: 'none',
+                '&:hover': {
+                  background: '#0077ee',
+                  boxShadow: 'none'
+                }
+              }}
+            >
+              Add photos
+            </Button>
           )}
         </Box>
       </Box>
@@ -1050,8 +1068,8 @@ const Gallery = () => {
               </Box>
             ) : photos.length === 0 ? (
               <EmptyGalleryCard
-                isAdmin={isAdminOrWarden}
-                onUpload={handleOpenUpload}
+                isAdmin={canUpload}
+                onUpload={canUpload ? handleOpenUpload : null}
                 title="No Media Found"
                 subtitle="Upload media to share them with your community."
               />
@@ -1196,7 +1214,8 @@ const Gallery = () => {
                       <Typography variant="body2" sx={{ color: '#64748B', fontWeight: 500 }}>
                         No media uploaded directly into this folder yet.
                       </Typography>
-                      {isAdminOrWarden && (
+                      {/* Upload button available if user has create permission */}
+                      {canUpload && (
                         <Button
                           size="small"
                           variant="outlined"
@@ -1210,17 +1229,16 @@ const Gallery = () => {
                     </Box>
                   ) : (
                     <EmptyGalleryCard
-                      isAdmin={isAdminOrWarden}
-                      onUpload={handleOpenUpload}
+                      isAdmin={canUpload}
+                      onUpload={canUpload ? handleOpenUpload : null}
                       title="Folder is Empty"
-                      // subtitle="Create subfolders to organize your events, or upload photos and videos directly here."
                       buttonLabel="Upload to Folder"
                       icon={<FolderOpenIcon sx={{ fontSize: 40, color: currentFolder.color || '#0F9D58' }} />}
-                      secondaryButton={{
+                      secondaryButton={isAdminOrWarden ? {
                         label: 'New Subfolder',
                         icon: <CreateNewFolderIcon />,
                         onClick: () => handleOpenCreateFolderDialog(currentFolder._id)
-                      }}
+                      } : null}
                     />
                   )
                 ) : (
@@ -1601,7 +1619,7 @@ const Gallery = () => {
 
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569' }}>
-                      Selected {selectedFiles.length} file(s)
+                      Selected {selectedFiles.length} 
                     </Typography>
                     <Button
                       variant="text"
@@ -1643,23 +1661,7 @@ const Gallery = () => {
               )}
             </Box>
 
-            {/* Sequential Background Queue Info Banner */}
-            <Box
-              sx={{
-                p: 1.8,
-                bgcolor: '#F0FDF4',
-                borderRadius: '12px',
-                border: '1px solid #BBF7D0',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1.5,
-              }}
-            >
-              <UploadIcon sx={{ color: '#16A34A', fontSize: 22 }} />
-              <Typography variant="caption" sx={{ color: '#166534', fontWeight: 500, lineHeight: 1.4 }}>
-                Files upload 1-by-1 in a background queue. You can safely close this popup at any time and continue browsing!
-              </Typography>
-            </Box>
+      
           </DialogContent>
 
           <DialogActions sx={{ p: 3, display: 'flex', gap: 1.5 }}>
@@ -1913,6 +1915,44 @@ const Gallery = () => {
                     boxShadow: '0 12px 48px rgba(0,0,0,0.6)'
                   }}
                 />
+              )}
+            </Box>
+          )}
+
+          {/* Bottom Center Info Pill: Uploader Name above Date */}
+          {activePhoto && (activePhoto.uploadedBy?.name || activePhoto.createdAt) && (
+            <Box
+              sx={{
+                position: 'fixed',
+                bottom: 24,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 1600,
+                backgroundColor: 'rgba(15, 23, 42, 0.8)',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255, 255, 255, 0.18)',
+                borderRadius: '16px',
+                px: 2.5,
+                py: 0.9,
+                textAlign: 'center',
+                color: '#FFFFFF',
+                pointerEvents: 'none',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
+              }}
+            >
+              {activePhoto.uploadedBy?.name && (
+                <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem', color: '#FFFFFF', lineHeight: 1.2 }}>
+                  {activePhoto.uploadedBy.name}
+                </Typography>
+              )}
+              {activePhoto.createdAt && (
+                <Typography variant="caption" sx={{ color: '#CBD5E1', fontSize: '0.72rem', display: 'block', mt: 0.2 }}>
+                  {new Date(activePhoto.createdAt).toLocaleDateString(undefined, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                  })}
+                </Typography>
               )}
             </Box>
           )}
@@ -2376,7 +2416,7 @@ const Gallery = () => {
                 left: 0,
                 right: 0,
                 bottom: 0,
-                background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 60%)',
+                background: 'linear-gradient(to top, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0) 60%)',
                 opacity: 0,
                 transition: 'opacity 0.2s ease',
                 display: 'flex',
@@ -2386,17 +2426,33 @@ const Gallery = () => {
                 pointerEvents: 'none'
               }}
             >
-              <Typography variant="caption" sx={{ color: '#ccc', pointerEvents: 'none' }}>
-                {new Date(photo.createdAt).toLocaleDateString(undefined, {
+              {photo.uploadedBy?.name && (
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: '#FFFFFF',
+                    fontWeight: 700,
+                    fontSize: '0.8rem',
+                    pointerEvents: 'none',
+                    lineHeight: 1.2,
+                    mb: 0.3,
+                    textShadow: '0 1px 3px rgba(0,0,0,0.8)'
+                  }}
+                >
+                  {photo.uploadedBy.name}
+                </Typography>
+              )}
+              <Typography variant="caption" sx={{ color: '#CBD5E1', pointerEvents: 'none', fontSize: '0.72rem', textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>
+                {photo.createdAt ? new Date(photo.createdAt).toLocaleDateString(undefined, {
                   year: 'numeric',
                   month: 'short',
                   day: 'numeric'
-                })}
+                }) : ''}
               </Typography>
             </Box>
 
-            {/* Delete button - Top Right */}
-            {isAdminOrWarden && (
+            {/* Delete button - Top Right: visible only to the uploader or admin */}
+            {canDeletePhoto(photo) && (
               <IconButton
                 onClick={(e) => {
                   e.stopPropagation();

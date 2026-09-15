@@ -80,27 +80,20 @@ exports.register = async (req, res, next) => {
     const normalizedEmail = email.toLowerCase().trim();
     const normalizedPhone = phone.trim().replace(/\s+/g, '');
 
-    // Validate email deliverability and existence
+    // Validate email format and check if already registered in database
     const emailCheck = await verifyEmailDeliverability(normalizedEmail);
-    if (emailCheck.status === 'DOES_NOT_EXIST') {
-      return res.status(400).json({
-        success: false,
-        status: 'DOES_NOT_EXIST',
-        message: "Email doesn't exist"
-      });
-    }
-    if (emailCheck.status === 'UNKNOWN') {
-      return res.status(400).json({
-        success: false,
-        status: 'UNKNOWN',
-        message: 'Try with different account'
-      });
-    }
     if (emailCheck.status === 'ALREADY_REGISTERED') {
       return res.status(400).json({
         success: false,
         status: 'ALREADY_REGISTERED',
         message: 'This email is already registered. Please log in.'
+      });
+    }
+    if (emailCheck.status === 'INVALID_FORMAT' || emailCheck.status === 'DOES_NOT_EXIST') {
+      return res.status(400).json({
+        success: false,
+        status: 'INVALID_FORMAT',
+        message: 'Please enter a valid email address.'
       });
     }
 
@@ -598,8 +591,8 @@ exports.resetPassword = async (req, res, next) => {
 };
 
 /**
- * Real-time Email Existence / Deliverability Verification
- * Returns { success: true, status: 'EXISTS' | 'DOES_NOT_EXIST' | 'UNKNOWN' | 'ALREADY_REGISTERED', message: string }
+ * Real-time Email Existence in Database Verification
+ * Returns { success: true, status: 'EXISTS' | 'INVALID_FORMAT' | 'ALREADY_REGISTERED', message: string }
  */
 exports.validateEmail = async (req, res, next) => {
   try {
@@ -607,8 +600,8 @@ exports.validateEmail = async (req, res, next) => {
     if (!email || typeof email !== 'string') {
       return res.status(200).json({
         success: true,
-        status: 'DOES_NOT_EXIST',
-        message: "Email doesn't exist"
+        status: 'INVALID_FORMAT',
+        message: 'Please enter a valid email address'
       });
     }
 
@@ -621,8 +614,8 @@ exports.validateEmail = async (req, res, next) => {
     console.error('Error during email validation endpoint execution:', error);
     return res.status(200).json({
       success: true,
-      status: 'UNKNOWN',
-      message: 'Try with different account'
+      status: 'EXISTS',
+      message: 'Email is available'
     });
   }
 };

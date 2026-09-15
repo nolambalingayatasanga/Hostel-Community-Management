@@ -84,6 +84,14 @@ const UserDirectory = ({ directoryRole, title }) => {
   const [status, setStatus] = useState('');
   const [sortBy, setSortBy] = useState('newest');
 
+  const resolveAccountStatus = (userRecord) => {
+    const accountStatus = userRecord?.accountStatus;
+    if (typeof accountStatus === 'string') {
+      return accountStatus.toUpperCase();
+    }
+    return '';
+  };
+
   // Trigger search / filters fetch
   const fetchUsers = async () => {
     try {
@@ -156,10 +164,11 @@ const UserDirectory = ({ directoryRole, title }) => {
 
   const handleStatusToggle = async (userId, currentStatus) => {
     try {
-      const nextStatus = currentStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+      const normalizedCurrentStatus = (currentStatus || 'INACTIVE').toUpperCase();
+      const nextStatus = normalizedCurrentStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
       const res = await API.patch(`/users/${userId}/status`, { status: nextStatus });
       if (res.data?.success) {
-        setUsers(users.map(u => u._id === userId ? { ...u, status: nextStatus } : u));
+        setUsers(users.map(u => u._id === userId ? { ...u, accountStatus: nextStatus } : u));
       }
     } catch (error) {
     }
@@ -340,14 +349,12 @@ const UserDirectory = ({ directoryRole, title }) => {
                       <Select value={employmentStatus} label="Employment Status" onChange={(e) => setEmploymentStatus(e.target.value)}>
                         <MenuItem value="">Any</MenuItem>
                         <MenuItem value="Employed">Employed</MenuItem>
-                        <MenuItem value="Self-Employed">Self-Employed</MenuItem>
                         <MenuItem value="Business Owner">Business Owner</MenuItem>
                         <MenuItem value="Entrepreneur">Entrepreneur</MenuItem>
                         <MenuItem value="Higher Studies">Higher Studies</MenuItem>
                         <MenuItem value="Government Service">Government Service</MenuItem>
                         <MenuItem value="Retired">Retired</MenuItem>
                         <MenuItem value="Unemployed">Unemployed</MenuItem>
-                        <MenuItem value="Other">Other</MenuItem>
                       </Select>
                     </FormControl>
                   </Grid>
@@ -469,7 +476,7 @@ const UserDirectory = ({ directoryRole, title }) => {
                     )}
                     <TableCell>
                       {u.address?.city ? (
-                        `${u.address.city}, ${u.address.state}`
+                        `${u.address.city}, ${u.address.district || 'N/A'}`
                       ) : (
                         <Chip size="small" icon={<LockIcon />} label="Hidden" variant="outlined" />
                       )}
@@ -477,7 +484,7 @@ const UserDirectory = ({ directoryRole, title }) => {
                     
                     {isAdminOrWarden && (
                       <TableCell>
-                        {renderStatus(u.status)}
+                          {renderStatus(resolveAccountStatus(u))}
                       </TableCell>
                     )}
                     
@@ -498,9 +505,9 @@ const UserDirectory = ({ directoryRole, title }) => {
                             </Tooltip>
                             
                             {/* Deactivate/Reactivate toggler */}
-                            <Tooltip title={u.status === 'ACTIVE' ? 'Deactivate Account' : 'Reactivate Account'}>
-                              <IconButton size="small" onClick={() => handleStatusToggle(u._id, u.status)}>
-                                {u.status === 'ACTIVE' ? <InactiveIcon color="warning" /> : <ActiveIcon color="success" />}
+                              <Tooltip title={resolveAccountStatus(u) === 'ACTIVE' ? 'Deactivate Account' : 'Reactivate Account'}>
+                              <IconButton size="small" onClick={() => handleStatusToggle(u._id, resolveAccountStatus(u))}>
+                                {resolveAccountStatus(u) === 'ACTIVE' ? <InactiveIcon color="warning" /> : <ActiveIcon color="success" />}
                               </IconButton>
                             </Tooltip>
 

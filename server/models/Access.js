@@ -36,6 +36,24 @@ AccessSchema.statics.seedDefaults = async function() {
 
   const count = await this.countDocuments();
   if (count > 0) {
+    // Migrate legacy default gallery permissions for non-admin roles so they get create & delete
+    await this.updateMany(
+      {
+        page: 'gallery',
+        role: { $nin: ['ADMIN', 'WARDEN', 'CHAIRPERSON'] },
+        'permissions.create': false,
+        'permissions.delete': false,
+        'permissions.view': true,
+        'permissions.noAccess': false,
+        'permissions.fullAccess': false
+      },
+      {
+        $set: {
+          'permissions.create': true,
+          'permissions.delete': true
+        }
+      }
+    );
     return; // Already initialized
   }
 
@@ -89,8 +107,22 @@ AccessSchema.statics.seedDefaults = async function() {
               noAccess: false
             }
           });
+        } else if (page === 'gallery') {
+          // Gallery: Users can view, upload media (create), and delete their own media (delete)
+          defaultEntries.push({
+            page,
+            role,
+            permissions: {
+              fullAccess: false,
+              view: true,
+              create: true,
+              update: false,
+              delete: true,
+              noAccess: false
+            }
+          });
         } else {
-          // Users, Events, Gallery: View access
+          // Users, Events: View access
           defaultEntries.push({
             page,
             role,

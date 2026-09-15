@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { Box, Typography, Button, Paper } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import LockIcon from '@mui/icons-material/LockOutlined';
@@ -102,7 +102,7 @@ const NotFound = ({ message, customRedirectPath }) => {
             }
           }}
         >
-          Back to Accessible Home
+          Back to  Home
         </Button>
       </Paper>
     </Box>

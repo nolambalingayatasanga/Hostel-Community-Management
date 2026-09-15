@@ -3,6 +3,9 @@ const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
 const Status = require('../models/Status');
 const StatusGroup = require('../models/StatusGroup');
+const GalleryPhoto = require('../models/GalleryPhoto');
+const GalleryFolder = require('../models/GalleryFolder');
+const Event = require('../models/Event');
 const { uploadImage, deleteImage } = require('../config/cloudinary');
 const { sanitizeUser } = require('../middleware/authMiddleware');
 const { logAuditEvent } = require('../utils/auditLogger');
@@ -870,7 +873,7 @@ exports.adminUpdateUser = async (req, res, next) => {
       delete updates.adhaar;
     }
 
-    // Handle Status update
+    // Handle CRM status update
     if (updates.status !== undefined) {
       const mongoose = require('mongoose');
       if (updates.status && mongoose.Types.ObjectId.isValid(updates.status)) {
@@ -879,6 +882,19 @@ exports.adminUpdateUser = async (req, res, next) => {
         user.status = undefined;
       }
       delete updates.status;
+    }
+
+    // Handle account status update
+    if (updates.accountStatus !== undefined) {
+      const normalizedAccountStatus = String(updates.accountStatus || '').toUpperCase().trim();
+      if (!['ACTIVE', 'INACTIVE', 'SUSPENDED'].includes(normalizedAccountStatus)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid account status value.'
+        });
+      }
+      user.accountStatus = normalizedAccountStatus;
+      delete updates.accountStatus;
     }
 
     // Non-editable system identifiers: slNo and receiptNo
@@ -1156,12 +1172,22 @@ exports.adminTransitionStudent = async (req, res, next) => {
 };
 
 /**
- * Get dashboard stats and aggregation charts (ADMIN/MEMBER only)
+ * Get dashboard stats and aggregation charts (ADMIN/WARDEN only)
  */
 exports.getDashboardStats = async (req, res, next) => {
   try {
-    const Event = require('../models/Event');
-    
+    if (!['ADMIN', 'WARDEN'].includes(req.user?.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only ADMIN and WARDEN users can access dashboard statistics.'
+      });
+    }
+
+    const defaultProfilePhoto = (await getDefaultProfilePhoto()).url;
+    const currentDate = new Date();
+    const startOfCurrentMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+    const sixMonthsAgo = new Date(currentDate.getFullYear(), currentDate.getMonth() - 5, 1);
+
     // 1. Basic Counts
     const totalStudents = await User.countDocuments({ role: 'STUDENT' });
     const totalAlumni = await User.countDocuments({ role: 'ALUMNI' });
@@ -1175,6 +1201,36 @@ exports.getDashboardStats = async (req, res, next) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const upcomingEvents = await Event.countDocuments({ eventDate: { $gte: today } });
+    const totalEvents = await Event.countDocuments();
+    const pastEvents = await Event.countDocuments({ eventDate: { $lt: today } });
+
+    const eventTrendByMonth = await Event.aggregate([
+      { $match: { eventDate: { $gte: sixMonthsAgo } } },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$eventDate' },
+            month: { $month: '$eventDate' }
+          },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1 } }
+    ]);
+
+    const formattedEventTrend = Array.from({ length: 6 }).map((_, index) => {
+      const dt = new Date(currentDate.getFullYear(), currentDate.getMonth() - (5 - index), 1);
+      const keyYear = dt.getFullYear();
+      const keyMonth = dt.getMonth() + 1;
+      const found = eventTrendByMonth.find(
+        (item) => item._id.year === keyYear && item._id.month === keyMonth
+      );
+
+      return {
+        period: dt.toLocaleString('en-US', { month: 'short' }),
+        events: found?.count || 0
+      };
+    });
 
     // 2. Recent Registrations
     const recentUsers = await User.find()
@@ -1218,6 +1274,10 @@ exports.getDashboardStats = async (req, res, next) => {
       { $group: { _id: '$employment.organization', count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 5 }
+    ]);
+
+    const membersByStatus = await User.aggregate([
+      { $group: { _id: '$accountStatus', value: { $sum: 1 } } }
     ]);
 
     // Users by Location (State)
@@ -1268,6 +1328,158 @@ exports.getDashboardStats = async (req, res, next) => {
       count: bucket.count
     }));
 
+    // 4. Profile Completeness & completion trends
+    const profileCompleteness = await User.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalProfiles: { $sum: 1 },
+          phone: {
+            $sum: { $cond: [{ $ne: [{ $ifNull: ['$phone', ''] }, ''] }, 1, 0] }
+          },
+          email: {
+            $sum: { $cond: [{ $ne: [{ $ifNull: ['$email', ''] }, ''] }, 1, 0] }
+          },
+          address: {
+            $sum: {
+              $cond: [
+                {
+                  $or: [
+                    { $ne: [{ $ifNull: ['$address.street', ''] }, ''] },
+                    { $ne: [{ $ifNull: ['$address.city', ''] }, ''] },
+                    { $ne: [{ $ifNull: ['$address.district', ''] }, ''] },
+                    { $ne: [{ $ifNull: ['$address.pincode', ''] }, ''] }
+                  ]
+                },
+                1,
+                0
+              ]
+            }
+          },
+          education: {
+            $sum: {
+              $cond: [
+                {
+                  $or: [
+                    { $ne: [{ $ifNull: ['$education.college', ''] }, ''] },
+                    { $ne: [{ $ifNull: ['$education.course', ''] }, ''] }
+                  ]
+                },
+                1,
+                0
+              ]
+            }
+          },
+          employment: {
+            $sum: {
+              $cond: [
+                {
+                  $or: [
+                    { $ne: [{ $ifNull: ['$employment.occupation', ''] }, ''] },
+                    { $ne: [{ $ifNull: ['$employment.organization', ''] }, ''] },
+                    { $ne: [{ $ifNull: ['$employment.industry', ''] }, ''] }
+                  ]
+                },
+                1,
+                0
+              ]
+            }
+          },
+          profilePhoto: {
+            $sum: {
+              $cond: [
+                { $ne: [{ $ifNull: ['$profilePhoto.url', ''] }, defaultProfilePhoto] },
+                1,
+                0
+              ]
+            }
+          },
+          social: {
+            $sum: {
+              $cond: [
+                {
+                  $or: [
+                    { $ne: [{ $ifNull: ['$channels.instagram', ''] }, ''] },
+                    { $ne: [{ $ifNull: ['$channels.linkedin', ''] }, ''] },
+                    { $ne: [{ $ifNull: ['$channels.whatsapp', ''] }, ''] }
+                  ]
+                },
+                1,
+                0
+              ]
+            }
+          },
+          completeProfiles: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: [{ $ifNull: ['$phone', ''] }, ''] },
+                    { $ne: [{ $ifNull: ['$email', ''] }, ''] },
+                    {
+                      $or: [
+                        { $ne: [{ $ifNull: ['$address.city', ''] }, ''] },
+                        { $ne: [{ $ifNull: ['$education.college', ''] }, ''] }
+                      ]
+                    }
+                  ]
+                },
+                1,
+                0
+              ]
+            }
+          }
+        }
+      }
+    ]);
+
+    // 5. Gallery overview (photo/video counts, uploads, folders)
+    const [totalGalleryPhotos, totalGalleryFolders, mediaTypeDistribution] = await Promise.all([
+      GalleryPhoto.countDocuments(),
+      GalleryFolder.countDocuments(),
+      GalleryPhoto.aggregate([
+        { $group: { _id: '$resourceType', count: { $sum: 1 } } },
+        { $project: { name: '$_id', value: '$count' } },
+        { $sort: { value: -1 } }
+      ])
+    ]);
+
+    const uploadsByMonth = await GalleryPhoto.aggregate([
+      { $match: { createdAt: { $gte: sixMonthsAgo } } },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$createdAt' },
+            month: { $month: '$createdAt' }
+          },
+          photos: { $sum: 1 }
+        }
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1 } }
+    ]);
+
+    const monthKeys = Array.from({ length: 6 }).map((_, index) => {
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - (5 - index), 1);
+      return {
+        period: date.toLocaleString('en-US', { month: 'short' }),
+        date,
+        year: date.getFullYear(),
+        month: date.getMonth() + 1
+      };
+    });
+
+    const galleryMonthlyUploads = monthKeys.map(({ period, year, month }) => {
+      const found = uploadsByMonth.find(
+        (item) => item._id.year === year && item._id.month === month
+      );
+      return {
+        period,
+        uploads: found?.photos || 0
+      };
+    });
+
+    const profileTotals = profileCompleteness[0] || {};
+
     res.status(200).json({
       success: true,
       data: {
@@ -1279,9 +1491,39 @@ exports.getDashboardStats = async (req, res, next) => {
           chairpersons: totalChairpersons,
           admins: totalAdmins,
           total: totalUsers,
-          upcomingEvents
+          upcomingEvents,
+          totalEvents,
+          pastEvents
         },
         recentUsers,
+        profileStats: {
+          total: profileTotals.totalProfiles || 0,
+          complete: profileTotals.completeProfiles || 0,
+          dimensions: [
+            { label: 'Phone', value: profileTotals.phone || 0 },
+            { label: 'Email', value: profileTotals.email || 0 },
+            { label: 'Address', value: profileTotals.address || 0 },
+            { label: 'Education', value: profileTotals.education || 0 },
+            { label: 'Employment', value: profileTotals.employment || 0 },
+            { label: 'Social', value: profileTotals.social || 0 },
+            { label: 'Profile Photo', value: profileTotals.profilePhoto || 0 }
+          ],
+          completePercent: profileTotals.totalProfiles
+            ? Math.round((profileTotals.completeProfiles / profileTotals.totalProfiles) * 100)
+            : 0
+        },
+        eventStats: {
+          total: totalEvents,
+          upcoming: upcomingEvents,
+          past: pastEvents,
+          trend: formattedEventTrend
+        },
+        galleryStats: {
+          totalPhotos: totalGalleryPhotos,
+          totalFolders: totalGalleryFolders,
+          uploadsByMonth: galleryMonthlyUploads,
+          mediaTypeDistribution
+        },
         charts: {
           rolesDistribution,
           studentsByCollege,
@@ -1289,7 +1531,10 @@ exports.getDashboardStats = async (req, res, next) => {
           alumniByOccupation,
           alumniByCompany,
           locationDistribution,
-          ageDistribution: formattedAgeDistribution
+          ageDistribution: formattedAgeDistribution,
+          accountStatusDistribution: membersByStatus,
+          eventTrend: formattedEventTrend,
+          galleryUploadsByMonth: galleryMonthlyUploads
         }
       }
     });
@@ -1527,5 +1772,3 @@ exports.getUserAuditLogs = async (req, res, next) => {
     next(error);
   }
 };
-
-

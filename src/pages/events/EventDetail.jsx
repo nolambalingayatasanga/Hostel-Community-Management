@@ -78,6 +78,7 @@ import {
 } from "@mui/icons-material";
 
 import { useAuth } from "../../context/AuthContext";
+import { usePermissions } from "../../context/PermissionContext";
 import API from "../../api";
 import { LocalizationProvider, DatePicker, TimePicker } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
@@ -1191,7 +1192,13 @@ function EventMediaHero({
   const images = useMemo(() => {
     const list = [];
     if (coverImage?.url) {
-      list.push({ url: coverImage.url, isCover: true, resourceType: "image" });
+      list.push({
+        url: coverImage.url,
+        isCover: true,
+        resourceType: "image",
+        uploadedBy: coverImage.uploadedBy,
+        createdAt: coverImage.createdAt,
+      });
     }
     if (additionalImages && Array.isArray(additionalImages) && additionalImages.length > 0) {
       additionalImages.forEach((img) => {
@@ -1201,6 +1208,8 @@ function EventMediaHero({
             url: img.url,
             id: img._id,
             resourceType: isVideo ? "video" : "image",
+            uploadedBy: img.uploadedBy,
+            createdAt: img.createdAt,
           });
         }
       });
@@ -1422,6 +1431,40 @@ function EventMediaHero({
             {activeIndex + 1} / {images.length}
           </span>
         </Box>
+
+        {/* Uploader Name above Date on Hero Media */}
+        {(currentMedia.uploadedBy?.name || currentMedia.createdAt) && (
+          <Box
+            sx={{
+              position: "absolute",
+              bottom: 14,
+              left: 14,
+              bgcolor: "rgba(15, 23, 42, 0.75)",
+              backdropFilter: "blur(6px)",
+              color: "#FFFFFF",
+              px: 1.5,
+              py: 0.6,
+              borderRadius: "10px",
+              zIndex: 3,
+              pointerEvents: "none",
+            }}
+          >
+            {currentMedia.uploadedBy?.name && (
+              <Typography variant="caption" sx={{ fontWeight: 700, fontSize: "12px", color: "#FFFFFF", display: "block", lineHeight: 1.2 }}>
+                {currentMedia.uploadedBy.name}
+              </Typography>
+            )}
+            {currentMedia.createdAt && (
+              <Typography variant="caption" sx={{ color: "#CBD5E1", fontSize: "10.5px", display: "block" }}>
+                {new Date(currentMedia.createdAt).toLocaleDateString(undefined, {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                })}
+              </Typography>
+            )}
+          </Box>
+        )}
 
         {/* Navigation Arrows */}
         {images.length > 1 && (
@@ -1695,6 +1738,7 @@ function ViewAllMediaDialog({
   images = [],
   eventId,
   canManage = false,
+  canDeleteImage = () => false,
   eventAdditionalImages = [],
   onUpdated = () => { },
   onZoom = () => { },
@@ -1862,7 +1906,7 @@ function ViewAllMediaDialog({
   };
 
   const deletableSelectedCount = images.filter(
-    (img) => selectedIds.includes(img._id || img.id) && !img.isCover
+    (img) => selectedIds.includes(img._id || img.id) && !img.isCover && canDeleteImage(img)
   ).length;
 
   const isAllSelected = images.length > 0 && selectedIds.length === images.length;
@@ -1963,8 +2007,8 @@ function ViewAllMediaDialog({
               : `Download${selectedIds.length > 0 ? ` (${selectedIds.length})` : ""}`}
           </Button>
 
-          {/* Delete Selected (Admin / Staff only) */}
-          {canManage && (
+          {/* Delete Selected (owner of selected items or admin) */}
+          {deletableSelectedCount > 0 && (
             <Button
               size="small"
               variant="outlined"
@@ -2202,7 +2246,7 @@ function ViewAllMediaDialog({
                         )}
                       </Box>
 
-                      {/* Top-Right: Cover Badge OR Admin Single Delete */}
+                      {/* Top-Right: Cover Badge OR User-Owned Single Delete */}
                       {img.isCover ? (
                         <Box
                           sx={{
@@ -2226,7 +2270,7 @@ function ViewAllMediaDialog({
                           Cover Photo
                         </Box>
                       ) : (
-                        canManage && (
+                        canDeleteImage(img) && (
                           <IconButton
                             onClick={(e) => handleDeleteSingle(img, e)}
                             size="small"
@@ -2261,9 +2305,9 @@ function ViewAllMediaDialog({
                           bottom: 0,
                           left: 0,
                           right: 0,
-                          height: "60px",
+                          height: "64px",
                           background:
-                            "linear-gradient(to top, rgba(15, 23, 42, 0.88) 0%, rgba(15, 23, 42, 0.4) 60%, transparent 100%)",
+                            "linear-gradient(to top, rgba(15, 23, 42, 0.9) 0%, rgba(15, 23, 42, 0.45) 60%, transparent 100%)",
                           opacity: 0,
                           transition: "opacity 0.25s ease",
                           display: "flex",
@@ -2274,17 +2318,39 @@ function ViewAllMediaDialog({
                           zIndex: 3,
                         }}
                       >
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            color: "#FFFFFF",
-                            fontWeight: 700,
-                            fontSize: "12px",
-                            textShadow: "0 1px 2px rgba(0,0,0,0.5)",
-                          }}
-                        >
-                          {img.isCover ? "Cover Photo" : `Photo #${index + 1}`}
-                        </Typography>
+                        <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0, pr: 1 }}>
+                          {img.uploadedBy?.name && (
+                            <Typography
+                              variant="caption"
+                              noWrap
+                              sx={{
+                                color: "#FFFFFF",
+                                fontWeight: 700,
+                                fontSize: "12px",
+                                lineHeight: 1.2,
+                                textShadow: "0 1px 2px rgba(0,0,0,0.6)",
+                              }}
+                            >
+                              {img.uploadedBy.name}
+                            </Typography>
+                          )}
+                          <Typography
+                            variant="caption"
+                            noWrap
+                            sx={{
+                              color: "#CBD5E1",
+                              fontSize: "11px",
+                              lineHeight: 1.2,
+                              textShadow: "0 1px 2px rgba(0,0,0,0.6)",
+                            }}
+                          >
+                            {img.createdAt ? new Date(img.createdAt).toLocaleDateString(undefined, {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            }) : (img.isCover ? "Cover Photo" : `Photo #${index + 1}`)}
+                          </Typography>
+                        </Box>
 
                         <Stack direction="row" spacing={1} alignItems="center">
                           {/* Zoom Action */}
@@ -2352,7 +2418,7 @@ function ViewAllMediaDialog({
 }
 
 // ─── Image Lightbox Component ────────────────────────────────────────────────
-function ImageLightbox({ open, onClose, imageUrl, canManage = false, currentImage = null, eventId, onDeleted }) {
+function ImageLightbox({ open, onClose, imageUrl, canDeleteImage = () => false, currentImage = null, eventId, onDeleted }) {
   const { enqueueSnackbar } = useSnackbar();
   const [deleteLoading, setDeleteLoading] = useState(false);
 
@@ -2409,7 +2475,7 @@ function ImageLightbox({ open, onClose, imageUrl, canManage = false, currentImag
 
   if (!open) return null;
 
-  const isDeletable = canManage && currentImage && !currentImage.isCover;
+  const isDeletable = currentImage && !currentImage.isCover && canDeleteImage(currentImage);
 
   return (
     <Box
@@ -2555,6 +2621,45 @@ function ImageLightbox({ open, onClose, imageUrl, canManage = false, currentImag
           />
         )}
       </Box>
+
+      {/* Bottom Center Info Pill: Uploader Name above Date */}
+      {(currentImage?.uploadedBy?.name || currentImage?.createdAt) && (
+        <Box
+          onClick={(e) => e.stopPropagation()}
+          sx={{
+            position: "fixed",
+            bottom: 24,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 1710,
+            bgcolor: "rgba(15, 23, 42, 0.8)",
+            backdropFilter: "blur(10px)",
+            border: "1px solid rgba(255, 255, 255, 0.18)",
+            borderRadius: "16px",
+            px: 2.5,
+            py: 0.9,
+            textAlign: "center",
+            color: "#FFFFFF",
+            pointerEvents: "none",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+          }}
+        >
+          {currentImage.uploadedBy?.name && (
+            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: "0.85rem", color: "#FFFFFF", lineHeight: 1.2 }}>
+              {currentImage.uploadedBy.name}
+            </Typography>
+          )}
+          {currentImage.createdAt && (
+            <Typography variant="caption" sx={{ color: "#CBD5E1", fontSize: "0.72rem", display: "block", mt: 0.2 }}>
+              {new Date(currentImage.createdAt).toLocaleDateString(undefined, {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              })}
+            </Typography>
+          )}
+        </Box>
+      )}
     </Box>
   );
 }
@@ -2566,6 +2671,8 @@ function ManageMediaDialog({
   eventId,
   additionalImages = [],
   onUpdated,
+  canDeleteImage = () => false,
+  canUpload = true,
 }) {
   const [images, setImages] = useState([]);
   const [error, setError] = useState("");
@@ -2665,57 +2772,61 @@ function ManageMediaDialog({
         )}
 
         {/* Upload Button Section */}
-        <Box
-          sx={{
-            border: "2px dashed #D0D5DD",
-            p: 3,
-            borderRadius: "12px",
-            textAlign: "center",
-            bgcolor: "#F8FAFC",
-            cursor: "pointer",
-            mb: 2,
-            transition: "all 0.2s",
-            "&:hover": { borderColor: "#7C3AED", bgcolor: "rgba(124, 58, 237, 0.03)" },
-          }}
-          onClick={() => {
-            document.getElementById("manage-media-direct-upload").click();
-          }}
-        >
-          <input
-            id="manage-media-direct-upload"
-            type="file"
-            multiple
-            accept="image/*,video/*"
-            style={{ display: "none" }}
-            onChange={handleFileSelectAndUpload}
-          />
-          <CloudUploadIcon sx={{ fontSize: 36, color: "#7C3AED", mb: 1 }} />
-          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#334155", mb: 0.5 }}>
-            Click to Select and Upload Photos & Videos
-          </Typography>
-          <Typography variant="caption" sx={{ color: "#64748B", display: "block" }}>
-            Images up to 9.8 MB, Videos up to 99 MB • Any number of files
-          </Typography>
-        </Box>
+        {canUpload && (
+          <>
+            <Box
+              sx={{
+                border: "2px dashed #D0D5DD",
+                p: 3,
+                borderRadius: "12px",
+                textAlign: "center",
+                bgcolor: "#F8FAFC",
+                cursor: "pointer",
+                mb: 2,
+                transition: "all 0.2s",
+                "&:hover": { borderColor: "#7C3AED", bgcolor: "rgba(124, 58, 237, 0.03)" },
+              }}
+              onClick={() => {
+                document.getElementById("manage-media-direct-upload").click();
+              }}
+            >
+              <input
+                id="manage-media-direct-upload"
+                type="file"
+                multiple
+                accept="image/*,video/*"
+                style={{ display: "none" }}
+                onChange={handleFileSelectAndUpload}
+              />
+              <CloudUploadIcon sx={{ fontSize: 36, color: "#7C3AED", mb: 1 }} />
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#334155", mb: 0.5 }}>
+                Click to Select and Upload Photos & Videos
+              </Typography>
+              <Typography variant="caption" sx={{ color: "#64748B", display: "block" }}>
+                Images up to 9.8 MB, Videos up to 99 MB • Any number of files
+              </Typography>
+            </Box>
 
-        {/* Sequential Background Queue Info Banner */}
-        <Box
-          sx={{
-            p: 1.8,
-            bgcolor: "#F5F3FF",
-            borderRadius: "12px",
-            border: "1px solid #DDD6FE",
-            display: "flex",
-            alignItems: "center",
-            gap: 1.5,
-            mb: 3,
-          }}
-        >
-          <CloudUploadIcon sx={{ color: "#7C3AED", fontSize: 22 }} />
-          <Typography variant="caption" sx={{ color: "#5B21B6", fontWeight: 500, lineHeight: 1.4 }}>
-            Files upload 1-by-1 in a background queue. You can safely close this dialog anytime while uploads continue!
-          </Typography>
-        </Box>
+            {/* Sequential Background Queue Info Banner */}
+            <Box
+              sx={{
+                p: 1.8,
+                bgcolor: "#F5F3FF",
+                borderRadius: "12px",
+                border: "1px solid #DDD6FE",
+                display: "flex",
+                alignItems: "center",
+                gap: 1.5,
+                mb: 3,
+              }}
+            >
+              <CloudUploadIcon sx={{ color: "#7C3AED", fontSize: 22 }} />
+              <Typography variant="caption" sx={{ color: "#5B21B6", fontWeight: 500, lineHeight: 1.4 }}>
+                Files upload 1-by-1 in a background queue. You can safely close this dialog anytime while uploads continue!
+              </Typography>
+            </Box>
+          </>
+        )}
 
         {/* Existing Media List */}
         <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#1E293B", mb: 2 }}>
@@ -2803,14 +2914,30 @@ function ManageMediaDialog({
                         {label}
                       </Typography>
                     </Tooltip>
+                    {img.uploadedBy && (
+                      <Typography variant="caption" sx={{ color: "#475569", fontWeight: 600, fontSize: "11.5px", display: "block" }}>
+                        by {img.uploadedBy?.name || "Unknown"}
+                      </Typography>
+                    )}
+                    {img.createdAt && (
+                      <Typography variant="caption" sx={{ color: "#94A3B8", fontSize: "11px", display: "block" }}>
+                        {new Date(img.createdAt).toLocaleDateString(undefined, {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </Typography>
+                    )}
                   </Box>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleDeleteImage(img._id, isVideo)}
-                    sx={{ color: "#EF4444", "&:hover": { bgcolor: "#FEE2E2" } }}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
+                  {canDeleteImage(img) && (
+                    <IconButton
+                      size="small"
+                      onClick={() => handleDeleteImage(img._id, isVideo)}
+                      sx={{ color: "#EF4444", "&:hover": { bgcolor: "#FEE2E2" } }}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  )}
                 </Stack>
               );
             })}
@@ -4453,11 +4580,21 @@ export default function EventDetail() {
   const { user } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
 
+  // Dynamic permissions from Access Control
+  const { canCreate, canDelete, canUpdate } = usePermissions();
+
   // Role checks:
-  // 1. Staff/Admin roles: ADMIN, WARDEN
-  const isStaffOrAdmin = ["ADMIN", "WARDEN"].includes(user?.role);
-  // 2. Can manage events: ADMIN & WARDEN
-  const canManage = ["ADMIN", "WARDEN"].includes(user?.role);
+  // 1. Staff/Admin roles: ADMIN, WARDEN, CHAIRPERSON
+  const isStaffOrAdmin = ["ADMIN", "WARDEN", "CHAIRPERSON"].includes(user?.role);
+  // 2. Can manage events (edit/delete event, reorder): ADMIN & WARDEN only
+  const canManage = isStaffOrAdmin;
+  // 3. User can upload media only if granted create permission in Access Control
+  const canUploadMedia = canCreate("events");
+  // 4. Check if the current user can delete a specific image (admin or owns media with delete permission)
+  const canDeleteImage = (img) => {
+    if (!user || !img) return false;
+    return canDelete("events", img.uploadedBy);
+  };
 
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -4581,6 +4718,8 @@ export default function EventDetail() {
         resourceType: "image",
         caption: "Cover Photo",
         publicId: event.coverImage.publicId,
+        uploadedBy: event.createdBy,
+        createdAt: event.createdAt,
       });
     }
     if (
@@ -4601,6 +4740,8 @@ export default function EventDetail() {
             resourceType: isVideo ? "video" : "image",
             caption: img.caption || (isVideo ? `Gallery Video #${idx + 1}` : `Gallery Photo #${idx + 1}`),
             publicId: img.publicId,
+            uploadedBy: img.uploadedBy,
+            createdAt: img.createdAt || event.createdAt,
           });
         }
       });
@@ -4732,7 +4873,8 @@ export default function EventDetail() {
                 additionalImages={event.additionalImages}
                 onOpenAllMedia={() => setViewAllMediaOpen(true)}
                 onZoom={(url) => setActiveImageUrl(url)}
-                canManage={false}
+                canManage={canUploadMedia}
+                onManageMedia={() => setManageMediaOpen(true)}
                 sx={{
                   flex: 1,
                   width: "100%",
@@ -4834,6 +4976,8 @@ export default function EventDetail() {
         onUpdated={(newImages) =>
           setEvent((prev) => ({ ...prev, additionalImages: newImages }))
         }
+        canDeleteImage={canDeleteImage}
+        canUpload={canUploadMedia}
       />
 
       <ReorderMediaDialog
@@ -4852,6 +4996,7 @@ export default function EventDetail() {
         images={allImagesList}
         eventId={event._id}
         canManage={canManage}
+        canDeleteImage={canDeleteImage}
         eventAdditionalImages={event.additionalImages || []}
         onUpdated={(newImages) =>
           setEvent((prev) => ({ ...prev, additionalImages: newImages }))
@@ -4863,7 +5008,7 @@ export default function EventDetail() {
         open={Boolean(activeImageUrl)}
         onClose={() => setActiveImageUrl(null)}
         imageUrl={activeImageUrl || ""}
-        canManage={canManage}
+        canDeleteImage={canDeleteImage}
         currentImage={allImagesList.find((img) => img.url === activeImageUrl) || null}
         eventId={event._id}
         onDeleted={(newImages) => {

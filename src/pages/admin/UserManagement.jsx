@@ -112,8 +112,18 @@ const UserManagement = () => {
               return;
             }
 
+            const rawAccountStatus = u?.accountStatus || u?.status;
+            const resolvedAccountStatus = typeof rawAccountStatus === 'string'
+              ? rawAccountStatus.toUpperCase().trim()
+              : (typeof rawAccountStatus?.name === 'string'
+                ? rawAccountStatus.name.toUpperCase().trim()
+                : '');
             setRole(u.role);
-            setStatus(u.status);
+            setStatus(
+              ['ACTIVE', 'INACTIVE', 'SUSPENDED'].includes(resolvedAccountStatus)
+                ? resolvedAccountStatus
+                : 'ACTIVE'
+            );
             setName(u.name || '');
             setEmail(u.email || '');
             setPhone(u.phone || '');
@@ -190,7 +200,9 @@ const UserManagement = () => {
 
       const payload = {
         role,
-        status,
+        ...(action === 'edit'
+          ? { accountStatus: status }
+          : { status }),
         name,
         email,
         phone,
@@ -209,8 +221,8 @@ const UserManagement = () => {
         },
         employment: {
           occupation, organization, industry, workLocation, employmentStatus,
-          businessName: ['Business Owner', 'Entrepreneur', 'Self-Employed'].includes(employmentStatus) ? businessName : undefined,
-          businessType: ['Business Owner', 'Entrepreneur', 'Self-Employed'].includes(employmentStatus) ? businessType : undefined
+          businessName: ['Business Owner', 'Entrepreneur'].includes(employmentStatus) ? businessName : undefined,
+          businessType: ['Business Owner', 'Entrepreneur'].includes(employmentStatus) ? businessType : undefined
         }
       };
 
@@ -428,7 +440,7 @@ const UserManagement = () => {
             )}
 
             {/* CONDITIONAL EMPLOYMENT CARD */}
-            {['ALUMNI', 'AGENT', 'STAFF', 'MEMBER', 'ADMIN'].includes(role) && (
+            {['ALUMNI', 'STAFF', 'MEMBER', 'ADMIN'].includes(role) && (
               <Card sx={{ mb: 4 }}>
                 <CardContent sx={{ p: 4 }}>
                   <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 3, color: '#10b981' }}>
@@ -448,13 +460,12 @@ const UserManagement = () => {
                           <FormControl fullWidth>
                             <InputLabel>Employment Status</InputLabel>
                             <Select value={employmentStatus} label="Employment Status" onChange={(e) => setEmploymentStatus(e.target.value)}>
-                              <MenuItem value="Employed">Employed</MenuItem>
-                              <MenuItem value="Self-Employed">Self-Employed</MenuItem>
-                              <MenuItem value="Business Owner">Business Owner</MenuItem>
-                              <MenuItem value="Entrepreneur">Entrepreneur</MenuItem>
-                              <MenuItem value="Higher Studies">Higher Studies</MenuItem>
-                              <MenuItem value="Government Service">Government Service</MenuItem>
-                              <MenuItem value="Unemployed">Unemployed</MenuItem>
+                          <MenuItem value="Employed">Employed</MenuItem>
+                          <MenuItem value="Business Owner">Business Owner</MenuItem>
+                          <MenuItem value="Entrepreneur">Entrepreneur</MenuItem>
+                          <MenuItem value="Higher Studies">Higher Studies</MenuItem>
+                          <MenuItem value="Government Service">Government Service</MenuItem>
+                          <MenuItem value="Unemployed">Unemployed</MenuItem>
                             </Select>
                           </FormControl>
                         </Grid>
@@ -465,7 +476,7 @@ const UserManagement = () => {
                           <TextField fullWidth label="Work Location" value={workLocation} onChange={(e) => setWorkLocation(e.target.value)} />
                         </Grid>
 
-                        {['Business Owner', 'Self-Employed', 'Entrepreneur'].includes(employmentStatus) && (
+                        {['Business Owner', 'Entrepreneur'].includes(employmentStatus) && (
                           <>
                             <Grid item xs={12} sm={6}>
                               <TextField fullWidth label="Business Name" value={businessName} onChange={(e) => setBusinessName(e.target.value)} />

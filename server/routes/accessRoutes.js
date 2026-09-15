@@ -5,6 +5,7 @@ const { protect, restrictTo } = require('../middleware/authMiddleware');
 
 // Get current user's accessible navigation items
 router.get('/navigation', protect, accessController.getNavigation);
+router.get('/my-permissions', protect, accessController.getMyPermissions);
 
 // Users page sub-tabs endpoints
 router.get('/user-tabs', protect, accessController.getUserTabs);

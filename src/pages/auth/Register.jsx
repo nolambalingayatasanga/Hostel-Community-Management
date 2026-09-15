@@ -208,36 +208,36 @@ const Register = () => {
     }
 
     if (!EMAIL_FORMAT_REGEX.test(trimmed)) {
-      const res = { status: 'DOES_NOT_EXIST', message: "Email doesn't exist" };
+      const res = { status: 'INVALID_FORMAT', message: 'Please enter a valid email address' };
       setEmailValidation(res);
       return res;
     }
 
-    setEmailValidation({ status: 'CHECKING', message: 'Validating email deliverability...' });
+    setEmailValidation({ status: 'CHECKING', message: 'Checking email availability...' });
 
     try {
       const res = await API.post('/auth/validate-email', { email: trimmed });
       const data = res.data;
       if (data.status === 'EXISTS') {
-        const r = { status: 'EXISTS', message: 'Continue' };
-        setEmailValidation(r);
-        return r;
-      } else if (data.status === 'DOES_NOT_EXIST') {
-        const r = { status: 'DOES_NOT_EXIST', message: "Email doesn't exist" };
+        const r = { status: 'EXISTS', message: 'Email is available' };
         setEmailValidation(r);
         return r;
       } else if (data.status === 'ALREADY_REGISTERED') {
         const r = { status: 'ALREADY_REGISTERED', message: data.message || 'This email is already registered. Please log in.' };
         setEmailValidation(r);
         return r;
+      } else if (data.status === 'INVALID_FORMAT' || data.status === 'DOES_NOT_EXIST') {
+        const r = { status: 'INVALID_FORMAT', message: data.message || 'Please enter a valid email address' };
+        setEmailValidation(r);
+        return r;
       } else {
-        const r = { status: 'UNKNOWN', message: 'Try with different account' };
+        const r = { status: 'EXISTS', message: 'Email is available' };
         setEmailValidation(r);
         return r;
       }
     } catch (err) {
       console.error('Email validation error:', err);
-      const r = { status: 'UNKNOWN', message: 'Try with different account' };
+      const r = { status: 'EXISTS', message: 'Email is available' };
       setEmailValidation(r);
       return r;
     }
@@ -393,23 +393,19 @@ const Register = () => {
     if (!name.trim()) { notifyWarn('Full Name is mandatory.'); return; }
     if (!email.trim()) { notifyWarn('Email Address is mandatory.'); return; }
 
-    // Deliverability & Existence Validation Guard
+    // Database Existence Validation Guard
     let currentEmailStatus = emailValidation.status;
     if (currentEmailStatus !== 'EXISTS') {
       const verifyRes = await performEmailValidation(email.trim());
       currentEmailStatus = verifyRes?.status;
     }
 
-    if (currentEmailStatus === 'DOES_NOT_EXIST') {
-      notifyWarn("❌ Email doesn't exist");
-      return;
-    }
-    if (currentEmailStatus === 'UNKNOWN') {
-      notifyWarn("⚠️ Try with different account");
+    if (currentEmailStatus === 'DOES_NOT_EXIST' || currentEmailStatus === 'INVALID_FORMAT') {
+      notifyWarn(emailValidation.message || 'Please enter a valid email address.');
       return;
     }
     if (currentEmailStatus === 'ALREADY_REGISTERED') {
-      notifyWarn(emailValidation.message || "This email is already registered. Please log in.");
+      notifyWarn(emailValidation.message || 'This email is already registered. Please log in.');
       return;
     }
 
@@ -542,16 +538,11 @@ const Register = () => {
       hoverBorderColor = '#15803D';
       focusBorderColor = '#16A34A';
       bgColor = '#F0FDF4';
-    } else if (emailValidation.status === 'DOES_NOT_EXIST' || emailValidation.status === 'ALREADY_REGISTERED') {
+    } else if (emailValidation.status === 'DOES_NOT_EXIST' || emailValidation.status === 'INVALID_FORMAT' || emailValidation.status === 'ALREADY_REGISTERED') {
       borderColor = '#DC2626';
       hoverBorderColor = '#B91C1C';
       focusBorderColor = '#DC2626';
       bgColor = '#FEF2F2';
-    } else if (emailValidation.status === 'UNKNOWN') {
-      borderColor = '#D97706';
-      hoverBorderColor = '#B45309';
-      focusBorderColor = '#D97706';
-      bgColor = '#FFFBEB';
     }
 
     return {
@@ -834,11 +825,8 @@ const Register = () => {
                             {emailValidation.status === 'EXISTS' && (
                               <CheckIcon sx={{ color: '#16A34A', fontSize: 20, fontWeight: 700 }} />
                             )}
-                            {(emailValidation.status === 'DOES_NOT_EXIST' || emailValidation.status === 'ALREADY_REGISTERED') && (
+                            {(emailValidation.status === 'DOES_NOT_EXIST' || emailValidation.status === 'INVALID_FORMAT' || emailValidation.status === 'ALREADY_REGISTERED') && (
                               <CancelIcon sx={{ color: '#DC2626', fontSize: 19 }} />
-                            )}
-                            {emailValidation.status === 'UNKNOWN' && (
-                              <WarningAmberIcon sx={{ color: '#D97706', fontSize: 20 }} />
                             )}
                           </InputAdornment>
                         ),
@@ -847,26 +835,19 @@ const Register = () => {
                     sx={emailInputStyle}
                   />
 
-                  {/* Backend Validation Feedback (EXISTS -> Continue, DOESN'T EXIST -> ❌ Email doesn't exist, UNKNOWN -> ⚠️ Try with different account) */}
+                  {/* Database Validation Feedback */}
                   {emailValidation.status === 'EXISTS' && (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, mt: 0.6 }}>
                       <CheckIcon sx={{ fontSize: 14, color: '#16A34A', fontWeight: 700 }} />
                       <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#16A34A' }}>
-                        Continue
+                        Email is available
                       </Typography>
                     </Box>
                   )}
-                  {emailValidation.status === 'DOES_NOT_EXIST' && (
+                  {(emailValidation.status === 'DOES_NOT_EXIST' || emailValidation.status === 'INVALID_FORMAT') && (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, mt: 0.6 }}>
                       <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#DC2626' }}>
-                        ❌ Email doesn't exist
-                      </Typography>
-                    </Box>
-                  )}
-                  {emailValidation.status === 'UNKNOWN' && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, mt: 0.6 }}>
-                      <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#D97706' }}>
-                        ⚠️ Try with different account
+                        ❌ {emailValidation.message || 'Please enter a valid email address'}
                       </Typography>
                     </Box>
                   )}

@@ -1,5 +1,6 @@
 const GalleryPhoto = require('../models/GalleryPhoto');
 const GalleryFolder = require('../models/GalleryFolder');
+const Access = require('../models/Access');
 const { uploadImage, deleteImage, deleteMultipleMedia } = require('../config/cloudinary');
 
 /**
@@ -59,6 +60,15 @@ exports.uploadGalleryPhoto = async (req, res, next) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'Please select a file to upload.' });
+    }
+
+    // Verify Access Control create permission for gallery
+    const isAdminOrWarden = ['ADMIN', 'WARDEN', 'CHAIRPERSON'].includes(req.user.role);
+    if (!isAdminOrWarden) {
+      const accessRec = await Access.findOne({ page: 'gallery', role: req.user.role });
+      if (accessRec && (accessRec.permissions?.noAccess || (!accessRec.permissions?.fullAccess && !accessRec.permissions?.create))) {
+        return res.status(403).json({ success: false, message: 'You do not have permission to upload photos/videos to the gallery.' });
+      }
     }
 
     const folderId = req.query.folderId || req.body.folderId;
@@ -138,6 +148,21 @@ exports.deleteGalleryPhoto = async (req, res, next) => {
     const photo = await GalleryPhoto.findById(id);
     if (!photo) {
       return res.status(404).json({ success: false, message: 'Media item not found.' });
+    }
+
+    // Verify Access Control delete permission for gallery
+    const isAdminOrWarden = ['ADMIN', 'WARDEN', 'CHAIRPERSON'].includes(req.user.role);
+    if (!isAdminOrWarden) {
+      const accessRec = await Access.findOne({ page: 'gallery', role: req.user.role });
+      if (accessRec && (accessRec.permissions?.noAccess || (!accessRec.permissions?.fullAccess && !accessRec.permissions?.delete))) {
+        return res.status(403).json({ success: false, message: 'You do not have permission to delete gallery media.' });
+      }
+    }
+
+    // Ownership check: only admin/warden/chairperson or the uploader can delete
+    const isOwner = photo.uploadedBy && String(photo.uploadedBy) === String(req.user._id);
+    if (!isAdminOrWarden && !isOwner) {
+      return res.status(403).json({ success: false, message: 'You can only delete media you uploaded.' });
     }
 
     // 1. Delete image/video asset from Cloudinary first

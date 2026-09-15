@@ -86,6 +86,64 @@ exports.getMyUserTabsAccess = async (req, res) => {
 };
 
 /**
+ * GET /api/access/my-permissions
+ * Returns active permissions map for the current user's role across all pages
+ */
+exports.getMyPermissions = async (req, res) => {
+  try {
+    const userRole = req.user?.role;
+    if (!userRole) {
+      return res.status(401).json({ success: false, message: 'User role not identified' });
+    }
+
+    await Access.seedDefaults();
+
+    if (userRole === 'ADMIN' || userRole === 'WARDEN' || userRole === 'CHAIRPERSON') {
+      const fullPerms = {};
+      ALL_PAGES.forEach(p => {
+        fullPerms[p.id] = {
+          fullAccess: true,
+          view: true,
+          create: true,
+          update: true,
+          delete: true,
+          noAccess: false
+        };
+      });
+      return res.status(200).json({ success: true, data: fullPerms });
+    }
+
+    const roleToQuery = (userRole === 'CHAIRPERSON') ? ['CHAIRPERSON', 'WARDEN'] : [userRole];
+    const records = await Access.find({ role: { $in: roleToQuery } });
+
+    const permsMap = {};
+    ALL_PAGES.forEach(p => {
+      let def = { fullAccess: false, view: false, create: false, update: false, delete: false, noAccess: true };
+      if (p.id === 'gallery') {
+        def = { fullAccess: false, view: true, create: true, update: false, delete: true, noAccess: false };
+      } else if (p.id === 'profile') {
+        def = { fullAccess: false, view: true, create: false, update: true, delete: false, noAccess: false };
+      } else if (p.id === 'events' || p.id === 'users') {
+        def = { fullAccess: false, view: true, create: false, update: false, delete: false, noAccess: false };
+      }
+      permsMap[p.id] = def;
+    });
+
+    records.forEach(rec => {
+      if (permsMap[rec.page]) {
+        const base = rec.permissions && rec.permissions.toObject ? rec.permissions.toObject() : { ...rec.permissions };
+        permsMap[rec.page] = base;
+      }
+    });
+
+    return res.status(200).json({ success: true, data: permsMap });
+  } catch (error) {
+    console.error('Error fetching my permissions:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
  * GET /api/access/navigation
  * Returns the permitted sidebar navigation items for the current logged-in user's role
  */

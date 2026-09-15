@@ -25,8 +25,9 @@ router.delete('/:id/comments/:commentId/replies/:replyId', eventController.delet
 // Modify events (restricted to ADMIN & CHAIRPERSON)
 router.post('/', restrictTo('ADMIN', 'CHAIRPERSON'), upload.single('coverImage'), eventController.createEvent);
 router.patch('/:id', restrictTo('ADMIN', 'CHAIRPERSON'), upload.single('coverImage'), eventController.updateEvent);
-router.post('/:id/gallery', restrictTo('ADMIN', 'CHAIRPERSON'), upload.array('galleryImages', 100), eventController.uploadEventGalleryImages);
-router.delete('/:id/gallery/:imageId', restrictTo('ADMIN', 'CHAIRPERSON'), eventController.deleteGalleryImage);
+// Gallery upload & delete: any authenticated user (controller enforces ownership for delete)
+router.post('/:id/gallery', upload.array('galleryImages', 100), eventController.uploadEventGalleryImages);
+router.delete('/:id/gallery/:imageId', eventController.deleteGalleryImage);
 router.patch('/:id/gallery/reorder', restrictTo('ADMIN', 'CHAIRPERSON'), eventController.reorderGalleryImages);
 
 // Delete events (ADMIN only)

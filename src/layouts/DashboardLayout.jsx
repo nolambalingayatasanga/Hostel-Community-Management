@@ -373,7 +373,7 @@ const DashboardLayout = () => {
           <Outlet />
         ) : (
           <NotFound
-            message="You do not have permission to access this page. Please contact an administrator if you need access."
+            message="Access Denied"
             customRedirectPath={navItems[0]?.path || '/profile'}
           />
         )}
