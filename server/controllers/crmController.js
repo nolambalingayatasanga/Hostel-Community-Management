@@ -88,7 +88,7 @@ exports.getMetadata = async (req, res, next) => {
       options: { sort: { order: 1 } }
     }).sort({ order: 1 });
     const statuses = await Status.find({}).sort({ order: 1 });
-    const agents = await User.find({ role: { $in: ['ADMIN', 'CHAIRPERSON', 'STAFF'] } }, 'name email phone role');
+    const agents = await User.find({ role: { $in: ['ADMIN', 'WARDEN', 'STAFF'] } }, 'name email phone role');
     const tableLayouts = req.user ? await TableLayout.find({ user: req.user._id }) : [];
 
     res.status(200).json({

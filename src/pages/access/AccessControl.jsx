@@ -137,7 +137,7 @@ const AccessControl = () => {
       return true;
     }
     const nameLower = tabSlug || '';
-    if (nameLower === 'chairperson' || nameLower === 'inquiry' || tabId === 'dropped' || tabId === 'all') {
+    if (nameLower === 'admin' || nameLower === 'warden' || nameLower === 'chairperson' || nameLower === 'inquiry' || tabId === 'dropped' || tabId === 'all') {
       return false;
     }
     if (nameLower === 'staff') {

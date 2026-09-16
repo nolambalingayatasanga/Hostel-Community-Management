@@ -157,7 +157,7 @@ const UserSchema = new mongoose.Schema({
     endMonth: { type: Number },
     endYear: { type: Number }
   },
-  // Employment fields (used by ALUMNI, and occupation details for STAFF/MEMBER/CHAIRPERSON/ADMIN)
+  // Employment fields (used by ALUMNI, and occupation details for STAFF/MEMBER/WARDEN/ADMIN)
   employment: {
     occupation: { type: String, trim: true },     // Occupation or job title
     organization: { type: String, trim: true },   // Company or organization

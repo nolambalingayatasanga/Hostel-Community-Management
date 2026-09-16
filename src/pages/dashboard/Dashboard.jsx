@@ -333,7 +333,7 @@ const Dashboard = () => {
     {
       title: 'Active Roles',
       value: counts?.admins || 0,
-      subtitle: `${counts?.staff || 0} staff + ${counts?.chairpersons || 0} chairpersons`,
+      subtitle: `${counts?.staff || 0} staff + ${counts?.wardens || counts?.chairpersons || 0} wardens`,
       icon: <VerifiedIcon />,
       iconColor: '#F59E0B',
       accent: 'linear-gradient(135deg, #FEF3C7, #FEF9C3)'

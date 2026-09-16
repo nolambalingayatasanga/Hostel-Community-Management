@@ -66,7 +66,7 @@ exports.getMyUserTabsAccess = async (req, res) => {
       }
       // Defaults for non-admins if not yet configured
       const nameLower = tab.name.toLowerCase();
-      if (nameLower === 'chairperson' || nameLower === 'inquiry' || tab.id === 'dropped' || tab.id === 'all') {
+      if (nameLower === 'admin' || nameLower === 'warden' || nameLower === 'chairperson' || nameLower === 'inquiry' || tab.id === 'dropped' || tab.id === 'all') {
         return false;
       }
       if (nameLower === 'staff') {

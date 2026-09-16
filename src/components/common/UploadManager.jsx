@@ -327,7 +327,7 @@ export default function UploadManager() {
                       <Box sx={{ mt: 0.8 }}>
                         <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.3 }}>
                           <Typography variant="caption" sx={{ color: '#2563EB', fontWeight: 600 }}>
-                            Uploading to Cloudinary...
+                            Uploading...
                           </Typography>
                           <Typography variant="caption" sx={{ color: '#2563EB', fontWeight: 700 }}>
                             {item.progress}%

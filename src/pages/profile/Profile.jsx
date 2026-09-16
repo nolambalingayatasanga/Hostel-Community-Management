@@ -925,7 +925,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
 
   const isStudent = user?.role === 'STUDENT';
   const isAlumni = user?.role === 'ALUMNI';
-  const isStaffOrMemberOrChairperson = ['STAFF', 'MEMBER', 'WARDEN', 'ADMIN'].includes(user?.role);
+  const isStaffOrMemberOrWarden = ['STAFF', 'MEMBER', 'WARDEN', 'ADMIN'].includes(user?.role);
   const hasContactDetails = user?.email && user?.phone;
 
   return (
@@ -1532,7 +1532,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                 </Box>
 
                 {/* 3. EMPLOYMENT & CAREER */}
-                {(isAlumni || isStaffOrMemberOrChairperson) && (
+                {(isAlumni || isStaffOrMemberOrWarden) && (
                   <Box>
                     <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1E293B', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
                       <WorkIcon sx={{ color: '#10b981', fontSize: 20 }} /> Employment & Career

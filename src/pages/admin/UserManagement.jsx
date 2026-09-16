@@ -556,7 +556,7 @@ const UserManagement = () => {
           startIcon={<AddIcon />}
           onClick={() => navigate('/admin/users?action=new')}
         >
-          Register Chairperson/Staff
+          Register Warden/Staff/Admin
         </Button>
       </Box>
 
@@ -565,12 +565,14 @@ const UserManagement = () => {
         <Tabs value={tabValue} onChange={handleTabChange} textColor="primary" indicatorColor="primary">
           <Tab label="Wardens" />
           <Tab label="Staff" />
+          <Tab label="Admins" />
         </Tabs>
       </Box>
 
       {/* Tab Panels */}
       {tabValue === 0 && <UserDirectory directoryRole="WARDEN" title="Manage Wardens" />}
       {tabValue === 1 && <UserDirectory directoryRole="STAFF" title="Manage Staff" />}
+      {tabValue === 2 && <UserDirectory directoryRole="ADMIN" title="Manage Admins" />}
     </Box>
   );
 };

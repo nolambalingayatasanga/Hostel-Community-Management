@@ -63,7 +63,7 @@ exports.uploadGalleryPhoto = async (req, res, next) => {
     }
 
     // Verify Access Control create permission for gallery
-    const isAdminOrWarden = ['ADMIN', 'WARDEN', 'CHAIRPERSON'].includes(req.user.role);
+    const isAdminOrWarden = ['ADMIN', 'WARDEN'].includes(req.user.role);
     if (!isAdminOrWarden) {
       const accessRec = await Access.findOne({ page: 'gallery', role: req.user.role });
       if (accessRec && (accessRec.permissions?.noAccess || (!accessRec.permissions?.fullAccess && !accessRec.permissions?.create))) {
@@ -151,7 +151,7 @@ exports.deleteGalleryPhoto = async (req, res, next) => {
     }
 
     // Verify Access Control delete permission for gallery
-    const isAdminOrWarden = ['ADMIN', 'WARDEN', 'CHAIRPERSON'].includes(req.user.role);
+    const isAdminOrWarden = ['ADMIN', 'WARDEN'].includes(req.user.role);
     if (!isAdminOrWarden) {
       const accessRec = await Access.findOne({ page: 'gallery', role: req.user.role });
       if (accessRec && (accessRec.permissions?.noAccess || (!accessRec.permissions?.fullAccess && !accessRec.permissions?.delete))) {
@@ -159,7 +159,7 @@ exports.deleteGalleryPhoto = async (req, res, next) => {
       }
     }
 
-    // Ownership check: only admin/warden/chairperson or the uploader can delete
+    // Ownership check: only admin/warden or the uploader can delete
     const isOwner = photo.uploadedBy && String(photo.uploadedBy) === String(req.user._id);
     if (!isAdminOrWarden && !isOwner) {
       return res.status(403).json({ success: false, message: 'You can only delete media you uploaded.' });

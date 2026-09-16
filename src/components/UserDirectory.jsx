@@ -293,7 +293,7 @@ const UserDirectory = ({ directoryRole, title }) => {
               </Grid>
 
               
-              {/* Account Status Filter (Admin/Chairperson only) */}
+              {/* Account Status Filter (Admin/Warden only) */}
               {isAdminOrWarden && (
                 <Grid xs={6} sm={3}>
                   <FormControl fullWidth size="small">

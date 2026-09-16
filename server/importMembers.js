@@ -177,7 +177,7 @@ async function syncCustomFields() {
     { name: 'Kanada Overview', slug: 'localLanguageDetails', type: 'text', order: 3, isInternal: true, isVisible: true },
     { name: 'Name', slug: 'name', type: 'text', order: 4, isInternal: true, isVisible: true },
     { name: 'Phone', slug: 'phone', type: 'text', order: 5, isInternal: true, isVisible: true },
-    { name: 'Role', slug: 'role', type: 'select', options: ['ADMIN', 'CHAIRPERSON', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'], order: 6, isInternal: true, isVisible: true },
+    { name: 'Role', slug: 'role', type: 'select', options: ['ADMIN', 'WARDEN', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'], order: 6, isInternal: true, isVisible: true },
     { name: 'Status', slug: 'status', type: 'select', order: 7, isInternal: true, isVisible: true },
     { name: 'Gender', slug: 'gender', type: 'select', options: ['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY'], order: 8, isInternal: true, isVisible: true },
     { name: 'Joining Date', slug: 'joiningdate', type: 'date', order: 9, isInternal: true, isVisible: true },

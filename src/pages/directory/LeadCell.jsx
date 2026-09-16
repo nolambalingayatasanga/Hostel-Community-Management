@@ -248,8 +248,7 @@ export default function LeadCell({
   const currentViewerRole = user?.role;
   const isViewerAdmin = currentViewerRole === "ADMIN";
   const isViewerWarden = currentViewerRole === "WARDEN";
-  const isViewerChairperson = currentViewerRole === "CHAIRPERSON";
-  const canEditRole = isViewerAdmin || isViewerChairperson || isViewerWarden;
+  const canEditRole = isViewerAdmin || isViewerWarden;
 
   // Strict check: Joining Date, Registration Number, Receipt NO, and SL No are non-editable by ANY user (even admin)
   const isLocked = isFieldNonEditable(field);
@@ -652,7 +651,7 @@ export default function LeadCell({
       );
     }
 
-    const allowedRoles = (isViewerAdmin || isViewerChairperson)
+    const allowedRoles = (isViewerAdmin || isViewerWarden)
       ? ["ADMIN", "WARDEN", "MEMBER", "STAFF", "STUDENT", "ALUMNI"]
       : ["MEMBER", "STAFF", "STUDENT", "ALUMNI"];
 

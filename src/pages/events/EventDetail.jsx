@@ -4584,8 +4584,8 @@ export default function EventDetail() {
   const { canCreate, canDelete, canUpdate } = usePermissions();
 
   // Role checks:
-  // 1. Staff/Admin roles: ADMIN, WARDEN, CHAIRPERSON
-  const isStaffOrAdmin = ["ADMIN", "WARDEN", "CHAIRPERSON"].includes(user?.role);
+  // 1. Staff/Admin roles: ADMIN, WARDEN
+  const isStaffOrAdmin = ["ADMIN", "WARDEN"].includes(user?.role);
   // 2. Can manage events (edit/delete event, reorder): ADMIN & WARDEN only
   const canManage = isStaffOrAdmin;
   // 3. User can upload media only if granted create permission in Access Control

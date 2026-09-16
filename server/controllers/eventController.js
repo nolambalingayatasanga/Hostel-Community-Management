@@ -269,7 +269,7 @@ exports.deleteComment = async (req, res, next) => {
     if (!comment) return res.status(404).json({ success: false, message: 'Comment not found.' });
 
     const isOwner = String(comment.user) === String(req.user._id);
-    const isAdmin = ['ADMIN', 'CHAIRPERSON'].includes(req.user.role);
+    const isAdmin = ['ADMIN', 'WARDEN'].includes(req.user.role);
     if (!isOwner && !isAdmin) {
       return res.status(403).json({ success: false, message: 'Not authorised.' });
     }
@@ -312,7 +312,7 @@ exports.deleteReply = async (req, res, next) => {
     if (!reply) return res.status(404).json({ success: false, message: 'Reply not found.' });
 
     const isOwner = String(reply.user) === String(req.user._id);
-    const isAdmin = ['ADMIN', 'CHAIRPERSON'].includes(req.user.role);
+    const isAdmin = ['ADMIN', 'WARDEN'].includes(req.user.role);
     if (!isOwner && !isAdmin) {
       return res.status(403).json({ success: false, message: 'Not authorised.' });
     }
@@ -496,7 +496,7 @@ exports.uploadEventGalleryImages = async (req, res, next) => {
     }
 
     // Verify Access Control create permission for events
-    const isAdminOrWarden = ['ADMIN', 'WARDEN', 'CHAIRPERSON'].includes(req.user.role);
+    const isAdminOrWarden = ['ADMIN', 'WARDEN'].includes(req.user.role);
     if (!isAdminOrWarden) {
       const accessRec = await Access.findOne({ page: 'events', role: req.user.role });
       if (accessRec && (accessRec.permissions?.noAccess || (!accessRec.permissions?.fullAccess && !accessRec.permissions?.create))) {
@@ -597,7 +597,7 @@ exports.deleteGalleryImage = async (req, res, next) => {
     const imageToDelete = event.additionalImages[imageIndex];
 
     // Verify Access Control delete permission for events
-    const isAdminOrWarden = ['ADMIN', 'WARDEN', 'CHAIRPERSON'].includes(req.user.role);
+    const isAdminOrWarden = ['ADMIN', 'WARDEN'].includes(req.user.role);
     if (!isAdminOrWarden) {
       const accessRec = await Access.findOne({ page: 'events', role: req.user.role });
       if (accessRec && (accessRec.permissions?.noAccess || (!accessRec.permissions?.fullAccess && !accessRec.permissions?.delete))) {

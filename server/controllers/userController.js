@@ -128,7 +128,7 @@ exports.getUsers = async (req, res, next) => {
 
     // Student privacy filter on backend
     if (req.user?.role === 'STUDENT' && !role) {
-      query.role = { $nin: ['ADMIN', 'CHAIRPERSON'] };
+      query.role = { $nin: ['ADMIN', 'WARDEN'] };
     }
 
     // 2. Direct Filters
@@ -170,12 +170,17 @@ exports.getUsers = async (req, res, next) => {
         } else if (groupNameLower === 'staff') {
           query.$or = [
             { status: { $in: group.statuses } },
-            { role: { $in: ['STAFF', 'ADMIN'] } }
+            { role: 'STAFF' }
           ];
-        } else if (groupNameLower === 'chairperson') {
+        } else if (groupNameLower === 'warden' || groupNameLower === 'chairperson') {
           query.$or = [
             { status: { $in: group.statuses } },
-            { role: 'CHAIRPERSON' }
+            { role: 'WARDEN' }
+          ];
+        } else if (groupNameLower === 'admin') {
+          query.$or = [
+            { status: { $in: group.statuses } },
+            { role: 'ADMIN' }
           ];
         } else {
           query.status = { $in: group.statuses };
@@ -284,12 +289,17 @@ exports.getUsers = async (req, res, next) => {
       } else if (groupNameLower === 'staff') {
         gQuery.$or = [
           { status: { $in: g.statuses } },
-          { role: { $in: ['STAFF', 'ADMIN'] } }
+          { role: 'STAFF' }
         ];
-      } else if (groupNameLower === 'chairperson') {
+      } else if (groupNameLower === 'warden' || groupNameLower === 'chairperson') {
         gQuery.$or = [
           { status: { $in: g.statuses } },
-          { role: 'CHAIRPERSON' }
+          { role: 'WARDEN' }
+        ];
+      } else if (groupNameLower === 'admin') {
+        gQuery.$or = [
+          { status: { $in: g.statuses } },
+          { role: 'ADMIN' }
         ];
       } else {
         gQuery.status = { $in: g.statuses };
@@ -539,7 +549,7 @@ exports.uploadProfilePhoto = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please upload an image file.' });
     }
 
-    const targetUserId = (req.params.id && ['ADMIN', 'WARDEN', 'CHAIRPERSON'].includes(req.user.role))
+    const targetUserId = (req.params.id && ['ADMIN', 'WARDEN'].includes(req.user.role))
       ? req.params.id
       : req.user._id;
 
@@ -692,11 +702,11 @@ exports.adminCreateUser = async (req, res, next) => {
 
     const assignedRole = (role || 'MEMBER').toUpperCase();
 
-    // Security check: If request is by a CHAIRPERSON, they cannot create ADMIN or CHAIRPERSON accounts
-    if (req.user.role === 'CHAIRPERSON' && ['ADMIN', 'CHAIRPERSON'].includes(assignedRole)) {
+    // Security check: If request is by a WARDEN, they cannot create ADMIN or WARDEN accounts
+    if ((req.user.role === 'WARDEN' || req.user.role === 'CHAIRPERSON') && ['ADMIN', 'WARDEN', 'CHAIRPERSON'].includes(assignedRole)) {
       return res.status(403).json({
         success: false,
-        message: 'Chairpersons do not have permission to create Admin or Chairperson accounts.'
+        message: 'Wardens do not have permission to create Admin or Warden accounts.'
       });
     }
 
@@ -812,19 +822,19 @@ exports.adminUpdateUser = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    // Security check: If request is by a CHAIRPERSON, they cannot edit ADMIN or CHAIRPERSON users
-    if (req.user.role === 'CHAIRPERSON' && ['ADMIN', 'CHAIRPERSON'].includes(user.role)) {
+    // Security check: If request is by a WARDEN, they cannot edit ADMIN or WARDEN users
+    if ((req.user.role === 'WARDEN' || req.user.role === 'CHAIRPERSON') && ['ADMIN', 'WARDEN', 'CHAIRPERSON'].includes(user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Chairpersons do not have permission to edit Admin or Chairperson accounts.'
+        message: 'Wardens do not have permission to edit Admin or Warden accounts.'
       });
     }
 
-    // Security check: If request is by a CHAIRPERSON, they cannot set anyone's role to ADMIN or CHAIRPERSON
-    if (req.user.role === 'CHAIRPERSON' && updates.role && ['ADMIN', 'CHAIRPERSON'].includes(updates.role.toUpperCase())) {
+    // Security check: If request is by a WARDEN, they cannot set anyone's role to ADMIN or WARDEN
+    if ((req.user.role === 'WARDEN' || req.user.role === 'CHAIRPERSON') && updates.role && ['ADMIN', 'WARDEN', 'CHAIRPERSON'].includes(updates.role.toUpperCase())) {
       return res.status(403).json({
         success: false,
-        message: 'Chairpersons do not have permission to set user roles to Admin or Chairperson.'
+        message: 'Wardens do not have permission to set user roles to Admin or Warden.'
       });
     }
 
@@ -1068,11 +1078,11 @@ exports.adminUpdateUserStatus = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    // Security check: If request is by a CHAIRPERSON, they cannot change status of ADMIN or CHAIRPERSON accounts
-    if (req.user.role === 'CHAIRPERSON' && ['ADMIN', 'CHAIRPERSON'].includes(user.role)) {
+    // Security check: If request is by a WARDEN, they cannot change status of ADMIN or WARDEN accounts
+    if ((req.user.role === 'WARDEN' || req.user.role === 'CHAIRPERSON') && ['ADMIN', 'WARDEN', 'CHAIRPERSON'].includes(user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Chairpersons do not have permission to change status of Admin or Chairperson accounts.'
+        message: 'Wardens do not have permission to change status of Admin or Warden accounts.'
       });
     }
 
@@ -1104,11 +1114,11 @@ exports.adminDeleteUser = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    // Security check: If request is by a CHAIRPERSON, they cannot delete ADMIN or CHAIRPERSON accounts
-    if (req.user.role === 'CHAIRPERSON' && ['ADMIN', 'CHAIRPERSON'].includes(user.role)) {
+    // Security check: If request is by a WARDEN, they cannot delete ADMIN or WARDEN accounts
+    if ((req.user.role === 'WARDEN' || req.user.role === 'CHAIRPERSON') && ['ADMIN', 'WARDEN', 'CHAIRPERSON'].includes(user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Chairpersons do not have permission to delete Admin or Chairperson accounts.'
+        message: 'Wardens do not have permission to delete Admin or Warden accounts.'
       });
     }
 
@@ -1210,7 +1220,6 @@ exports.getDashboardStats = async (req, res, next) => {
     const totalMembers = await User.countDocuments({ role: 'MEMBER' });
     const totalStaff = await User.countDocuments({ role: 'STAFF' });
     const totalWardens = await User.countDocuments({ role: 'WARDEN' });
-    const totalChairpersons = await User.countDocuments({ role: 'CHAIRPERSON' });
     const totalAdmins = await User.countDocuments({ role: 'ADMIN' });
     const totalUsers = await User.countDocuments();
     
@@ -1504,7 +1513,8 @@ exports.getDashboardStats = async (req, res, next) => {
           alumni: totalAlumni,
           members: totalMembers,
           staff: totalStaff,
-          chairpersons: totalChairpersons,
+          wardens: totalWardens,
+          chairpersons: totalWardens,
           admins: totalAdmins,
           total: totalUsers,
           upcomingEvents,

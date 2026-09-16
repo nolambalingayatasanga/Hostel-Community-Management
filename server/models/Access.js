@@ -40,7 +40,7 @@ AccessSchema.statics.seedDefaults = async function() {
     await this.updateMany(
       {
         page: 'gallery',
-        role: { $nin: ['ADMIN', 'WARDEN', 'CHAIRPERSON'] },
+        role: { $nin: ['ADMIN', 'WARDEN'] },
         'permissions.create': false,
         'permissions.delete': false,
         'permissions.view': true,

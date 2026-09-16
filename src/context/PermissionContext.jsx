@@ -40,7 +40,7 @@ export const PermissionProvider = ({ children }) => {
     return () => window.removeEventListener('access_permissions_updated', handleUpdated);
   }, [fetchPermissions]);
 
-  const isAdminOrWarden = user?.role === 'ADMIN' || user?.role === 'WARDEN' || user?.role === 'CHAIRPERSON';
+  const isAdminOrWarden = user?.role === 'ADMIN' || user?.role === 'WARDEN';
 
   /**
    * Get raw permission object for a page

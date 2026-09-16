@@ -22,13 +22,13 @@ router.post('/:id/comments/:commentId/like', eventController.likeComment);
 router.post('/:id/comments/:commentId/replies/:replyId/like', eventController.likeReply);
 router.delete('/:id/comments/:commentId/replies/:replyId', eventController.deleteReply);
 
-// Modify events (restricted to ADMIN & CHAIRPERSON)
-router.post('/', restrictTo('ADMIN', 'CHAIRPERSON'), upload.single('coverImage'), eventController.createEvent);
-router.patch('/:id', restrictTo('ADMIN', 'CHAIRPERSON'), upload.single('coverImage'), eventController.updateEvent);
+// Modify events (restricted to ADMIN & WARDEN)
+router.post('/', restrictTo('ADMIN', 'WARDEN'), upload.single('coverImage'), eventController.createEvent);
+router.patch('/:id', restrictTo('ADMIN', 'WARDEN'), upload.single('coverImage'), eventController.updateEvent);
 // Gallery upload & delete: any authenticated user (controller enforces ownership for delete)
 router.post('/:id/gallery', upload.array('galleryImages', 100), eventController.uploadEventGalleryImages);
 router.delete('/:id/gallery/:imageId', eventController.deleteGalleryImage);
-router.patch('/:id/gallery/reorder', restrictTo('ADMIN', 'CHAIRPERSON'), eventController.reorderGalleryImages);
+router.patch('/:id/gallery/reorder', restrictTo('ADMIN', 'WARDEN'), eventController.reorderGalleryImages);
 
 // Delete events (ADMIN only)
 router.delete('/:id', restrictTo('ADMIN'), eventController.deleteEvent);

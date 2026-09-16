@@ -172,7 +172,7 @@ const Gallery = () => {
   const observerTarget = useRef(null);
 
   const { canCreate, canDelete, canUpdate } = usePermissions();
-  const isAdminOrWarden = ['ADMIN', 'WARDEN', 'CHAIRPERSON'].includes(user?.role);
+  const isAdminOrWarden = ['ADMIN', 'WARDEN'].includes(user?.role);
 
   // Dynamic upload permission from Access Control
   const canUpload = canCreate('gallery');

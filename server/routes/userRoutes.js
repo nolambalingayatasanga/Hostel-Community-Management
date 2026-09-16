@@ -33,7 +33,7 @@ const allowSelfOrRoles = (...roles) => (req, res, next) => {
 
 // Admin & Warden management endpoints
 router.post('/bulk-drop', restrictTo('ADMIN', 'WARDEN'), userController.bulkDropUsers);
-router.post('/:id/photo', allowSelfOrRoles('ADMIN', 'WARDEN', 'CHAIRPERSON'), upload.single('profilePhoto'), userController.uploadProfilePhoto);
+router.post('/:id/photo', allowSelfOrRoles('ADMIN', 'WARDEN'), upload.single('profilePhoto'), userController.uploadProfilePhoto);
 router.post('/', restrictTo('ADMIN', 'WARDEN'), userController.adminCreateUser);
 router.patch('/:id/status', restrictTo('ADMIN', 'WARDEN'), userController.adminUpdateUserStatus);
 router.post('/:id/transition', restrictTo('ADMIN', 'WARDEN'), userController.adminTransitionStudent);

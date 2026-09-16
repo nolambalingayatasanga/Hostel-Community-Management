@@ -68,11 +68,11 @@ exports.register = async (req, res, next) => {
       });
     }
 
-    // Prevent public Admin, Chairperson, or Staff registration
-    if (['ADMIN', 'CHAIRPERSON', 'STAFF'].includes(role.toUpperCase())) {
+    // Prevent public Admin, Warden, or Staff registration
+    if (['ADMIN', 'WARDEN', 'CHAIRPERSON', 'STAFF'].includes(role.toUpperCase())) {
       return res.status(400).json({
         success: false,
-        message: 'ADMIN, CHAIRPERSON, and STAFF accounts cannot be registered publicly.'
+        message: 'ADMIN, WARDEN, and STAFF accounts cannot be registered publicly.'
       });
     }
 

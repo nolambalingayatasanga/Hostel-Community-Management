@@ -54,7 +54,7 @@ const DROPPED_TAB = "dropped";
 export default function DirectoryList() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const isAdminOrWarden = ["ADMIN", "WARDEN", "CHAIRPERSON"].includes(user?.role);
+  const isAdminOrWarden = ["ADMIN", "WARDEN"].includes(user?.role);
 
   const meta = useCrmMeta();
   const { update, updateField, createLead } = useLeadMutations();
@@ -350,7 +350,7 @@ export default function DirectoryList() {
     if (permittedTabs && Array.isArray(permittedTabs)) {
       list = fullList.filter(tab => permittedTabs.includes(String(tab._id)));
     } else {
-      const isAdmin = ["ADMIN", "CHAIRPERSON", "WARDEN"].includes(user?.role);
+      const isAdmin = ["ADMIN", "WARDEN"].includes(user?.role);
       list = isAdmin
         ? fullList
         : fullList.filter(tab => {

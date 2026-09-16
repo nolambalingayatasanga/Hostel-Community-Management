@@ -225,7 +225,7 @@ const ActivePrivilegesCard = ({
                   if (selectedPage === 'gallery') {
                     if (item.key === 'create') return 'Upload Media';
                     if (item.key === 'delete') {
-                      return (selectedRoleName === 'ADMIN' || selectedRoleName === 'WARDEN' || selectedRoleName === 'CHAIRPERSON')
+                      return (selectedRoleName === 'ADMIN' || selectedRoleName === 'WARDEN')
                         ? 'Delete (All)'
                         : 'Delete (Own)';
                     }
@@ -238,12 +238,12 @@ const ActivePrivilegesCard = ({
                   if (selectedPage === 'gallery') {
                     if (item.key === 'create') return 'Upload photos & videos';
                     if (item.key === 'delete') {
-                      return (selectedRoleName === 'ADMIN' || selectedRoleName === 'WARDEN' || selectedRoleName === 'CHAIRPERSON')
+                      return (selectedRoleName === 'ADMIN' || selectedRoleName === 'WARDEN')
                         ? 'Remove any media & folders'
                         : 'Delete own uploaded media';
                     }
                     if (item.key === 'update') {
-                      return (selectedRoleName === 'ADMIN' || selectedRoleName === 'WARDEN' || selectedRoleName === 'CHAIRPERSON')
+                      return (selectedRoleName === 'ADMIN' || selectedRoleName === 'WARDEN')
                         ? 'Edit / rename folders & media'
                         : 'Edit own media details';
                     }
