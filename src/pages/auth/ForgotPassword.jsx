@@ -2,18 +2,15 @@ import React, { useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
 import API from '../../api';
-import AuthLayout from '../../layouts/AuthLayout';
 import {
   Box,
-  Card,
   TextField,
   Button,
   Typography,
   Link,
   CircularProgress,
   Alert,
-  InputAdornment,
-  Divider
+  InputAdornment
 } from '@mui/material';
 import {
   EmailOutlined as MailIcon,
@@ -68,216 +65,251 @@ const ForgotPassword = () => {
   };
 
   return (
-    <AuthLayout>
-      <Card
+    <Box
+      sx={{
+        height: '100vh',
+        maxHeight: '100vh',
+        width: '100vw',
+        maxWidth: '100vw',
+        display: 'flex',
+        flexDirection: { xs: 'column', md: 'row' },
+        overflow: 'hidden',
+        fontFamily: '"Inter", "Roboto", sans-serif'
+      }}
+    >
+      {/* ─── LEFT PANEL — Single Static Background Image (60%) without any text ─── */}
+      <Box
         sx={{
-          width: '100%',
-          maxWidth: 440,
-          bgcolor: '#FFFFFF',
-          borderRadius: '24px',
-          p: { xs: 3.5, sm: 4.5 },
-          boxShadow: '0 25px 60px rgba(0, 0, 0, 0.35)',
-          border: '1px solid rgba(255, 255, 255, 0.8)',
-          position: 'relative'
+          display: { xs: 'none', md: 'flex' },
+          width: '60%',
+          minWidth: '60%',
+          maxWidth: '60%',
+          height: '100vh',
+          maxHeight: '100vh',
+          position: 'relative',
+          overflow: 'hidden',
+          flexShrink: 0,
+          bgcolor: '#0A1224'
         }}
       >
-        {/* Top Centered Badge */}
-        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2.5 }}>
-          <Box
-            sx={{
-              width: 64,
-              height: 64,
-              borderRadius: '50%',
-              bgcolor: success ? '#ECFDF5' : '#EFF6FF',
-              border: `1px solid ${success ? '#A7F3D0' : '#DBEAFE'}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: success ? '0 6px 16px rgba(16, 185, 129, 0.12)' : '0 6px 16px rgba(37, 99, 235, 0.12)',
-              transition: 'all 0.3s ease'
-            }}
-          >
-            {success ? (
-              <CheckIcon sx={{ color: '#10B981', fontSize: 30 }} />
-            ) : (
-              <KeyIcon sx={{ color: '#2563EB', fontSize: 30 }} />
-            )}
+        <Box
+          component="img"
+          src="/assets/ksh-login-bg.jpg"
+          alt="Hostel Campus"
+          sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            maxWidth: '100%',
+            maxHeight: '100%',
+            objectFit: 'cover',
+            objectPosition: 'center',
+            display: 'block'
+          }}
+        />
+      </Box>
+
+      {/* ─── RIGHT PANEL — Forgot Password Form (40%) ─── */}
+      <Box
+        sx={{
+          flex: 1,
+          width: { xs: '100%', md: '40%' },
+          minWidth: { md: '40%' },
+          maxWidth: { md: '40%' },
+          height: '100vh',
+          maxHeight: '100vh',
+          overflowY: 'auto',
+          bgcolor: '#FFFFFF',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          px: { xs: 3, sm: 6, lg: 8 },
+          py: { xs: 4, sm: 5 }
+        }}
+      >
+        <Box sx={{ maxWidth: 440, width: '100%', mx: 'auto' }}>
+          {/* Top Badge */}
+          <Box sx={{ mb: 3 }}>
+            <Box
+              sx={{
+                width: 52,
+                height: 52,
+                borderRadius: '14px',
+                bgcolor: success ? '#ECFDF5' : '#EFF6FF',
+                border: `1px solid ${success ? '#A7F3D0' : '#DBEAFE'}`,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: success
+                  ? '0 6px 16px rgba(16, 185, 129, 0.12)'
+                  : '0 6px 16px rgba(24, 119, 242, 0.12)',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              {success ? (
+                <CheckIcon sx={{ color: '#10B981', fontSize: 26 }} />
+              ) : (
+                <KeyIcon sx={{ color: '#1877F2', fontSize: 26 }} />
+              )}
+            </Box>
           </Box>
-        </Box>
 
-        {/* Title & Subtitle */}
-        <Box sx={{ textAlign: 'center', mb: 3.5 }}>
-          <Typography
-            variant="h5"
-            sx={{
-              fontWeight: 800,
-              color: '#0F172A',
-              fontSize: '24px',
-              letterSpacing: '-0.3px',
-              mb: 0.6
-            }}
-          >
-            {success ? 'Link Sent!' : 'Forgot Password'}
-          </Typography>
-          <Typography
-            variant="body2"
-            sx={{
-              color: '#64748B',
-              fontSize: '14px',
-              fontWeight: 500
-            }}
-          >
-            {success
-              ? 'Please follow the instructions sent to your account.'
-              : 'Enter your email to receive OTP or an reset link'}
-          </Typography>
-        </Box>
+          {/* Heading */}
+          <Box sx={{ mb: 3 }}>
+            <Typography
+              sx={{
+                fontWeight: 800,
+                fontSize: { xs: '26px', sm: '30px' },
+                color: '#0F172A',
+                letterSpacing: '-0.5px',
+                mb: 0.8
+              }}
+            >
+              {success ? 'Link Sent!' : 'Forgot Password?'}
+            </Typography>
+            <Typography sx={{ color: '#64748B', fontSize: '14px', fontWeight: 400, lineHeight: 1.5 }}>
+              {success
+                ? 'Please check your email for the password reset instructions.'
+                : 'Enter your email or phone to receive a password reset link.'}
+            </Typography>
+          </Box>
 
-        {error && (
-          <Alert
-            severity="error"
-            sx={{
-              mb: 3,
-              borderRadius: '12px',
-              fontSize: '13.5px',
-              fontWeight: 500
-            }}
-          >
-            {error}
-          </Alert>
-        )}
+          {/* Alerts */}
+          {error && (
+            <Alert
+              severity="error"
+              sx={{ mb: 2.5, borderRadius: '10px', fontSize: '13px', fontWeight: 500 }}
+            >
+              {error}
+            </Alert>
+          )}
 
-        {success && (
-          <Alert
-            severity="success"
-            sx={{
-              mb: 3,
-              borderRadius: '12px',
-              fontSize: '13.5px',
-              fontWeight: 500
-            }}
-          >
-            {success}
-          </Alert>
-        )}
+          {success && (
+            <Alert
+              severity="success"
+              sx={{ mb: 2.5, borderRadius: '10px', fontSize: '13px', fontWeight: 500 }}
+            >
+              {success}
+            </Alert>
+          )}
 
-        {!success ? (
-          <form onSubmit={handleSubmit}>
-            <Box sx={{ mb: 3 }}>
-              <Typography
-                component="label"
+          {!success ? (
+            <form onSubmit={handleSubmit}>
+              <Box sx={{ mb: 2.5 }}>
+                <Typography
+                  component="label"
+                  sx={{
+                    display: 'block',
+                    fontWeight: 600,
+                    color: '#1E293B',
+                    fontSize: '13px',
+                    mb: 0.8
+                  }}
+                >
+                  Email or Phone
+                </Typography>
+                <TextField
+                  fullWidth
+                  size="medium"
+                  value={loginIdentifier}
+                  onChange={(e) => setLoginIdentifier(e.target.value)}
+                  placeholder="Enter email or phone"
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <MailIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                        </InputAdornment>
+                      )
+                    }
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: '12px',
+                      fontSize: '14.5px',
+                      bgcolor: '#FAFBFF',
+                      '& fieldset': { borderColor: '#E2E8F0' },
+                      '&:hover fieldset': { borderColor: '#93C5FD' },
+                      '&.Mui-focused fieldset': { borderColor: '#1877F2', borderWidth: '1.5px' }
+                    }
+                  }}
+                />
+              </Box>
+
+              <Button
+                fullWidth
+                size="large"
+                type="submit"
+                variant="contained"
+                disabled={loading}
                 sx={{
-                  display: 'block',
-                  fontWeight: 600,
-                  color: '#1E293B',
-                  fontSize: '13px',
-                  mb: 0.8
+                  py: 1.35,
+                  borderRadius: '10px',
+                  fontWeight: 700,
+                  fontSize: '15px',
+                  textTransform: 'none',
+                  background: 'linear-gradient(135deg, #1877F2 0%, #0D62D9 100%)',
+                  boxShadow: '0 8px 20px rgba(24, 119, 242, 0.35)',
+                  '&:hover': {
+                    background: 'linear-gradient(135deg, #0D62D9 0%, #0B57D0 100%)',
+                    boxShadow: '0 10px 24px rgba(24, 119, 242, 0.45)'
+                  },
+                  '&.Mui-disabled': {
+                    bgcolor: '#93C5FD'
+                  }
                 }}
               >
-                Email
-              </Typography>
-              <TextField
-                fullWidth
-                size="small"
-                value={loginIdentifier}
-                onChange={(e) => setLoginIdentifier(e.target.value)}
-                placeholder="Enter email"
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <MailIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
-                      </InputAdornment>
-                    ),
-                  }
-                }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: '10px',
-                    backgroundColor: '#FFFFFF',
-                    fontSize: '14px',
-                    '& fieldset': { borderColor: '#E2E8F0' },
-                    '&:hover fieldset': { borderColor: '#CBD5E1' },
-                    '&.Mui-focused fieldset': { borderColor: '#2563EB', borderWidth: '1.5px' },
-                  }
-                }}
-              />
-            </Box>
-
+                {loading ? <CircularProgress size={22} sx={{ color: '#FFFFFF' }} /> : 'Send Reset Link'}
+              </Button>
+            </form>
+          ) : (
             <Button
               fullWidth
               size="large"
-              type="submit"
+              component={RouterLink}
+              to="/login"
               variant="contained"
-              disabled={loading}
               sx={{
                 py: 1.35,
                 borderRadius: '10px',
                 fontWeight: 700,
                 fontSize: '15px',
                 textTransform: 'none',
-                background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
-                boxShadow: '0 8px 20px rgba(37, 99, 235, 0.35)',
+                background: 'linear-gradient(135deg, #1877F2 0%, #0D62D9 100%)',
+                boxShadow: '0 8px 20px rgba(24, 119, 242, 0.35)',
                 '&:hover': {
-                  background: 'linear-gradient(135deg, #1D4ED8 0%, #1E40AF 100%)',
-                  boxShadow: '0 10px 24px rgba(37, 99, 235, 0.45)'
-                },
-                '&.Mui-disabled': {
-                  bgcolor: '#93C5FD'
+                  background: 'linear-gradient(135deg, #0D62D9 0%, #0B57D0 100%)'
                 }
               }}
             >
-              {loading ? <CircularProgress size={22} sx={{ color: '#FFFFFF' }} /> : 'Send Reset Link'}
+              Back to Sign In
             </Button>
-          </form>
-        ) : (
-          <Button
-            fullWidth
-            size="large"
-            component={RouterLink}
-            to="/login"
-            variant="contained"
-            sx={{
-              py: 1.35,
-              borderRadius: '10px',
-              fontWeight: 700,
-              fontSize: '15px',
-              textTransform: 'none',
-              background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
-              boxShadow: '0 8px 20px rgba(37, 99, 235, 0.35)',
-              '&:hover': {
-                background: 'linear-gradient(135deg, #1D4ED8 0%, #1E40AF 100%)'
-              }
-            }}
-          >
-            Back to Sign In
-          </Button>
-        )}
+          )}
 
-        <Box sx={{ display: 'flex', alignItems: 'center', my: 3 }}>
-          <Divider sx={{ flexGrow: 1, borderColor: '#F1F5F9' }} />
+          {/* Back to Sign In Link */}
+          <Box sx={{ mt: 3.5, textAlign: 'center' }}>
+            <Link
+              component={RouterLink}
+              to="/login"
+              sx={{
+                color: '#1877F2',
+                fontWeight: 600,
+                fontSize: '13.5px',
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 0.8,
+                '&:hover': { textDecoration: 'underline' }
+              }}
+            >
+              <ArrowBackIcon sx={{ fontSize: 17 }} /> Back to Sign In
+            </Link>
+          </Box>
         </Box>
-
-        <Box sx={{ textAlign: 'center' }}>
-          <Link
-            component={RouterLink}
-            to="/login"
-            sx={{
-              color: '#2563EB',
-              fontWeight: 700,
-              fontSize: '13.5px',
-              textDecoration: 'none',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 0.8,
-              '&:hover': { textDecoration: 'underline' }
-            }}
-          >
-            <ArrowBackIcon sx={{ fontSize: 18 }} /> Back to Sign In
-          </Link>
-        </Box>
-      </Card>
-    </AuthLayout>
+      </Box>
+    </Box>
   );
 };
 

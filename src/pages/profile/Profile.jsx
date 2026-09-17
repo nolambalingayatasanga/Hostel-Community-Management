@@ -1097,7 +1097,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                         <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569' }}>
                           Adhaar Number
                         </Typography>
-                        <Tooltip title="When masked, only you can view your Adhaar. Other community members cannot see it.">
+                        <Tooltip title="When hidden, your Aadhaar is hidden in the users directory table.">
                           <FormControlLabel
                             control={
                               <Switch
@@ -1112,7 +1112,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                             }
                             label={
                               <Typography variant="caption" sx={{ color: privacySettings.maskAdhaar ? '#0088ff' : '#64748B', fontWeight: 600, fontSize: 11, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <MaskIcon sx={{ fontSize: 13 }} /> Mask
+                                <MaskIcon sx={{ fontSize: 13 }} /> Hide
                               </Typography>
                             }
                             sx={{ m: 0 }}
@@ -1196,7 +1196,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                         <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569' }}>
                           Email Address
                         </Typography>
-                        <Tooltip title="When masked, only you can view your email. Other community members cannot see it.">
+                        <Tooltip title="When hidden, your email is hidden in the users directory table.">
                           <FormControlLabel
                             control={
                               <Switch
@@ -1211,7 +1211,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                             }
                             label={
                               <Typography variant="caption" sx={{ color: privacySettings.maskEmail ? '#0088ff' : '#64748B', fontWeight: 600, fontSize: 11, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <MaskIcon sx={{ fontSize: 13 }} /> Mask
+                                <MaskIcon sx={{ fontSize: 13 }} /> Hide
                               </Typography>
                             }
                             sx={{ m: 0 }}
@@ -1237,7 +1237,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                         <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569' }}>
                           Phone Number
                         </Typography>
-                        <Tooltip title="When masked, only you can view your phone number. Other community members cannot see it.">
+                        <Tooltip title="When hidden, your phone number is hidden in the users directory table.">
                           <FormControlLabel
                             control={
                               <Switch
@@ -1252,7 +1252,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                             }
                             label={
                               <Typography variant="caption" sx={{ color: privacySettings.maskPhone ? '#0088ff' : '#64748B', fontWeight: 600, fontSize: 11, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <MaskIcon sx={{ fontSize: 13 }} /> Mask
+                                <MaskIcon sx={{ fontSize: 13 }} /> Hide
                               </Typography>
                             }
                             sx={{ m: 0 }}
@@ -1937,11 +1937,11 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                           Adhaar No.
                         </Typography>
                         {privacySettings.maskAdhaar && (
-                          <Tooltip title="Masked from public users. Visible only to you.">
+                          <Tooltip title="Hidden in the users directory table.">
                             <Chip
                               size="small"
                               icon={<LockIcon color="#fff" sx={{ fontSize: '11px !important',borderRadius:"10px" }} />}
-                              label="Masked"
+                              label="Hidden"
                               sx={{ height: 18, fontSize: 10, bgcolor: '#0088ff', color: '#fff', fontWeight: 700 }}
                             />
                           </Tooltip>
@@ -1964,11 +1964,11 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                           Phone
                         </Typography>
                         {privacySettings.maskPhone && (
-                          <Tooltip title="Masked from public users. Visible only to you.">
+                          <Tooltip title="Hidden in the users directory table.">
                             <Chip
                               size="small"
                               icon={<LockIcon color="#fff" sx={{ fontSize: '11px !important', borderRadius: '10px' }} />}
-                              label="Masked"
+                              label="Hidden"
                               sx={{ height: 18, fontSize: 10, bgcolor: '#0088ff', color: '#fff', fontWeight: 700 }}
                             />
                           </Tooltip>
@@ -1991,11 +1991,11 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                           Email
                         </Typography>
                         {privacySettings.maskEmail && (
-                          <Tooltip title="Masked from public users. Visible only to you.">
+                          <Tooltip title="Hidden in the users directory table.">
                             <Chip
                               size="small"
                               icon={<LockIcon color="#fff" sx={{ fontSize: '11px !important', borderRadius: '10px' }} />}
-                              label="Masked"
+                              label="Hidden"
                               sx={{ height: 18, fontSize: 10, bgcolor: '#0088ff', color: '#fff', fontWeight: 700 }}
                             />
                           </Tooltip>

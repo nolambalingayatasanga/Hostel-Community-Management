@@ -5,6 +5,9 @@ const upload = require('../middleware/uploadMiddleware');
 
 const router = express.Router();
 
+// Public endpoint for slideshow preview images (only images, unauthenticated)
+router.get('/public-previews', galleryController.getPublicGalleryPreviews);
+
 // All routes require authentication
 router.use(protect);
 

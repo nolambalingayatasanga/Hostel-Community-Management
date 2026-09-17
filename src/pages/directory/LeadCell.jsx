@@ -281,10 +281,12 @@ export default function LeadCell({
       if ((field.slug === "dateOfBirth" || field.slug === "dob") && val) {
         return formatLeadDate(val);
       }
-      if ((field.slug === "email" || field.slug.toLowerCase() === "email") && (!val || val === "") && row.raw?.isEmailMasked && !forEdit) {
+      const isEmailHidden = Boolean(row.raw?.isEmailMasked || row.raw?.privacySettings?.maskEmail);
+      if ((field.slug === "email" || field.slug.toLowerCase() === "email") && isEmailHidden && !forEdit) {
         return "••••@••••.••";
       }
-      if ((field.slug === "adhaar" || field.slug === "aadhaar") && (!val || val === "") && row.raw?.isAdhaarMasked && !forEdit) {
+      const isAdhaarHidden = Boolean(row.raw?.isAdhaarMasked || row.raw?.privacySettings?.maskAdhaar);
+      if ((field.slug === "adhaar" || field.slug === "aadhaar") && isAdhaarHidden && !forEdit) {
         return "•••• •••• ••••";
       }
       if (val != null && val !== "") return String(val);
@@ -346,27 +348,27 @@ export default function LeadCell({
 
   // 2. Phone View with same standard Cell UI
   if (isPhone && !isEditing) {
-    const rawPhone = row.phone || "";
-    const isPhoneMasked = Boolean(!rawPhone && row.raw?.isPhoneMasked);
+    const isPhoneHidden = Boolean(row.raw?.isPhoneMasked || row.raw?.privacySettings?.maskPhone);
+    const rawPhone = isPhoneHidden ? "" : (row.phone || "");
     return wrap(
       <Box
-        onClick={editable && !isPhoneMasked ? onStartEdit : undefined}
-        sx={readSx(editable && !isPhoneMasked)}
-        title={isPhoneMasked ? "Phone is masked by user privacy settings" : rawPhone}
+        onClick={editable && !isPhoneHidden ? onStartEdit : undefined}
+        sx={readSx(editable && !isPhoneHidden)}
+        title={isPhoneHidden ? "Phone is hidden by user privacy settings" : rawPhone}
       >
         <Typography
           variant="body2"
           sx={{
-            color: rawPhone ? "#101828" : isPhoneMasked ? "#64748B" : "#98A2B3",
+            color: rawPhone ? "#101828" : isPhoneHidden ? "#64748B" : "#98A2B3",
             fontSize: "0.875rem",
             fontWeight:  500,
-            fontStyle: isPhoneMasked ? "italic" : "normal",
+            fontStyle: isPhoneHidden ? "italic" : "normal",
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
           }}
         >
-          {rawPhone || (isPhoneMasked ? "••••••••••" : "-")}
+          {rawPhone || (isPhoneHidden ? "••••••••••" : "-")}
         </Typography>
       </Box>
     );
@@ -375,7 +377,8 @@ export default function LeadCell({
   // 3. Channels View (WhatsApp, Instagram, LinkedIn icons)
   if (isChannels && !isEditing) {
     const ch = row.channels || row.raw?.channels || {};
-    const rawPhone = row.phone || row.raw?.phone || "";
+    const isPhoneHidden = Boolean(row.raw?.isPhoneMasked || row.raw?.privacySettings?.maskPhone);
+    const rawPhone = isPhoneHidden ? "" : (row.phone || row.raw?.phone || "");
     const whatsappNum = (ch.whatsapp || rawPhone || "").replace(/\D/g, "");
     const instagramUrl = ch.instagram
       ? (ch.instagram.startsWith("http") ? ch.instagram : `https://instagram.com/${ch.instagram.replace(/^@/, "")}`)

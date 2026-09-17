@@ -47,8 +47,10 @@ import {
   Check as CheckIcon,
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
-  WarningAmber as WarningAmberIcon
+  WarningAmber as WarningAmberIcon,
+  HomeOutlined
 } from '@mui/icons-material';
+import AuthImageSlideshow from '../../components/auth/AuthImageSlideshow';
 
 const DRAFT_KEY = 'hostel_register_draft';
 
@@ -557,172 +559,82 @@ const Register = () => {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <AuthLayout>
-        <Card
+      {/* Full-screen 50/50 split */}
+      <Box
+        sx={{
+          height: '100vh',
+          maxHeight: '100vh',
+          width: '100vw',
+          maxWidth: '100vw',
+          display: 'flex',
+          flexDirection: { xs: 'column', md: 'row' },
+          overflow: 'hidden',
+          fontFamily: '"Inter", "Roboto", sans-serif'
+        }}
+      >
+        {/* ─── LEFT PANEL — Gallery Slideshow (60%) ─── */}
+        <Box
           sx={{
-            width: '100%',
-            maxWidth: { xs: '100%', sm: step === 1 ? 460 : 720, md: step === 1 ? 480 : 890 },
-            bgcolor: '#FFFFFF',
-            borderRadius: '24px',
-            p: { xs: 3, sm: 4, md: 4.5 },
-            boxShadow: '0 25px 60px rgba(0, 0, 0, 0.35)',
-            border: '1px solid rgba(255, 255, 255, 0.9)',
+            display: { xs: 'none', md: 'flex' },
+            width: '60%',
+            minWidth: '60%',
+            maxWidth: '60%',
+            height: '100vh',
+            maxHeight: '100vh',
             position: 'relative',
-            transition: 'all 0.3s ease'
+            overflow: 'hidden',
+            flexShrink: 0
           }}
         >
-          {/* Title */}
-          <Box sx={{ textAlign: 'center', mb: 3 }}>
+          <AuthImageSlideshow />
+        </Box>
+
+        {/* ─── RIGHT PANEL — Register Form (40%) ─── */}
+        <Box
+          sx={{
+            width: { xs: '100%', md: '40%' },
+            minWidth: { md: '40%' },
+            maxWidth: { md: '40%' },
+            height: '100vh',
+            maxHeight: '100vh',
+            bgcolor: '#FFFFFF',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden'
+          }}
+        >
+          {/* ─── FIXED HEADER ─── */}
+          <Box
+            sx={{
+              flexShrink: 0,
+              px: { xs: 3, sm: 4.5 },
+              pt: { xs: 2.5, sm: 3 },
+              pb: 2,
+              borderBottom: '1px solid #F1F5F9',
+              bgcolor: '#FFFFFF',
+              zIndex: 5
+            }}
+          >
+            {/* Mobile logo */}
+        
+
+            {/* Title */}
             <Typography
               variant="h5"
               sx={{
-                fontWeight: 700,
+                fontWeight: 800,
                 color: '#0F172A',
-                fontSize: '24px',
+                fontSize: { xs: '20px', sm: '22px' },
                 letterSpacing: '-0.4px',
-                mb: 0.5
+                textAlign: 'center'
               }}
             >
-            {role === 'MEMBER' ? 'Create Member Account' : 'Create Student/Alumni Account'}
+              {role === 'MEMBER' ? 'Create Member Account' : 'Create Student/Alumni Account'}
             </Typography>
-          </Box>
 
-          {error && (
-            <Alert
-              severity="error"
-              sx={{
-                mb: 3,
-                borderRadius: '12px',
-                fontSize: '13.5px',
-                fontWeight: 500
-              }}
-            >
-              {error}
-            </Alert>
-          )}
-
-          {step === 1 ? (
-            /* STEP 1: CHOOSE ROLE */
-            <Box>
-            
-
-              <Stack spacing={2} sx={{ mb: 3.5 }}>
-                {/* Option 1: Student / Alumni */}
-                <Box
-                  onClick={() => setRole('STUDENT')}
-                  sx={{
-                    p: 2.2,
-                    borderRadius: '14px',
-                    border: '2px solid',
-                    borderColor: role === 'STUDENT' ? '#1877F2' : '#E2E8F0',
-                    bgcolor: role === 'STUDENT' ? '#EFF6FF' : '#FFFFFF',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 2,
-                    transition: 'all 0.2s ease',
-                    '&:hover': {
-                      borderColor: '#93C5FD',
-                      bgcolor: role === 'STUDENT' ? '#EFF6FF' : '#F8FAFC'
-                    }
-                  }}
-                >
-                  <Box
-                    sx={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: '10px',
-                      bgcolor: role === 'STUDENT' ? '#1877F2' : '#F1F5F9',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0
-                    }}
-                  >
-                    <StudentIcon sx={{ color: role === 'STUDENT' ? '#FFFFFF' : '#64748B', fontSize: 24 }} />
-                  </Box>
-                  <Box sx={{ flexGrow: 1 }}>
-                    <Typography sx={{ fontWeight: 700, color: '#0F172A', fontSize: '15px' }}>
-                      Student / Alumni
-                    </Typography>
-                    <Typography sx={{ color: '#64748B', fontSize: '12.5px' }}>
-                      Current residents or graduated hostel seniors
-                    </Typography>
-                  </Box>
-                </Box>
-
-                {/* Option 2: Community Member */}
-                <Box
-                  onClick={() => setRole('MEMBER')}
-                  sx={{
-                    p: 2.2,
-                    borderRadius: '14px',
-                    border: '2px solid',
-                    borderColor: role === 'MEMBER' ? '#1877F2' : '#E2E8F0',
-                    bgcolor: role === 'MEMBER' ? '#EFF6FF' : '#FFFFFF',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 2,
-                    transition: 'all 0.2s ease',
-                    '&:hover': {
-                      borderColor: '#93C5FD',
-                      bgcolor: role === 'MEMBER' ? '#EFF6FF' : '#F8FAFC'
-                    }
-                  }}
-                >
-                  <Box
-                    sx={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: '10px',
-                      bgcolor: role === 'MEMBER' ? '#1877F2' : '#F1F5F9',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0
-                    }}
-                  >
-                    <MemberIcon sx={{ color: role === 'MEMBER' ? '#FFFFFF' : '#64748B', fontSize: 24 }} />
-                  </Box>
-                  <Box sx={{ flexGrow: 1 }}>
-                    <Typography sx={{ fontWeight: 700, color: '#0F172A', fontSize: '15px' }}>
-                      Community Member
-                    </Typography>
-                    <Typography sx={{ color: '#64748B', fontSize: '12.5px' }}>
-                      Trust board, parent representative, or patron
-                    </Typography>
-                  </Box>
-                </Box>
-              </Stack>
-
-              <Button
-                fullWidth
-                size="large"
-                variant="contained"
-                onClick={handleNextStep}
-                endIcon={<ArrowForwardIcon />}
-                sx={{
-                  py: 1.3,
-                  borderRadius: '10px',
-                  fontWeight: 700,
-                  fontSize: '15px',
-                  textTransform: 'none',
-                  background: 'linear-gradient(135deg, #1877F2 0%, #0D62D9 100%)',
-                  boxShadow: '0 8px 20px rgba(24, 119, 242, 0.35)',
-                  '&:hover': {
-                    background: 'linear-gradient(135deg, #0D62D9 0%, #0B57D0 100%)'
-                  }
-                }}
-              >
-                Continue
-              </Button>
-            </Box>
-          ) : (
-            /* STEP 2: 3-COLUMN RESPONSIVE CSS GRID FORM WITH ENTER-KEY NAVIGATION */
-            <form onSubmit={handleSubmit}>
-              {/* Header with Selected Role & Change Role Action */}
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
+            {/* Step 2 Header Chips */}
+            {step === 2 && (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1.5 }}>
                 <Chip
                   label={`Assigned Role: ${computedRole}`}
                   color="primary"
@@ -733,191 +645,189 @@ const Register = () => {
                     bgcolor: '#EFF6FF',
                     color: '#1877F2',
                     border: '1px solid #BFDBFE',
-                    fontSize: '12.5px',
-                    py: 1.8
+                    fontSize: '12px',
+                    py: 1.6
                   }}
                 />
                 <Button
                   size="small"
                   onClick={() => setStep(1)}
-                  startIcon={<ArrowBackIcon sx={{ fontSize: 16 }} />}
-                  sx={{ textTransform: 'none', color: '#64748B', fontWeight: 600, fontSize: '12.5px' }}
+                  startIcon={<ArrowBackIcon sx={{ fontSize: 15 }} />}
+                  sx={{ textTransform: 'none', color: '#64748B', fontWeight: 600, fontSize: '12px' }}
                 >
                   Change Role
                 </Button>
               </Box>
+            )}
 
-              {/* Form Inputs Grid (3 Inputs Per Row on Desktop/Tablet) */}
-              <Box
+            {/* Error Alert */}
+            {error && (
+              <Alert
+                severity="error"
                 sx={{
-                  display: 'grid',
-                  gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)' },
-                  gap: 2
+                  mt: 1.5,
+                  borderRadius: '10px',
+                  fontSize: '12.5px',
+                  fontWeight: 500,
+                  py: 0.5
                 }}
               >
-                {/* Row 1: Full Name, Email Address, Gender (3 fields) */}
-                <Box>
-                  <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                    Full Name <span style={{ color: '#EF4444' }}>*</span>
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    autoFocus
-                    inputRef={nameRef}
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        emailRef.current?.focus();
-                      }
-                    }}
-                    placeholder="Enter Full Name"
-                    slotProps={{
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <PersonIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
-                          </InputAdornment>
-                        ),
-                      }
-                    }}
-                    sx={inputStyle}
-                  />
-                </Box>
+                {error}
+              </Alert>
+            )}
+          </Box>
 
-                <Box>
-                  <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                    Email Address <span style={{ color: '#EF4444' }}>*</span>
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    type="email"
-                    inputRef={emailRef}
-                    value={email}
-                    onChange={handleEmailChange}
-                    onBlur={handleEmailBlur}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        genderRef.current?.focus();
-                      }
-                    }}
-                    placeholder="Enter Email Address"
-                    slotProps={{
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <MailIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
-                          </InputAdornment>
-                        ),
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            {emailValidation.status === 'CHECKING' && (
-                              <CircularProgress size={18} sx={{ color: '#0088FF' }} />
-                            )}
-                            {emailValidation.status === 'EXISTS' && (
-                              <CheckIcon sx={{ color: '#16A34A', fontSize: 20, fontWeight: 700 }} />
-                            )}
-                            {(emailValidation.status === 'DOES_NOT_EXIST' || emailValidation.status === 'INVALID_FORMAT' || emailValidation.status === 'ALREADY_REGISTERED') && (
-                              <CancelIcon sx={{ color: '#DC2626', fontSize: 19 }} />
-                            )}
-                          </InputAdornment>
-                        ),
-                      }
-                    }}
-                    sx={emailInputStyle}
-                  />
-
-                  {/* Database Validation Feedback */}
-                  {emailValidation.status === 'EXISTS' && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, mt: 0.6 }}>
-                      <CheckIcon sx={{ fontSize: 14, color: '#16A34A', fontWeight: 700 }} />
-                      <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#16A34A' }}>
-                        Email is available
-                      </Typography>
-                    </Box>
-                  )}
-                  {(emailValidation.status === 'DOES_NOT_EXIST' || emailValidation.status === 'INVALID_FORMAT') && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, mt: 0.6 }}>
-                      <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#DC2626' }}>
-                        ❌ {emailValidation.message || 'Please enter a valid email address'}
-                      </Typography>
-                    </Box>
-                  )}
-                  {emailValidation.status === 'ALREADY_REGISTERED' && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, mt: 0.6 }}>
-                      <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#DC2626' }}>
-                        ❌ {emailValidation.message || 'This email is already registered. Please log in.'}
-                      </Typography>
-                    </Box>
-                  )}
-                </Box>
-
-                <Box>
-                  <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                    Gender <span style={{ color: '#EF4444' }}>*</span>
-                  </Typography>
-                  <TextField
-                    select
-                    fullWidth
-                    size="small"
-                    inputRef={genderRef}
-                    value={gender}
-                    onChange={(e) => setGender(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        if (role === 'MEMBER') {
-                          regNoRef.current?.focus();
-                        } else {
-                          aadhaarRef.current?.focus();
+          {/* ─── SCROLLABLE MIDDLE (Fields) + FIXED FOOTER inside <form> ─── */}
+          <Box
+            component="form"
+            id="register-form"
+            onSubmit={step === 1 ? (e) => { e.preventDefault(); handleNextStep(); } : handleSubmit}
+            sx={{
+              flex: 1,
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Scrollable Middle Container */}
+            <Box
+              sx={{
+                flex: 1,
+                minHeight: 0,
+                overflowY: 'auto',
+                px: { xs: 3, sm: 4.5 },
+                py: 2.5,
+                '&::-webkit-scrollbar': { width: '5px' },
+                '&::-webkit-scrollbar-thumb': { bgcolor: '#CBD5E1', borderRadius: '4px' },
+                '&::-webkit-scrollbar-thumb:hover': { bgcolor: '#94A3B8' }
+              }}
+            >
+              {step === 1 ? (
+                /* STEP 1: CHOOSE ROLE */
+                <Box sx={{ maxWidth: 440, mx: 'auto', py: 1 }}>
+                  <Stack spacing={2} sx={{ mb: 2 }}>
+                    {/* Option 1: Student / Alumni */}
+                    <Box
+                      onClick={() => setRole('STUDENT')}
+                      sx={{
+                        p: 2.2,
+                        borderRadius: '14px',
+                        border: '2px solid',
+                        borderColor: role === 'STUDENT' ? '#1877F2' : '#E2E8F0',
+                        bgcolor: role === 'STUDENT' ? '#EFF6FF' : '#FFFFFF',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 2,
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                          borderColor: '#93C5FD',
+                          bgcolor: role === 'STUDENT' ? '#EFF6FF' : '#F8FAFC'
                         }
-                      }
-                    }}
-                    slotProps={{
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <GenderIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
-                          </InputAdornment>
-                        ),
-                      }
-                    }}
-                    sx={inputStyle}
-                  >
-                    <MenuItem value="MALE">Male</MenuItem>
-                    <MenuItem value="FEMALE">Female</MenuItem>
-                    <MenuItem value="OTHER">Other</MenuItem>
-                  </TextField>
-                </Box>
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: '10px',
+                          bgcolor: role === 'STUDENT' ? '#1877F2' : '#F1F5F9',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}
+                      >
+                        <StudentIcon sx={{ color: role === 'STUDENT' ? '#FFFFFF' : '#64748B', fontSize: 24 }} />
+                      </Box>
+                      <Box sx={{ flexGrow: 1 }}>
+                        <Typography sx={{ fontWeight: 700, color: '#0F172A', fontSize: '15px' }}>
+                          Student / Alumni
+                        </Typography>
+                        <Typography sx={{ color: '#64748B', fontSize: '12.5px' }}>
+                          Current residents or graduated hostel seniors
+                        </Typography>
+                      </Box>
+                    </Box>
 
-                {/* Community Member Specific Field: Registration Number right after Gender */}
-                {role === 'MEMBER' && (
+                    {/* Option 2: Community Member */}
+                    <Box
+                      onClick={() => setRole('MEMBER')}
+                      sx={{
+                        p: 2.2,
+                        borderRadius: '14px',
+                        border: '2px solid',
+                        borderColor: role === 'MEMBER' ? '#1877F2' : '#E2E8F0',
+                        bgcolor: role === 'MEMBER' ? '#EFF6FF' : '#FFFFFF',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 2,
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                          borderColor: '#93C5FD',
+                          bgcolor: role === 'MEMBER' ? '#EFF6FF' : '#F8FAFC'
+                        }
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: '10px',
+                          bgcolor: role === 'MEMBER' ? '#1877F2' : '#F1F5F9',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}
+                      >
+                        <MemberIcon sx={{ color: role === 'MEMBER' ? '#FFFFFF' : '#64748B', fontSize: 24 }} />
+                      </Box>
+                      <Box sx={{ flexGrow: 1 }}>
+                        <Typography sx={{ fontWeight: 700, color: '#0F172A', fontSize: '15px' }}>
+                          Community Member
+                        </Typography>
+                        <Typography sx={{ color: '#64748B', fontSize: '12.5px' }}>
+                          Trust board, parent representative, or patron
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Stack>
+                </Box>
+              ) : (
+                /* STEP 2: 2 INPUTS PER ROW RESPONSIVE GRID */
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' },
+                    gap: 2
+                  }}
+                >
+                  {/* 1. Full Name */}
                   <Box>
-                    <Typography component="label" sx={{ display: 'flex', alignItems: 'center', gap: 0.7, fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                      Registration Number <span style={{ color: '#94A3B8', fontWeight: 400, fontSize: '12px' }}>(Optional)</span>
+                    <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
+                      Full Name <span style={{ color: '#EF4444' }}>*</span>
                     </Typography>
                     <TextField
                       fullWidth
                       size="small"
-                      inputRef={regNoRef}
-                      value={registrationNumber}
-                      onChange={(e) => setRegistrationNumber(e.target.value)}
+                      inputRef={nameRef}
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
-                          aadhaarRef.current?.focus();
+                          emailRef.current?.focus();
                         }
                       }}
-                      placeholder="Enter Reg Number (Optional)"
+                      placeholder="Enter Full Name"
                       slotProps={{
                         input: {
                           startAdornment: (
                             <InputAdornment position="start">
-                              <RegNoIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                              <PersonIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
                             </InputAdornment>
                           ),
                         }
@@ -925,456 +835,642 @@ const Register = () => {
                       sx={inputStyle}
                     />
                   </Box>
-                )}
 
-                {/* Common Fields: Aadhaar Number, Phone Number, Date of Birth */}
-                <Box>
-                  <Typography component="label" sx={{ display: 'flex', alignItems: 'center', gap: 0.7, fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                    Aadhaar Number <span style={{ color: '#94A3B8', fontWeight: 400, fontSize: '12px' }}>(Optional)</span>
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    inputRef={aadhaarRef}
-                    value={adhaar}
-                    onChange={handleAadhaarChange}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        phoneRef.current?.focus();
-                      }
-                    }}
-                    placeholder="XXXX XXXX XXXX"
-                    slotProps={{
-                      htmlInput: { inputMode: 'numeric', maxLength: 14 },
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <AadhaarIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
-                          </InputAdornment>
-                        ),
-                      }
-                    }}
-                    sx={inputStyle}
-                  />
-                </Box>
+                  {/* 2. Email Address */}
+                  <Box>
+                    <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
+                      Email Address <span style={{ color: '#EF4444' }}>*</span>
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      type="email"
+                      inputRef={emailRef}
+                      value={email}
+                      onChange={handleEmailChange}
+                      onBlur={handleEmailBlur}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          genderRef.current?.focus();
+                        }
+                      }}
+                      placeholder="Enter Email Address"
+                      slotProps={{
+                        input: {
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <MailIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                            </InputAdornment>
+                          ),
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              {emailValidation.status === 'CHECKING' && (
+                                <CircularProgress size={18} sx={{ color: '#0088FF' }} />
+                              )}
+                              {emailValidation.status === 'EXISTS' && (
+                                <CheckIcon sx={{ color: '#16A34A', fontSize: 20, fontWeight: 700 }} />
+                              )}
+                              {(emailValidation.status === 'DOES_NOT_EXIST' || emailValidation.status === 'INVALID_FORMAT' || emailValidation.status === 'ALREADY_REGISTERED') && (
+                                <CancelIcon sx={{ color: '#DC2626', fontSize: 19 }} />
+                              )}
+                            </InputAdornment>
+                          ),
+                        }
+                      }}
+                      sx={emailInputStyle}
+                    />
 
-                <Box>
-                  <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                    Phone Number <span style={{ color: '#EF4444' }}>*</span>
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    inputRef={phoneRef}
-                    value={phone}
-                    onChange={handlePhoneChange}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        dobRef.current?.focus();
-                      }
-                    }}
-                    placeholder="Enter 10-digit Phone Number"
-                    slotProps={{
-                      htmlInput: { inputMode: 'numeric', maxLength: 10 },
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <PhoneIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
-                          </InputAdornment>
-                        ),
-                      }
-                    }}
-                    sx={inputStyle}
-                  />
-                </Box>
+                    {/* Database Validation Feedback */}
+                    {emailValidation.status === 'EXISTS' && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, mt: 0.6 }}>
+                        <CheckIcon sx={{ fontSize: 14, color: '#16A34A', fontWeight: 700 }} />
+                        <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#16A34A' }}>
+                          Email is available
+                        </Typography>
+                      </Box>
+                    )}
+                    {(emailValidation.status === 'DOES_NOT_EXIST' || emailValidation.status === 'INVALID_FORMAT') && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, mt: 0.6 }}>
+                        <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#DC2626' }}>
+                          ❌ {emailValidation.message || 'Please enter a valid email address'}
+                        </Typography>
+                      </Box>
+                    )}
+                    {emailValidation.status === 'ALREADY_REGISTERED' && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, mt: 0.6 }}>
+                        <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#DC2626' }}>
+                          ❌ {emailValidation.message || 'This email is already registered. Please log in.'}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
 
-                <Box>
-                  <Typography component="label" sx={{ display: 'flex', alignItems: 'center', gap: 0.7, fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                    Date of Birth <span style={{ color: '#94A3B8', fontWeight: 400, fontSize: '12px' }}>(Optional)</span>
-                  </Typography>
-                  <DatePicker
-                    format="DD/MM/YYYY"
-                    views={['year', 'month', 'day']}
-                    closeOnSelect={true}
-                    value={dobDayjs}
-                    onChange={(newValue) => {
-                      setDobDayjs(newValue);
-                      if (!newValue) {
-                        setDob('');
-                      } else if (dayjs.isDayjs(newValue) && newValue.isValid()) {
-                        setDob(newValue.format('YYYY-MM-DD'));
-                      }
-                    }}
-                    maxDate={dayjs()}
-                    slotProps={{
-                      field: { clearable: true },
-                      textField: {
-                        fullWidth: true,
-                        size: 'small',
-                        inputRef: dobRef,
-                        placeholder: 'DD/MM/YYYY',
-                        onKeyDown: (e) => {
+                  {/* 3. Gender */}
+                  <Box>
+                    <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
+                      Gender <span style={{ color: '#EF4444' }}>*</span>
+                    </Typography>
+                    <TextField
+                      select
+                      fullWidth
+                      size="small"
+                      inputRef={genderRef}
+                      value={gender}
+                      onChange={(e) => setGender(e.target.value)}
+                      slotProps={{
+                        input: {
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <GenderIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                            </InputAdornment>
+                          ),
+                        }
+                      }}
+                      sx={inputStyle}
+                    >
+                      <MenuItem value="MALE">Male</MenuItem>
+                      <MenuItem value="FEMALE">Female</MenuItem>
+                      <MenuItem value="OTHER">Other</MenuItem>
+                    </TextField>
+                  </Box>
+
+                  {/* 4. Phone Number */}
+                  <Box>
+                    <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
+                      Phone Number <span style={{ color: '#EF4444' }}>*</span>
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      inputRef={phoneRef}
+                      value={phone}
+                      onChange={handlePhoneChange}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          aadhaarRef.current?.focus();
+                        }
+                      }}
+                      placeholder="Enter 10-digit Phone Number"
+                      slotProps={{
+                        htmlInput: { inputMode: 'numeric', maxLength: 10 },
+                        input: {
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <PhoneIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                            </InputAdornment>
+                          ),
+                        }
+                      }}
+                      sx={inputStyle}
+                    />
+                  </Box>
+
+                  {/* 5. Aadhaar Number (Optional) */}
+                  <Box>
+                    <Typography component="label" sx={{ display: 'flex', alignItems: 'center', gap: 0.7, fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
+                      Aadhaar Number <span style={{ color: '#94A3B8', fontWeight: 400, fontSize: '12px' }}>(Optional)</span>
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      inputRef={aadhaarRef}
+                      value={adhaar}
+                      onChange={handleAadhaarChange}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          dobRef.current?.focus();
+                        }
+                      }}
+                      placeholder="XXXX XXXX XXXX"
+                      slotProps={{
+                        htmlInput: { inputMode: 'numeric', maxLength: 14 },
+                        input: {
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <AadhaarIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                            </InputAdornment>
+                          ),
+                        }
+                      }}
+                      sx={inputStyle}
+                    />
+                  </Box>
+
+                  {/* 6. Date of Birth (Optional) */}
+                  <Box>
+                    <Typography component="label" sx={{ display: 'flex', alignItems: 'center', gap: 0.7, fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
+                      Date of Birth <span style={{ color: '#94A3B8', fontWeight: 400, fontSize: '12px' }}>(Optional)</span>
+                    </Typography>
+                    <DatePicker
+                      format="DD/MM/YYYY"
+                      views={['year', 'month', 'day']}
+                      closeOnSelect={true}
+                      value={dobDayjs}
+                      onChange={(newValue) => {
+                        setDobDayjs(newValue);
+                        if (!newValue) {
+                          setDob('');
+                        } else if (dayjs.isDayjs(newValue) && newValue.isValid()) {
+                          setDob(newValue.format('YYYY-MM-DD'));
+                        }
+                      }}
+                      maxDate={dayjs()}
+                      slotProps={{
+                        field: { clearable: true },
+                        textField: {
+                          fullWidth: true,
+                          size: 'small',
+                          inputRef: dobRef,
+                          placeholder: 'DD/MM/YYYY',
+                          onKeyDown: (e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              if (role === 'STUDENT' || role === 'ALUMNI') {
+                                collegeRef.current?.focus();
+                              } else {
+                                (regNoRef.current || passwordRef.current)?.focus();
+                              }
+                            }
+                          },
+                          sx: inputStyle
+                        }
+                      }}
+                    />
+                  </Box>
+
+                  {/* Student / Alumni Specific Fields (College, Course, Joining Date, Graduation Date) */}
+                  {(role === 'STUDENT' || role === 'ALUMNI') && (
+                    <>
+                      {/* 7. College / University Name */}
+                      <Box>
+                        <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
+                          College / University Name <span style={{ color: '#EF4444' }}>*</span>
+                        </Typography>
+                        <Autocomplete
+                          freeSolo
+                          clearOnBlur={false}
+                          openOnFocus={false}
+                          options={collegeSuggestions}
+                          value={college}
+                          onChange={(event, newValue) => {
+                            setCollege(newValue || '');
+                          }}
+                          inputValue={college}
+                          onInputChange={(event, newInputValue, reason) => {
+                            if (reason === 'reset') return;
+                            setCollege(newInputValue || '');
+                          }}
+                          renderInput={(params) => {
+                            const { onKeyDown: origOnKeyDown, ...otherInputProps } = params.inputProps || {};
+                            return (
+                              <TextField
+                                {...params}
+                                fullWidth
+                                size="small"
+                                inputRef={collegeRef}
+                                placeholder="Enter college name"
+                                inputProps={{
+                                  ...otherInputProps,
+                                  onKeyDown: (e) => {
+                                    if (typeof origOnKeyDown === 'function') {
+                                      origOnKeyDown(e);
+                                    }
+                                    if (e.key === 'Enter' && !e.defaultPrevented) {
+                                      e.preventDefault();
+                                      courseRef.current?.focus();
+                                    }
+                                  }
+                                }}
+                                slotProps={{
+                                  input: {
+                                    ...(params.InputProps || {}),
+                                    startAdornment: (
+                                      <>
+                                        <InputAdornment position="start">
+                                          <CollegeIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                                        </InputAdornment>
+                                        {params.InputProps?.startAdornment}
+                                      </>
+                                    ),
+                                  }
+                                }}
+                                sx={inputStyle}
+                              />
+                            );
+                          }}
+                        />
+                      </Box>
+
+                      {/* 8. Course / Degree */}
+                      <Box>
+                        <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
+                          Course / Degree <span style={{ color: '#EF4444' }}>*</span>
+                        </Typography>
+                        <Autocomplete
+                          freeSolo
+                          clearOnBlur={false}
+                          openOnFocus={false}
+                          options={courseSuggestions}
+                          value={course}
+                          onChange={(event, newValue) => {
+                            setCourse(newValue || '');
+                          }}
+                          inputValue={course}
+                          onInputChange={(event, newInputValue, reason) => {
+                            if (reason === 'reset') return;
+                            setCourse(newInputValue || '');
+                          }}
+                          renderInput={(params) => {
+                            const { onKeyDown: origOnKeyDown, ...otherInputProps } = params.inputProps || {};
+                            return (
+                              <TextField
+                                {...params}
+                                fullWidth
+                                size="small"
+                                inputRef={courseRef}
+                                placeholder="B.E., B.Tech., MBBS, BCA"
+                                inputProps={{
+                                  ...otherInputProps,
+                                  onKeyDown: (e) => {
+                                    if (typeof origOnKeyDown === 'function') {
+                                      origOnKeyDown(e);
+                                    }
+                                    if (e.key === 'Enter' && !e.defaultPrevented) {
+                                      e.preventDefault();
+                                      startYearRef.current?.focus();
+                                    }
+                                  }
+                                }}
+                                slotProps={{
+                                  input: {
+                                    ...(params.InputProps || {}),
+                                    startAdornment: (
+                                      <>
+                                        <InputAdornment position="start">
+                                          <CourseIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                                        </InputAdornment>
+                                        {params.InputProps?.startAdornment}
+                                      </>
+                                    ),
+                                  }
+                                }}
+                                sx={inputStyle}
+                              />
+                            );
+                          }}
+                        />
+                      </Box>
+
+                      {/* 9. College Joining Date */}
+                      <Box>
+                        <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
+                          College Joining Date <span style={{ color: '#EF4444' }}>*</span>
+                        </Typography>
+                        <DatePicker
+                          format="DD/MM/YYYY"
+                          views={['year', 'month', 'day']}
+                          closeOnSelect={true}
+                          value={startYearDayjs}
+                          onChange={(newValue) => {
+                            setStartYearDayjs(newValue);
+                            if (!newValue) {
+                              setStartYear('');
+                            } else if (dayjs.isDayjs(newValue) && newValue.isValid()) {
+                              setStartYear(newValue.format('YYYY-MM-DD'));
+                            }
+                          }}
+                          maxDate={dayjs().add(5, 'year')}
+                          slotProps={{
+                            field: { clearable: true },
+                            textField: {
+                              fullWidth: true,
+                              size: 'small',
+                              inputRef: startYearRef,
+                              placeholder: 'DD/MM/YYYY',
+                              onKeyDown: (e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  endYearRef.current?.focus();
+                                }
+                              },
+                              sx: inputStyle
+                            }
+                          }}
+                        />
+                      </Box>
+
+                      {/* 10. Graduation Date */}
+                      <Box>
+                        <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
+                          Graduation Date <span style={{ color: '#EF4444' }}>*</span>
+                        </Typography>
+                        <DatePicker
+                          format="DD/MM/YYYY"
+                          views={['year', 'month', 'day']}
+                          closeOnSelect={true}
+                          value={endYearDayjs}
+                          onChange={(newValue) => {
+                            setEndYearDayjs(newValue);
+                            if (!newValue) {
+                              setEndYear('');
+                            } else if (dayjs.isDayjs(newValue) && newValue.isValid()) {
+                              setEndYear(newValue.format('YYYY-MM-DD'));
+                            }
+                          }}
+                          maxDate={dayjs().add(15, 'year')}
+                          slotProps={{
+                            field: { clearable: true },
+                            textField: {
+                              fullWidth: true,
+                              size: 'small',
+                              inputRef: endYearRef,
+                              placeholder: 'DD/MM/YYYY',
+                              onKeyDown: (e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  passwordRef.current?.focus();
+                                }
+                              },
+                              sx: inputStyle
+                            }
+                          }}
+                        />
+                      </Box>
+                    </>
+                  )}
+
+                  {/* Community Member Specific Field: Registration Number */}
+                  {role === 'MEMBER' && (
+                    <Box sx={{ gridColumn: { sm: 'span 2' } }}>
+                      <Typography component="label" sx={{ display: 'flex', alignItems: 'center', gap: 0.7, fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
+                        Registration Number <span style={{ color: '#94A3B8', fontWeight: 400, fontSize: '12px' }}>(Optional)</span>
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        inputRef={regNoRef}
+                        value={registrationNumber}
+                        onChange={(e) => setRegistrationNumber(e.target.value)}
+                        onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             e.preventDefault();
-                            if (role === 'STUDENT' || role === 'ALUMNI') {
-                              collegeRef.current?.focus();
-                            } else {
-                              passwordRef.current?.focus();
-                            }
-                          }
-                        },
-                        sx: inputStyle
-                      }
-                    }}
-                  />
-                </Box>
-
-                {/* Student / Alumni Specific Fields (College, Course, Joining Date, Graduation Date) */}
-                {(role === 'STUDENT' || role === 'ALUMNI') && (
-                  <>
-                    <Box>
-                      <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                        College / University Name <span style={{ color: '#EF4444' }}>*</span>
-                      </Typography>
-                      <Autocomplete
-                        freeSolo
-                        clearOnBlur={false}
-                        openOnFocus={false}
-                        options={collegeSuggestions}
-                        value={college}
-                        onChange={(event, newValue) => {
-                          setCollege(newValue || '');
-                        }}
-                        inputValue={college}
-                        onInputChange={(event, newInputValue, reason) => {
-                          if (reason === 'reset') return;
-                          setCollege(newInputValue || '');
-                        }}
-                        renderInput={(params) => (
-                          <TextField
-                            {...params}
-                            fullWidth
-                            size="small"
-                            inputRef={collegeRef}
-                            onChange={(e) => {
-                              setCollege(e.target.value);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                courseRef.current?.focus();
-                              }
-                            }}
-                            placeholder="Enter college name"
-                            slotProps={{
-                              input: {
-                                ...(params.InputProps || {}),
-                                startAdornment: (
-                                  <>
-                                    <InputAdornment position="start">
-                                      <CollegeIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
-                                    </InputAdornment>
-                                    {params.InputProps?.startAdornment}
-                                  </>
-                                ),
-                              }
-                            }}
-                            sx={inputStyle}
-                          />
-                        )}
-                      />
-                    </Box>
-
-                    <Box>
-                      <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                        Course / Degree <span style={{ color: '#EF4444' }}>*</span>
-                      </Typography>
-                      <Autocomplete
-                        freeSolo
-                        clearOnBlur={false}
-                        openOnFocus={false}
-                        options={courseSuggestions}
-                        value={course}
-                        onChange={(event, newValue) => {
-                          setCourse(newValue || '');
-                        }}
-                        inputValue={course}
-                        onInputChange={(event, newInputValue, reason) => {
-                          if (reason === 'reset') return;
-                          setCourse(newInputValue || '');
-                        }}
-                        renderInput={(params) => (
-                          <TextField
-                            {...params}
-                            fullWidth
-                            size="small"
-                            inputRef={courseRef}
-                            onChange={(e) => {
-                              setCourse(e.target.value);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                startYearRef.current?.focus();
-                              }
-                            }}
-                            placeholder="B.E., B.Tech., MBBS, BCA"
-                            slotProps={{
-                              input: {
-                                ...(params.InputProps || {}),
-                                startAdornment: (
-                                  <>
-                                    <InputAdornment position="start">
-                                      <CourseIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
-                                    </InputAdornment>
-                                    {params.InputProps?.startAdornment}
-                                  </>
-                                ),
-                              }
-                            }}
-                            sx={inputStyle}
-                          />
-                        )}
-                      />
-                    </Box>
-
-                    <Box>
-                      <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                        College Joining Date <span style={{ color: '#EF4444' }}>*</span>
-                      </Typography>
-                      <DatePicker
-                        format="DD/MM/YYYY"
-                        views={['year', 'month', 'day']}
-                        closeOnSelect={true}
-                        value={startYearDayjs}
-                        onChange={(newValue) => {
-                          setStartYearDayjs(newValue);
-                          if (!newValue) {
-                            setStartYear('');
-                          } else if (dayjs.isDayjs(newValue) && newValue.isValid()) {
-                            setStartYear(newValue.format('YYYY-MM-DD'));
+                            passwordRef.current?.focus();
                           }
                         }}
-                        maxDate={dayjs().add(5, 'year')}
+                        placeholder="Enter Reg Number (Optional)"
                         slotProps={{
-                          field: { clearable: true },
-                          textField: {
-                            fullWidth: true,
-                            size: 'small',
-                            inputRef: startYearRef,
-                            placeholder: 'DD/MM/YYYY',
-                            onKeyDown: (e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                endYearRef.current?.focus();
-                              }
-                            },
-                            sx: inputStyle
+                          input: {
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <RegNoIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                              </InputAdornment>
+                            ),
                           }
                         }}
+                        sx={inputStyle}
                       />
                     </Box>
+                  )}
 
-                    <Box>
-                      <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                        Graduation Date <span style={{ color: '#EF4444' }}>*</span>
-                      </Typography>
-                      <DatePicker
-                        format="DD/MM/YYYY"
-                        views={['year', 'month', 'day']}
-                        closeOnSelect={true}
-                        value={endYearDayjs}
-                        onChange={(newValue) => {
-                          setEndYearDayjs(newValue);
-                          if (!newValue) {
-                            setEndYear('');
-                          } else if (dayjs.isDayjs(newValue) && newValue.isValid()) {
-                            setEndYear(newValue.format('YYYY-MM-DD'));
-                          }
-                        }}
-                        maxDate={dayjs().add(15, 'year')}
-                        slotProps={{
-                          field: { clearable: true },
-                          textField: {
-                            fullWidth: true,
-                            size: 'small',
-                            inputRef: endYearRef,
-                            placeholder: 'DD/MM/YYYY',
-                            onKeyDown: (e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                passwordRef.current?.focus();
-                              }
-                            },
-                            sx: inputStyle
-                          }
-                        }}
-                      />
-                    </Box>
-                  </>
-                )}
+                  {/* 11. New Password */}
+                  <Box>
+                    <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
+                      New Password <span style={{ color: '#EF4444' }}>*</span>
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      inputRef={passwordRef}
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          confirmPasswordRef.current?.focus();
+                        }
+                      }}
+                      placeholder="Enter New Password"
+                      slotProps={{
+                        input: {
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <LockIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                            </InputAdornment>
+                          ),
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton
+                                size="small"
+                                onClick={() => setShowPassword(!showPassword)}
+                                edge="end"
+                                sx={{ color: '#64748B', p: 0.5 }}
+                                title={showPassword ? "Hide password" : "Show password"}
+                              >
+                                {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                              </IconButton>
+                            </InputAdornment>
+                          ),
+                        }
+                      }}
+                      sx={inputStyle}
+                    />
+                  </Box>
 
-                {/* Password & Confirm Password (Placed at the very end of the form) */}
-                <Box>
-                  <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                    New Password <span style={{ color: '#EF4444' }}>*</span>
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    inputRef={passwordRef}
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        confirmPasswordRef.current?.focus();
-                      }
-                    }}
-                    placeholder="Enter New Password"
-                    slotProps={{
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <LockIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
-                          </InputAdornment>
-                        ),
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <IconButton
-                              size="small"
-                              onClick={() => setShowPassword(!showPassword)}
-                              edge="end"
-                              sx={{ color: '#64748B', p: 0.5 }}
-                              title={showPassword ? "Hide password" : "Show password"}
-                            >
-                              {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
-                            </IconButton>
-                          </InputAdornment>
-                        ),
-                      }
-                    }}
-                    sx={inputStyle}
-                  />
+                  {/* 12. Confirm New Password */}
+                  <Box>
+                    <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
+                      Confirm New Password <span style={{ color: '#EF4444' }}>*</span>
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      inputRef={confirmPasswordRef}
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSubmit(e);
+                        }
+                      }}
+                      placeholder="Re-enter New Password"
+                      slotProps={{
+                        input: {
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <LockIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                            </InputAdornment>
+                          ),
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton
+                                size="small"
+                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                edge="end"
+                                sx={{ color: '#64748B', p: 0.5 }}
+                                title={showConfirmPassword ? "Hide password" : "Show password"}
+                              >
+                                {showConfirmPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                              </IconButton>
+                            </InputAdornment>
+                          ),
+                        }
+                      }}
+                      sx={inputStyle}
+                    />
+                  </Box>
                 </Box>
+              )}
+            </Box>
 
-                <Box>
-                  <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                    Confirm New Password <span style={{ color: '#EF4444' }}>*</span>
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    inputRef={confirmPasswordRef}
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleSubmit(e);
-                      }
-                    }}
-                    placeholder="Re-enter New Password"
-                    slotProps={{
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <LockIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
-                          </InputAdornment>
-                        ),
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <IconButton
-                              size="small"
-                              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                              edge="end"
-                              sx={{ color: '#64748B', p: 0.5 }}
-                              title={showConfirmPassword ? "Hide password" : "Show password"}
-                            >
-                              {showConfirmPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
-                            </IconButton>
-                          </InputAdornment>
-                        ),
-                      }
-                    }}
-                    sx={inputStyle}
-                  />
-                </Box>
-              </Box>
-
-              {/* Submit Button */}
-              <Button
-                fullWidth
-                size="large"
-                type="submit"
-                variant="contained"
-                endIcon={<ArrowForwardIcon />}
-                disabled={loading}
-                sx={{
-                  mt: 3.5,
-                  py: 1.35,
-                  borderRadius: '10px',
-                  fontWeight: 700,
-                  fontSize: '15px',
-                  textTransform: 'none',
-                  background: 'linear-gradient(135deg, #1877F2 0%, #0D62D9 100%)',
-                  boxShadow: '0 8px 20px rgba(24, 119, 242, 0.35)',
-                  '&:hover': {
-                    background: 'linear-gradient(135deg, #0D62D9 0%, #0B57D0 100%)',
-                    boxShadow: '0 10px 24px rgba(24, 119, 242, 0.45)'
-                  },
-                  '&.Mui-disabled': {
-                    bgcolor: '#93C5FD'
-                  }
-                }}
-              >
-                {loading ? <CircularProgress size={22} sx={{ color: '#FFFFFF' }} /> : `Create`}
-              </Button>
-            </form> 
-          )}
-
-          {/* Divider */}
-          <Box sx={{ display: 'flex', alignItems: 'center', my: 2.5 }}>
-            <Divider sx={{ flexGrow: 1, borderColor: '#F1F5F9' }} />
-            <Typography
-              variant="caption"
+            {/* ─── FIXED FOOTER ─── */}
+            <Box
               sx={{
-                px: 1.5,
-                color: '#94A3B8',
-                fontWeight: 700,
-                fontSize: '11px',
-                letterSpacing: '1px'
+                flexShrink: 0,
+                px: { xs: 3, sm: 4.5 },
+                py: 2,
+                borderTop: '1px solid #F1F5F9',
+                bgcolor: '#FFFFFF',
+                boxShadow: '0 -4px 16px rgba(0,0,0,0.03)',
+                zIndex: 5
               }}
             >
-              OR
-            </Typography>
-            <Divider sx={{ flexGrow: 1, borderColor: '#F1F5F9' }} />
-          </Box>
+              {step === 1 ? (
+                <Button
+                  fullWidth
+                  size="large"
+                  variant="contained"
+                  onClick={handleNextStep}
+                  endIcon={<ArrowForwardIcon />}
+                  sx={{
+                    py: 1.25,
+                    borderRadius: '10px',
+                    fontWeight: 700,
+                    fontSize: '15px',
+                    textTransform: 'none',
+                    background: 'linear-gradient(135deg, #1877F2 0%, #0D62D9 100%)',
+                    boxShadow: '0 8px 20px rgba(24, 119, 242, 0.35)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #0D62D9 0%, #0B57D0 100%)'
+                    }
+                  }}
+                >
+                  Continue
+                </Button>
+              ) : (
+                <Button
+                  fullWidth
+                  size="large"
+                  type="submit"
+                  variant="contained"
+                  endIcon={<ArrowForwardIcon />}
+                  disabled={loading}
+                  sx={{
+                    py: 1.25,
+                    borderRadius: '10px',
+                    fontWeight: 700,
+                    fontSize: '15px',
+                    textTransform: 'none',
+                    background: 'linear-gradient(135deg, #1877F2 0%, #0D62D9 100%)',
+                    boxShadow: '0 8px 20px rgba(24, 119, 242, 0.35)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #0D62D9 0%, #0B57D0 100%)',
+                      boxShadow: '0 10px 24px rgba(24, 119, 242, 0.45)'
+                    },
+                    '&.Mui-disabled': {
+                      bgcolor: '#93C5FD'
+                    }
+                  }}
+                >
+                  {loading ? <CircularProgress size={22} sx={{ color: '#FFFFFF' }} /> : 'Create'}
+                </Button>
+              )}
 
-          {/* Login footer */}
-          <Box sx={{ textAlign: 'center' }}>
-            <Typography variant="body2" sx={{ color: '#64748B', fontSize: '13.5px' }}>
-              Already have an account?{' '}
-              <Link
-                component={RouterLink}
-                to="/login"
-                sx={{
-                  color: '#1877F2',
-                  fontWeight: 700,
-                  textDecoration: 'none',
-                  '&:hover': { textDecoration: 'underline' }
-                }}
-              >
-                Sign In
-              </Link>
-            </Typography>
+              {/* Divider */}
+              <Box sx={{ display: 'flex', alignItems: 'center', my: 1.5 }}>
+                <Divider sx={{ flexGrow: 1, borderColor: '#F1F5F9' }} />
+                <Typography
+                  variant="caption"
+                  sx={{
+                    px: 1.5,
+                    color: '#94A3B8',
+                    fontWeight: 700,
+                    fontSize: '11px',
+                    letterSpacing: '1px'
+                  }}
+                >
+                  OR
+                </Typography>
+                <Divider sx={{ flexGrow: 1, borderColor: '#F1F5F9' }} />
+              </Box>
+
+              {/* Login footer link */}
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="body2" sx={{ color: '#64748B', fontSize: '13px' }}>
+                  Already have an account?{' '}
+                  <Link
+                    component={RouterLink}
+                    to="/login"
+                    sx={{
+                      color: '#1877F2',
+                      fontWeight: 700,
+                      textDecoration: 'none',
+                      '&:hover': { textDecoration: 'underline' }
+                    }}
+                  >
+                    Sign In
+                  </Link>
+                </Typography>
+              </Box>
+            </Box>
           </Box>
-        </Card>
-      </AuthLayout>
+        </Box>
+      </Box>
     </LocalizationProvider>
   );
 };

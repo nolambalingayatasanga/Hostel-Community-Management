@@ -117,7 +117,7 @@ const restrictTo = (...roles) => {
  * Any user can see their own full profile.
  * Other roles see redacted fields (no phone, email, full address, dateOfBirth, age) for other users.
  */
-const sanitizeUser = (targetUser, currentUser) => {
+const sanitizeUser = (targetUser, currentUser, options = {}) => {
   if (!targetUser) return null;
   
   const target = targetUser.toObject ? targetUser.toObject() : { ...targetUser };
@@ -145,14 +145,41 @@ const sanitizeUser = (targetUser, currentUser) => {
     delete target.lastLoginDetails;
   }
 
-  // If viewer is self or admin/warden, they are authorized to see full details
+  const privacy = target.privacySettings || {};
+
+  // If viewing in the users table:
+  // "if user mask their detail, it should not be shown to anyone including the user also in the users table"
+  if (options.isUsersTable) {
+    if (privacy.maskPhone) {
+      delete target.phone;
+      target.isPhoneMasked = true;
+    }
+    if (privacy.maskEmail) {
+      delete target.email;
+      target.isEmailMasked = true;
+    }
+    if (privacy.maskAdhaar) {
+      delete target.adhaar;
+      target.isAdhaarMasked = true;
+    }
+
+    // Redact sensitive personal fields from non-admin/non-self in directory table
+    if (!isSelf && !isAdminOrWarden) {
+      delete target.address;
+      delete target.dateOfBirth;
+      delete target.dob;
+      delete target.age;
+    }
+
+    return target;
+  }
+
+  // If viewer is self or admin/warden in direct profile view, they are authorized to see full details
   if (isSelf || isAdminOrWarden) {
     return target;
   }
 
-  // For any other users: enforce data masking options selected by the user
-  const privacy = target.privacySettings || {};
-
+  // For any other users: enforce data hiding options selected by the user
   if (privacy.maskPhone) {
     delete target.phone;
     target.isPhoneMasked = true;

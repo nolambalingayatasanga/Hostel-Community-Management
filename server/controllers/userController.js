@@ -239,7 +239,7 @@ exports.getUsers = async (req, res, next) => {
 
     // Apply privacy sanitation and name/relation separation before returning
     const sanitizedUsers = users.map(u => {
-      const sanitized = sanitizeUser(u, req.user);
+      const sanitized = sanitizeUser(u, req.user, { isUsersTable: true });
       if (sanitized && sanitized.name) {
         const { cleanName, relativeName, relationType } = splitNameAndRelation(sanitized.name, sanitized.relation || {});
         sanitized.name = cleanName;

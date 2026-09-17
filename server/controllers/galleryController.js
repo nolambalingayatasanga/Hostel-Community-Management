@@ -430,3 +430,22 @@ exports.deleteGalleryFolder = async (req, res, next) => {
   }
 };
 
+/**
+ * Public endpoint to fetch all gallery media (images and videos) for auth slideshow
+ */
+exports.getPublicGalleryPreviews = async (req, res, next) => {
+  try {
+    const media = await GalleryPhoto.find({})
+      .sort({ createdAt: -1 })
+      .select('url caption resourceType')
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      data: media
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
