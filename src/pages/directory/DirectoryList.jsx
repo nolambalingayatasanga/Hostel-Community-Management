@@ -64,6 +64,17 @@ export default function DirectoryList() {
   const tabLayoutsQuery = useTabLayouts();
 
   const [activeTabId, setActiveTabId] = useState(ALL_TAB);
+  const [isTabSwitching, setIsTabSwitching] = useState(false);
+  const prevTabIdRef = useRef(activeTabId);
+
+  const handleTabChange = (newTabId) => {
+    const idStr = String(newTabId);
+    if (activeTabId !== idStr) {
+      setIsTabSwitching(true);
+      setActiveTabId(idStr);
+    }
+  };
+
   const [searchTerm, setSearchTerm] = useState("");
   const [tabOrder, setTabOrder] = useState(null);
 
@@ -107,10 +118,10 @@ export default function DirectoryList() {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [dropLoading, setDropLoading] = useState(false);
 
-  // Clear selection whenever tab, page, or search query changes
+  // Clear selection whenever tab, page, search query, or role changes
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [activeTabId, page, debouncedSearch]);
+  }, [activeTabId, page, debouncedSearch, isAdminOrWarden]);
 
   const getStoredTabColumnOrder = (userId, tabId) => {
     try {
@@ -195,12 +206,27 @@ export default function DirectoryList() {
 
   const { data, isLoading, isFetching, isError, error } = useLeads(queryParams);
 
+  useEffect(() => {
+    if (prevTabIdRef.current !== activeTabId) {
+      prevTabIdRef.current = activeTabId;
+      setIsTabSwitching(true);
+    }
+  }, [activeTabId]);
+
+  useEffect(() => {
+    if (isTabSwitching && !isFetching) {
+      setIsTabSwitching(false);
+    }
+  }, [isTabSwitching, isFetching]);
+
   const leads = useMemo(() => data?.leads || data?.data || [], [data?.leads, data?.data]);
 
   const rows = useMemo(() => leads.map(toRow), [leads]);
 
   const columns = useMemo(() => {
-    const allFields = meta.data?.customFields || [];
+    const allFields = (meta.data?.customFields || []).filter(
+      (f) => (f.slug || "").toLowerCase() !== "status" && (f.name || "").toLowerCase() !== "status"
+    );
     const activeOrder = tabColOrders[activeTabId] || getStoredTabColumnOrder(user?._id, activeTabId);
     const activeHidden = tabHiddenCols[activeTabId] || getStoredTabHiddenCols(user?._id, activeTabId) || [];
 
@@ -379,7 +405,7 @@ export default function DirectoryList() {
     if (allStatusGroups.length > 0) {
       const isAllowed = allStatusGroups.some(g => String(g._id) === String(activeTabId));
       if (!isAllowed) {
-        setActiveTabId(String(allStatusGroups[0]._id));
+        handleTabChange(String(allStatusGroups[0]._id));
       }
     }
   }, [allStatusGroups, activeTabId]);
@@ -453,6 +479,7 @@ export default function DirectoryList() {
   const isSomeSelected = rows.some((r) => selectedIds.has(r.id)) && !isAllSelected;
 
   const handleSelectAll = (e) => {
+    if (!isAdminOrWarden) return;
     if (e.target.checked) {
       const all = new Set(rows.map((r) => r.id));
       setSelectedIds(all);
@@ -462,6 +489,7 @@ export default function DirectoryList() {
   };
 
   const handleToggleRow = (rowId) => {
+    if (!isAdminOrWarden) return;
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(rowId)) {
@@ -475,7 +503,7 @@ export default function DirectoryList() {
 
   // Bulk drop / restore action
   const handleBulkDrop = async (drop = true) => {
-    if (selectedIds.size === 0) return;
+    if (!isAdminOrWarden || selectedIds.size === 0) return;
     try {
       setDropLoading(true);
       await API.post("/users/bulk-drop", {
@@ -557,7 +585,7 @@ export default function DirectoryList() {
         params: { ...queryParams, limit: 1000 }
       });
       const exportData = response.data.leads || [];
-      const headers = ["Name", "Email", "Phone", "Role", "Status", "Gender", "Age"];
+      const headers = ["Name", "Email", "Phone", "Role", "Gender", "Age"];
 
       const csvRows = [headers.join(",")];
       for (const row of exportData) {
@@ -566,7 +594,6 @@ export default function DirectoryList() {
           `"${row.email || ''}"`,
           `"${row.phone || ''}"`,
           `"${row.role || ''}"`,
-          `"${row.status?.name || row.status || ''}"`,
           `"${row.gender || ''}"`,
           `"${row.age || ''}"`
         ];
@@ -594,7 +621,8 @@ export default function DirectoryList() {
     };
   }, [meta.data?.statuses]);
 
-  const busy = isLoading || meta.isLoading;
+  const showSkeleton = isTabSwitching || (isLoading && rows.length === 0) || (isFetching && isTabSwitching);
+  const busy = isLoading || meta.isLoading || isTabSwitching;
 
   return (
     <Container maxWidth={false} sx={{ pb: 0 }}>
@@ -651,7 +679,7 @@ export default function DirectoryList() {
                           <Box
                             ref={dragProvided.innerRef}
                             {...dragProvided.draggableProps}
-                            onClick={() => setActiveTabId(String(group._id))}
+                            onClick={() => handleTabChange(String(group._id))}
                             sx={{
                               display: "inline-flex",
                               alignItems: "center",
@@ -783,8 +811,8 @@ export default function DirectoryList() {
             <SettingsIcon />
           </IconButton>
 
-          {/* Action button when items are selected */}
-          {selectedIds.size > 0 && (
+          {/* Action button when items are selected (admin or warden only) */}
+          {isAdminOrWarden && selectedIds.size > 0 && (
             <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexShrink: 0 }}>
               {activeTabId === DROPPED_TAB ? (
                 <Button
@@ -841,9 +869,13 @@ export default function DirectoryList() {
           <Box sx={{ flexGrow: 1 }} />
 
           {/* Counts */}
-          <Typography variant="body2" sx={{ color: "#475467", fontWeight: 600, mr: 1, whiteSpace: "nowrap", flexShrink: 0 }}>
-            {totalLeads} results
-          </Typography>
+          {showSkeleton ? (
+            <Skeleton variant="rounded" width={75} height={24} sx={{ borderRadius: "6px", mr: 1 }} />
+          ) : (
+            <Typography variant="body2" sx={{ color: "#475467", fontWeight: 600, mr: 1, whiteSpace: "nowrap", flexShrink: 0 }}>
+              {totalLeads} results
+            </Typography>
+          )}
 
           {/* Export Button (only for ADMIN & WARDEN) */}
           {isAdminOrWarden && (
@@ -928,40 +960,42 @@ export default function DirectoryList() {
                 zIndex: 8,
               }}
             >
-              {/* Sticky All-Select Checkbox in Header */}
-              <Box
-                sx={{
-                  position: "sticky",
-                  left: 0,
-                  width: 44,
-                  minWidth: 44,
-                  alignSelf: "stretch",
-                  backgroundColor: "#FFFFFF",
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  zIndex: 10,
-                }}
-              >
-                <Checkbox
-                  size="small"
-                  checked={isAllSelected}
-                  indeterminate={isSomeSelected}
-                  onChange={handleSelectAll}
-                  disabled={rows.length === 0}
+              {/* Sticky All-Select Checkbox in Header (admin or warden only) */}
+              {isAdminOrWarden && (
+                <Box
                   sx={{
-                    color: "#D0D5DD",
-                    "&.Mui-checked, &.MuiCheckbox-indeterminate": { color: "#0088FF" },
-                    p: 0.5,
+                    position: "sticky",
+                    left: 0,
+                    width: 44,
+                    minWidth: 44,
+                    alignSelf: "stretch",
+                    backgroundColor: "#FFFFFF",
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    zIndex: 10,
                   }}
-                />
-              </Box>
+                >
+                  <Checkbox
+                    size="small"
+                    checked={isAllSelected}
+                    indeterminate={isSomeSelected}
+                    onChange={handleSelectAll}
+                    disabled={rows.length === 0}
+                    sx={{
+                      color: "#D0D5DD",
+                      "&.Mui-checked, &.MuiCheckbox-indeterminate": { color: "#0088FF" },
+                      p: 0.5,
+                    }}
+                  />
+                </Box>
+              )}
 
               {/* Sticky Avatar Column Header */}
               <Box
                 sx={{
                   position: "sticky",
-                  left: 44,
+                  left: isAdminOrWarden ? 44 : 0,
                   width: 52,
                   minWidth: 52,
                   alignSelf: "stretch",
@@ -977,7 +1011,7 @@ export default function DirectoryList() {
               <Box
                 sx={{
                   position: "sticky",
-                  left: 96,
+                  left: isAdminOrWarden ? 96 : 52,
                   width: nameCol.width || 220,
                   minWidth: nameCol.width || 220,
                   alignSelf: "stretch",
@@ -1055,8 +1089,8 @@ export default function DirectoryList() {
 
             {/* Grid Body */}
             <Box sx={{ position: "relative" }}>
-              {isLoading && rows.length === 0 ? (
-                Array.from({ length: 5 }).map((_, idx) => (
+              {showSkeleton ? (
+                Array.from({ length: 8 }).map((_, idx) => (
                   <Stack
                     key={idx}
                     direction="row"
@@ -1069,13 +1103,15 @@ export default function DirectoryList() {
                       borderBottom: "1px solid #EAECF0",
                     }}
                   >
-                    <Box sx={{ position: "sticky", left: 0, width: 44, minWidth: 44, alignSelf: "stretch", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 4, backgroundColor: "#FFFFFF" }}>
-                      <Skeleton variant="rounded" width={18} height={18} />
-                    </Box>
-                    <Box sx={{ position: "sticky", left: 44, width: 52, minWidth: 52, alignSelf: "stretch", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 4, backgroundColor: "#FFFFFF" }}>
+                    {isAdminOrWarden && (
+                      <Box sx={{ position: "sticky", left: 0, width: 44, minWidth: 44, alignSelf: "stretch", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 4, backgroundColor: "#FFFFFF" }}>
+                        <Skeleton variant="rounded" width={18} height={18} />
+                      </Box>
+                    )}
+                    <Box sx={{ position: "sticky", left: isAdminOrWarden ? 44 : 0, width: 52, minWidth: 52, alignSelf: "stretch", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 4, backgroundColor: "#FFFFFF" }}>
                       <Skeleton variant="circular" width={38} height={38} />
                     </Box>
-                    <Box sx={{ position: "sticky", left: 96, width: nameCol.width || 220, minWidth: nameCol.width || 220, alignSelf: "stretch", px: 2, display: "flex", alignItems: "center", zIndex: 4, backgroundColor: "#FFFFFF" }}>
+                    <Box sx={{ position: "sticky", left: isAdminOrWarden ? 96 : 52, width: nameCol.width || 220, minWidth: nameCol.width || 220, alignSelf: "stretch", px: 2, display: "flex", alignItems: "center", zIndex: 4, backgroundColor: "#FFFFFF" }}>
                       <Skeleton variant="rounded" height={32} sx={{ width: "85%", borderRadius: "8px" }} />
                     </Box>
                     <Stack direction="row" sx={{ alignItems: "center", py: 1 }}>
@@ -1127,40 +1163,42 @@ export default function DirectoryList() {
                         }
                       }}
                     >
-                      {/* Sticky Checkbox Cell - Full height solid white background */}
-                      <Box
-                        className="sticky-col"
-                        sx={{
-                          position: "sticky",
-                          left: 0,
-                          width: 44,
-                          minWidth: 44,
-                          alignSelf: "stretch",
-                          display: "flex",
-                          justifyContent: "center",
-                          alignItems: "center",
-                          zIndex: 4,
-                          backgroundColor: rowBg,
-                        }}
-                      >
-                        <Checkbox
-                          size="small"
-                          checked={isSelected}
-                          onChange={() => handleToggleRow(row.id)}
+                      {/* Sticky Checkbox Cell - Full height solid white background (admin or warden only) */}
+                      {isAdminOrWarden && (
+                        <Box
+                          className="sticky-col"
                           sx={{
-                            color: "#D0D5DD",
-                            "&.Mui-checked": { color: "#0088FF" },
-                            p: 0.5,
+                            position: "sticky",
+                            left: 0,
+                            width: 44,
+                            minWidth: 44,
+                            alignSelf: "stretch",
+                            display: "flex",
+                            justifyContent: "center",
+                            alignItems: "center",
+                            zIndex: 4,
+                            backgroundColor: rowBg,
                           }}
-                        />
-                      </Box>
+                        >
+                          <Checkbox
+                            size="small"
+                            checked={isSelected}
+                            onChange={() => handleToggleRow(row.id)}
+                            sx={{
+                              color: "#D0D5DD",
+                              "&.Mui-checked": { color: "#0088FF" },
+                              p: 0.5,
+                            }}
+                          />
+                        </Box>
+                      )}
 
                       {/* Sticky Avatar Cell - Full height solid white background */}
                       <Box
                         className="sticky-col"
                         sx={{
                           position: "sticky",
-                          left: 44,
+                          left: isAdminOrWarden ? 44 : 0,
                           width: 52,
                           minWidth: 52,
                           alignSelf: "stretch",
@@ -1250,7 +1288,7 @@ export default function DirectoryList() {
                         className="sticky-col"
                         sx={{
                           position: "sticky",
-                          left: 96,
+                          left: isAdminOrWarden ? 96 : 52,
                           zIndex: 4,
                           alignSelf: "stretch",
                           display: "flex",
@@ -1344,11 +1382,15 @@ export default function DirectoryList() {
           </Box>
 
           {/* Range count text */}
-          <Typography variant="body2" sx={{ color: "#344054", fontSize: "0.875rem", fontWeight: 500 }}>
-            {totalLeads === 0
-              ? "0-0 of 0"
-              : `${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, totalLeads)} of ${totalLeads}`}
-          </Typography>
+          {showSkeleton ? (
+            <Skeleton variant="text" width={90} height={20} />
+          ) : (
+            <Typography variant="body2" sx={{ color: "#344054", fontSize: "0.875rem", fontWeight: 500 }}>
+              {totalLeads === 0
+                ? "0-0 of 0"
+                : `${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, totalLeads)} of ${totalLeads}`}
+            </Typography>
+          )}
 
           {/* Prev / Next buttons */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>

@@ -163,6 +163,10 @@ exports.register = async (req, res, next) => {
       searchConditions.push({ adhaar: cleanAdhaar });
       searchConditions.push({ adhaar: `${cleanAdhaar.slice(0, 4)} ${cleanAdhaar.slice(4, 8)} ${cleanAdhaar.slice(8, 12)}` });
     }
+    const cleanRegNo = (registrationNumber && typeof registrationNumber === 'string') ? registrationNumber.trim() : '';
+    if (cleanRegNo) {
+      searchConditions.push({ registrationNumber: cleanRegNo });
+    }
 
     const existingUser = await User.findOne({
       $or: searchConditions
@@ -173,6 +177,7 @@ exports.register = async (req, res, next) => {
       if (existingUser.email === normalizedEmail) duplicateField = 'Email Address';
       else if (existingUser.phone === normalizedPhone) duplicateField = 'Phone Number';
       else if (cleanAdhaar && (existingUser.adhaar === cleanAdhaar || existingUser.adhaar?.replace(/\s+/g, '') === cleanAdhaar)) duplicateField = 'Aadhaar Number';
+      else if (cleanRegNo && existingUser.registrationNumber === cleanRegNo) duplicateField = 'Registration Number';
 
       return res.status(400).json({
         success: false,
@@ -204,7 +209,7 @@ exports.register = async (req, res, next) => {
       profilePhoto: defaultPhoto,
       ...(cleanAdhaar ? { adhaar: cleanAdhaar } : { adhaar: '' }),
       gender: gender ? gender.toUpperCase() : undefined,
-      registrationNumber: registrationNumber ? registrationNumber.trim() : undefined,
+      registrationNumber: cleanRegNo || undefined,
       ...(memberInfoData && { memberInfo: memberInfoData }),
       ...(parsedDob && { dob: parsedDob, dateOfBirth: parsedDob }),
       ...(calculatedAge !== null && { age: calculatedAge }),

@@ -176,6 +176,7 @@ const Register = () => {
   const [adhaar, setAdhaar] = useState(initialDraft.adhaar || '');
   const [gender, setGender] = useState(initialDraft.gender || 'MALE');
   const [dob, setDob] = useState(initialDraft.dob || ''); // stores YYYY-MM-DD
+  const [dobDayjs, setDobDayjs] = useState(() => (initialDraft.dob && dayjs(initialDraft.dob).isValid() ? dayjs(initialDraft.dob) : null));
   const [registrationNumber, setRegistrationNumber] = useState(initialDraft.registrationNumber || '');
   const [password, setPassword] = useState(initialDraft.password || '');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -186,7 +187,9 @@ const Register = () => {
   const [college, setCollege] = useState(initialDraft.college || '');
   const [course, setCourse] = useState(initialDraft.course || '');
   const [startYear, setStartYear] = useState(initialDraft.startYear || '');
+  const [startYearDayjs, setStartYearDayjs] = useState(() => (initialDraft.startYear && dayjs(initialDraft.startYear).isValid() ? dayjs(initialDraft.startYear) : null));
   const [endYear, setEndYear] = useState(initialDraft.endYear || '');
+  const [endYearDayjs, setEndYearDayjs] = useState(() => (initialDraft.endYear && dayjs(initialDraft.endYear).isValid() ? dayjs(initialDraft.endYear) : null));
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -463,25 +466,18 @@ const Register = () => {
       eYearStr = String(endParsed.year());
     }
 
-    if (role === 'MEMBER') {
-      if (!registrationNumber.trim()) {
-        notifyWarn('Registration Number is mandatory for Community Members.');
-        return;
-      }
-    }
-
     // Password validations at the end
-    if (!password) { notifyWarn('Password is mandatory.'); return; }
+    if (!password) { notifyWarn('New Password is mandatory.'); return; }
     if (password.length < 6) {
-      notifyWarn('Password must be at least 6 characters.');
+      notifyWarn('New Password must be at least 6 characters.');
       return;
     }
     if (!confirmPassword) {
-      notifyWarn('Please confirm your password.');
+      notifyWarn('Please confirm your new password.');
       return;
     }
     if (password !== confirmPassword) {
-      notifyWarn('Passwords do not match.');
+      notifyWarn('New Password and Confirm New Password do not match.');
       return;
     }
 
@@ -493,7 +489,7 @@ const Register = () => {
       adhaar: cleanAdhaar || undefined,
       gender,
       dob: dob || undefined,
-      registrationNumber: registrationNumber.trim(),
+      registrationNumber: registrationNumber?.trim() || undefined,
       password,
       role,
       college: collegeValue,
@@ -901,8 +897,8 @@ const Register = () => {
                 {/* Community Member Specific Field: Registration Number right after Gender */}
                 {role === 'MEMBER' && (
                   <Box>
-                    <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                      Registration Number <span style={{ color: '#EF4444' }}>*</span>
+                    <Typography component="label" sx={{ display: 'flex', alignItems: 'center', gap: 0.7, fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
+                      Registration Number <span style={{ color: '#94A3B8', fontWeight: 400, fontSize: '12px' }}>(Optional)</span>
                     </Typography>
                     <TextField
                       fullWidth
@@ -916,7 +912,7 @@ const Register = () => {
                           aadhaarRef.current?.focus();
                         }
                       }}
-                      placeholder="Enter Reg Number"
+                      placeholder="Enter Reg Number (Optional)"
                       slotProps={{
                         input: {
                           startAdornment: (
@@ -1002,13 +998,18 @@ const Register = () => {
                     format="DD/MM/YYYY"
                     views={['year', 'month', 'day']}
                     closeOnSelect={true}
-                    value={dob ? dayjs(dob) : null}
+                    value={dobDayjs}
                     onChange={(newValue) => {
-                      const formatted = newValue && newValue.isValid() ? newValue.format('YYYY-MM-DD') : '';
-                      setDob(formatted);
+                      setDobDayjs(newValue);
+                      if (!newValue) {
+                        setDob('');
+                      } else if (dayjs.isDayjs(newValue) && newValue.isValid()) {
+                        setDob(newValue.format('YYYY-MM-DD'));
+                      }
                     }}
                     maxDate={dayjs()}
                     slotProps={{
+                      field: { clearable: true },
                       textField: {
                         fullWidth: true,
                         size: 'small',
@@ -1147,13 +1148,18 @@ const Register = () => {
                         format="DD/MM/YYYY"
                         views={['year', 'month', 'day']}
                         closeOnSelect={true}
-                        value={startYear ? dayjs(startYear) : null}
+                        value={startYearDayjs}
                         onChange={(newValue) => {
-                          const formatted = newValue && newValue.isValid() ? newValue.format('YYYY-MM-DD') : '';
-                          setStartYear(formatted);
+                          setStartYearDayjs(newValue);
+                          if (!newValue) {
+                            setStartYear('');
+                          } else if (dayjs.isDayjs(newValue) && newValue.isValid()) {
+                            setStartYear(newValue.format('YYYY-MM-DD'));
+                          }
                         }}
                         maxDate={dayjs().add(5, 'year')}
                         slotProps={{
+                          field: { clearable: true },
                           textField: {
                             fullWidth: true,
                             size: 'small',
@@ -1179,13 +1185,18 @@ const Register = () => {
                         format="DD/MM/YYYY"
                         views={['year', 'month', 'day']}
                         closeOnSelect={true}
-                        value={endYear ? dayjs(endYear) : null}
+                        value={endYearDayjs}
                         onChange={(newValue) => {
-                          const formatted = newValue && newValue.isValid() ? newValue.format('YYYY-MM-DD') : '';
-                          setEndYear(formatted);
+                          setEndYearDayjs(newValue);
+                          if (!newValue) {
+                            setEndYear('');
+                          } else if (dayjs.isDayjs(newValue) && newValue.isValid()) {
+                            setEndYear(newValue.format('YYYY-MM-DD'));
+                          }
                         }}
                         maxDate={dayjs().add(15, 'year')}
                         slotProps={{
+                          field: { clearable: true },
                           textField: {
                             fullWidth: true,
                             size: 'small',
@@ -1208,7 +1219,7 @@ const Register = () => {
                 {/* Password & Confirm Password (Placed at the very end of the form) */}
                 <Box>
                   <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                    Password <span style={{ color: '#EF4444' }}>*</span>
+                    New Password <span style={{ color: '#EF4444' }}>*</span>
                   </Typography>
                   <TextField
                     fullWidth
@@ -1223,7 +1234,7 @@ const Register = () => {
                         confirmPasswordRef.current?.focus();
                       }
                     }}
-                    placeholder="Enter Password"
+                    placeholder="Enter New Password"
                     slotProps={{
                       input: {
                         startAdornment: (
@@ -1252,7 +1263,7 @@ const Register = () => {
 
                 <Box>
                   <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                    Confirm Password <span style={{ color: '#EF4444' }}>*</span>
+                    Confirm New Password <span style={{ color: '#EF4444' }}>*</span>
                   </Typography>
                   <TextField
                     fullWidth
@@ -1263,10 +1274,11 @@ const Register = () => {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
+                        e.preventDefault();
                         handleSubmit(e);
                       }
                     }}
-                    placeholder="Re-enter password"
+                    placeholder="Re-enter New Password"
                     slotProps={{
                       input: {
                         startAdornment: (

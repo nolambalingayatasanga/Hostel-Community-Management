@@ -51,7 +51,6 @@ const INITIAL_STATE = {
   phone: "",
   password: "",
   role: "STUDENT",
-  status: "",
   gender: "MALE",
   adhaar: "",
   registrationNumber: "",
@@ -76,7 +75,7 @@ const INITIAL_STATE = {
   }
 };
 
-export default function AddLeadDialog({ open, onClose, statuses }) {
+export default function AddLeadDialog({ open, onClose }) {
   const { createLead } = useLeadMutations();
   const [basicValues, setBasicValues] = useState({ ...INITIAL_STATE });
   const [validationError, setValidationError] = useState('');
@@ -132,7 +131,6 @@ export default function AddLeadDialog({ open, onClose, statuses }) {
         phone: basicValues.phone,
         password: basicValues.password,
         role: basicValues.role,
-        status: basicValues.status || undefined,
         gender: basicValues.gender,
         adhaar: basicValues.adhaar || undefined,
         registrationNumber: basicValues.role !== 'STUDENT' ? basicValues.registrationNumber : undefined,
@@ -193,7 +191,7 @@ export default function AddLeadDialog({ open, onClose, statuses }) {
             Profile Login & Basics
           </Typography>
           <Grid container spacing={2} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={4}>
+            <Grid item xs={12} sm={6}>
               <FormControl fullWidth size="small">
                 <InputLabel id="role-select-label">Community Role</InputLabel>
                 <Select
@@ -210,25 +208,7 @@ export default function AddLeadDialog({ open, onClose, statuses }) {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} sm={4}>
-              <FormControl fullWidth size="small">
-                <InputLabel id="status-select-label">Pipeline Status</InputLabel>
-                <Select
-                  labelId="status-select-label"
-                  label="Pipeline Status"
-                  value={basicValues.status}
-                  onChange={(e) => handleBasicChange("status", e.target.value)}
-                >
-                  <MenuItem value="">Default Status</MenuItem>
-                  {statuses.map((status) => (
-                    <MenuItem key={status._id} value={status._id}>
-                      {status.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid item xs={12} sm={6}>
               <FormControl fullWidth size="small">
                 <InputLabel id="gender-select-label">Gender</InputLabel>
                 <Select
@@ -462,7 +442,6 @@ export default function AddLeadDialog({ open, onClose, statuses }) {
 AddLeadDialog.propTypes = {
   open: PropTypes.bool,
   onClose: PropTypes.func.isRequired,
-  statuses: PropTypes.array,
 };
 
-AddLeadDialog.defaultProps = { statuses: [] };
+AddLeadDialog.defaultProps = {};

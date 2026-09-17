@@ -77,6 +77,9 @@ exports.getMetadata = async (req, res, next) => {
       customFields.sort((a, b) => (a.order || 0) - (b.order || 0));
     }
 
+    // Filter out obsolete Status column
+    customFields = customFields.filter(f => (f.slug || '').toLowerCase() !== 'status' && (f.name || '').toLowerCase() !== 'status');
+
     // Only Admin can see Login Details column in table metadata
     const isAdmin = req.user && req.user.role === 'ADMIN';
     const returnedCustomFields = isAdmin

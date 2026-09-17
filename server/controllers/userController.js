@@ -135,13 +135,9 @@ exports.getUsers = async (req, res, next) => {
     if (role) query.role = role.toUpperCase();
     if (gender) query.gender = gender.toUpperCase();
     
-    // Check if status is account status or CRM status stage ID
-    if (status) {
-      if (['ACTIVE', 'INACTIVE', 'SUSPENDED'].includes(status.toUpperCase())) {
-        query.accountStatus = status.toUpperCase();
-      } else if (mongoose.Types.ObjectId.isValid(status)) {
-        query.status = status;
-      }
+    // Check if status is account status
+    if (status && ['ACTIVE', 'INACTIVE', 'SUSPENDED'].includes(status.toUpperCase())) {
+      query.accountStatus = status.toUpperCase();
     }
 
     // Dropped contacts filter
@@ -152,41 +148,28 @@ exports.getUsers = async (req, res, next) => {
       query.isDropped = { $ne: true };
     }
 
-    // Filter by Status Group (stages inside group)
+    // Filter by Status Group (which maps to user role)
     if (statusGroup && mongoose.Types.ObjectId.isValid(statusGroup)) {
       const group = await StatusGroup.findById(statusGroup);
       if (group) {
         const groupNameLower = group.name.toLowerCase();
         if (groupNameLower === 'students') {
-          query.$or = [
-            { status: { $in: group.statuses } },
-            { role: 'STUDENT' }
-          ];
+          query.role = 'STUDENT';
         } else if (groupNameLower === 'alumni') {
-          query.$or = [
-            { status: { $in: group.statuses } },
-            { role: 'ALUMNI' }
-          ];
+          query.role = 'ALUMNI';
         } else if (groupNameLower === 'staff') {
-          query.$or = [
-            { status: { $in: group.statuses } },
-            { role: 'STAFF' }
-          ];
+          query.role = 'STAFF';
         } else if (groupNameLower === 'warden' || groupNameLower === 'chairperson') {
-          query.$or = [
-            { status: { $in: group.statuses } },
-            { role: 'WARDEN' }
-          ];
+          query.role = 'WARDEN';
         } else if (groupNameLower === 'admin') {
-          query.$or = [
-            { status: { $in: group.statuses } },
-            { role: 'ADMIN' }
-          ];
+          query.role = 'ADMIN';
+        } else if (groupNameLower === 'members') {
+          query.role = 'MEMBER';
         } else {
-          query.status = { $in: group.statuses };
+          query.role = group.name.toUpperCase();
         }
       } else {
-        query.status = null;
+        query.role = '__NON_EXISTING__';
       }
     }
     
@@ -241,6 +224,7 @@ exports.getUsers = async (req, res, next) => {
     const baseQuery = { ...query };
     delete baseQuery.status;
     delete baseQuery.statusGroup;
+    delete baseQuery.role;
     baseQuery.isDropped = { $ne: true };
 
     const totalAllLeads = await User.countDocuments(baseQuery);
@@ -248,7 +232,6 @@ exports.getUsers = async (req, res, next) => {
     // Fetch matching users and total count
     const total = await User.countDocuments(query);
     const users = await User.find(query)
-      .populate('status')
       .populate('lead_data.customField')
       .sort(sortOptions)
       .skip(skip)
@@ -277,38 +260,30 @@ exports.getUsers = async (req, res, next) => {
       const gQuery = { ...baseQuery };
       const groupNameLower = g.name.toLowerCase();
       if (groupNameLower === 'students') {
-        gQuery.$or = [
-          { status: { $in: g.statuses } },
-          { role: 'STUDENT' }
-        ];
+        gQuery.role = 'STUDENT';
       } else if (groupNameLower === 'alumni') {
-        gQuery.$or = [
-          { status: { $in: g.statuses } },
-          { role: 'ALUMNI' }
-        ];
+        gQuery.role = 'ALUMNI';
       } else if (groupNameLower === 'staff') {
-        gQuery.$or = [
-          { status: { $in: g.statuses } },
-          { role: 'STAFF' }
-        ];
+        gQuery.role = 'STAFF';
       } else if (groupNameLower === 'warden' || groupNameLower === 'chairperson') {
-        gQuery.$or = [
-          { status: { $in: g.statuses } },
-          { role: 'WARDEN' }
-        ];
+        gQuery.role = 'WARDEN';
       } else if (groupNameLower === 'admin') {
-        gQuery.$or = [
-          { status: { $in: g.statuses } },
-          { role: 'ADMIN' }
-        ];
+        gQuery.role = 'ADMIN';
+      } else if (groupNameLower === 'members') {
+        gQuery.role = 'MEMBER';
       } else {
-        gQuery.status = { $in: g.statuses };
+        gQuery.role = g.name.toUpperCase();
       }
       const count = await User.countDocuments(gQuery);
       statusGroupsCount[g.name] = count;
+      statusGroupsCount[String(g._id)] = count;
     }
 
-    const droppedCount = await User.countDocuments({ isDropped: true });
+    const membersCount = await User.countDocuments({ ...baseQuery, role: 'MEMBER' });
+    statusGroupsCount['all'] = membersCount;
+    statusGroupsCount['Members'] = membersCount;
+
+    const droppedCount = await User.countDocuments({ ...baseQuery, isDropped: true });
     statusGroupsCount['dropped'] = droppedCount;
     statusGroupsCount['Dropped'] = droppedCount;
 
@@ -338,7 +313,6 @@ exports.getUsers = async (req, res, next) => {
 exports.getUser = async (req, res, next) => {
   try {
     let user = await User.findById(req.params.id)
-      .populate('status')
       .populate('lead_data.customField');
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
@@ -350,7 +324,6 @@ exports.getUser = async (req, res, next) => {
     if (transitioned) {
       await user.save();
       user = await User.findById(req.params.id)
-        .populate('status')
         .populate('lead_data.customField');
     }
 
@@ -725,21 +698,13 @@ exports.adminCreateUser = async (req, res, next) => {
     const normalizedPhone = (phone && typeof phone === 'string') ? phone.trim() : '';
     const initialPassword = password || normalizedPhone || 'Member@123';
 
-    // Resolve status and accountStatus
-    let finalStatus = undefined;
+    // Resolve accountStatus
     let finalAccountStatus = 'ACTIVE';
 
-    if (status) {
-      if (['ACTIVE', 'INACTIVE', 'SUSPENDED'].includes(status.toUpperCase())) {
-        finalAccountStatus = status.toUpperCase();
-      } else if (mongoose.Types.ObjectId.isValid(status)) {
-        finalStatus = status;
-      }
-    }
-
-    if (!finalStatus) {
-      const defaultStatus = await Status.findOne({}).sort({ order: 1 });
-      if (defaultStatus) finalStatus = defaultStatus._id;
+    if (status && ['ACTIVE', 'INACTIVE', 'SUSPENDED'].includes(status.toUpperCase())) {
+      finalAccountStatus = status.toUpperCase();
+    } else if (req.body.accountStatus && ['ACTIVE', 'INACTIVE', 'SUSPENDED'].includes(req.body.accountStatus.toUpperCase())) {
+      finalAccountStatus = req.body.accountStatus.toUpperCase();
     }
 
     // Create user with default ProfileIcon
@@ -752,7 +717,6 @@ exports.adminCreateUser = async (req, res, next) => {
       profilePhoto: defaultPhoto,
       passwordHash: initialPassword, // Pre-save hook hashes this
       role: assignedRole,
-      status: finalStatus,
       accountStatus: finalAccountStatus,
       lead_data: req.body.lead_data || [],
       gender,
@@ -895,14 +859,8 @@ exports.adminUpdateUser = async (req, res, next) => {
       delete updates.adhaar;
     }
 
-    // Handle CRM status update
+    // Ignore obsolete CRM status update
     if (updates.status !== undefined) {
-      const mongoose = require('mongoose');
-      if (updates.status && mongoose.Types.ObjectId.isValid(updates.status)) {
-        user.status = updates.status;
-      } else if (!updates.status) {
-        user.status = undefined;
-      }
       delete updates.status;
     }
 

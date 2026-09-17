@@ -50,7 +50,9 @@ export default function ColumnSelectorPanel({
 
   useEffect(() => {
     if (!open) return;
-    const all = [...(customFields || [])];
+    const all = [...(customFields || [])].filter(
+      (f) => (f.slug || "").toLowerCase() !== "status" && (f.name || "").toLowerCase() !== "status"
+    );
     const orderMap = currentTabOrder && currentTabOrder.length > 0
       ? new Map(currentTabOrder.map((id, index) => [String(id), index]))
       : null;

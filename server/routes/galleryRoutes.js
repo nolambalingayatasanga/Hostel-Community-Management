@@ -14,6 +14,9 @@ router.post('/folders', restrictTo('ADMIN', 'WARDEN'), galleryController.createG
 router.put('/folders/:id', restrictTo('ADMIN', 'WARDEN'), galleryController.updateGalleryFolder);
 router.delete('/folders/:id', restrictTo('ADMIN', 'WARDEN'), galleryController.deleteGalleryFolder);
 
+// Upload signature endpoint for direct-to-Cloudinary upload (bypasses Vercel 4.5MB limit)
+router.get('/upload-signature', galleryController.getUploadSignature);
+
 // Read gallery (all authenticated roles)
 router.get('/', galleryController.getGalleryPhotos);
 

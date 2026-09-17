@@ -64,6 +64,21 @@ const connectDB = async () => {
       console.error('Error auto-seeding schema fields into CustomFields:', err);
     }
 
+    // Cleanup obsolete status CustomField and user status field
+    try {
+      const CustomField = require('../models/CustomField');
+      const User = require('../models/User');
+      await CustomField.deleteMany({
+        $or: [
+          { slug: { $regex: /^status$/i } },
+          { name: { $regex: /^status$/i } }
+        ]
+      });
+      await User.updateMany({}, { $unset: { status: 1 } });
+    } catch (err) {
+      console.error('Error cleaning up status fields:', err);
+    }
+
     // Unset empty string emails to prevent sparse unique index collisions
     try {
       const User = require('../models/User');

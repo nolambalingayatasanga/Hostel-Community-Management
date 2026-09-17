@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import axios from 'axios';
 import { useSnackbar } from 'notistack';
 import API from '../api';
 
@@ -67,50 +68,117 @@ export function UploadQueueProvider({ children }) {
     activeAbortControllerRef.current = abortController;
 
     try {
+      // Helper to attempt direct-to-Cloudinary upload to bypass Vercel 4.5MB limit
+      const tryDirectCloudinaryUpload = async (folderName) => {
+        try {
+          const sigRes = await API.get('/gallery/upload-signature', {
+            params: { folder: folderName },
+            signal: abortController.signal
+          });
+          if (sigRes.data?.success && sigRes.data?.data) {
+            const { signature, timestamp, cloudName, apiKey, folder } = sigRes.data.data;
+            const cldFormData = new FormData();
+            cldFormData.append('file', pendingItem.file);
+            cldFormData.append('api_key', apiKey);
+            cldFormData.append('timestamp', timestamp);
+            cldFormData.append('signature', signature);
+            cldFormData.append('folder', folder);
+
+            const isVideo = pendingItem.file.type.startsWith('video/') ||
+              /\.(mp4|mov|avi|webm|mkv)$/i.test(pendingItem.file.name);
+            const resourceType = isVideo ? 'video' : 'image';
+
+            const cldRes = await axios.post(
+              `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
+              cldFormData,
+              {
+                signal: abortController.signal,
+                onUploadProgress: (progressEvent) => {
+                  if (progressEvent.total) {
+                    const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                    setQueue((prev) =>
+                      prev.map((item) => (item.id === currentId ? { ...item, progress: percent } : item))
+                    );
+                  }
+                }
+              }
+            );
+
+            return {
+              url: cldRes.data.secure_url || cldRes.data.url,
+              publicId: cldRes.data.public_id,
+              resourceType: cldRes.data.resource_type || resourceType
+            };
+          }
+        } catch (cldErr) {
+          console.warn('Direct Cloudinary upload could not be used, falling back to server route:', cldErr);
+        }
+        return null;
+      };
+
       let res;
       if (pendingItem.destinationType === 'gallery') {
-        const formData = new FormData();
-        if (pendingItem.destinationId) {
-          formData.append('folderId', pendingItem.destinationId);
+        const directResult = await tryDirectCloudinaryUpload('hostel-community/gallery');
+        if (directResult) {
+          // Bypasses Vercel 4.5MB limit entirely by sending only small JSON metadata
+          res = await API.post('/gallery', {
+            url: directResult.url,
+            publicId: directResult.publicId,
+            resourceType: directResult.resourceType,
+            folderId: pendingItem.destinationId || undefined,
+            caption: ''
+          }, { signal: abortController.signal });
+        } else {
+          const formData = new FormData();
+          if (pendingItem.destinationId) {
+            formData.append('folderId', pendingItem.destinationId);
+          }
+          formData.append('photo', pendingItem.file);
+
+          const endpoint = pendingItem.destinationId
+            ? `/gallery?folderId=${encodeURIComponent(pendingItem.destinationId)}`
+            : '/gallery';
+
+          res = await API.post(endpoint, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            timeout: 0,
+            signal: abortController.signal,
+            onUploadProgress: (progressEvent) => {
+              if (progressEvent.total) {
+                const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                setQueue((prev) =>
+                  prev.map((item) => (item.id === currentId ? { ...item, progress: percent } : item))
+                );
+              }
+            },
+          });
         }
-        formData.append('photo', pendingItem.file);
-
-        const endpoint = pendingItem.destinationId
-          ? `/gallery?folderId=${encodeURIComponent(pendingItem.destinationId)}`
-          : '/gallery';
-
-        res = await API.post(endpoint, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          timeout: 0,
-          signal: abortController.signal,
-          onUploadProgress: (progressEvent) => {
-            if (progressEvent.total) {
-              const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-              setQueue((prev) =>
-                prev.map((item) => (item.id === currentId ? { ...item, progress: percent } : item))
-              );
-            }
-          },
-        });
       } else if (pendingItem.destinationType === 'event') {
-        const formData = new FormData();
-        formData.append('galleryImages', pendingItem.file);
+        const directResult = await tryDirectCloudinaryUpload(`hostel-community/events/${pendingItem.destinationId}/gallery`);
+        if (directResult) {
+          res = await API.post(`/events/${pendingItem.destinationId}/gallery`, {
+            images: [directResult]
+          }, { signal: abortController.signal });
+        } else {
+          const formData = new FormData();
+          formData.append('galleryImages', pendingItem.file);
 
-        const endpoint = `/events/${pendingItem.destinationId}/gallery`;
+          const endpoint = `/events/${pendingItem.destinationId}/gallery`;
 
-        res = await API.post(endpoint, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          timeout: 0,
-          signal: abortController.signal,
-          onUploadProgress: (progressEvent) => {
-            if (progressEvent.total) {
-              const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-              setQueue((prev) =>
-                prev.map((item) => (item.id === currentId ? { ...item, progress: percent } : item))
-              );
-            }
-          },
-        });
+          res = await API.post(endpoint, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            timeout: 0,
+            signal: abortController.signal,
+            onUploadProgress: (progressEvent) => {
+              if (progressEvent.total) {
+                const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                setQueue((prev) =>
+                  prev.map((item) => (item.id === currentId ? { ...item, progress: percent } : item))
+                );
+              }
+            },
+          });
+        }
       }
 
       // Mark success

@@ -1013,8 +1013,11 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                         maxDate={dayjs()}
                         value={dob ? dayjs(dob) : null}
                         onChange={(newValue) => {
-                          const formatted = newValue && newValue.isValid() ? newValue.format('YYYY-MM-DD') : '';
-                          setDob(formatted);
+                          if (!newValue) {
+                            setDob('');
+                          } else if (newValue.isValid()) {
+                            setDob(newValue.format('YYYY-MM-DD'));
+                          }
                         }}
                         slotProps={{
                           textField: {

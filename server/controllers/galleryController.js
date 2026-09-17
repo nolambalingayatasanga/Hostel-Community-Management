@@ -54,14 +54,45 @@ exports.getGalleryPhotos = async (req, res, next) => {
 };
 
 /**
- * Upload a photo/video to the community gallery (with optional folderId)
+ * Get Cloudinary upload signature for client-side direct uploads (bypasses Vercel 4.5MB limit)
+ */
+exports.getUploadSignature = async (req, res, next) => {
+  try {
+    const cloudinary = require('cloudinary').v2;
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cloudinary is not configured in environment variables.'
+      });
+    }
+
+    const timestamp = Math.round(new Date().getTime() / 1000);
+    const folder = req.query.folder || 'hostel-community/gallery';
+    const signature = cloudinary.utils.api_sign_request(
+      { folder, timestamp },
+      process.env.CLOUDINARY_API_SECRET
+    );
+
+    res.status(200).json({
+      success: true,
+      data: {
+        signature,
+        timestamp,
+        cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+        apiKey: process.env.CLOUDINARY_API_KEY,
+        folder
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Upload a photo/video to the community gallery (supports direct URL or multipart file buffer)
  */
 exports.uploadGalleryPhoto = async (req, res, next) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ success: false, message: 'Please select a file to upload.' });
-    }
-
     // Verify Access Control create permission for gallery
     const isAdminOrWarden = ['ADMIN', 'WARDEN'].includes(req.user.role);
     if (!isAdminOrWarden) {
@@ -73,33 +104,9 @@ exports.uploadGalleryPhoto = async (req, res, next) => {
 
     const folderId = req.query.folderId || req.body.folderId;
     const caption = req.body.caption || '';
-    const isVideo = req.file.mimetype.startsWith('video/');
-    const isImage = req.file.mimetype.startsWith('image/');
-    const resourceType = isVideo ? 'video' : 'image';
-
-    const MAX_IMAGE_SIZE = 9.8 * 1024 * 1024; // 9.8 MB
-    const MAX_VIDEO_SIZE = 99 * 1024 * 1024;  // 99 MB
-
-    if (!isImage && !isVideo) {
-      return res.status(400).json({
-        success: false,
-        message: `Unsupported file format for "${req.file.originalname}". Only image and video files are supported.`
-      });
-    }
-
-    if (isImage && req.file.size > MAX_IMAGE_SIZE) {
-      return res.status(400).json({
-        success: false,
-        message: `Image "${req.file.originalname}" exceeds 9.8 MB limit (kept 0.2 MB below Cloudinary's 10 MB limit). Selected size: ${(req.file.size / (1024 * 1024)).toFixed(2)} MB.`
-      });
-    }
-
-    if (isVideo && req.file.size > MAX_VIDEO_SIZE) {
-      return res.status(400).json({
-        success: false,
-        message: `Video "${req.file.originalname}" exceeds 99 MB limit. Selected size: ${(req.file.size / (1024 * 1024)).toFixed(2)} MB.`
-      });
-    }
+    const directUrl = req.body.url;
+    const directPublicId = req.body.publicId;
+    let resourceType = req.body.resourceType;
 
     // Verify folder exists if specified
     let targetFolderId = null;
@@ -110,12 +117,56 @@ exports.uploadGalleryPhoto = async (req, res, next) => {
       }
     }
 
-    // Upload to Cloudinary
-    const uploadResult = await uploadImage(req.file.buffer, 'hostel-community/gallery', req.file.mimetype, resourceType);
+    let finalUrl = directUrl;
+    let finalPublicId = directPublicId;
+
+    // If direct Cloudinary upload was performed by frontend
+    if (finalUrl && finalPublicId) {
+      if (!resourceType) {
+        resourceType = finalUrl.includes('/video/') ? 'video' : 'image';
+      }
+    } else {
+      // Fallback to multipart file upload (localhost or small files)
+      if (!req.file) {
+        return res.status(400).json({ success: false, message: 'Please select a file to upload.' });
+      }
+
+      const isVideo = req.file.mimetype.startsWith('video/');
+      const isImage = req.file.mimetype.startsWith('image/');
+      resourceType = isVideo ? 'video' : 'image';
+
+      const MAX_IMAGE_SIZE = 9.8 * 1024 * 1024; // 9.8 MB
+      const MAX_VIDEO_SIZE = 99 * 1024 * 1024;  // 99 MB
+
+      if (!isImage && !isVideo) {
+        return res.status(400).json({
+          success: false,
+          message: `Unsupported file format for "${req.file.originalname}". Only image and video files are supported.`
+        });
+      }
+
+      if (isImage && req.file.size > MAX_IMAGE_SIZE) {
+        return res.status(400).json({
+          success: false,
+          message: `Image "${req.file.originalname}" exceeds 9.8 MB limit (kept 0.2 MB below Cloudinary's 10 MB limit). Selected size: ${(req.file.size / (1024 * 1024)).toFixed(2)} MB.`
+        });
+      }
+
+      if (isVideo && req.file.size > MAX_VIDEO_SIZE) {
+        return res.status(400).json({
+          success: false,
+          message: `Video "${req.file.originalname}" exceeds 99 MB limit. Selected size: ${(req.file.size / (1024 * 1024)).toFixed(2)} MB.`
+        });
+      }
+
+      const uploadResult = await uploadImage(req.file.buffer, 'hostel-community/gallery', req.file.mimetype, resourceType);
+      finalUrl = uploadResult.url;
+      finalPublicId = uploadResult.publicId;
+    }
 
     const newPhoto = await GalleryPhoto.create({
-      url: uploadResult.url,
-      publicId: uploadResult.publicId,
+      url: finalUrl,
+      publicId: finalPublicId,
       caption: caption || '',
       resourceType,
       folder: targetFolderId,

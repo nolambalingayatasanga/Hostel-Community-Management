@@ -40,10 +40,6 @@ const UserSchema = new mongoose.Schema({
     enum: ['ADMIN', 'WARDEN', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'],
     required: true
   },
-  status: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Status'
-  },
   accountStatus: {
     type: String,
     enum: ['ACTIVE', 'INACTIVE', 'SUSPENDED'],
@@ -262,7 +258,6 @@ UserSchema.methods.comparePassword = async function (candidatePassword) {
 
 // Add indexes for frequent search filters
 UserSchema.index({ role: 1 });
-UserSchema.index({ status: 1 });
 UserSchema.index({ name: 1 });
 UserSchema.index({ dob: 1 });
 UserSchema.index({ 'relation.relatedPersonName': 1 });

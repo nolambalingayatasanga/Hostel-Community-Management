@@ -46,7 +46,6 @@ export const columnWidth = (field) => {
   if (slug === "email") return 260;
   if (slug === "phone") return 210;
   if (slug === "role") return 170;
-  if (slug === "status") return 200;
   if (slug === "gender") return 130;
   if (slug === "joiningdate") return 160;
   if (slug === "adhaar") return 190;
@@ -206,8 +205,6 @@ export const toRow = (lead) => {
     email: lead.email || "",
     phone: lead.phone || "",
     role: lead.role || "",
-    statusId: refId(lead.status),
-    statusName: lead.status?.name || lead.status || "",
     gender: lead.gender || "",
     age: computedAge != null && computedAge !== "" ? String(computedAge) : "",
     dob: dobVal || "",

@@ -66,23 +66,6 @@ const readSx = (editable, isLocked = false) => ({
   }),
 });
 
-const getStatusBadge = (statusName) => {
-  const s = (statusName || "").toLowerCase();
-  if (s.includes("active") || s.includes("joined") || s.includes("paid")) {
-    return { bg: "#ECFDF3", text: "#027A48", border: "1px solid #ABEFC6" };
-  }
-  if (s.includes("new") || s.includes("pending") || s.includes("lead") || s.includes("inquiry")) {
-    return { bg: "#FFFAEB", text: "#B54708", border: "1px solid #FEDF89" };
-  }
-  if (s.includes("inactive") || s.includes("left") || s.includes("dropped") || s.includes("reject") || s.includes("expired")) {
-    return { bg: "#FEF3F2", text: "#B42318", border: "1px solid #FECDCA" };
-  }
-  if (s.includes("student") || s.includes("member") || s.includes("alumni")) {
-    return { bg: "#EFF8FF", text: "#175CD3", border: "1px solid #B2DDFF" };
-  }
-  return { bg: "#F8F9FA", text: "#344054", border: "1px solid #EAECF0" };
-};
-
 // Debounced Inline Text Editor component with live auto-save
 function InlineTextEditor({
   initialValue,
@@ -236,7 +219,6 @@ export default function LeadCell({
   const isEmail = field.slug === INTERNAL_SLUGS.EMAIL || (field.slug || "").toLowerCase() === "email";
   const isPhone = field.slug === INTERNAL_SLUGS.PHONE || (field.slug || "").toLowerCase() === "phone";
   const isRole = field.slug === INTERNAL_SLUGS.ROLE || (field.slug || "").toLowerCase() === "role";
-  const isStatus = field.slug === INTERNAL_SLUGS.STATUS || (field.slug || "").toLowerCase() === "status";
   const isGender = field.slug === INTERNAL_SLUGS.GENDER || (field.slug || "").toLowerCase() === "gender";
   const isAge = field.slug === INTERNAL_SLUGS.AGE || (field.slug || "").toLowerCase() === "age";
   const isJoiningDate = (field.slug || "").toLowerCase().includes("joiningdate") || (field.slug || "").toLowerCase().includes("registereddate");
@@ -256,7 +238,6 @@ export default function LeadCell({
 
   const hasPicker =
     (isRole && canEditRole) ||
-    isStatus ||
     isGender ||
     field.type === "select";
 
@@ -265,7 +246,6 @@ export default function LeadCell({
     if (isEmail) return row.email || "";
     if (isPhone) return row.phone || "";
     if (isRole) return row.role || "";
-    if (isStatus) return meta.statusById.get(row.statusId)?.name || row.statusName || "";
     if (isGender) return row.gender || "";
     if (isAge) {
       if (row.age != null && row.age !== "") return String(row.age);
@@ -552,55 +532,6 @@ export default function LeadCell({
     );
   }
 
-  // 3. Status Badge View
-  if (isStatus && !isEditing) {
-    const currentStatusName = meta.statusById.get(row.statusId)?.name || row.statusName || "";
-    const badgeStyle = getStatusBadge(currentStatusName);
-    return wrap(
-      <Box
-        onClick={editable ? onStartEdit : undefined}
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          minHeight: 38,
-          width: "100%",
-          borderRadius: "8px",
-          px: 1.5,
-          border: "1px solid #EAECF0",
-          backgroundColor: "#FFFFFF",
-          cursor: editable ? "pointer" : "default",
-          transition: "border-color 0.15s ease",
-          ...(editable && { "&:hover": { borderColor: "#D0D5DD" } }),
-        }}
-        title={currentStatusName}
-      >
-        {currentStatusName ? (
-          <Box
-            sx={{
-              backgroundColor: badgeStyle.bg,
-              color: badgeStyle.text,
-              border: badgeStyle.border,
-              borderRadius: "16px",
-              px: 1.5,
-              py: 0.25,
-              fontSize: "0.75rem",
-              fontWeight: 600,
-              display: "inline-flex",
-              alignItems: "center",
-            }}
-          >
-            {currentStatusName}
-          </Box>
-        ) : (
-          <Typography variant="body2" sx={{ color: "#98A2B3" }}>
-            -
-          </Typography>
-        )}
-        {editable && <ChevronDownIcon sx={{ width: 18, height: 18, color: "#98A2B3", ml: "auto" }} />}
-      </Box>
-    );
-  }
 
   // 4. Default Read View for other columns
   if (!isEditing) {
@@ -680,26 +611,6 @@ export default function LeadCell({
     );
   }
 
-  if (isStatus) {
-    return wrap(
-      <Select
-        fullWidth
-        size="small"
-        autoFocus
-        defaultOpen
-        value={row.statusId || ""}
-        onChange={commitRef("status")}
-        onClose={onStopEdit}
-        sx={selectSx}
-      >
-        {meta.statuses.map((status) => (
-          <MenuItem key={status._id} value={status._id}>
-            {status.name}
-          </MenuItem>
-        ))}
-      </Select>
-    );
-  }
 
   if (isGender) {
     return wrap(

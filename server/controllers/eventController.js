@@ -504,6 +504,28 @@ exports.uploadEventGalleryImages = async (req, res, next) => {
       }
     }
 
+    // If images were already directly uploaded to Cloudinary via frontend
+    if (req.body.images && Array.isArray(req.body.images) && req.body.images.length > 0) {
+      const directImages = req.body.images.map(img => ({
+        url: img.url,
+        publicId: img.publicId,
+        resourceType: img.resourceType || (img.url.includes('/video/') ? 'video' : 'image'),
+        uploadedBy: req.user._id,
+        createdAt: new Date()
+      }));
+      event.additionalImages.push(...directImages);
+      event.updatedBy = req.user._id;
+      await event.save();
+      await event.populate('additionalImages.uploadedBy', 'name _id');
+      return res.status(200).json({
+        success: true,
+        message: 'Media uploaded successfully',
+        data: {
+          additionalImages: event.additionalImages
+        }
+      });
+    }
+
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ success: false, message: 'Please select one or more image or video files to upload.' });
     }

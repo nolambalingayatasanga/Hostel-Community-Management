@@ -20,13 +20,14 @@ export function useCrmMeta() {
 }
 
 // Hook to fetch directory/leads list with search and filters
-export function useLeads(params) {
+export function useLeads(params, options = {}) {
   return useQuery(crmKeys.leads(params), async () => {
     const response = await API.get("/users", { params });
     return response.data;
   }, {
-    keepPreviousData: true,
-    staleTime: 5000
+    keepPreviousData: false,
+    staleTime: 0,
+    ...options
   });
 }
 
