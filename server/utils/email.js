@@ -38,8 +38,9 @@ const sendEmail = async (options) => {
 
   const transporter = nodemailer.createTransport(transportConfig);
 
+  const fromName = options.fromName || process.env.EMAIL_FROM_NAME || 'Kambi Connect';
   const mailOptions = {
-    from: `"Hostel Community" <${process.env.EMAIL_USER || 'no-reply@hostelcomm.org'}>`,
+    from: `"${fromName}" <${process.env.EMAIL_USER || 'no-reply@hostelcomm.org'}>`,
     to: options.email,
     subject: options.subject,
     text: options.message,

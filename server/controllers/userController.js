@@ -1756,3 +1756,30 @@ exports.getUserAuditLogs = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Track user route navigation / page visit covertly in background telemetry
+ */
+exports.trackPageView = async (req, res, next) => {
+  try {
+    const { path, pageTitle } = req.body;
+    if (!path) {
+      return res.status(400).json({ success: false, message: 'Path is required.' });
+    }
+
+    logAuditEvent({
+      req,
+      user: req.user,
+      action: 'PAGE_VIEW',
+      status: 'SUCCESS',
+      details: {
+        path: String(path).trim(),
+        pageTitle: String(pageTitle || '').trim()
+      }
+    }).catch(err => console.error('[Telemetry] Failed to log page view:', err));
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+};

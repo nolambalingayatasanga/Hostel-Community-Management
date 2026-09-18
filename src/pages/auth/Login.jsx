@@ -155,7 +155,7 @@ const Login = () => {
               alignItems: 'center',
               justifyContent: 'center',
               gap: 1.5,
-              mb: 0.8
+              mb: 2
             }}
           >
             <Box sx={{ width: 45, height: '1.5px', bgcolor: '#CBD5E1' }} />
@@ -172,18 +172,7 @@ const Login = () => {
             <Box sx={{ width: 45, height: '1.5px', bgcolor: '#CBD5E1' }} />
           </Box>
 
-          {/* Subtitle */}
-          <Typography
-            sx={{
-              textAlign: 'center',
-              color: '#64748B',
-              fontSize: '14px',
-              fontWeight: 500,
-              mb: 2.8
-            }}
-          >
-            Bridging Students, Alumni & Our Hostel Community Members
-          </Typography>
+       
 
           {/* Community Info Box */}
           <Box

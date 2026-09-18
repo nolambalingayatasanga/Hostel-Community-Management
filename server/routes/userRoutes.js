@@ -14,6 +14,7 @@ router.post('/profile/photo', upload.single('profilePhoto'), userController.uplo
 router.post('/profile/transition', restrictTo('STUDENT'), userController.transitionToAlumni);
 router.post('/translate-kannada', userController.translateToKannada);
 router.post('/translate-english', userController.translateToEnglish);
+router.post('/track-page-view', userController.trackPageView);
 
 // Helper to allow user to update their own resource, or allow specific privileged roles
 const allowSelfOrRoles = (...roles) => (req, res, next) => {

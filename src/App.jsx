@@ -11,6 +11,7 @@ import { AuthProvider } from './context/AuthContext';
 import { PermissionProvider } from './context/PermissionContext';
 import { UploadQueueProvider } from './context/UploadQueueContext';
 import UploadManager from './components/common/UploadManager';
+import RouteTracker from './components/common/RouteTracker';
 import ProtectedRoute from './routes/ProtectedRoute';
 
 // Layouts
@@ -53,7 +54,7 @@ function SnackbarCloseButton({ snackbarKey }) {
       color="inherit"
       onClick={() => closeSnackbar(snackbarKey)}
       sx={{
-        p: 0.5,
+        p: 0.25,
         color: 'inherit',
         opacity: 0.85,
         '&:hover': {
@@ -62,7 +63,7 @@ function SnackbarCloseButton({ snackbarKey }) {
         },
       }}
     >
-      <CloseIcon fontSize="small" />
+      <CloseIcon sx={{ fontSize: 16 }} />
     </IconButton>
   );
 }
@@ -82,6 +83,7 @@ function App() {
             <PermissionProvider>
               <UploadQueueProvider>
                 <Router>
+                  <RouteTracker />
                   <Routes>
                     {/* Public Authentication Routes */}
                     <Route path="/login" element={<Login />} />

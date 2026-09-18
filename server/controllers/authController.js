@@ -457,6 +457,14 @@ exports.forgotPassword = async (req, res, next) => {
       .createHash('sha256')
       .update(resetToken)
       .digest('hex');
+
+    // Generate 6-digit numeric OTP for in-app verification
+    const resetOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.resetPasswordOtp = crypto
+      .createHash('sha256')
+      .update(resetOtp)
+      .digest('hex');
+
     user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
 
     await user.save({ validateBeforeSave: false });
@@ -503,30 +511,160 @@ exports.forgotPassword = async (req, res, next) => {
 
     const resetURL = `${clientBaseUrl}/reset-password/${resetToken}`;
     
-    const message = `Forgot your password? Please open this link to reset it: ${resetURL}\nIf you did not request this, please ignore this message.`;
+    const message = `Forgot your password? Your verification OTP is: ${resetOtp}\nOr open this link to reset it directly: ${resetURL}\nIf you did not request this, please ignore this message.`;
+
+    const otpDigits = resetOtp.split('');
+    const otpBoxesHtml = otpDigits.map(digit => `
+      <td align="center" style="width: 44px; height: 52px; background-color: #DBEAFE; border-radius: 10px; font-size: 26px; font-weight: 800; color: #0284C7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, monospace; text-align: center; vertical-align: middle;">
+        ${digit}
+      </td>
+    `).join('');
+
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Password Reset Request</title>
+      </head>
+      <body style="margin: 0; padding: 24px 12px; background-color: #F8FAFC; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+        <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 520px; margin: 0 auto; background-color: #FFFFFF; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #E2E8F0;">
+          <tr>
+            <td style="padding: 36px 28px 32px 28px;">
+              <!-- 1. Top Logo -->
+              <div style="text-align: center; margin-bottom: 20px;">
+                <span style="display: inline-block; vertical-align: middle;">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align: middle; margin-right: 6px;">
+                    <circle cx="7.5" cy="15.5" r="5.5" stroke="#1877F2" stroke-width="2.5"/>
+                    <path d="M11.5 11.5L21.5 1.5" stroke="#1877F2" stroke-width="2.5" stroke-linecap="round"/>
+                    <path d="M16 7L18.5 4.5" stroke="#1877F2" stroke-width="2.5" stroke-linecap="round"/>
+                    <path d="M18.5 9.5L21 7" stroke="#1877F2" stroke-width="2.5" stroke-linecap="round"/>
+                  </svg>
+                  <span style="font-size: 22px; font-weight: 800; color: #0F172A; letter-spacing: -0.3px; vertical-align: middle;">Kambi</span>
+                  <span style="font-size: 22px; font-weight: 800; color: #1877F2; letter-spacing: -0.3px; vertical-align: middle;">Connect</span>
+                </span>
+              </div>
+
+              <!-- 2. Envelope Vector Graphic -->
+              <div style="text-align: center; margin-bottom: 20px;">
+                <svg width="180" height="135" viewBox="0 0 180 135" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: inline-block;">
+                  <!-- Soft Cloud Blob -->
+                  <path d="M 44 92 C 32 80 34 58 50 46 C 62 36 80 38 90 44 C 100 34 122 34 134 44 C 146 56 148 74 140 88 C 150 100 142 118 122 120 C 110 122 98 116 88 118 C 76 122 62 118 54 108 C 44 104 40 98 44 92 Z" fill="#EEF6FF" />
+                  <!-- Accent Rays -->
+                  <line x1="90" y1="24" x2="90" y2="18" stroke="#2563EB" stroke-width="2.5" stroke-linecap="round" />
+                  <line x1="82" y1="26" x2="77" y2="21" stroke="#2563EB" stroke-width="2.5" stroke-linecap="round" />
+                  <line x1="98" y1="26" x2="103" y2="21" stroke="#2563EB" stroke-width="2.5" stroke-linecap="round" />
+                  <!-- White Paper Card -->
+                  <rect x="62" y="34" width="56" height="58" rx="8" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.2" />
+                  <!-- Shield Lock Badge -->
+                  <path d="M 90 46 C 97 46 102 48 102 48 V 62 C 102 70 94 75 90 77 C 86 75 78 70 78 62 V 48 C 78 48 83 46 90 46 Z" fill="#1877F2" />
+                  <path d="M 87.5 59 V 56 C 87.5 54.6 88.6 53.5 90 53.5 C 91.4 53.5 92.5 54.6 92.5 56 V 59" fill="none" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" />
+                  <rect x="86" y="58" width="8" height="6.5" rx="1.5" fill="#FFFFFF" />
+                  <circle cx="90" cy="61" r="0.8" fill="#1877F2" />
+                  <!-- Open Envelope Flaps -->
+                  <path d="M 52 58 L 90 82 L 128 58 L 128 104 C 128 106 126 108 124 108 L 56 108 C 54 108 52 106 52 104 Z" fill="#1D4ED8" />
+                  <path d="M 52 59 L 90 85 L 52 108 Z" fill="#2563EB" />
+                  <path d="M 128 59 L 90 85 L 128 108 Z" fill="#1D4ED8" />
+                  <path d="M 52 108 L 90 78 L 128 108 Z" fill="#2563EB" />
+                </svg>
+              </div>
+
+              <!-- 3. Title & Subtitle -->
+              <h1 style="margin: 0 0 8px 0; font-size: 26px; font-weight: 800; color: #0F172A; text-align: center; letter-spacing: -0.5px;">Password Reset Request</h1>
+              <p style="margin: 0 0 24px 0; font-size: 14.5px; color: #64748B; text-align: center; line-height: 1.5;">You requested a password reset for your Kambi Connect account.</p>
+
+              <!-- 4. OTP Card -->
+              <div style="background-color: #F0F6FF; border-radius: 16px; padding: 22px 16px; text-align: center; margin-bottom: 24px;">
+                <p style="margin: 0 0 16px 0; font-size: 12px; font-weight: 700; color: #475569; letter-spacing: 0.8px; text-transform: uppercase;">YOUR VERIFICATION CODE (OTP)</p>
+                <table align="center" border="0" cellpadding="0" cellspacing="6" style="margin: 0 auto;">
+                  <tr>
+                    ${otpBoxesHtml}
+                    <td align="center" style="vertical-align: middle; padding-left: 8px;">
+                      <a href="javascript:void(0);"
+                         onclick="if(navigator.clipboard){navigator.clipboard.writeText('${resetOtp}');}else{var t=document.createElement('textarea');t.value='${resetOtp}';document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);}return false;"
+                         title="Copy OTP Code"
+                         style="display: inline-block; cursor: pointer; text-decoration: none; line-height: 0; vertical-align: middle; padding: 6px;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align: middle;">
+                          <rect x="9" y="9" width="13" height="13" rx="2" stroke="#0088ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                          <path d="M5 15H4C2.89543 15 2 14.1046 2 13V4C2 2.89543 2.89543 2 4 2H13C14.1046 2 15 2.89543 15 4V5" stroke="#0088ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin: 12px 0 0 0; font-size: 13px; color: #64748B;">Enter this code on the password reset screen.</p>
+              </div>
+
+              <!-- 5. Divider -->
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 20px 0;">
+                <tr>
+                  <td style="border-bottom: 1px solid #E2E8F0; width: 44%;"></td>
+                  <td style="text-align: center; width: 12%; color: #94A3B8; font-size: 12px; font-weight: 700; text-transform: uppercase; padding: 0 10px;">OR</td>
+                  <td style="border-bottom: 1px solid #E2E8F0; width: 44%;"></td>
+                </tr>
+              </table>
+
+              <!-- 6. Reset Password Directly Button -->
+              <div style="margin-bottom: 16px;">
+                <a href="${resetURL}" style="display: block; width: 100%; box-sizing: border-box; background-color: #1877F2; color: #FFFFFF; text-align: center; padding: 15px 20px; border-radius: 12px; font-weight: 700; font-size: 15px; text-decoration: none; box-shadow: 0 4px 12px rgba(24, 119, 242, 0.25);">
+                  <span style="font-size: 16px; margin-right: 6px;">🔒</span> Reset Password Directly
+                </a>
+              </div>
+
+              <!-- 7. Direct Link Box with Copy Button -->
+              <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 14px 16px; margin-bottom: 16px;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td style="width: 24px; vertical-align: top; padding-top: 2px;">
+                      <span style="font-size: 16px; color: #64748B;">🔗</span>
+                    </td>
+                    <td style="vertical-align: top; padding-left: 6px;">
+                    
+                      <div style="background-color: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 8px 10px; font-family: monospace; font-size: 11.5px; color: #1E293B; word-break: break-all; line-height: 1.4; user-select: all; -webkit-user-select: all;">
+                        ${resetURL}
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+              </div>
+
+              <!-- 8. Valid for 60 Minutes Notice -->
+              <div style="background-color: #EFF6FF; border-radius: 12px; padding: 14px 16px;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td style="width: 32px; vertical-align: middle;">
+                      <span style="font-size: 22px;">🛡️</span>
+                    </td>
+                    <td style="border-left: 1.5px solid #BFDBFE; padding-left: 14px;">
+                      <p style="margin: 0 0 2px 0; font-size: 13px; font-weight: 700; color: #1E40AF;">This OTP and link are valid for 60 minutes.</p>
+                    </td>
+                  </tr>
+                </table>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
 
     try {
       await sendEmail({
         email: user.email,
-        subject: 'Your Password Reset Token (valid for 60 mins)',
+        subject: `${resetOtp} is your Kambi Connect password reset code`,
         message,
-        html: `
-          <h3>Password Reset Request</h3>
-          <p>You requested a password reset for your Hostel Community Management account.</p>
-          <p>Please click the button below to reset your password:</p>
-          <a href="${resetURL}" style="display:inline-block;padding:12px 24px;background-color:#1877F2;color:white;text-decoration:none;border-radius:6px;font-weight:bold;">Reset Password</a>
-          <p style="margin-top:20px;">Or copy this link: <a href="${resetURL}">${resetURL}</a></p>
-          <p><em>This link is valid for 60 minutes. If you did not request a reset, you can safely ignore this email.</em></p>
-        `
+        html: emailHtml
       });
 
       res.status(200).json({
         success: true,
-        message: 'Password reset link sent successfully.'
+        message: 'Password reset link and OTP sent successfully.'
       });
     } catch (err) {
       console.error('Send Email Error:', err);
       user.resetPasswordToken = undefined;
+      user.resetPasswordOtp = undefined;
       user.resetPasswordExpires = undefined;
       await user.save({ validateBeforeSave: false });
       
@@ -535,6 +673,81 @@ exports.forgotPassword = async (req, res, next) => {
         message: 'Error sending email: ' + (err.message || 'SMTP service error. Please check server logs.')
       });
     }
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Verify reset OTP and generate token for password update
+ */
+exports.verifyResetOtp = async (req, res, next) => {
+  try {
+    const { email, loginIdentifier, otp } = req.body;
+    const identifier = (email || loginIdentifier || '').trim().toLowerCase();
+    const cleanOtp = (otp || '').toString().trim();
+
+    if (!identifier || !cleanOtp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide email and verification OTP.'
+      });
+    }
+
+    if (cleanOtp.length !== 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'OTP must be a 6-digit number.'
+      });
+    }
+
+    const hashedOtp = crypto
+      .createHash('sha256')
+      .update(cleanOtp)
+      .digest('hex');
+
+    const user = await User.findOne({
+      email: identifier,
+      resetPasswordOtp: hashedOtp,
+      resetPasswordExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired OTP. Please check the code or request a new one.'
+      });
+    }
+
+    if (user.isDropped) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been dropped. Access is denied.'
+      });
+    }
+
+    if (user.accountStatus !== 'ACTIVE') {
+      return res.status(403).json({
+        success: false,
+        message: `Your account status is ${user.accountStatus}. Access is denied.`
+      });
+    }
+
+    // Generate a fresh reset token to allow password updating
+    const freshToken = crypto.randomBytes(32).toString('hex');
+    user.resetPasswordToken = crypto
+      .createHash('sha256')
+      .update(freshToken)
+      .digest('hex');
+    // Clear the OTP so it cannot be reused
+    user.resetPasswordOtp = undefined;
+    await user.save({ validateBeforeSave: false });
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP verified successfully.',
+      resetToken: freshToken
+    });
   } catch (error) {
     next(error);
   }

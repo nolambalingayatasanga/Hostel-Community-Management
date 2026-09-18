@@ -36,6 +36,7 @@ import {
   Language as BrowserIcon,
   Devices as DeviceIcon,
   VpnKey as SessionIcon,
+  AltRoute as RouteIcon,
 } from "@mui/icons-material";
 import { useSnackbar } from "notistack";
 import API from "../../api";
@@ -123,6 +124,10 @@ export default function LoginDetailsModal({ open, onClose, userRow }) {
     } else if (action === "COMMENT_ADD" || action === "REPLY_ADD") {
       color = "#06B6D4";
       bg = "#ECFEFF";
+    } else if (action === "PAGE_VIEW" || action === "PATH_VISIT") {
+      color = "#8B5CF6";
+      bg = "#F5F3FF";
+      label = "PAGE_VIEW";
     }
 
     return (
@@ -141,6 +146,51 @@ export default function LoginDetailsModal({ open, onClose, userRow }) {
       />
     );
   };
+
+  // Derive path visits from explicit PAGE_VIEW logs and action events
+  const pathLogs = logs.flatMap((log) => {
+    if (log.action === "PAGE_VIEW" || log.action === "PATH_VISIT" || log.details?.path) {
+      const p = log.details?.path || "/profile";
+      const normalizedPath = p.startsWith("/") ? p : `/${p}`;
+      return [{
+        ...log,
+        path: normalizedPath,
+        pageTitle: log.details?.pageTitle || (normalizedPath.replace(/^\//, "").charAt(0).toUpperCase() + normalizedPath.slice(2)) || "Page View",
+        isExplicit: true
+      }];
+    }
+    const actionPathMap = {
+      PROFILE_EDIT: { path: "/profile", title: "My Profile" },
+      USER_EDIT: { path: "/members", title: "Directory List" },
+      STATUS_CHANGE: { path: "/members", title: "Status Update" },
+      EVENT_CREATE: { path: "/events", title: "Event Calendar" },
+      EVENT_DELETE: { path: "/events", title: "Event Calendar" },
+      COMMENT_ADD: { path: "/members", title: "Member Directory" },
+      REPLY_ADD: { path: "/members", title: "Member Directory" },
+      LOGIN: { path: "/login", title: "Authentication Portal" },
+      REGISTER: { path: "/register", title: "Registration" },
+      PASSWORD_RESET: { path: "/forgot-password", title: "Forgot Password" }
+    };
+    if (actionPathMap[log.action]) {
+      return [{
+        ...log,
+        path: actionPathMap[log.action].path,
+        pageTitle: actionPathMap[log.action].title,
+        isExplicit: false
+      }];
+    }
+    return [];
+  });
+
+  // Calculate unique paths and top visited path
+  const pathCounts = pathLogs.reduce((acc, curr) => {
+    acc[curr.path] = (acc[curr.path] || 0) + 1;
+    return acc;
+  }, {});
+  const uniquePathsCount = Object.keys(pathCounts).length;
+  const topPathEntry = Object.entries(pathCounts).sort((a, b) => b[1] - a[1])[0];
+  const topPath = topPathEntry ? `${topPathEntry[0]} (${topPathEntry[1]}x)` : "None";
+  const latestPath = pathLogs.length > 0 ? pathLogs[0].path : "None";
 
   return (
     <Dialog
@@ -362,6 +412,135 @@ export default function LoginDetailsModal({ open, onClose, userRow }) {
                   <Typography variant="caption" sx={{ fontFamily: "monospace", fontSize: "11px", color: "#334155", display: "block", wordBreak: "break-all" }}>
                     {lastLogin.userAgent}
                   </Typography>
+                </Box>
+              )}
+            </Paper>
+
+            {/* ─── Extra Card: Tracked Paths & Route Navigation History ─── */}
+            <Paper
+              elevation={0}
+              sx={{
+                borderRadius: "14px",
+                border: "1px solid #E2E8F0",
+                overflow: "hidden",
+                bgcolor: "#FFFFFF"
+              }}
+            >
+              <Box
+                sx={{
+                  px: 2.5,
+                  py: 1.75,
+                  bgcolor: "#FFFFFF",
+                  borderBottom: "1px solid #E2E8F0",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: 1
+                }}
+              >
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#0F172A", display: "flex", alignItems: "center", gap: 1 }}>
+                  <RouteIcon sx={{ fontSize: 19, color: "#8B5CF6" }} />
+                  Tracked Paths & Route Navigation History ({pathLogs.length})
+                </Typography>
+                <Typography variant="caption" sx={{ color: "#64748B" }}>
+                  Monitored path transitions: /profile, /gallery, /events, /members & more
+                </Typography>
+              </Box>
+
+              {/* Quick Route Summary Statistics */}
+              <Box sx={{ p: 2, bgcolor: "#F8FAFC", borderBottom: "1px solid #E2E8F0", display: "flex", gap: 1.5, flexWrap: "wrap" }}>
+                <Chip
+                  size="small"
+                  label={<span>Total Visits: <strong>{pathLogs.length}</strong></span>}
+                  sx={{ bgcolor: "#FFFFFF", border: "1px solid #E2E8F0", fontWeight: 500, fontSize: "11.5px" }}
+                />
+                <Chip
+                  size="small"
+                  label={<span>Unique Routes: <strong>{uniquePathsCount}</strong></span>}
+                  sx={{ bgcolor: "#FFFFFF", border: "1px solid #E2E8F0", fontWeight: 500, fontSize: "11.5px" }}
+                />
+                <Chip
+                  size="small"
+                  label={<span>Top Route: <strong>{topPath}</strong></span>}
+                  sx={{ bgcolor: "#FFFFFF", border: "1px solid #E2E8F0", fontWeight: 500, fontSize: "11.5px" }}
+                />
+                <Chip
+                  size="small"
+                  label={<span>Latest: <strong>{latestPath}</strong></span>}
+                  sx={{ bgcolor: "#EFF6FF", border: "1px solid #BFDBFE", color: "#1D4ED8", fontWeight: 600, fontSize: "11.5px" }}
+                />
+              </Box>
+
+              {/* Route History List / Table */}
+              {pathLogs.length === 0 ? (
+                <Box sx={{ py: 4, textAlign: "center" }}>
+                  <Typography variant="body2" sx={{ color: "#94A3B8" }}>
+                    No route navigation events tracked yet for this user.
+                  </Typography>
+                </Box>
+              ) : (
+                <Box sx={{ maxHeight: 240, overflowY: "auto" }}>
+                  <Table size="small" stickyHeader>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ bgcolor: "#F8FAFC", fontWeight: 700, fontSize: "11px", color: "#475467" }}>Visited Path</TableCell>
+                        <TableCell sx={{ bgcolor: "#F8FAFC", fontWeight: 700, fontSize: "11px", color: "#475467" }}>Page / Title</TableCell>
+                        <TableCell sx={{ bgcolor: "#F8FAFC", fontWeight: 700, fontSize: "11px", color: "#475467" }}>Timestamp</TableCell>
+                        <TableCell sx={{ bgcolor: "#F8FAFC", fontWeight: 700, fontSize: "11px", color: "#475467" }}>Source IP Address</TableCell>
+                        <TableCell sx={{ bgcolor: "#F8FAFC", fontWeight: 700, fontSize: "11px", color: "#475467" }}>Status</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {pathLogs.map((log, idx) => (
+                        <TableRow key={log._id || idx} hover>
+                          <TableCell sx={{ py: 1 }}>
+                            <Box
+                              sx={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 0.6,
+                                bgcolor: "#EFF6FF",
+                                color: "#1D4ED8",
+                                px: 1,
+                                py: 0.3,
+                                borderRadius: "6px",
+                                fontWeight: 700,
+                                fontSize: "11.5px",
+                                fontFamily: "monospace",
+                                border: "1px solid #BFDBFE"
+                              }}
+                            >
+                              <RouteIcon sx={{ fontSize: 13, color: "#3B82F6" }} />
+                              Visited {log.path}
+                            </Box>
+                          </TableCell>
+                          <TableCell sx={{ py: 1, fontSize: "11.5px", fontWeight: 600, color: "#334155" }}>
+                            {log.pageTitle || log.path}
+                          </TableCell>
+                          <TableCell sx={{ py: 1, fontSize: "11px", color: "#475467", whiteSpace: "nowrap" }}>
+                            {formatLeadDateTime(log.createdAt)}
+                          </TableCell>
+                          <TableCell sx={{ py: 1, fontSize: "11px", fontFamily: "monospace", color: "#0F172A" }}>
+                            {log.ipAddress || "—"}
+                          </TableCell>
+                          <TableCell sx={{ py: 1 }}>
+                            <Chip
+                              label="SUCCESS"
+                              size="small"
+                              sx={{
+                                height: 18,
+                                fontSize: "10px",
+                                fontWeight: 700,
+                                bgcolor: "#ECFDF5",
+                                color: "#10B981",
+                              }}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </Box>
               )}
             </Paper>

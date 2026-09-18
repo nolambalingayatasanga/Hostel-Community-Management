@@ -740,7 +740,7 @@ const Register = () => {
                   }}
                 >
                   <Diversity3Outlined sx={{ fontSize: 18, color: '#2563EB' }} />
-                  Assigned Role: {computedRole}
+                {computedRole}
                 </Box>
                 <Button
                   type="button"
@@ -990,7 +990,7 @@ const Register = () => {
                     {emailValidation.status === 'ALREADY_REGISTERED' && (
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, mt: 0.6 }}>
                         <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#DC2626' }}>
-                          ❌ {emailValidation.message || 'This email is already registered. Please log in.'}
+                          ❌ {emailValidation.message || 'Email is already in Use.'}
                         </Typography>
                       </Box>
                     )}
@@ -1010,16 +1010,16 @@ const Register = () => {
                       inputRef={genderRef}
                       value={gender}
                       onChange={(e) => setGender(e.target.value)}
-                      SelectProps={{
-                        displayEmpty: true,
-                        renderValue: (selected) => {
-                          if (!selected) {
-                            return <span style={{ color: '#94A3B8' }}>Select gender</span>;
-                          }
-                          return selected === 'MALE' ? 'Male' : selected === 'FEMALE' ? 'Female' : 'Other';
-                        }
-                      }}
                       slotProps={{
+                        select: {
+                          displayEmpty: true,
+                          renderValue: (selected) => {
+                            if (!selected) {
+                              return <span style={{ color: '#94A3B8' }}>Select gender</span>;
+                            }
+                            return selected === 'MALE' ? 'Male' : selected === 'FEMALE' ? 'Female' : 'Other';
+                          }
+                        },
                         input: {
                           startAdornment: (
                             <InputAdornment position="start">
@@ -1082,7 +1082,7 @@ const Register = () => {
                           aadhaarRef.current?.focus();
                         }
                       }}
-                      placeholder="+91 98765 43210"
+                      placeholder="Enter Phone Number"
                       slotProps={{
                         htmlInput: { inputMode: 'numeric', maxLength: 10 },
                         input: {
@@ -1223,35 +1223,43 @@ const Register = () => {
                             setCollege(newInputValue || '');
                           }}
                           renderInput={(params) => {
-                            const { onKeyDown: origOnKeyDown, ...otherInputProps } = params.inputProps || {};
+                            const { InputProps, inputProps: pInputProps, ...restParams } = params;
+                            const { onKeyDown: origOnKeyDown, ref: origRef, ...otherInputProps } = pInputProps || {};
                             return (
                               <TextField
-                                {...params}
+                                {...restParams}
                                 fullWidth
                                 size="small"
-                                inputRef={collegeRef}
                                 placeholder="Enter college name"
-                                inputProps={{
-                                  ...otherInputProps,
-                                  onKeyDown: (e) => {
-                                    if (typeof origOnKeyDown === 'function') {
-                                      origOnKeyDown(e);
-                                    }
-                                    if (e.key === 'Enter' && !e.defaultPrevented) {
-                                      e.preventDefault();
-                                      courseRef.current?.focus();
-                                    }
-                                  }
-                                }}
                                 slotProps={{
+                                  htmlInput: {
+                                    ...otherInputProps,
+                                    ref: (node) => {
+                                      if (typeof origRef === 'function') {
+                                        origRef(node);
+                                      } else if (origRef && typeof origRef === 'object') {
+                                        origRef.current = node;
+                                      }
+                                      collegeRef.current = node;
+                                    },
+                                    onKeyDown: (e) => {
+                                      if (typeof origOnKeyDown === 'function') {
+                                        origOnKeyDown(e);
+                                      }
+                                      if (e.key === 'Enter' && !e.defaultPrevented) {
+                                        e.preventDefault();
+                                        courseRef.current?.focus();
+                                      }
+                                    }
+                                  },
                                   input: {
-                                    ...(params.InputProps || {}),
+                                    ...(InputProps || {}),
                                     startAdornment: (
                                       <>
                                         <InputAdornment position="start">
                                           <CollegeIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
                                         </InputAdornment>
-                                        {params.InputProps?.startAdornment}
+                                        {InputProps?.startAdornment}
                                       </>
                                     ),
                                   }
@@ -1285,35 +1293,43 @@ const Register = () => {
                             setCourse(newInputValue || '');
                           }}
                           renderInput={(params) => {
-                            const { onKeyDown: origOnKeyDown, ...otherInputProps } = params.inputProps || {};
+                            const { InputProps, inputProps: pInputProps, ...restParams } = params;
+                            const { onKeyDown: origOnKeyDown, ref: origRef, ...otherInputProps } = pInputProps || {};
                             return (
                               <TextField
-                                {...params}
+                                {...restParams}
                                 fullWidth
                                 size="small"
-                                inputRef={courseRef}
-                                placeholder="e.g. B.Tech, MBBS, MBA"
-                                inputProps={{
-                                  ...otherInputProps,
-                                  onKeyDown: (e) => {
-                                    if (typeof origOnKeyDown === 'function') {
-                                      origOnKeyDown(e);
-                                    }
-                                    if (e.key === 'Enter' && !e.defaultPrevented) {
-                                      e.preventDefault();
-                                      startYearRef.current?.focus();
-                                    }
-                                  }
-                                }}
+                                placeholder="B.E, B.Tech, MBBS, MBA"
                                 slotProps={{
+                                  htmlInput: {
+                                    ...otherInputProps,
+                                    ref: (node) => {
+                                      if (typeof origRef === 'function') {
+                                        origRef(node);
+                                      } else if (origRef && typeof origRef === 'object') {
+                                        origRef.current = node;
+                                      }
+                                      courseRef.current = node;
+                                    },
+                                    onKeyDown: (e) => {
+                                      if (typeof origOnKeyDown === 'function') {
+                                        origOnKeyDown(e);
+                                      }
+                                      if (e.key === 'Enter' && !e.defaultPrevented) {
+                                        e.preventDefault();
+                                        startYearRef.current?.focus();
+                                      }
+                                    }
+                                  },
                                   input: {
-                                    ...(params.InputProps || {}),
+                                    ...(InputProps || {}),
                                     startAdornment: (
                                       <>
                                         <InputAdornment position="start">
                                           <CourseIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
                                         </InputAdornment>
-                                        {params.InputProps?.startAdornment}
+                                        {InputProps?.startAdornment}
                                       </>
                                     ),
                                   }
@@ -1463,7 +1479,7 @@ const Register = () => {
                           confirmPasswordRef.current?.focus();
                         }
                       }}
-                      placeholder="Create a strong password"
+                      placeholder="Enter new password"
                       slotProps={{
                         input: {
                           startAdornment: (

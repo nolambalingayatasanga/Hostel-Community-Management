@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800;900&display=swap');
 
 html, body {
   margin: 0;
@@ -29,4 +29,128 @@ html, body {
   min-height: 120px;
   max-height: 140px;
   overflow: hidden;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Notistack Snackbar Global Styling (Clean, Compact, Responsive)
+   ───────────────────────────────────────────────────────────── */
+
+/* Fix z-index so notifications are always above modals & headers */
+.notistack-SnackbarContainer {
+  z-index: 99999 !important;
+}
+
+/* Base snackbar item formatting */
+.notistack-MuiContent,
+.SnackbarItem-contentRoot {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  min-height: unset !important;
+  max-height: none !important;
+  padding: 9px 14px !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.16), 0 2px 6px -1px rgba(0, 0, 0, 0.06) !important;
+  font-family: "Outfit", "Inter", sans-serif !important;
+  font-size: 13.5px !important;
+  line-height: 1.4 !important;
+  font-weight: 500 !important;
+  box-sizing: border-box !important;
+}
+
+/* Message container: prevent multi-row wrapping of action button, compact text */
+.SnackbarItem-message,
+.notistack-MuiContent > div:first-of-type,
+#notistack-snackbar {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  font-size: 13.5px !important;
+  line-height: 1.4 !important;
+  word-break: break-word !important;
+}
+
+/* Action button (close icon) pinned neatly to the right */
+.SnackbarItem-action {
+  margin-left: 8px !important;
+  margin-right: -4px !important;
+  padding-left: 4px !important;
+  flex-shrink: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+/* Modern vibrant color variations */
+.notistack-MuiContent-success {
+  background-color: #059669 !important;
+  color: #FFFFFF !important;
+}
+
+.notistack-MuiContent-error {
+  background-color: #DC2626 !important;
+  color: #FFFFFF !important;
+}
+
+.notistack-MuiContent-warning {
+  background-color: #D97706 !important;
+  color: #FFFFFF !important;
+}
+
+.notistack-MuiContent-info {
+  background-color: #2563EB !important;
+  color: #FFFFFF !important;
+}
+
+/* ─── Mobile View (< 600px): Centered, full readable width, compact height ─── */
+@media (max-width: 600px) {
+  .notistack-SnackbarContainer {
+    top: 14px !important;
+    left: 16px !important;
+    right: 16px !important;
+    bottom: auto !important;
+    width: auto !important;
+    max-width: calc(100vw - 32px) !important;
+    transform: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+  }
+
+  .SnackbarItem-root {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: unset !important;
+    display: flex !important;
+    justify-content: center !important;
+    margin-bottom: 6px !important;
+  }
+
+  .notistack-MuiContent,
+  .SnackbarItem-contentRoot {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: unset !important;
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+    line-height: 1.35 !important;
+    border-radius: 10px !important;
+  }
+
+  .SnackbarItem-message,
+  #notistack-snackbar {
+    font-size: 13px !important;
+    line-height: 1.35 !important;
+    gap: 6px !important;
+  }
+
+  .SnackbarItem-action {
+    margin-left: 6px !important;
+    margin-right: -2px !important;
+  }
 }

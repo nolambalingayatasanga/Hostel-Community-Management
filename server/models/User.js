@@ -201,6 +201,7 @@ const UserSchema = new mongoose.Schema({
     default: Date.now
   },
   resetPasswordToken: String,
+  resetPasswordOtp: String,
   resetPasswordExpires: Date,
   qrScanCount: {
     type: Number,

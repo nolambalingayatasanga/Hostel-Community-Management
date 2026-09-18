@@ -43,6 +43,8 @@ const AuditLogSchema = new mongoose.Schema({
       'EVENT_DELETE',
       'PASSWORD_CHANGE',
       'PASSWORD_RESET',
+      'PAGE_VIEW',
+      'PATH_VISIT',
       'OTHER'
     ],
     index: true
