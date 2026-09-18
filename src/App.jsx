@@ -38,6 +38,7 @@ import DriveLinks from './pages/drive/DriveLinks';
 import UserManagement from './pages/admin/UserManagement';
 import AccessControl from './pages/access/AccessControl';
 import QrScanCount from './pages/qr/QrScanCount';
+import QrRedirect from './pages/qr/QrRedirect';
 import NotFound from './pages/common/NotFound';
 
 const queryClient = new QueryClient();
@@ -124,6 +125,9 @@ function App() {
                         <Route path="/qr-scan-count" element={<QrScanCount />} />
                       </Route>
                     </Route>
+
+                    {/* Public QR tracking: domain/{code}?r=qr → count scan, then login */}
+                    <Route path="/:code" element={<QrRedirect />} />
 
                     {/* Redirects and 404 catch-all */}
                     <Route path="/" element={<Navigate to="/profile" replace />} />

@@ -1,14 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const { protect, restrictTo } = require('../middleware/authMiddleware');
+const deviceDetector = require('../middleware/deviceMiddleware');
 const qrScanController = require('../controllers/qrScanController');
+const loginQrController = require('../controllers/loginQrController');
 
-// Public scan redirect endpoint (for mobile phone camera scans)
+// Public tracking: scan domain/{code}?r=qr → count + redirect to kambi-connect login
+router.get('/t/:code', deviceDetector, loginQrController.trackLoginQr);
+
+// Public scan redirect endpoint (legacy member identifier scans)
 router.get('/public-scan/:identifier', qrScanController.publicScan);
 
 // All other QR scan operations are strictly ADMIN only
 router.use(protect);
 router.use(restrictTo('ADMIN'));
+
+// Login QR dashboard
+router.get('/login-qr', loginQrController.getLoginQr);
+router.get('/login-qr/download', loginQrController.downloadLoginQr);
 
 // Core scan endpoints
 router.post('/scan', qrScanController.recordScan);
