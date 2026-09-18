@@ -4,6 +4,7 @@ import {
   People as PeopleIcon,
   Event as EventIcon,
   Collections as GalleryIcon,
+  CloudQueue as CloudQueueIcon,
   AccountCircle as ProfileIcon,
   QrCodeScanner as QrCodeScannerIcon,
   AdminPanelSettings as AdminIcon,
@@ -16,6 +17,7 @@ export const PAGE_DEFINITIONS = [
   { id: 'users', label: 'Users', icon: React.createElement(PeopleIcon, { sx: { fontSize: 18 } }) },
   { id: 'events', label: 'Events', icon: React.createElement(EventIcon, { sx: { fontSize: 18 } }) },
   { id: 'gallery', label: 'Gallery', icon: React.createElement(GalleryIcon, { sx: { fontSize: 18 } }) },
+  { id: 'drive_links', label: 'Drive Links', icon: React.createElement(CloudQueueIcon, { sx: { fontSize: 18 } }) },
   { id: 'profile', label: 'Profile', icon: React.createElement(ProfileIcon, { sx: { fontSize: 18 } }) },
   { id: 'qr_scan_count', label: 'QR Scan Count', icon: React.createElement(QrCodeScannerIcon, { sx: { fontSize: 18 } }) },
   { id: 'access_control', label: 'Access Control', icon: React.createElement(AdminIcon, { sx: { fontSize: 18 } }) }

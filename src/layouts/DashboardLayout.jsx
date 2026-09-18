@@ -32,6 +32,7 @@ import {
   Collections as GalleryIcon,
   ArrowBack as ArrowBackIcon,
   QrCodeScanner as QrCodeScannerIcon,
+  CloudQueue as CloudQueueIcon,
 } from '@mui/icons-material';
 import NotFound from '../pages/common/NotFound';
 
@@ -55,6 +56,11 @@ const DashboardLayout = () => {
     // Events / Calendar page check
     if (path === '/events') {
       return 'Event Calendar';
+    }
+
+    // Drive Links page check
+    if (path.startsWith('/drive-links')) {
+      return 'Drive Links';
     }
 
     // Profile page check
@@ -102,6 +108,7 @@ const DashboardLayout = () => {
     PeopleIcon: <PeopleIcon />,
     EventIcon: <EventIcon />,
     GalleryIcon: <GalleryIcon />,
+    CloudQueueIcon: <CloudQueueIcon />,
     ProfileIcon: <ProfileIcon />,
     QrCodeIcon: <QrCodeScannerIcon />,
     AdminIcon: <AdminIcon />
@@ -143,6 +150,7 @@ const DashboardLayout = () => {
     if (pathname === '/members') return 'users';
     if (pathname.startsWith('/events')) return 'events';
     if (pathname.startsWith('/gallery')) return 'gallery';
+    if (pathname.startsWith('/drive-links')) return 'drive_links';
     if (pathname.startsWith('/profile')) return 'profile';
     if (pathname.startsWith('/qr-scan-count')) return 'qr_scan_count';
     if (pathname === '/access-control') return 'access_control';

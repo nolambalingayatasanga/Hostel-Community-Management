@@ -4,7 +4,7 @@ const AccessSchema = new mongoose.Schema({
   page: {
     type: String,
     required: true,
-    enum: ['overview', 'users', 'events', 'gallery', 'profile', 'qr_scan_count', 'access_control']
+    enum: ['overview', 'users', 'events', 'gallery', 'drive_links', 'profile', 'qr_scan_count', 'access_control']
   },
   role: {
     type: String,
@@ -31,7 +31,7 @@ AccessSchema.index({ page: 1, role: 1 }, { unique: true });
 
 // Standard default permissions seeder
 AccessSchema.statics.seedDefaults = async function() {
-  const pages = ['overview', 'users', 'events', 'gallery', 'profile', 'qr_scan_count', 'access_control'];
+  const pages = ['overview', 'users', 'events', 'gallery', 'drive_links', 'profile', 'qr_scan_count', 'access_control'];
   const roles = ['ADMIN', 'WARDEN', 'STAFF', 'ALUMNI', 'STUDENT', 'MEMBER'];
 
   const count = await this.countDocuments();
@@ -59,6 +59,31 @@ AccessSchema.statics.seedDefaults = async function() {
         }
       }));
       await this.insertMany(qrEntries);
+    }
+
+    // Ensure drive_links permissions exist if table was already seeded
+    const driveCount = await this.countDocuments({ page: 'drive_links' });
+    if (driveCount === 0) {
+      const driveEntries = roles.map(role => ({
+        page: 'drive_links',
+        role,
+        permissions: (role === 'ADMIN' || role === 'WARDEN') ? {
+          fullAccess: true,
+          view: true,
+          create: true,
+          update: true,
+          delete: true,
+          noAccess: false
+        } : {
+          fullAccess: false,
+          view: true,
+          create: false,
+          update: false,
+          delete: false,
+          noAccess: false
+        }
+      }));
+      await this.insertMany(driveEntries);
     }
 
     // Migrate legacy default gallery permissions for non-admin roles so they get create & delete
