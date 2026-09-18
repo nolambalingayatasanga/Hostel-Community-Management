@@ -9,18 +9,13 @@ export default defineConfig({
       "/api": {
         target: "http://localhost:5001",
         changeOrigin: true,
+        // Forward real client IP for QR scan analytics without breaking auth rate-limit
         xfwd: true,
         configure: (proxy) => {
           proxy.on("proxyReq", (proxyReq, req) => {
             const clientIp =
               req.socket?.remoteAddress || req.connection?.remoteAddress || "";
-            const existing = req.headers["x-forwarded-for"];
-            const forwarded = existing ? `${existing}, ${clientIp}` : clientIp;
-
-            if (forwarded) {
-              proxyReq.setHeader("x-forwarded-for", forwarded);
-            }
-            if (clientIp) {
+            if (clientIp && !req.headers["x-real-ip"]) {
               proxyReq.setHeader("x-real-ip", clientIp);
             }
           });
