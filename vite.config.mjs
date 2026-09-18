@@ -9,17 +9,6 @@ export default defineConfig({
       "/api": {
         target: "http://localhost:5001",
         changeOrigin: true,
-        // Forward real client IP for QR scan analytics without breaking auth rate-limit
-        xfwd: true,
-        configure: (proxy) => {
-          proxy.on("proxyReq", (proxyReq, req) => {
-            const clientIp =
-              req.socket?.remoteAddress || req.connection?.remoteAddress || "";
-            if (clientIp && !req.headers["x-real-ip"]) {
-              proxyReq.setHeader("x-real-ip", clientIp);
-            }
-          });
-        },
       },
     },
   },

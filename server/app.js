@@ -62,17 +62,14 @@ app.use(async (req, res, next) => {
   next();
 });
 
-// Trust one hop (Vite in local / Vercel in production)
+// Trust proxy for Vercel / serverless deployments
 app.set("trust proxy", 1);
 
-const { getClientIp } = require("./utils/getClientIp");
-
 // Setup rate limiter for authentication endpoints
+// validate:false so proxy/IP headers never break login with a 500
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per windowMs
-  // Custom IP resolver avoids ValidationError 500s behind Vite/Vercel proxies
-  keyGenerator: (req) => getClientIp(req) || req.ip || "unknown",
   validate: false,
   message: {
     success: false,
@@ -90,10 +87,9 @@ const eventRoutes = require("./routes/eventRoutes");
 const galleryRoutes = require("./routes/galleryRoutes");
 const crmRoutes = require("./routes/crmRoutes");
 const accessRoutes = require("./routes/accessRoutes");
-const qrScanRoutes = require("./routes/qrScanRoutes");
 const driveLinkRoutes = require("./routes/driveLinkRoutes");
 
-// Mount routes
+// Mount auth/core routes first — login must never depend on QR packages
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/events", eventRoutes);
@@ -101,7 +97,17 @@ app.use("/api/gallery", galleryRoutes);
 app.use("/api/drive-links", driveLinkRoutes);
 app.use("/api/crm", crmRoutes);
 app.use("/api/access", accessRoutes);
-app.use("/api/qr-scans", qrScanRoutes);
+
+// QR routes are optional; a missing dep must not take down login
+try {
+  const qrScanRoutes = require("./routes/qrScanRoutes");
+  app.use("/api/qr-scans", qrScanRoutes);
+} catch (err) {
+  console.error(
+    "QR scan routes failed to load (login still works):",
+    err.message,
+  );
+}
 
 // Health check endpoints
 app.get("/health", (req, res) => {
