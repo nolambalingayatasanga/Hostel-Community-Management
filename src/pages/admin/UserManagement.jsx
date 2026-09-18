@@ -22,6 +22,8 @@ import {
   Tab,
   FormControlLabel,
   Checkbox,
+  Switch,
+  Tooltip,
   CircularProgress
 } from '@mui/material';
 import {
@@ -68,6 +70,11 @@ const UserManagement = () => {
   const [password, setPassword] = useState(''); // Only for new user
   const [gender, setGender] = useState('MALE');
   const [adhaar, setAdhaar] = useState('');
+  const [privacySettings, setPrivacySettings] = useState({
+    maskPhone: false,
+    maskEmail: false,
+    maskAdhaar: false
+  });
   const [registrationNumber, setRegistrationNumber] = useState('');
   const [localLanguageDetails, setLocalLanguageDetails] = useState('');
 
@@ -129,6 +136,11 @@ const UserManagement = () => {
             setPhone(u.phone || '');
             setGender(u.gender || 'MALE');
             setAdhaar(u.adhaar || '');
+            setPrivacySettings({
+              maskPhone: Boolean(u.privacySettings?.maskPhone),
+              maskEmail: Boolean(u.privacySettings?.maskEmail),
+              maskAdhaar: Boolean(u.privacySettings?.maskAdhaar)
+            });
             setRegistrationNumber(u.registrationNumber || '');
             setLocalLanguageDetails(u.localLanguageDetails || '');
 
@@ -209,6 +221,11 @@ const UserManagement = () => {
         ...(action !== 'edit' && { password }),
         gender,
         adhaar: adhaar || undefined,
+        privacySettings: {
+          maskPhone: Boolean(privacySettings.maskPhone),
+          maskEmail: Boolean(privacySettings.maskEmail),
+          maskAdhaar: Boolean(privacySettings.maskAdhaar)
+        },
         registrationNumber: role !== 'STUDENT' ? registrationNumber : undefined,
         localLanguageDetails,
         address,
@@ -310,11 +327,47 @@ const UserManagement = () => {
                   </Grid>
 
                   <Grid item xs={12} sm={6}>
-                    <TextField fullWidth label="Email Address" required type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569' }}>
+                        Email Address *
+                      </Typography>
+                      <Tooltip title="When hidden, email is masked in the directory table.">
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              size="small"
+                              checked={Boolean(privacySettings.maskEmail)}
+                              onChange={(e) => setPrivacySettings(prev => ({ ...prev, maskEmail: e.target.checked }))}
+                            />
+                          }
+                          label={<Typography variant="caption" sx={{ fontWeight: 600, fontSize: 11, color: privacySettings.maskEmail ? '#0088ff' : '#64748B' }}>Hide</Typography>}
+                          sx={{ m: 0 }}
+                        />
+                      </Tooltip>
+                    </Box>
+                    <TextField fullWidth required type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
                   </Grid>
 
                   <Grid item xs={12} sm={6}>
-                    <TextField fullWidth label="Phone Number" required value={phone} onChange={(e) => setPhone(e.target.value)} />
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569' }}>
+                        Phone Number *
+                      </Typography>
+                      <Tooltip title="When hidden, phone number is masked in the directory table.">
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              size="small"
+                              checked={Boolean(privacySettings.maskPhone)}
+                              onChange={(e) => setPrivacySettings(prev => ({ ...prev, maskPhone: e.target.checked }))}
+                            />
+                          }
+                          label={<Typography variant="caption" sx={{ fontWeight: 600, fontSize: 11, color: privacySettings.maskPhone ? '#0088ff' : '#64748B' }}>Hide</Typography>}
+                          sx={{ m: 0 }}
+                        />
+                      </Tooltip>
+                    </Box>
+                    <TextField fullWidth required value={phone} onChange={(e) => setPhone(e.target.value)} />
                   </Grid>
 
                   {action !== 'edit' && (
@@ -357,9 +410,26 @@ const UserManagement = () => {
                   )}
 
                   <Grid item xs={12} sm={role !== 'STUDENT' ? 6 : 12}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569' }}>
+                        Adhaar Number
+                      </Typography>
+                      <Tooltip title="When hidden, Aadhaar is masked in the directory table.">
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              size="small"
+                              checked={Boolean(privacySettings.maskAdhaar)}
+                              onChange={(e) => setPrivacySettings(prev => ({ ...prev, maskAdhaar: e.target.checked }))}
+                            />
+                          }
+                          label={<Typography variant="caption" sx={{ fontWeight: 600, fontSize: 11, color: privacySettings.maskAdhaar ? '#0088ff' : '#64748B' }}>Hide</Typography>}
+                          sx={{ m: 0 }}
+                        />
+                      </Tooltip>
+                    </Box>
                     <TextField
                       fullWidth
-                      label="Adhaar Number"
                       value={adhaar}
                       onChange={(e) => setAdhaar(e.target.value)}
                       placeholder="XXXX XXXX XXXX"

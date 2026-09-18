@@ -63,11 +63,21 @@ export default function DirectoryList() {
   const { saveTabLayout } = useTabLayoutMutations();
   const tabLayoutsQuery = useTabLayouts();
 
-  const [activeTabId, setActiveTabId] = useState(ALL_TAB);
+  const getInitialTabId = () => {
+    const groups = meta.data?.statusGroups || [];
+    const studentGroup = groups.find(
+      (g) => (g.name || "").toLowerCase() === "students"
+    );
+    return studentGroup ? String(studentGroup._id) : ALL_TAB;
+  };
+
+  const [activeTabId, setActiveTabId] = useState(getInitialTabId);
   const [isTabSwitching, setIsTabSwitching] = useState(false);
   const prevTabIdRef = useRef(activeTabId);
+  const userSwitchedTabRef = useRef(false);
 
   const handleTabChange = (newTabId) => {
+    userSwitchedTabRef.current = true;
     const idStr = String(newTabId);
     if (activeTabId !== idStr) {
       setIsTabSwitching(true);
@@ -204,7 +214,9 @@ export default function DirectoryList() {
     [page, pageSize, filters, debouncedSearch],
   );
 
-  const { data, isLoading, isFetching, isError, error } = useLeads(queryParams);
+  const { data, isLoading, isFetching, isError, error } = useLeads(queryParams, {
+    enabled: !meta.isLoading || Boolean(meta.data),
+  });
 
   useEffect(() => {
     if (prevTabIdRef.current !== activeTabId) {
@@ -400,12 +412,33 @@ export default function DirectoryList() {
     return list;
   }, [meta.data?.statusGroups, user?.role, tabOrder, permittedTabs]);
 
+  // Default to Students tab when status groups load, unless user explicitly switched tabs
+  useEffect(() => {
+    if (!userSwitchedTabRef.current && allStatusGroups.length > 0) {
+      const studentGroup = allStatusGroups.find(
+        (g) => (g.name || "").toLowerCase() === "students"
+      );
+      if (studentGroup) {
+        const studentGroupId = String(studentGroup._id);
+        if (activeTabId !== studentGroupId) {
+          setActiveTabId(studentGroupId);
+        }
+      }
+    }
+  }, [allStatusGroups, activeTabId]);
+
   // Ensure active tab is within permitted groups
   useEffect(() => {
     if (allStatusGroups.length > 0) {
       const isAllowed = allStatusGroups.some(g => String(g._id) === String(activeTabId));
       if (!isAllowed) {
-        handleTabChange(String(allStatusGroups[0]._id));
+        const studentGroup = allStatusGroups.find(
+          (g) => (g.name || "").toLowerCase() === "students"
+        );
+        const fallbackId = studentGroup ? String(studentGroup._id) : String(allStatusGroups[0]._id);
+        if (activeTabId !== fallbackId) {
+          setActiveTabId(fallbackId);
+        }
       }
     }
   }, [allStatusGroups, activeTabId]);

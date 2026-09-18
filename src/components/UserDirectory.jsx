@@ -419,8 +419,12 @@ const UserDirectory = ({ directoryRole, title }) => {
               </TableRow>
             ) : (
               users.map((u) => {
-                const hasContacts = u.email && u.phone; // check if redacted by backend privacy layer
-                
+                const PrivateChip = () => (
+                  <Tooltip title="Hidden for privacy by this user.">
+                    <Chip size="small" icon={<LockIcon fontSize="small" />} label="Private" sx={{ backgroundColor: 'rgba(0,136,255,0.08)' }} />
+                  </Tooltip>
+                );
+
                 return (
                   <TableRow key={u._id} hover>
                     <TableCell>
@@ -440,15 +444,23 @@ const UserDirectory = ({ directoryRole, title }) => {
                       )}
                     </TableCell>
                     <TableCell>
-                      {hasContacts ? (
-                        <>
-                          <Typography variant="body2">{u.email}</Typography>
-                          <Typography variant="caption" color="text.secondary">{u.phone}</Typography>
-                        </>
-                      ) : (
-                        <Tooltip title="Locked for privacy. View detailed profile if permitted, or register as board member/admin to view details.">
-                          <Chip size="small" icon={<LockIcon fontSize="small" />} label="Private" sx={{ backgroundColor: 'rgba(0,136,255,0.08)' }} />
-                        </Tooltip>
+                      {/* Email row */}
+                      {(u.isEmailMasked || u.privacySettings?.maskEmail)
+                        ? <PrivateChip />
+                        : u.email
+                          ? <Typography variant="body2">{u.email}</Typography>
+                          : null
+                      }
+                      {/* Phone row */}
+                      {(u.isPhoneMasked || u.privacySettings?.maskPhone)
+                        ? <PrivateChip />
+                        : u.phone
+                          ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{u.phone}</Typography>
+                          : null
+                      }
+                      {/* Fallback when neither field exists at all */}
+                      {!u.email && !u.isEmailMasked && !u.privacySettings?.maskEmail && !u.phone && !u.isPhoneMasked && !u.privacySettings?.maskPhone && (
+                        <Typography variant="caption" color="text.secondary">—</Typography>
                       )}
                     </TableCell>
                     <TableCell>

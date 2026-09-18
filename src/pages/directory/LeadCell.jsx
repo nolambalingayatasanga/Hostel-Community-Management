@@ -241,10 +241,25 @@ export default function LeadCell({
     isGender ||
     field.type === "select";
 
+  const isAdhaar = field.slug === INTERNAL_SLUGS.ADHAAR || (field.slug || "").toLowerCase() === "adhaar" || (field.slug || "").toLowerCase() === "aadhaar";
+
   const displayValue = (forEdit = false) => {
     if (isName) return row.name || "";
-    if (isEmail) return row.email || "";
-    if (isPhone) return row.phone || "";
+    if (isEmail) {
+      const isEmailHidden = Boolean(row.raw?.isEmailMasked || row.raw?.privacySettings?.maskEmail);
+      if (isEmailHidden && !forEdit) return "••••••••••••";
+      return row.email || "";
+    }
+    if (isPhone) {
+      const isPhoneHidden = Boolean(row.raw?.isPhoneMasked || row.raw?.privacySettings?.maskPhone);
+      if (isPhoneHidden && !forEdit) return "••••••••••";
+      return row.phone || "";
+    }
+    if (isAdhaar) {
+      const isAdhaarHidden = Boolean(row.raw?.isAdhaarMasked || row.raw?.privacySettings?.maskAdhaar);
+      if (isAdhaarHidden && !forEdit) return "•••• •••• ••••";
+      return row.adhaar || row.raw?.adhaar || "";
+    }
     if (isRole) return row.role || "";
     if (isGender) return row.gender || "";
     if (isAge) {
@@ -280,14 +295,6 @@ export default function LeadCell({
       }
       if ((field.slug === "dateOfBirth" || field.slug === "dob") && val) {
         return formatLeadDate(val);
-      }
-      const isEmailHidden = Boolean(row.raw?.isEmailMasked || row.raw?.privacySettings?.maskEmail);
-      if ((field.slug === "email" || field.slug.toLowerCase() === "email") && isEmailHidden && !forEdit) {
-        return "••••@••••.••";
-      }
-      const isAdhaarHidden = Boolean(row.raw?.isAdhaarMasked || row.raw?.privacySettings?.maskAdhaar);
-      if ((field.slug === "adhaar" || field.slug === "aadhaar") && isAdhaarHidden && !forEdit) {
-        return "•••• •••• ••••";
       }
       if (val != null && val !== "") return String(val);
     }
@@ -369,6 +376,62 @@ export default function LeadCell({
           }}
         >
           {rawPhone || (isPhoneHidden ? "••••••••••" : "-")}
+        </Typography>
+      </Box>
+    );
+  }
+
+  // 3. Email View with same standard Cell UI
+  if (isEmail && !isEditing) {
+    const isEmailHidden = Boolean(row.raw?.isEmailMasked || row.raw?.privacySettings?.maskEmail);
+    const rawEmail = isEmailHidden ? "" : (row.email || "");
+    return wrap(
+      <Box
+        onClick={editable && !isEmailHidden ? onStartEdit : undefined}
+        sx={readSx(editable && !isEmailHidden)}
+        title={isEmailHidden ? "Email is hidden by user privacy settings" : rawEmail}
+      >
+        <Typography
+          variant="body2"
+          sx={{
+            color: rawEmail ? "#101828" : isEmailHidden ? "#64748B" : "#98A2B3",
+            fontSize: "0.875rem",
+            fontWeight: 500,
+            fontStyle: isEmailHidden ? "italic" : "normal",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {rawEmail || (isEmailHidden ? "••••••••••••" : "-")}
+        </Typography>
+      </Box>
+    );
+  }
+
+  // 4. Aadhaar View with same standard Cell UI
+  if (isAdhaar && !isEditing) {
+    const isAdhaarHidden = Boolean(row.raw?.isAdhaarMasked || row.raw?.privacySettings?.maskAdhaar);
+    const rawAdhaar = isAdhaarHidden ? "" : (row.adhaar || row.raw?.adhaar || "");
+    return wrap(
+      <Box
+        onClick={editable && !isAdhaarHidden ? onStartEdit : undefined}
+        sx={readSx(editable && !isAdhaarHidden)}
+        title={isAdhaarHidden ? "Aadhaar is hidden by user privacy settings" : rawAdhaar}
+      >
+        <Typography
+          variant="body2"
+          sx={{
+            color: rawAdhaar ? "#101828" : isAdhaarHidden ? "#64748B" : "#98A2B3",
+            fontSize: "0.875rem",
+            fontWeight: 500,
+            fontStyle: isAdhaarHidden ? "italic" : "normal",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {rawAdhaar || (isAdhaarHidden ? "•••• •••• ••••" : "-")}
         </Typography>
       </Box>
     );

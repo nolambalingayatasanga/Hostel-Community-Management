@@ -174,8 +174,9 @@ const sanitizeUser = (targetUser, currentUser, options = {}) => {
     return target;
   }
 
-  // If viewer is self or admin/warden in direct profile view, they are authorized to see full details
-  if (isSelf || isAdminOrWarden) {
+  // If viewer is self or admin in direct profile view, they are authorized to see full details
+  const isAdmin = Boolean(currentUser && currentUser.role === 'ADMIN');
+  if (isSelf || isAdmin) {
     return target;
   }
 
