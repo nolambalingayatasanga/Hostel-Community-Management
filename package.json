@@ -9,11 +9,14 @@
     "dev:server": "npm run dev --prefix server",
     "server": "npm run dev --prefix server",
     "seed": "npm run seed --prefix server",
+    "migrate:gallery": "node server/scripts/migrateGalleryToCloudflare.js",
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1135.0",
+    "@aws-sdk/s3-request-presigner": "^3.1135.0",
     "@date-io/dayjs": "^3.2.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",

@@ -76,7 +76,25 @@ const Login = () => {
         fontFamily: '"Outfit", "Inter", sans-serif'
       }}
     >
-      {/* ─── LEFT PANEL — Gallery Slideshow (60%) ─── */}
+      {/* ─── LEFT PANEL — Single Static Background Image (60%) ─── */}
+      {/* 
+        NOTE: Auto media slider commented out for now; will be re-enabled later.
+        <Box
+          sx={{
+            display: { xs: 'none', md: 'flex' },
+            width: '60%',
+            minWidth: '60%',
+            maxWidth: '60%',
+            height: '100vh',
+            maxHeight: '100vh',
+            position: 'relative',
+            overflow: 'hidden',
+            flexShrink: 0
+          }}
+        >
+          <AuthImageSlideshow />
+        </Box>
+      */}
       <Box
         sx={{
           display: { xs: 'none', md: 'flex' },
@@ -87,10 +105,28 @@ const Login = () => {
           maxHeight: '100vh',
           position: 'relative',
           overflow: 'hidden',
-          flexShrink: 0
+          flexShrink: 0,
+          bgcolor: '#0A1224'
         }}
       >
-        <AuthImageSlideshow />
+        {/* <AuthImageSlideshow /> */}
+        <Box
+          component="img"
+          src="/assets/ksh-login-bg.jpg"
+          alt="Hostel Campus"
+          sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            maxWidth: '100%',
+            maxHeight: '100%',
+            objectFit: 'cover',
+            objectPosition: 'center',
+            display: 'block'
+          }}
+        />
       </Box>
 
       {/* ─── RIGHT PANEL — Full 40% Width Available (No outer shadow/border-radius) ─── */}

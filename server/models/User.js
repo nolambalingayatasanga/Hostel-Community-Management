@@ -203,6 +203,11 @@ const UserSchema = new mongoose.Schema({
   resetPasswordToken: String,
   resetPasswordOtp: String,
   resetPasswordExpires: Date,
+  resetPasswordMethod: {
+    type: String,
+    enum: ['OTP', 'LINK'],
+    default: 'LINK'
+  },
   qrScanCount: {
     type: Number,
     default: 0

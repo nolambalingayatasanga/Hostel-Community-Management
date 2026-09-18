@@ -467,8 +467,8 @@ const Gallery = () => {
     const rawFiles = Array.from(e.target.files);
     if (!rawFiles || rawFiles.length === 0) return;
 
-    const MAX_IMAGE_SIZE = 9.8 * 1024 * 1024; // 9.8 MB (0.2 MB below Cloudinary's 10 MB limit)
-    const MAX_VIDEO_SIZE = 99 * 1024 * 1024;  // 99 MB (within Cloudinary's 100 MB limit)
+    const MAX_IMAGE_SIZE = 50 * 1024 * 1024;  // 50 MB
+    const MAX_VIDEO_SIZE = 500 * 1024 * 1024; // 500 MB
 
     const validFiles = [];
     for (const file of rawFiles) {
@@ -481,14 +481,14 @@ const Gallery = () => {
       }
       if (isImage && file.size > MAX_IMAGE_SIZE) {
         enqueueSnackbar(
-          `Image "${file.name}" exceeds 9.8 MB limit (kept 0.2 MB below Cloudinary's 10 MB limit). Selected size: ${(file.size / (1024 * 1024)).toFixed(2)} MB.`,
+          `Image "${file.name}" exceeds 50 MB limit. Selected size: ${(file.size / (1024 * 1024)).toFixed(2)} MB.`,
           { variant: 'error' }
         );
         continue;
       }
       if (isVideo && file.size > MAX_VIDEO_SIZE) {
         enqueueSnackbar(
-          `Video "${file.name}" exceeds 99 MB limit. Selected size: ${(file.size / (1024 * 1024)).toFixed(2)} MB.`,
+          `Video "${file.name}" exceeds 500 MB limit. Selected size: ${(file.size / (1024 * 1024)).toFixed(2)} MB.`,
           { variant: 'error' }
         );
         continue;

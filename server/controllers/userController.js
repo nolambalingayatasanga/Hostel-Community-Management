@@ -6,6 +6,7 @@ const StatusGroup = require('../models/StatusGroup');
 const GalleryPhoto = require('../models/GalleryPhoto');
 const GalleryFolder = require('../models/GalleryFolder');
 const Event = require('../models/Event');
+const PasswordResetActivity = require('../models/PasswordResetActivity');
 const { uploadImage, deleteImage } = require('../config/cloudinary');
 const { sanitizeUser } = require('../middleware/authMiddleware');
 const { logAuditEvent } = require('../utils/auditLogger');
@@ -1463,6 +1464,32 @@ exports.getDashboardStats = async (req, res, next) => {
 
     const profileTotals = profileCompleteness[0] || {};
 
+    // 5. Password Reset Statistics (Email sent/failed & OTP vs Redirect Link usage)
+    const [
+      emailsSentSuccess,
+      emailsSentFailed,
+      otpUsageCount,
+      linkUsageCount
+    ] = await Promise.all([
+      PasswordResetActivity.countDocuments({ type: 'EMAIL_SENT' }),
+      PasswordResetActivity.countDocuments({ type: 'EMAIL_FAILED' }),
+      PasswordResetActivity.countDocuments({ type: 'PASSWORD_RESET_OTP' }),
+      PasswordResetActivity.countDocuments({ type: 'PASSWORD_RESET_LINK' })
+    ]);
+
+    const passwordResetStats = {
+      emails: {
+        successful: emailsSentSuccess,
+        failed: emailsSentFailed,
+        total: emailsSentSuccess + emailsSentFailed
+      },
+      usage: {
+        otp: otpUsageCount,
+        redirectLink: linkUsageCount,
+        total: otpUsageCount + linkUsageCount
+      }
+    };
+
     res.status(200).json({
       success: true,
       data: {
@@ -1508,6 +1535,7 @@ exports.getDashboardStats = async (req, res, next) => {
           uploadsByMonth: galleryMonthlyUploads,
           mediaTypeDistribution
         },
+        passwordResetStats,
         charts: {
           rolesDistribution,
           studentsByCollege,

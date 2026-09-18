@@ -33,7 +33,11 @@ import {
   BarChart as BarChartIcon,
   Schedule as ScheduleIcon,
   TaskAlt as TaskAltIcon,
-  AccessTime as AccessTimeIcon
+  AccessTime as AccessTimeIcon,
+  LockReset as LockResetIcon,
+  ErrorOutlined as ErrorOutlineIcon,
+  VpnKey as VpnKeyIcon,
+  Link as LinkIcon
 } from '@mui/icons-material';
 import {
   BarChart,
@@ -259,11 +263,18 @@ const Dashboard = () => {
   }
 
   // 2. PRIVILEGED ADMIN/MEMBER DASHBOARD VIEW
-  const { counts, recentUsers, charts } = stats || {};
+  const { counts, recentUsers, charts, passwordResetStats } = stats || {};
 
   const profileStats = stats?.profileStats || {};
   const eventStats = stats?.eventStats || {};
   const galleryStats = stats?.galleryStats || {};
+  const resetStats = stats?.passwordResetStats || passwordResetStats || {
+    emails: { successful: 0, failed: 0, total: 0 },
+    usage: { otp: 0, redirectLink: 0, total: 0 }
+  };
+  const totalResetUsage = (resetStats.usage?.otp || 0) + (resetStats.usage?.redirectLink || 0);
+  const otpPercent = totalResetUsage > 0 ? Math.round(((resetStats.usage?.otp || 0) / totalResetUsage) * 100) : 0;
+  const linkPercent = totalResetUsage > 0 ? (100 - otpPercent) : 0;
 
   // Formatted data for Pie chart
   const roleChartData = charts?.rolesDistribution?.map(item => ({
@@ -441,6 +452,230 @@ const Dashboard = () => {
           </Grid>
         ))}
       </Grid>
+
+      {/* ─── Password Reset Activity & Method Analytics ─── */}
+      <Card
+        sx={{
+          mb: 3,
+          borderRadius: 2.75,
+          background: '#FFFFFF',
+          border: CARD_BORDER,
+          boxShadow: '0 8px 30px rgba(15, 23, 42, 0.06)',
+          overflow: 'hidden'
+        }}
+      >
+        <CardContent sx={{ p: { xs: 2.25, md: 3 } }}>
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            justifyContent="space-between"
+            alignItems={{ xs: 'flex-start', sm: 'center' }}
+            gap={1.5}
+            sx={{ mb: 2.5 }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Box
+                sx={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: '14px',
+                  display: 'grid',
+                  placeItems: 'center',
+                  bgcolor: 'rgba(0, 136, 255, 0.1)',
+                  color: '#0088ff',
+                  border: '1px solid rgba(0, 136, 255, 0.2)'
+                }}
+              >
+                <LockResetIcon sx={{ fontSize: 24 }} />
+              </Box>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 800, color: '#0F172A', fontSize: { xs: '16px', sm: '18px' }, lineHeight: 1.2 }}>
+                  Password Reset & Authentication Activity
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '13px', mt: 0.25 }}>
+                  Real-time metrics for reset emails delivery and OTP vs Direct Link completion
+                </Typography>
+              </Box>
+            </Box>
+            <Box
+              sx={{
+                bgcolor: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                px: 1.8,
+                py: 0.6,
+                borderRadius: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+              }}
+            >
+              <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600 }}>
+                Total Emails Triggered:
+              </Typography>
+              <Typography variant="body2" sx={{ fontWeight: 800, color: '#0F172A' }}>
+                {resetStats.emails?.total || 0}
+              </Typography>
+            </Box>
+          </Stack>
+
+          {/* ROW 1: SUCCESSFUL vs FAILED EMAILS */}
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="overline" sx={{ fontWeight: 800, color: '#475569', letterSpacing: '0.06em', mb: 1.5, display: 'block', fontSize: '11.5px' }}>
+              Reset Password Emails Sent
+            </Typography>
+            <Grid container spacing={2.5}>
+              <Grid item xs={12} sm={6}>
+                <Box
+                  sx={{
+                    p: 2.25,
+                    borderRadius: 2.5,
+                    background: 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)',
+                    border: '1.5px solid #BBF7D0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    boxShadow: '0 2px 10px rgba(22, 101, 52, 0.05)'
+                  }}
+                >
+                  <Box>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Successful Emails
+                    </Typography>
+                    <Typography variant="h3" sx={{ fontWeight: 900, color: '#14532D', my: 0.5, fontSize: { xs: '28px', sm: '34px' } }}>
+                      {resetStats.emails?.successful || 0}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: '#15803D', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <TaskAltIcon sx={{ fontSize: 15 }} /> Delivered to user inboxes
+                    </Typography>
+                  </Box>
+                  <Box sx={{ width: 48, height: 48, borderRadius: '16px', bgcolor: 'rgba(22, 101, 52, 0.12)', color: '#166534', display: 'grid', placeItems: 'center' }}>
+                    <TaskAltIcon sx={{ fontSize: 28 }} />
+                  </Box>
+                </Box>
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <Box
+                  sx={{
+                    p: 2.25,
+                    borderRadius: 2.5,
+                    background: 'linear-gradient(135deg, #FFF1F2 0%, #FFE4E6 100%)',
+                    border: '1.5px solid #FECDD3',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    boxShadow: '0 2px 10px rgba(159, 18, 57, 0.05)'
+                  }}
+                >
+                  <Box>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: '#9F1239', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Failed Emails
+                    </Typography>
+                    <Typography variant="h3" sx={{ fontWeight: 900, color: '#881337', my: 0.5, fontSize: { xs: '28px', sm: '34px' } }}>
+                      {resetStats.emails?.failed || 0}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: '#BE123C', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <ErrorOutlineIcon sx={{ fontSize: 15 }} /> Delivery bounced or SMTP error
+                    </Typography>
+                  </Box>
+                  <Box sx={{ width: 48, height: 48, borderRadius: '16px', bgcolor: 'rgba(159, 18, 57, 0.12)', color: '#9F1239', display: 'grid', placeItems: 'center' }}>
+                    <ErrorOutlineIcon sx={{ fontSize: 28 }} />
+                  </Box>
+                </Box>
+              </Grid>
+            </Grid>
+          </Box>
+
+          <Divider sx={{ my: 2.5, borderColor: '#F1F5F9' }} />
+
+          {/* ROW 2: OTP USAGE vs REDIRECT LINK USAGE */}
+          <Box>
+            <Typography variant="overline" sx={{ fontWeight: 800, color: '#475569', letterSpacing: '0.06em', mb: 1.5, display: 'block', fontSize: '11.5px' }}>
+              Password Reset Method Usage
+            </Typography>
+            <Grid container spacing={2.5}>
+              <Grid item xs={12} sm={6}>
+                <Box
+                  sx={{
+                    p: 2.25,
+                    borderRadius: 2.5,
+                    background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
+                    border: '1.5px solid #BFDBFE',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    boxShadow: '0 2px 10px rgba(30, 64, 175, 0.05)'
+                  }}
+                >
+                  <Box>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: '#1E40AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      OTP Code Usage
+                    </Typography>
+                    <Typography variant="h3" sx={{ fontWeight: 900, color: '#1E3A8A', my: 0.5, fontSize: { xs: '28px', sm: '34px' } }}>
+                      {resetStats.usage?.otp || 0}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: '#2563EB', fontWeight: 600 }}>
+                      Completed via 6-digit OTP verification ({otpPercent}% of resets)
+                    </Typography>
+                  </Box>
+                  <Box sx={{ width: 48, height: 48, borderRadius: '16px', bgcolor: 'rgba(30, 64, 175, 0.12)', color: '#1E40AF', display: 'grid', placeItems: 'center' }}>
+                    <VpnKeyIcon sx={{ fontSize: 26 }} />
+                  </Box>
+                </Box>
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <Box
+                  sx={{
+                    p: 2.25,
+                    borderRadius: 2.5,
+                    background: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)',
+                    border: '1.5px solid #DDD6FE',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    boxShadow: '0 2px 10px rgba(91, 33, 182, 0.05)'
+                  }}
+                >
+                  <Box>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: '#5B21B6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Redirect Link Usage
+                    </Typography>
+                    <Typography variant="h3" sx={{ fontWeight: 900, color: '#4C1D95', my: 0.5, fontSize: { xs: '28px', sm: '34px' } }}>
+                      {resetStats.usage?.redirectLink || 0}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: '#6D28D9', fontWeight: 600 }}>
+                      Completed directly via email redirect link ({linkPercent}% of resets)
+                    </Typography>
+                  </Box>
+                  <Box sx={{ width: 48, height: 48, borderRadius: '16px', bgcolor: 'rgba(91, 33, 182, 0.12)', color: '#5B21B6', display: 'grid', placeItems: 'center' }}>
+                    <LinkIcon sx={{ fontSize: 26 }} />
+                  </Box>
+                </Box>
+              </Grid>
+            </Grid>
+
+            {/* Segmented Comparison Bar */}
+            {totalResetUsage > 0 && (
+              <Box sx={{ mt: 2.5, p: 2, borderRadius: 2, bgcolor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+                <Stack direction="row" justifyContent="space-between" sx={{ mb: 1 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: '#1E40AF', display: 'flex', alignItems: 'center', gap: 0.8 }}>
+                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#1877F2' }} />
+                    OTP Verification: {resetStats.usage?.otp || 0} ({otpPercent}%)
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: '#5B21B6', display: 'flex', alignItems: 'center', gap: 0.8 }}>
+                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#7C3AED' }} />
+                    Redirect Link: {resetStats.usage?.redirectLink || 0} ({linkPercent}%)
+                  </Typography>
+                </Stack>
+                <Box sx={{ height: 10, borderRadius: 5, overflow: 'hidden', display: 'flex', bgcolor: '#E2E8F0' }}>
+                  <Box sx={{ width: `${otpPercent}%`, bgcolor: '#1877F2', transition: 'width 0.4s ease' }} />
+                  <Box sx={{ width: `${linkPercent}%`, bgcolor: '#7C3AED', transition: 'width 0.4s ease' }} />
+                </Box>
+              </Box>
+            )}
+          </Box>
+        </CardContent>
+      </Card>
 
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} lg={4}>

@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const PasswordResetActivity = require('../models/PasswordResetActivity');
 const sendEmail = require('../utils/email');
 const { extractClientInfo, logAuditEvent } = require('../utils/auditLogger');
 const { getDefaultProfilePhoto } = require('../utils/defaultProfilePhoto');
@@ -466,6 +467,7 @@ exports.forgotPassword = async (req, res, next) => {
       .digest('hex');
 
     user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
+    user.resetPasswordMethod = 'LINK';
 
     await user.save({ validateBeforeSave: false });
 
@@ -657,15 +659,36 @@ exports.forgotPassword = async (req, res, next) => {
         html: emailHtml
       });
 
+      // Track successful password reset email sent
+      await PasswordResetActivity.create({
+        type: 'EMAIL_SENT',
+        email: user.email,
+        user: user._id,
+        ipAddress: req.ip || req.connection?.remoteAddress,
+        userAgent: req.headers ? req.headers['user-agent'] : ''
+      }).catch(e => console.warn('Activity log error:', e.message));
+
       res.status(200).json({
         success: true,
         message: 'Password reset link and OTP sent successfully.'
       });
     } catch (err) {
       console.error('Send Email Error:', err);
+
+      // Track failed password reset email attempt
+      await PasswordResetActivity.create({
+        type: 'EMAIL_FAILED',
+        email: user.email,
+        user: user._id,
+        errorMessage: err.message,
+        ipAddress: req.ip || req.connection?.remoteAddress,
+        userAgent: req.headers ? req.headers['user-agent'] : ''
+      }).catch(e => console.warn('Activity log error:', e.message));
+
       user.resetPasswordToken = undefined;
       user.resetPasswordOtp = undefined;
       user.resetPasswordExpires = undefined;
+      user.resetPasswordMethod = undefined;
       await user.save({ validateBeforeSave: false });
       
       return res.status(500).json({
@@ -739,8 +762,9 @@ exports.verifyResetOtp = async (req, res, next) => {
       .createHash('sha256')
       .update(freshToken)
       .digest('hex');
-    // Clear the OTP so it cannot be reused
+    // Clear the OTP so it cannot be reused, and record that this user verified via OTP
     user.resetPasswordOtp = undefined;
+    user.resetPasswordMethod = 'OTP';
     await user.save({ validateBeforeSave: false });
 
     return res.status(200).json({
@@ -808,10 +832,25 @@ exports.resetPassword = async (req, res, next) => {
       });
     }
 
+    // Determine whether user reset via OTP or direct redirect link
+    const resetMethod = user.resetPasswordMethod === 'OTP' ? 'OTP' : 'LINK';
+
+    // Track usage in PasswordResetActivity
+    await PasswordResetActivity.create({
+      type: resetMethod === 'OTP' ? 'PASSWORD_RESET_OTP' : 'PASSWORD_RESET_LINK',
+      method: resetMethod,
+      email: user.email,
+      user: user._id,
+      ipAddress: req.ip || req.connection?.remoteAddress,
+      userAgent: req.headers ? req.headers['user-agent'] : ''
+    }).catch(e => console.warn('Activity log error:', e.message));
+
     // Update password
     user.passwordHash = password; // Pre-save hook hashes this
     user.resetPasswordToken = undefined;
+    user.resetPasswordOtp = undefined;
     user.resetPasswordExpires = undefined;
+    user.resetPasswordMethod = undefined;
     await user.save();
 
     // Send JWT token

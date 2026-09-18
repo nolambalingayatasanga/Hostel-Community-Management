@@ -68,7 +68,55 @@ export function UploadQueueProvider({ children }) {
     activeAbortControllerRef.current = abortController;
 
     try {
-      // Helper to attempt direct-to-Cloudinary upload to bypass Vercel 4.5MB limit
+      // Helper to attempt direct-to-Cloudflare R2 upload using presigned PUT URL
+      const tryDirectCloudflareR2Upload = async (folderName = 'gallery') => {
+        try {
+          const isVideo = pendingItem.file.type.startsWith('video/') ||
+            /\.(mp4|mov|avi|webm|mkv)$/i.test(pendingItem.file.name);
+          const resourceType = isVideo ? 'video' : 'image';
+
+          const presignedRes = await API.get('/gallery/presigned-url', {
+            params: {
+              filename: pendingItem.file.name,
+              fileType: pendingItem.file.type || (isVideo ? 'video/mp4' : 'image/jpeg'),
+              folder: folderName
+            },
+            signal: abortController.signal
+          });
+
+          if (presignedRes.data?.success && presignedRes.data?.data) {
+            const { uploadUrl, publicUrl, key } = presignedRes.data.data;
+
+            // Direct PUT to Cloudflare R2 presigned URL with progress tracking
+            await axios.put(uploadUrl, pendingItem.file, {
+              headers: {
+                'Content-Type': pendingItem.file.type || (isVideo ? 'video/mp4' : 'image/jpeg')
+              },
+              signal: abortController.signal,
+              onUploadProgress: (progressEvent) => {
+                if (progressEvent.total) {
+                  const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                  setQueue((prev) =>
+                    prev.map((item) => (item.id === currentId ? { ...item, progress: percent } : item))
+                  );
+                }
+              }
+            });
+
+            return {
+              url: publicUrl,
+              publicId: key,
+              resourceType,
+              storageProvider: 'cloudflare'
+            };
+          }
+        } catch (r2Err) {
+          console.warn('Direct Cloudflare R2 upload not used or failed, falling back:', r2Err.message);
+        }
+        return null;
+      };
+
+      // Helper to attempt direct-to-Cloudinary upload (used for Events)
       const tryDirectCloudinaryUpload = async (folderName) => {
         try {
           const sigRes = await API.get('/gallery/upload-signature', {
@@ -107,7 +155,8 @@ export function UploadQueueProvider({ children }) {
             return {
               url: cldRes.data.secure_url || cldRes.data.url,
               publicId: cldRes.data.public_id,
-              resourceType: cldRes.data.resource_type || resourceType
+              resourceType: cldRes.data.resource_type || resourceType,
+              storageProvider: 'cloudinary'
             };
           }
         } catch (cldErr) {
@@ -118,13 +167,21 @@ export function UploadQueueProvider({ children }) {
 
       let res;
       if (pendingItem.destinationType === 'gallery') {
-        const directResult = await tryDirectCloudinaryUpload('hostel-community/gallery');
+        // 1. Try Cloudflare R2 direct upload first
+        let directResult = await tryDirectCloudflareR2Upload('gallery');
+        
+        // 2. If R2 is not configured, fallback to direct Cloudinary upload
+        if (!directResult) {
+          directResult = await tryDirectCloudinaryUpload('hostel-community/gallery');
+        }
+
         if (directResult) {
-          // Bypasses Vercel 4.5MB limit entirely by sending only small JSON metadata
+          // Bypasses Vercel payload limit entirely by sending only metadata
           res = await API.post('/gallery', {
             url: directResult.url,
             publicId: directResult.publicId,
             resourceType: directResult.resourceType,
+            storageProvider: directResult.storageProvider || 'cloudflare',
             folderId: pendingItem.destinationId || undefined,
             caption: ''
           }, { signal: abortController.signal });
@@ -154,6 +211,7 @@ export function UploadQueueProvider({ children }) {
           });
         }
       } else if (pendingItem.destinationType === 'event') {
+        // Keep Cloudinary direct upload exclusively for Events
         const directResult = await tryDirectCloudinaryUpload(`hostel-community/events/${pendingItem.destinationId}/gallery`);
         if (directResult) {
           res = await API.post(`/events/${pendingItem.destinationId}/gallery`, {

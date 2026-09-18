@@ -7,7 +7,12 @@ const GalleryPhotoSchema = new mongoose.Schema({
   },
   publicId: {
     type: String,
-    required: [true, 'Please provide a Cloudinary public ID']
+    required: [true, 'Please provide a public ID or storage key']
+  },
+  storageProvider: {
+    type: String,
+    enum: ['cloudinary', 'cloudflare'],
+    default: 'cloudinary'
   },
   caption: {
     type: String,

@@ -17,8 +17,15 @@ router.post('/folders', restrictTo('ADMIN', 'WARDEN'), galleryController.createG
 router.put('/folders/:id', restrictTo('ADMIN', 'WARDEN'), galleryController.updateGalleryFolder);
 router.delete('/folders/:id', restrictTo('ADMIN', 'WARDEN'), galleryController.deleteGalleryFolder);
 
-// Upload signature endpoint for direct-to-Cloudinary upload (bypasses Vercel 4.5MB limit)
+// Presigned URL for Cloudflare R2 client-side direct upload
+router.get('/presigned-url', galleryController.getPresignedR2Url);
+
+// Upload signature endpoint for direct-to-Cloudinary upload (kept for Events & fallback)
 router.get('/upload-signature', galleryController.getUploadSignature);
+
+// Cloudinary -> Cloudflare R2 Migration Queue (Admin only)
+router.post('/admin/migrate-to-cloudflare', restrictTo('ADMIN'), galleryController.startCloudflareMigration);
+router.get('/admin/migrate-status', restrictTo('ADMIN'), galleryController.getCloudflareMigrationStatus);
 
 // Read gallery (all authenticated roles)
 router.get('/', galleryController.getGalleryPhotos);

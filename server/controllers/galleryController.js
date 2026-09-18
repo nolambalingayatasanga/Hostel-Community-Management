@@ -2,6 +2,16 @@ const GalleryPhoto = require('../models/GalleryPhoto');
 const GalleryFolder = require('../models/GalleryFolder');
 const Access = require('../models/Access');
 const { uploadImage, deleteImage, deleteMultipleMedia } = require('../config/cloudinary');
+const {
+  isR2Configured,
+  uploadToR2,
+  deleteFromR2,
+  getPresignedUploadUrl
+} = require('../config/cloudflareR2');
+const {
+  startMigrationQueue,
+  getMigrationStatus: getQueueStatus
+} = require('../services/galleryMigrationService');
 
 /**
  * Get gallery photos with 30-items-per-page pagination and optional folder filter
@@ -54,7 +64,44 @@ exports.getGalleryPhotos = async (req, res, next) => {
 };
 
 /**
- * Get Cloudinary upload signature for client-side direct uploads (bypasses Vercel 4.5MB limit)
+ * Get Cloudflare R2 presigned PUT URL for client-side direct uploads (zero server load, any file size)
+ */
+exports.getPresignedR2Url = async (req, res, next) => {
+  try {
+    if (!isR2Configured()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cloudflare R2 is not configured in environment variables. Please check your .env settings.'
+      });
+    }
+
+    const filename = req.query.filename || 'media';
+    const fileType = req.query.fileType || 'application/octet-stream';
+    const folder = req.query.folder || 'gallery';
+    const timestamp = Date.now();
+    const randomStr = Math.random().toString(36).substring(2, 9);
+
+    const ext = filename.includes('.') ? filename.substring(filename.lastIndexOf('.')) : '';
+    const key = `${folder}/${timestamp}_${randomStr}${ext}`;
+
+    const { uploadUrl, publicUrl } = await getPresignedUploadUrl(key, fileType);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        uploadUrl,
+        publicUrl,
+        key,
+        storageProvider: 'cloudflare'
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Get Cloudinary upload signature for client-side direct uploads (kept for Events and fallback)
  */
 exports.getUploadSignature = async (req, res, next) => {
   try {
@@ -80,7 +127,8 @@ exports.getUploadSignature = async (req, res, next) => {
         timestamp,
         cloudName: process.env.CLOUDINARY_CLOUD_NAME,
         apiKey: process.env.CLOUDINARY_API_KEY,
-        folder
+        folder,
+        r2Configured: isR2Configured()
       }
     });
   } catch (err) {
@@ -89,7 +137,7 @@ exports.getUploadSignature = async (req, res, next) => {
 };
 
 /**
- * Upload a photo/video to the community gallery (supports direct URL or multipart file buffer)
+ * Upload a photo/video to the community gallery (supports Cloudflare R2, direct URL, or multipart file buffer)
  */
 exports.uploadGalleryPhoto = async (req, res, next) => {
   try {
@@ -106,6 +154,7 @@ exports.uploadGalleryPhoto = async (req, res, next) => {
     const caption = req.body.caption || '';
     const directUrl = req.body.url;
     const directPublicId = req.body.publicId;
+    let storageProvider = req.body.storageProvider || 'cloudinary';
     let resourceType = req.body.resourceType;
 
     // Verify folder exists if specified
@@ -120,13 +169,16 @@ exports.uploadGalleryPhoto = async (req, res, next) => {
     let finalUrl = directUrl;
     let finalPublicId = directPublicId;
 
-    // If direct Cloudinary upload was performed by frontend
+    // If direct upload was performed by frontend (e.g. Cloudflare R2 or Cloudinary direct)
     if (finalUrl && finalPublicId) {
       if (!resourceType) {
-        resourceType = finalUrl.includes('/video/') ? 'video' : 'image';
+        resourceType = (finalUrl.includes('/video/') || /\.(mp4|mov|webm|mkv|ogg)$/i.test(finalUrl)) ? 'video' : 'image';
+      }
+      if (!req.body.storageProvider) {
+        storageProvider = finalUrl.includes('cloudinary.com') ? 'cloudinary' : 'cloudflare';
       }
     } else {
-      // Fallback to multipart file upload (localhost or small files)
+      // Fallback to multipart file upload
       if (!req.file) {
         return res.status(400).json({ success: false, message: 'Please select a file to upload.' });
       }
@@ -135,9 +187,6 @@ exports.uploadGalleryPhoto = async (req, res, next) => {
       const isImage = req.file.mimetype.startsWith('image/');
       resourceType = isVideo ? 'video' : 'image';
 
-      const MAX_IMAGE_SIZE = 9.8 * 1024 * 1024; // 9.8 MB
-      const MAX_VIDEO_SIZE = 99 * 1024 * 1024;  // 99 MB
-
       if (!isImage && !isVideo) {
         return res.status(400).json({
           success: false,
@@ -145,28 +194,49 @@ exports.uploadGalleryPhoto = async (req, res, next) => {
         });
       }
 
-      if (isImage && req.file.size > MAX_IMAGE_SIZE) {
-        return res.status(400).json({
-          success: false,
-          message: `Image "${req.file.originalname}" exceeds 9.8 MB limit (kept 0.2 MB below Cloudinary's 10 MB limit). Selected size: ${(req.file.size / (1024 * 1024)).toFixed(2)} MB.`
-        });
-      }
+      // If Cloudflare R2 is configured, upload directly to Cloudflare R2
+      if (isR2Configured()) {
+        const timestamp = Date.now();
+        const randomStr = Math.random().toString(36).substring(2, 9);
+        const ext = req.file.originalname.includes('.')
+          ? req.file.originalname.substring(req.file.originalname.lastIndexOf('.'))
+          : (isVideo ? '.mp4' : '.jpg');
+        const key = `gallery/${timestamp}_${randomStr}${ext}`;
 
-      if (isVideo && req.file.size > MAX_VIDEO_SIZE) {
-        return res.status(400).json({
-          success: false,
-          message: `Video "${req.file.originalname}" exceeds 99 MB limit. Selected size: ${(req.file.size / (1024 * 1024)).toFixed(2)} MB.`
-        });
-      }
+        const r2Result = await uploadToR2(req.file.buffer, key, req.file.mimetype);
+        finalUrl = r2Result.url;
+        finalPublicId = r2Result.key;
+        storageProvider = 'cloudflare';
+      } else {
+        // Fallback to Cloudinary if R2 is not configured
+        const MAX_IMAGE_SIZE = 9.8 * 1024 * 1024; // 9.8 MB
+        const MAX_VIDEO_SIZE = 99 * 1024 * 1024;  // 99 MB
 
-      const uploadResult = await uploadImage(req.file.buffer, 'hostel-community/gallery', req.file.mimetype, resourceType);
-      finalUrl = uploadResult.url;
-      finalPublicId = uploadResult.publicId;
+        if (isImage && req.file.size > MAX_IMAGE_SIZE) {
+          return res.status(400).json({
+            success: false,
+            message: `Image "${req.file.originalname}" exceeds 9.8 MB limit. Selected size: ${(req.file.size / (1024 * 1024)).toFixed(2)} MB.`
+          });
+        }
+
+        if (isVideo && req.file.size > MAX_VIDEO_SIZE) {
+          return res.status(400).json({
+            success: false,
+            message: `Video "${req.file.originalname}" exceeds 99 MB limit. Selected size: ${(req.file.size / (1024 * 1024)).toFixed(2)} MB.`
+          });
+        }
+
+        const uploadResult = await uploadImage(req.file.buffer, 'hostel-community/gallery', req.file.mimetype, resourceType);
+        finalUrl = uploadResult.url;
+        finalPublicId = uploadResult.publicId;
+        storageProvider = 'cloudinary';
+      }
     }
 
     const newPhoto = await GalleryPhoto.create({
       url: finalUrl,
       publicId: finalPublicId,
+      storageProvider,
       caption: caption || '',
       resourceType,
       folder: targetFolderId,
@@ -190,7 +260,7 @@ exports.uploadGalleryPhoto = async (req, res, next) => {
 };
 
 /**
- * Delete a photo from the gallery (deletes Cloudinary asset first)
+ * Delete a photo from the gallery (deletes Cloudflare R2 or Cloudinary asset first)
  */
 exports.deleteGalleryPhoto = async (req, res, next) => {
   try {
@@ -216,8 +286,13 @@ exports.deleteGalleryPhoto = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'You can only delete media you uploaded.' });
     }
 
-    // 1. Delete image/video asset from Cloudinary first
-    await deleteImage(photo.publicId || photo.url, photo.resourceType || 'image');
+    // 1. Delete asset from Cloudflare R2 or Cloudinary
+    const isCloudflare = photo.storageProvider === 'cloudflare' || (photo.url && !photo.url.includes('cloudinary.com'));
+    if (isCloudflare) {
+      await deleteFromR2(photo.publicId || photo.url);
+    } else {
+      await deleteImage(photo.publicId || photo.url, photo.resourceType || 'image');
+    }
 
     // 2. Delete record from Database
     await photo.deleteOne();
@@ -410,10 +485,18 @@ exports.deleteGalleryFolder = async (req, res, next) => {
     // 1. Recursively find all descendant folder IDs
     const allFolderIds = await getAllDescendantFolderIds(id);
 
-    // 2. Find and delete all photos in this folder and descendant subfolders from Cloudinary
+    // 2. Find and delete all photos in this folder and descendant subfolders
     const photos = await GalleryPhoto.find({ folder: { $in: allFolderIds } });
     if (photos.length > 0) {
-      await deleteMultipleMedia(photos);
+      const cldPhotos = photos.filter(p => p.storageProvider !== 'cloudflare' && (p.url && p.url.includes('cloudinary.com')));
+      const r2Photos = photos.filter(p => p.storageProvider === 'cloudflare' || (p.url && !p.url.includes('cloudinary.com')));
+
+      if (cldPhotos.length > 0) {
+        await deleteMultipleMedia(cldPhotos);
+      }
+      for (const p of r2Photos) {
+        await deleteFromR2(p.publicId || p.url);
+      }
     }
 
     // 3. Delete database records for photos and all folders
@@ -446,6 +529,40 @@ exports.getPublicGalleryPreviews = async (req, res, next) => {
     });
   } catch (error) {
     next(error);
+  }
+};
+
+/**
+ * Start Cloudinary -> Cloudflare R2 migration queue (Admin only)
+ */
+exports.startCloudflareMigration = async (req, res, next) => {
+  try {
+    const status = await startMigrationQueue();
+    res.status(200).json({
+      success: true,
+      message: 'Migration queue started successfully.',
+      data: status
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+
+/**
+ * Get current migration queue status (Admin only)
+ */
+exports.getCloudflareMigrationStatus = async (req, res, next) => {
+  try {
+    const status = getQueueStatus();
+    res.status(200).json({
+      success: true,
+      data: status
+    });
+  } catch (err) {
+    next(err);
   }
 };
 
