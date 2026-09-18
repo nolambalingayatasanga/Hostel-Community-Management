@@ -50,14 +50,22 @@ exports.register = async (req, res, next) => {
       college,
       course,
       startYear,
-      endYear
+      endYear,
+      privacySettings
     } = req.body;
 
     // Validate mandatory common fields
-    if (!name || !email || !phone || !password || !role) {
+    if (!name || !email || !phone || !password || !role || !dob) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide all mandatory fields (Name, Email, Phone, Password, Role).'
+        message: 'Please provide all mandatory fields (Name, Email, Phone, Password, Role, Date of Birth).'
+      });
+    }
+
+    if (dob && isNaN(new Date(dob).getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid Date of Birth.'
       });
     }
 
@@ -210,6 +218,11 @@ exports.register = async (req, res, next) => {
       ...(cleanAdhaar ? { adhaar: cleanAdhaar } : { adhaar: '' }),
       gender: gender ? gender.toUpperCase() : undefined,
       registrationNumber: cleanRegNo || undefined,
+      privacySettings: {
+        maskPhone: Boolean(privacySettings?.maskPhone),
+        maskEmail: Boolean(privacySettings?.maskEmail),
+        maskAdhaar: Boolean(privacySettings?.maskAdhaar)
+      },
       ...(memberInfoData && { memberInfo: memberInfoData }),
       ...(parsedDob && { dob: parsedDob, dateOfBirth: parsedDob }),
       ...(calculatedAge !== null && { age: calculatedAge }),

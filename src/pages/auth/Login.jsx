@@ -9,11 +9,11 @@ import {
   Typography,
   Link,
   CircularProgress,
-  Alert,
   InputAdornment,
   IconButton,
   Checkbox,
-  FormControlLabel
+  FormControlLabel,
+  Avatar
 } from '@mui/material';
 import {
   EmailOutlined as MailIcon,
@@ -21,9 +21,11 @@ import {
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
   East as ArrowIcon,
-  HomeOutlined
+  PeopleAltOutlined,
+  PersonAddOutlined
 } from '@mui/icons-material';
 import AuthImageSlideshow from '../../components/auth/AuthImageSlideshow';
+import ProfileIconImg from '../../assets/ProfileIcon.jpeg';
 
 const Login = () => {
   const { login } = useAuth();
@@ -36,18 +38,14 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const rawIdentifier = loginIdentifier.trim();
     if (!rawIdentifier || !password.trim()) {
-      const valMsg = 'Please fill in all fields.';
-      setError(valMsg);
-      enqueueSnackbar(valMsg, { variant: 'warning' });
+      enqueueSnackbar('Please fill in all fields.', { variant: 'warning' });
       return;
     }
-    setError('');
     setLoading(true);
 
     const cleanNoSpace = rawIdentifier.replace(/\s+/g, '');
@@ -61,7 +59,6 @@ const Login = () => {
       navigate('/profile');
     } else {
       const errMsg = result?.message || 'Login failed. Please check your credentials.';
-      setError(errMsg);
       enqueueSnackbar(errMsg, { variant: 'error' });
     }
   };
@@ -76,75 +73,169 @@ const Login = () => {
         display: 'flex',
         flexDirection: { xs: 'column', md: 'row' },
         overflow: 'hidden',
-        fontFamily: '"Inter", "Roboto", sans-serif'
+        fontFamily: '"Outfit", "Inter", sans-serif'
       }}
     >
-        {/* ─── LEFT PANEL — Gallery Slideshow (60%) ─── */}
-        <Box
-          sx={{
-            display: { xs: 'none', md: 'flex' },
-            width: '60%',
-            minWidth: '60%',
-            maxWidth: '60%',
-            height: '100vh',
-            maxHeight: '100vh',
-            position: 'relative',
-            overflow: 'hidden',
-            flexShrink: 0
-          }}
-        >
-          <AuthImageSlideshow />
-        </Box>
+      {/* ─── LEFT PANEL — Gallery Slideshow (60%) ─── */}
+      <Box
+        sx={{
+          display: { xs: 'none', md: 'flex' },
+          width: '60%',
+          minWidth: '60%',
+          maxWidth: '60%',
+          height: '100vh',
+          maxHeight: '100vh',
+          position: 'relative',
+          overflow: 'hidden',
+          flexShrink: 0
+        }}
+      >
+        <AuthImageSlideshow />
+      </Box>
 
-        {/* ─── RIGHT PANEL — Login Form ─── */}
-        <Box
-          sx={{
-            flex: 1,
-            width: { xs: '100%', md: '40%' },
-            minWidth: { md: '40%' },
-            maxWidth: { md: '40%' },
-            height: '100vh',
-            maxHeight: '100vh',
-            overflowY: 'auto',
-            bgcolor: '#FFFFFF',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            px: { xs: 3, sm: 6, lg: 8 },
-            py: { xs: 4, sm: 5 }
-          }}
-        >
-  
+      {/* ─── RIGHT PANEL — Full 40% Width Available (No outer shadow/border-radius) ─── */}
+      <Box
+        sx={{
+          flex: 1,
+          width: { xs: '100%', md: '40%' },
+          minWidth: { md: '40%' },
+          maxWidth: { md: '40%' },
+          height: '100vh',
+          maxHeight: '100vh',
+          overflowY: 'auto',
+          bgcolor: '#FFFFFF',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          px: { xs: 3, sm: 5, md: 6, lg: 7 },
+          py: { xs: 4, sm: 5 }
+        }}
+      >
+        <Box sx={{ width: '100%', maxWidth: 440 }}>
+          {/* Top Center Avatar */}
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+            <Avatar
+              src={ProfileIconImg}
+              alt="Kambi Connect"
+              sx={{
+                width: 96,
+                height: 96,
+                border: '3px solid #FFFFFF',
+                boxShadow: '0 0 0 3px #BFDBFE, 0 10px 24px -4px rgba(59, 130, 246, 0.35)',
+                transition: 'transform 0.3s ease',
+                '&:hover': { transform: 'scale(1.05)' }
+              }}
+            />
+          </Box>
 
+          {/* Title: Kambi Connect */}
+          <Typography
+            component="h1"
+            sx={{
+              fontWeight: 900,
+              fontSize: { xs: '28px', sm: '32px' },
+              letterSpacing: '-0.5px',
+              textAlign: 'center',
+              color: '#0F172A',
+              lineHeight: 1.2,
+              mb: 0.8
+            }}
+          >
+            Kambi{' '}
+            <Box component="span" sx={{ color: '#2563EB' }}>
+              Connect
+            </Box>
+          </Typography>
 
-          {/* Heading */}
-          <Box sx={{ mb: 3.5 }}>
+          {/* Divider: KMS HOSTEL */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 1.5,
+              mb: 0.8
+            }}
+          >
+            <Box sx={{ width: 45, height: '1.5px', bgcolor: '#CBD5E1' }} />
             <Typography
               sx={{
                 fontWeight: 800,
-                fontSize: { xs: '26px', sm: '30px' },
-                color: '#0F172A',
-                letterSpacing: '-0.5px',
-                mb: 0.5
+                fontSize: '11px',
+                letterSpacing: '3px',
+                color: '#475569'
               }}
             >
-              Welcome Back
+              K M S &nbsp; H O S T E L
             </Typography>
-            <Typography sx={{ color: '#64748B', fontSize: '14px', fontWeight: 400 }}>
-              Sign in to continue
-            </Typography>
+            <Box sx={{ width: 45, height: '1.5px', bgcolor: '#CBD5E1' }} />
           </Box>
 
-          {/* Error */}
-          {error && (
-            <Alert
-              severity="error"
-              sx={{ mb: 2.5, borderRadius: '10px', fontSize: '13px', fontWeight: 500 }}
-            >
-              {error}
-            </Alert>
-          )}
+          {/* Subtitle */}
+          <Typography
+            sx={{
+              textAlign: 'center',
+              color: '#64748B',
+              fontSize: '14px',
+              fontWeight: 500,
+              mb: 2.8
+            }}
+          >
+            Bridging Students, Alumni & Our Hostel Community Members
+          </Typography>
 
+          {/* Community Info Box */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+              p: 2,
+              borderRadius: '16px',
+              bgcolor: '#F0F6FF',
+              mb: 2.8
+            }}
+          >
+            <Box
+              sx={{
+                width: 48,
+                height: 48,
+                minWidth: 48,
+                borderRadius: '50%',
+                bgcolor: '#DBEAFE',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <PeopleAltOutlined sx={{ color: '#2563EB', fontSize: 24 }} />
+            </Box>
+            <Box>
+              <Typography
+                sx={{
+                  fontWeight: 800,
+                  fontSize: '14.5px',
+                  color: '#1E3A8A',
+                  mb: 0.3
+                }}
+              >
+                Learn &nbsp;•&nbsp; Connect &nbsp;•&nbsp; Grow
+              </Typography>
+              <Typography
+                sx={{
+                  color: '#64748B',
+                  fontSize: '12.5px',
+                  lineHeight: 1.45,
+                  fontWeight: 400
+                }}
+              >
+                Join with your hostel community, stay informed and be a part of something bigger.
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* Form */}
           <form onSubmit={handleSubmit}>
             {/* Email / Phone field */}
             <Box sx={{ mb: 2 }}>
@@ -166,7 +257,7 @@ const Login = () => {
                   input: {
                     startAdornment: (
                       <InputAdornment position="start">
-                        <MailIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                        <MailIcon sx={{ color: '#94A3B8', fontSize: 20 }} />
                       </InputAdornment>
                     )
                   }
@@ -175,10 +266,10 @@ const Login = () => {
                   '& .MuiOutlinedInput-root': {
                     borderRadius: '12px',
                     fontSize: '14.5px',
-                    bgcolor: '#FAFBFF',
-                    '& fieldset': { borderColor: '#E2E8F0' },
+                    bgcolor: '#FFFFFF',
+                    '& fieldset': { borderColor: '#CBD5E1' },
                     '&:hover fieldset': { borderColor: '#93C5FD' },
-                    '&.Mui-focused fieldset': { borderColor: '#1877F2', borderWidth: '1.5px' }
+                    '&.Mui-focused fieldset': { borderColor: '#2563EB', borderWidth: '1.5px' }
                   }
                 }}
               />
@@ -205,7 +296,7 @@ const Login = () => {
                   input: {
                     startAdornment: (
                       <InputAdornment position="start">
-                        <LockIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
+                        <LockIcon sx={{ color: '#94A3B8', fontSize: 20 }} />
                       </InputAdornment>
                     ),
                     endAdornment: (
@@ -230,10 +321,10 @@ const Login = () => {
                   '& .MuiOutlinedInput-root': {
                     borderRadius: '12px',
                     fontSize: '14.5px',
-                    bgcolor: '#FAFBFF',
-                    '& fieldset': { borderColor: '#E2E8F0' },
+                    bgcolor: '#FFFFFF',
+                    '& fieldset': { borderColor: '#CBD5E1' },
                     '&:hover fieldset': { borderColor: '#93C5FD' },
-                    '&.Mui-focused fieldset': { borderColor: '#1877F2', borderWidth: '1.5px' }
+                    '&.Mui-focused fieldset': { borderColor: '#2563EB', borderWidth: '1.5px' }
                   }
                 }}
               />
@@ -249,13 +340,13 @@ const Login = () => {
                     onChange={(e) => setRememberMe(e.target.checked)}
                     sx={{
                       color: '#CBD5E1',
-                      '&.Mui-checked': { color: '#1877F2' },
+                      '&.Mui-checked': { color: '#2563EB' },
                       p: 0.5
                     }}
                   />
                 }
                 label={
-                  <Typography sx={{ fontSize: '13px', color: '#64748B', fontWeight: 500 }}>
+                  <Typography sx={{ fontSize: '13.5px', color: '#475569', fontWeight: 500 }}>
                     Remember me
                   </Typography>
                 }
@@ -265,9 +356,9 @@ const Login = () => {
                 component={RouterLink}
                 to="/forgot-password"
                 sx={{
-                  color: '#1877F2',
+                  color: '#2563EB',
                   fontWeight: 600,
-                  fontSize: '13px',
+                  fontSize: '13.5px',
                   textDecoration: 'none',
                   '&:hover': { textDecoration: 'underline' }
                 }}
@@ -276,7 +367,7 @@ const Login = () => {
               </Link>
             </Box>
 
-            {/* Sign In button */}
+            {/* LoginIn button */}
             <Button
               fullWidth
               size="large"
@@ -285,28 +376,28 @@ const Login = () => {
               disabled={loading}
               endIcon={!loading && <ArrowIcon sx={{ fontSize: '20px !important' }} />}
               sx={{
-                py: 1.5,
+                py: 1.4,
                 borderRadius: '12px',
                 fontWeight: 700,
                 fontSize: '15.5px',
                 textTransform: 'none',
-                background: 'linear-gradient(135deg, #1877F2 0%, #0D62D9 100%)',
-                boxShadow: '0 8px 24px rgba(24, 119, 242, 0.35)',
+                bgcolor: '#0088ff',
+                boxShadow: 'none',
                 letterSpacing: '0.2px',
                 '&:hover': {
-                  background: 'linear-gradient(135deg, #0D62D9 0%, #0B57D0 100%)',
-                  boxShadow: '0 10px 28px rgba(24, 119, 242, 0.45)'
+                  bgcolor: '#0077e6',
+                  boxShadow: 'none'
                 },
                 '&.Mui-disabled': { bgcolor: '#93C5FD' }
               }}
             >
-              {loading ? <CircularProgress size={22} sx={{ color: '#fff' }} /> : 'Sign In'}
+              {loading ? <CircularProgress size={22} sx={{ color: '#fff' }} /> : 'Login In'}
             </Button>
           </form>
 
           {/* OR divider */}
-          <Box sx={{ display: 'flex', alignItems: 'center', my: 2.8 }}>
-            <Box sx={{ flex: 1, height: '1px', bgcolor: '#F1F5F9' }} />
+          <Box sx={{ display: 'flex', alignItems: 'center', my: 2.5 }}>
+            <Box sx={{ flex: 1, height: '1px', bgcolor: '#E2E8F0' }} />
             <Typography
               sx={{
                 px: 2,
@@ -318,28 +409,45 @@ const Login = () => {
             >
               OR
             </Typography>
-            <Box sx={{ flex: 1, height: '1px', bgcolor: '#F1F5F9' }} />
+            <Box sx={{ flex: 1, height: '1px', bgcolor: '#E2E8F0' }} />
           </Box>
 
           {/* Register link */}
-          <Box sx={{ textAlign: 'center' }}>
+          <Box sx={{ textAlign: 'center', mt: 2.8 }}>
             <Typography sx={{ color: '#64748B', fontSize: '13.5px' }}>
               Don't have an account?{' '}
-              <Link
-                component={RouterLink}
-                to="/register"
-                sx={{
-                  color: '#1877F2',
-                  fontWeight: 700,
-                  textDecoration: 'none',
-                  '&:hover': { textDecoration: 'underline' }
-                }}
-              >
-                Register here
-              </Link>
+           
             </Typography>
           </Box>
+          {/* Create an Account button */}
+          <Button
+            fullWidth
+            size="large"
+            component={RouterLink}
+            to="/register"
+            variant="outlined"
+            startIcon={<PersonAddOutlined sx={{ fontSize: '20px !important' }} />}
+            sx={{
+              py: 1.3,
+              borderRadius: '12px',
+              fontWeight: 700,
+              fontSize: '14.5px',
+              textTransform: 'none',
+              color: '#1877F2',
+              borderColor: '#93C5FD',
+              bgcolor: '#FFFFFF',
+              '&:hover': {
+                borderColor: '#1877F2',
+                bgcolor: '#EFF6FF'
+              }
+            }}
+          >
+            Create an Account
+          </Button>
+
+
         </Box>
+      </Box>
     </Box>
   );
 };

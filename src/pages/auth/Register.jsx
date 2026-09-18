@@ -25,7 +25,10 @@ import {
   Stack,
   Chip,
   Autocomplete,
-  MenuItem
+  MenuItem,
+  Switch,
+  FormControlLabel,
+  Tooltip
 } from '@mui/material';
 import {
   PersonOutlined as PersonIcon,
@@ -48,9 +51,12 @@ import {
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
   WarningAmber as WarningAmberIcon,
-  HomeOutlined
+  HomeOutlined,
+  PersonAddOutlined,
+  Diversity3Outlined,
+  ShieldOutlined,
+  StarBorderOutlined
 } from '@mui/icons-material';
-import AuthImageSlideshow from '../../components/auth/AuthImageSlideshow';
 
 const DRAFT_KEY = 'hostel_register_draft';
 
@@ -157,41 +163,46 @@ const Register = () => {
   const { enqueueSnackbar } = useSnackbar();
   const navigate = useNavigate();
 
-  // Load initial draft from localStorage to prevent loss on refresh
-  const getSavedDraft = () => {
+  // Purge any stale draft from localStorage to ensure strictly clean inputs
+  useEffect(() => {
     try {
-      return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}');
-    } catch {
-      return {};
+      localStorage.removeItem(DRAFT_KEY);
+    } catch (err) {
+      // ignore
     }
-  };
+  }, []);
 
-  const initialDraft = getSavedDraft();
+  // State initialization with strictly clean, empty default values
+  const [step, setStep] = useState(1);
+  const [role, setRole] = useState('STUDENT');
 
-  // State initialization with localStorage fallback
-  const [step, setStep] = useState(initialDraft.step || 1);
-  const [role, setRole] = useState(initialDraft.role || 'STUDENT');
-
-  const [name, setName] = useState(initialDraft.name || '');
-  const [email, setEmail] = useState(initialDraft.email || '');
-  const [phone, setPhone] = useState(initialDraft.phone || '');
-  const [adhaar, setAdhaar] = useState(initialDraft.adhaar || '');
-  const [gender, setGender] = useState(initialDraft.gender || 'MALE');
-  const [dob, setDob] = useState(initialDraft.dob || ''); // stores YYYY-MM-DD
-  const [dobDayjs, setDobDayjs] = useState(() => (initialDraft.dob && dayjs(initialDraft.dob).isValid() ? dayjs(initialDraft.dob) : null));
-  const [registrationNumber, setRegistrationNumber] = useState(initialDraft.registrationNumber || '');
-  const [password, setPassword] = useState(initialDraft.password || '');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [adhaar, setAdhaar] = useState('');
+  const [gender, setGender] = useState('');
+  const [dob, setDob] = useState(''); // stores YYYY-MM-DD
+  const [dobDayjs, setDobDayjs] = useState(null);
+  const [registrationNumber, setRegistrationNumber] = useState('');
+  const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Student / Alumni specific mandatory fields
-  const [college, setCollege] = useState(initialDraft.college || '');
-  const [course, setCourse] = useState(initialDraft.course || '');
-  const [startYear, setStartYear] = useState(initialDraft.startYear || '');
-  const [startYearDayjs, setStartYearDayjs] = useState(() => (initialDraft.startYear && dayjs(initialDraft.startYear).isValid() ? dayjs(initialDraft.startYear) : null));
-  const [endYear, setEndYear] = useState(initialDraft.endYear || '');
-  const [endYearDayjs, setEndYearDayjs] = useState(() => (initialDraft.endYear && dayjs(initialDraft.endYear).isValid() ? dayjs(initialDraft.endYear) : null));
+  // Privacy Settings (Hide from members directory table, matching inside Profile)
+  const [privacySettings, setPrivacySettings] = useState({
+    maskPhone: false,
+    maskEmail: false,
+    maskAdhaar: false
+  });
+
+  // Student / Alumni specific mandatory fields (strictly empty defaults)
+  const [college, setCollege] = useState('');
+  const [course, setCourse] = useState('');
+  const [startYear, setStartYear] = useState('');
+  const [startYearDayjs, setStartYearDayjs] = useState(null);
+  const [endYear, setEndYear] = useState('');
+  const [endYearDayjs, setEndYearDayjs] = useState(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -203,7 +214,46 @@ const Register = () => {
   });
   const validationTimerRef = useRef(null);
 
-  const EMAIL_FORMAT_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+  const EMAIL_SYNTAX_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+  const VALID_TLD_REGEX = /\.(com|in|org|net|edu|gov|co\.in|ac\.in|res\.in|org\.in|edu\.in|net\.in|io|ai|me|info|biz|[a-z]{2,})$/i;
+
+  const validateEmailClientFormat = (raw) => {
+    if (!raw) return { valid: false, message: 'Please enter your email address.' };
+    const em = raw.trim().toLowerCase();
+    if (!em.includes('@')) {
+      return { valid: false, message: "Email must contain an '@' symbol." };
+    }
+    const parts = em.split('@');
+    if (parts.length !== 2) {
+      return { valid: false, message: "Email can only contain one '@' symbol." };
+    }
+    const [userPart, domain] = parts;
+    if (!userPart) {
+      return { valid: false, message: 'Please enter the username part before @.' };
+    }
+    if (!domain || !domain.includes('.')) {
+      return { valid: false, message: 'Please enter a valid domain ending with .com, .in, etc.' };
+    }
+    if (!EMAIL_SYNTAX_REGEX.test(em)) {
+      return { valid: false, message: 'Please enter a valid email address format.' };
+    }
+    if (domain.includes('..') || userPart.includes('..')) {
+      return { valid: false, message: 'Email cannot contain consecutive dots.' };
+    }
+    const domainLower = domain.toLowerCase();
+    if (/^(gmial|gamil|gmaill|gmai)\./i.test(domainLower)) {
+      return { valid: false, message: 'Invalid domain. Did you mean @gmail.com?' };
+    }
+    if (domainLower.startsWith('gmail.')) {
+      if (domainLower !== 'gmail.com') {
+        return { valid: false, message: 'Invalid Gmail address. Must end with @gmail.com' };
+      }
+    }
+    if (!VALID_TLD_REGEX.test(domainLower)) {
+      return { valid: false, message: 'Email must end with a valid domain (e.g. .com, .in, etc.).' };
+    }
+    return { valid: true, email: em };
+  };
 
   const performEmailValidation = async (emailToVerify) => {
     const trimmed = (emailToVerify || '').trim().toLowerCase();
@@ -212,8 +262,9 @@ const Register = () => {
       return null;
     }
 
-    if (!EMAIL_FORMAT_REGEX.test(trimmed)) {
-      const res = { status: 'INVALID_FORMAT', message: 'Please enter a valid email address' };
+    const check = validateEmailClientFormat(trimmed);
+    if (!check.valid) {
+      const res = { status: 'INVALID_FORMAT', message: check.message };
       setEmailValidation(res);
       return res;
     }
@@ -287,33 +338,6 @@ const Register = () => {
 
   const currentYear = new Date().getFullYear();
 
-  // Sync to localStorage whenever fields change
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        DRAFT_KEY,
-        JSON.stringify({
-          step,
-          role,
-          name,
-          email,
-          phone,
-          adhaar,
-          gender,
-          dob,
-          registrationNumber,
-          password,
-          college,
-          course,
-          startYear,
-          endYear
-        })
-      );
-    } catch (err) {
-      console.error('Failed to save register draft:', err);
-    }
-  }, [step, role, name, email, phone, adhaar, gender, dob, registrationNumber, password, college, course, startYear, endYear]);
-
   // Dynamic preview of assigned role for student/alumni based on graduation year
   const computedRole = useMemo(() => {
     if (role === 'MEMBER') return 'Community Member';
@@ -381,13 +405,19 @@ const Register = () => {
     setAdhaar(formatted);
   };
 
-  const handleNextStep = () => {
+  const handleNextStep = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (e && e.stopPropagation) e.stopPropagation();
     setError('');
     setStep(2);
   };
 
   const handleSubmit = async (e) => {
-    if (e) e.preventDefault();
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (step !== 2) return;
     setError('');
     const notifyWarn = (msg) => {
       setError(msg);
@@ -426,8 +456,8 @@ const Register = () => {
       }
     }
 
-    if (dob && !dayjs(dob).isValid()) {
-      notifyWarn('Please enter a valid Date of Birth (DD/MM/YYYY).');
+    if (!dob || !dayjs(dob).isValid()) {
+      notifyWarn('Date of Birth is mandatory (DD/MM/YYYY).');
       return;
     }
 
@@ -494,6 +524,11 @@ const Register = () => {
       registrationNumber: registrationNumber?.trim() || undefined,
       password,
       role,
+      privacySettings: {
+        maskPhone: Boolean(privacySettings.maskPhone),
+        maskEmail: Boolean(privacySettings.maskEmail),
+        maskAdhaar: Boolean(privacySettings.maskAdhaar)
+      },
       college: collegeValue,
       course: courseValue,
       startYear: sYearStr,
@@ -516,30 +551,50 @@ const Register = () => {
   const inputStyle = {
     '& .MuiOutlinedInput-root': {
       borderRadius: '10px',
-      backgroundColor: '#FFFFFF',
-      fontSize: '14px',
+      backgroundColor: '#F8FAFC',
+      fontSize: '13.5px',
       height: '44px',
-      '& fieldset': { borderColor: '#E2E8F0' },
-      '&:hover fieldset': { borderColor: '#CBD5E1' },
-      '&.Mui-focused fieldset': { borderColor: '#1877F2', borderWidth: '1.5px' },
+      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+      '& fieldset': {
+        borderColor: '#E2E8F0',
+        borderWidth: '1px',
+        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+      },
+      '&:hover': {
+        backgroundColor: '#F1F5F9',
+        '& fieldset': { borderColor: '#CBD5E1' }
+      },
+      '&.Mui-focused': {
+        backgroundColor: '#FFFFFF',
+        boxShadow: '0 0 0 3px rgba(0, 136, 255, 0.12)',
+        '& fieldset': { borderColor: '#0088ff', borderWidth: '1.5px' }
+      },
+      '& input': {
+        color: '#0F172A',
+        fontWeight: 500,
+        '&::placeholder': { color: '#94A3B8', opacity: 1, fontWeight: 400 }
+      }
     }
   };
 
   const emailInputStyle = useMemo(() => {
     let borderColor = '#E2E8F0';
     let hoverBorderColor = '#CBD5E1';
-    let focusBorderColor = '#1877F2';
-    let bgColor = '#FFFFFF';
+    let focusBorderColor = '#0088ff';
+    let focusShadow = '0 0 0 3px rgba(0, 136, 255, 0.12)';
+    let bgColor = '#F8FAFC';
 
     if (emailValidation.status === 'EXISTS') {
       borderColor = '#16A34A';
       hoverBorderColor = '#15803D';
       focusBorderColor = '#16A34A';
+      focusShadow = '0 0 0 3px rgba(22, 163, 74, 0.14)';
       bgColor = '#F0FDF4';
     } else if (emailValidation.status === 'DOES_NOT_EXIST' || emailValidation.status === 'INVALID_FORMAT' || emailValidation.status === 'ALREADY_REGISTERED') {
       borderColor = '#DC2626';
       hoverBorderColor = '#B91C1C';
       focusBorderColor = '#DC2626';
+      focusShadow = '0 0 0 3px rgba(220, 38, 38, 0.14)';
       bgColor = '#FEF2F2';
     }
 
@@ -547,12 +602,24 @@ const Register = () => {
       '& .MuiOutlinedInput-root': {
         borderRadius: '10px',
         backgroundColor: bgColor,
-        fontSize: '14px',
+        fontSize: '13.5px',
         height: '44px',
-        transition: 'all 0.2s ease',
+        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
         '& fieldset': { borderColor, borderWidth: emailValidation.status ? '1.5px' : '1px' },
-        '&:hover fieldset': { borderColor: hoverBorderColor },
-        '&.Mui-focused fieldset': { borderColor: focusBorderColor, borderWidth: '1.5px' },
+        '&:hover': {
+          backgroundColor: emailValidation.status ? bgColor : '#F1F5F9',
+          '& fieldset': { borderColor: hoverBorderColor }
+        },
+        '&.Mui-focused': {
+          backgroundColor: '#FFFFFF',
+          boxShadow: focusShadow,
+          '& fieldset': { borderColor: focusBorderColor, borderWidth: '1.5px' }
+        },
+        '& input': {
+          color: '#0F172A',
+          fontWeight: 500,
+          '&::placeholder': { color: '#94A3B8', opacity: 1, fontWeight: 400 }
+        }
       }
     };
   }, [emailValidation.status]);
@@ -572,7 +639,7 @@ const Register = () => {
           fontFamily: '"Inter", "Roboto", sans-serif'
         }}
       >
-        {/* ─── LEFT PANEL — Gallery Slideshow (60%) ─── */}
+        {/* ─── LEFT PANEL — Single Static Background Image (60%) ─── */}
         <Box
           sx={{
             display: { xs: 'none', md: 'flex' },
@@ -583,10 +650,27 @@ const Register = () => {
             maxHeight: '100vh',
             position: 'relative',
             overflow: 'hidden',
-            flexShrink: 0
+            flexShrink: 0,
+            bgcolor: '#0A1224'
           }}
         >
-          <AuthImageSlideshow />
+          <Box
+            component="img"
+            src="/assets/ksh-login-bg.jpg"
+            alt="Hostel Campus"
+            sx={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              maxWidth: '100%',
+              maxHeight: '100%',
+              objectFit: 'cover',
+              objectPosition: 'center',
+              display: 'block'
+            }}
+          />
         </Box>
 
         {/* ─── RIGHT PANEL — Register Form (40%) ─── */}
@@ -600,112 +684,89 @@ const Register = () => {
             bgcolor: '#FFFFFF',
             display: 'flex',
             flexDirection: 'column',
-            overflow: 'hidden'
+            alignItems: 'center',
+            overflowY: 'auto',
+            px: { xs: 2.5, sm: 4, md: 5 },
+            py: { xs: 3, sm: 4 },
+            '&::-webkit-scrollbar': { width: '5px' },
+            '&::-webkit-scrollbar-thumb': { bgcolor: '#CBD5E1', borderRadius: '4px' },
+            '&::-webkit-scrollbar-thumb:hover': { bgcolor: '#94A3B8' }
           }}
         >
-          {/* ─── FIXED HEADER ─── */}
           <Box
+            component="form"
+            id="register-form"
+            autoComplete="off"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (step === 2) {
+                handleSubmit(e);
+              } else {
+                handleNextStep(e);
+              }
+            }}
             sx={{
-              flexShrink: 0,
-              px: { xs: 3, sm: 4.5 },
-              pt: { xs: 2.5, sm: 3 },
-              pb: 2,
-              borderBottom: '1px solid #F1F5F9',
-              bgcolor: '#FFFFFF',
-              zIndex: 5
+              width: '100%',
+              maxWidth: 480,
+              mx: 'auto',
+              my: 'auto',
+              display: 'flex',
+              flexDirection: 'column'
             }}
           >
-            {/* Mobile logo */}
-        
-
-            {/* Title */}
-            <Typography
-              variant="h5"
-              sx={{
-                fontWeight: 800,
-                color: '#0F172A',
-                fontSize: { xs: '20px', sm: '22px' },
-                letterSpacing: '-0.4px',
-                textAlign: 'center'
-              }}
-            >
-              {role === 'MEMBER' ? 'Create Member Account' : 'Create Student/Alumni Account'}
-            </Typography>
-
-            {/* Step 2 Header Chips */}
+     
+            {/* Step 2 Header: Assigned Role Badge & Change Role Action */}
             {step === 2 && (
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1.5 }}>
-                <Chip
-                  label={`Assigned Role: ${computedRole}`}
-                  color="primary"
-                  size="small"
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  mb: 2.5
+                }}
+              >
+                <Box
                   sx={{
-                    borderRadius: '6px',
-                    fontWeight: 700,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 1,
                     bgcolor: '#EFF6FF',
-                    color: '#1877F2',
-                    border: '1px solid #BFDBFE',
-                    fontSize: '12px',
-                    py: 1.6
+                    color: '#1D4ED8',
+                    px: 1.6,
+                    py: 0.7,
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: 600
                   }}
-                />
+                >
+                  <Diversity3Outlined sx={{ fontSize: 18, color: '#2563EB' }} />
+                  Assigned Role: {computedRole}
+                </Box>
                 <Button
+                  type="button"
                   size="small"
-                  onClick={() => setStep(1)}
-                  startIcon={<ArrowBackIcon sx={{ fontSize: 15 }} />}
-                  sx={{ textTransform: 'none', color: '#64748B', fontWeight: 600, fontSize: '12px' }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setStep(1);
+                  }}
+                  startIcon={<ArrowBackIcon sx={{ fontSize: 16 }} />}
+                  sx={{
+                    textTransform: 'none',
+                    color: '#2563EB',
+                    fontWeight: 600,
+                    fontSize: '13.5px',
+                    p: 0,
+                    '&:hover': { bgcolor: 'transparent', textDecoration: 'underline' }
+                  }}
                 >
                   Change Role
                 </Button>
               </Box>
             )}
 
-            {/* Error Alert */}
-            {error && (
-              <Alert
-                severity="error"
-                sx={{
-                  mt: 1.5,
-                  borderRadius: '10px',
-                  fontSize: '12.5px',
-                  fontWeight: 500,
-                  py: 0.5
-                }}
-              >
-                {error}
-              </Alert>
-            )}
-          </Box>
-
-          {/* ─── SCROLLABLE MIDDLE (Fields) + FIXED FOOTER inside <form> ─── */}
-          <Box
-            component="form"
-            id="register-form"
-            onSubmit={step === 1 ? (e) => { e.preventDefault(); handleNextStep(); } : handleSubmit}
-            sx={{
-              flex: 1,
-              minHeight: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden'
-            }}
-          >
-            {/* Scrollable Middle Container */}
-            <Box
-              sx={{
-                flex: 1,
-                minHeight: 0,
-                overflowY: 'auto',
-                px: { xs: 3, sm: 4.5 },
-                py: 2.5,
-                '&::-webkit-scrollbar': { width: '5px' },
-                '&::-webkit-scrollbar-thumb': { bgcolor: '#CBD5E1', borderRadius: '4px' },
-                '&::-webkit-scrollbar-thumb:hover': { bgcolor: '#94A3B8' }
-              }}
-            >
-              {step === 1 ? (
-                /* STEP 1: CHOOSE ROLE */
-                <Box sx={{ maxWidth: 440, mx: 'auto', py: 1 }}>
+            {step === 1 ? (
+              /* STEP 1: CHOOSE ROLE */
+              <Box sx={{ py: 1 }}>
                   <Stack spacing={2} sx={{ mb: 2 }}>
                     {/* Option 1: Student / Alumni */}
                     <Box
@@ -807,12 +868,15 @@ const Register = () => {
                 >
                   {/* 1. Full Name */}
                   <Box>
-                    <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                      Full Name <span style={{ color: '#EF4444' }}>*</span>
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
+                      <Typography component="label" sx={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
+                        Full Name <span style={{ color: '#EF4444' }}>*</span>
+                      </Typography>
+                    </Box>
                     <TextField
                       fullWidth
                       size="small"
+                      autoComplete="off"
                       inputRef={nameRef}
                       value={name}
                       onChange={(e) => setName(e.target.value)}
@@ -822,7 +886,7 @@ const Register = () => {
                           emailRef.current?.focus();
                         }
                       }}
-                      placeholder="Enter Full Name"
+                      placeholder="Enter your full name"
                       slotProps={{
                         input: {
                           startAdornment: (
@@ -838,13 +902,39 @@ const Register = () => {
 
                   {/* 2. Email Address */}
                   <Box>
-                    <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                      Email Address <span style={{ color: '#EF4444' }}>*</span>
-                    </Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
+                      <Typography component="label" sx={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
+                        Email Address <span style={{ color: '#EF4444' }}>*</span>
+                      </Typography>
+                      <Tooltip title="When enabled, your email is hidden for other users.">
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              size="small"
+                              checked={Boolean(privacySettings.maskEmail)}
+                              onChange={(e) => setPrivacySettings(prev => ({ ...prev, maskEmail: e.target.checked }))}
+                              sx={{
+                                transform: 'scale(0.8)',
+                                mr: -0.5,
+                                '& .MuiSwitch-switchBase.Mui-checked': { color: '#0088ff' },
+                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#0088ff' }
+                              }}
+                            />
+                          }
+                          label={
+                            <Typography variant="caption" sx={{ color: privacySettings.maskEmail ? '#0088ff' : '#64748B', fontWeight: 600, fontSize: 11, display: 'flex', alignItems: 'center', gap: 0.4 }}>
+                              <VisibilityOffIcon sx={{ fontSize: 13 }} /> Hide
+                            </Typography>
+                          }
+                          sx={{ m: 0 }}
+                        />
+                      </Tooltip>
+                    </Box>
                     <TextField
                       fullWidth
                       size="small"
                       type="email"
+                      autoComplete="off"
                       inputRef={emailRef}
                       value={email}
                       onChange={handleEmailChange}
@@ -855,7 +945,7 @@ const Register = () => {
                           genderRef.current?.focus();
                         }
                       }}
-                      placeholder="Enter Email Address"
+                      placeholder="you@example.com"
                       slotProps={{
                         input: {
                           startAdornment: (
@@ -908,9 +998,11 @@ const Register = () => {
 
                   {/* 3. Gender */}
                   <Box>
-                    <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                      Gender <span style={{ color: '#EF4444' }}>*</span>
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
+                      <Typography component="label" sx={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
+                        Gender <span style={{ color: '#EF4444' }}>*</span>
+                      </Typography>
+                    </Box>
                     <TextField
                       select
                       fullWidth
@@ -918,6 +1010,15 @@ const Register = () => {
                       inputRef={genderRef}
                       value={gender}
                       onChange={(e) => setGender(e.target.value)}
+                      SelectProps={{
+                        displayEmpty: true,
+                        renderValue: (selected) => {
+                          if (!selected) {
+                            return <span style={{ color: '#94A3B8' }}>Select gender</span>;
+                          }
+                          return selected === 'MALE' ? 'Male' : selected === 'FEMALE' ? 'Female' : 'Other';
+                        }
+                      }}
                       slotProps={{
                         input: {
                           startAdornment: (
@@ -929,6 +1030,9 @@ const Register = () => {
                       }}
                       sx={inputStyle}
                     >
+                      <MenuItem value="" disabled sx={{ color: '#94A3B8' }}>
+                        Select gender
+                      </MenuItem>
                       <MenuItem value="MALE">Male</MenuItem>
                       <MenuItem value="FEMALE">Female</MenuItem>
                       <MenuItem value="OTHER">Other</MenuItem>
@@ -937,12 +1041,38 @@ const Register = () => {
 
                   {/* 4. Phone Number */}
                   <Box>
-                    <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                      Phone Number <span style={{ color: '#EF4444' }}>*</span>
-                    </Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
+                      <Typography component="label" sx={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
+                        Phone Number <span style={{ color: '#EF4444' }}>*</span>
+                      </Typography>
+                      <Tooltip title="When enabled, your phone number is hidden for other users.">
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              size="small"
+                              checked={Boolean(privacySettings.maskPhone)}
+                              onChange={(e) => setPrivacySettings(prev => ({ ...prev, maskPhone: e.target.checked }))}
+                              sx={{
+                                transform: 'scale(0.8)',
+                                mr: -0.5,
+                                '& .MuiSwitch-switchBase.Mui-checked': { color: '#0088ff' },
+                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#0088ff' }
+                              }}
+                            />
+                          }
+                          label={
+                            <Typography variant="caption" sx={{ color: privacySettings.maskPhone ? '#0088ff' : '#64748B', fontWeight: 600, fontSize: 11, display: 'flex', alignItems: 'center', gap: 0.4 }}>
+                              <VisibilityOffIcon sx={{ fontSize: 13 }} /> Hide
+                            </Typography>
+                          }
+                          sx={{ m: 0 }}
+                        />
+                      </Tooltip>
+                    </Box>
                     <TextField
                       fullWidth
                       size="small"
+                      autoComplete="off"
                       inputRef={phoneRef}
                       value={phone}
                       onChange={handlePhoneChange}
@@ -952,7 +1082,7 @@ const Register = () => {
                           aadhaarRef.current?.focus();
                         }
                       }}
-                      placeholder="Enter 10-digit Phone Number"
+                      placeholder="+91 98765 43210"
                       slotProps={{
                         htmlInput: { inputMode: 'numeric', maxLength: 10 },
                         input: {
@@ -969,9 +1099,34 @@ const Register = () => {
 
                   {/* 5. Aadhaar Number (Optional) */}
                   <Box>
-                    <Typography component="label" sx={{ display: 'flex', alignItems: 'center', gap: 0.7, fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                      Aadhaar Number <span style={{ color: '#94A3B8', fontWeight: 400, fontSize: '12px' }}>(Optional)</span>
-                    </Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
+                      <Typography component="label" sx={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
+                        Aadhaar Number <span style={{ color: '#94A3B8', fontWeight: 400, fontSize: '12px' }}>(Optional)</span>
+                      </Typography>
+                      <Tooltip title="When enabled, your Aadhaar number is hidden for other users.">
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              size="small"
+                              checked={Boolean(privacySettings.maskAdhaar)}
+                              onChange={(e) => setPrivacySettings(prev => ({ ...prev, maskAdhaar: e.target.checked }))}
+                              sx={{
+                                transform: 'scale(0.8)',
+                                mr: -0.5,
+                                '& .MuiSwitch-switchBase.Mui-checked': { color: '#0088ff' },
+                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#0088ff' }
+                              }}
+                            />
+                          }
+                          label={
+                            <Typography variant="caption" sx={{ color: privacySettings.maskAdhaar ? '#0088ff' : '#64748B', fontWeight: 600, fontSize: 11, display: 'flex', alignItems: 'center', gap: 0.4 }}>
+                              <VisibilityOffIcon sx={{ fontSize: 13 }} /> Hide
+                            </Typography>
+                          }
+                          sx={{ m: 0 }}
+                        />
+                      </Tooltip>
+                    </Box>
                     <TextField
                       fullWidth
                       size="small"
@@ -999,11 +1154,13 @@ const Register = () => {
                     />
                   </Box>
 
-                  {/* 6. Date of Birth (Optional) */}
+                  {/* 6. Date of Birth */}
                   <Box>
-                    <Typography component="label" sx={{ display: 'flex', alignItems: 'center', gap: 0.7, fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                      Date of Birth <span style={{ color: '#94A3B8', fontWeight: 400, fontSize: '12px' }}>(Optional)</span>
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
+                      <Typography component="label" sx={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
+                        Date of Birth <span style={{ color: '#EF4444' }}>*</span>
+                      </Typography>
+                    </Box>
                     <DatePicker
                       format="DD/MM/YYYY"
                       views={['year', 'month', 'day']}
@@ -1046,9 +1203,11 @@ const Register = () => {
                     <>
                       {/* 7. College / University Name */}
                       <Box>
-                        <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                          College / University Name <span style={{ color: '#EF4444' }}>*</span>
-                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
+                          <Typography component="label" sx={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
+                            College / University Name <span style={{ color: '#EF4444' }}>*</span>
+                          </Typography>
+                        </Box>
                         <Autocomplete
                           freeSolo
                           clearOnBlur={false}
@@ -1106,9 +1265,11 @@ const Register = () => {
 
                       {/* 8. Course / Degree */}
                       <Box>
-                        <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                          Course / Degree <span style={{ color: '#EF4444' }}>*</span>
-                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
+                          <Typography component="label" sx={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
+                            Course / Degree <span style={{ color: '#EF4444' }}>*</span>
+                          </Typography>
+                        </Box>
                         <Autocomplete
                           freeSolo
                           clearOnBlur={false}
@@ -1131,7 +1292,7 @@ const Register = () => {
                                 fullWidth
                                 size="small"
                                 inputRef={courseRef}
-                                placeholder="B.E., B.Tech., MBBS, BCA"
+                                placeholder="e.g. B.Tech, MBBS, MBA"
                                 inputProps={{
                                   ...otherInputProps,
                                   onKeyDown: (e) => {
@@ -1166,9 +1327,11 @@ const Register = () => {
 
                       {/* 9. College Joining Date */}
                       <Box>
-                        <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                          College Joining Date <span style={{ color: '#EF4444' }}>*</span>
-                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
+                          <Typography component="label" sx={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
+                            College Joining Date <span style={{ color: '#EF4444' }}>*</span>
+                          </Typography>
+                        </Box>
                         <DatePicker
                           format="DD/MM/YYYY"
                           views={['year', 'month', 'day']}
@@ -1204,9 +1367,11 @@ const Register = () => {
 
                       {/* 10. Graduation Date */}
                       <Box>
-                        <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                          Graduation Date <span style={{ color: '#EF4444' }}>*</span>
-                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
+                          <Typography component="label" sx={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
+                            Graduation Date <span style={{ color: '#EF4444' }}>*</span>
+                          </Typography>
+                        </Box>
                         <DatePicker
                           format="DD/MM/YYYY"
                           views={['year', 'month', 'day']}
@@ -1245,9 +1410,11 @@ const Register = () => {
                   {/* Community Member Specific Field: Registration Number */}
                   {role === 'MEMBER' && (
                     <Box sx={{ gridColumn: { sm: 'span 2' } }}>
-                      <Typography component="label" sx={{ display: 'flex', alignItems: 'center', gap: 0.7, fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                        Registration Number <span style={{ color: '#94A3B8', fontWeight: 400, fontSize: '12px' }}>(Optional)</span>
-                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
+                        <Typography component="label" sx={{ display: 'flex', alignItems: 'center', gap: 0.7, fontWeight: 600, color: '#334155', fontSize: '13px' }}>
+                          Registration Number <span style={{ color: '#94A3B8', fontWeight: 400, fontSize: '12px' }}>(Optional)</span>
+                        </Typography>
+                      </Box>
                       <TextField
                         fullWidth
                         size="small"
@@ -1277,12 +1444,15 @@ const Register = () => {
 
                   {/* 11. New Password */}
                   <Box>
-                    <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                      New Password <span style={{ color: '#EF4444' }}>*</span>
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
+                      <Typography component="label" sx={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
+                        New Password <span style={{ color: '#EF4444' }}>*</span>
+                      </Typography>
+                    </Box>
                     <TextField
                       fullWidth
                       size="small"
+                      autoComplete="new-password"
                       inputRef={passwordRef}
                       type={showPassword ? 'text' : 'password'}
                       value={password}
@@ -1293,7 +1463,7 @@ const Register = () => {
                           confirmPasswordRef.current?.focus();
                         }
                       }}
-                      placeholder="Enter New Password"
+                      placeholder="Create a strong password"
                       slotProps={{
                         input: {
                           startAdornment: (
@@ -1322,12 +1492,15 @@ const Register = () => {
 
                   {/* 12. Confirm New Password */}
                   <Box>
-                    <Typography component="label" sx={{ display: 'block', fontWeight: 600, color: '#1E293B', fontSize: '13px', mb: 0.6 }}>
-                      Confirm New Password <span style={{ color: '#EF4444' }}>*</span>
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
+                      <Typography component="label" sx={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
+                        Confirm New Password <span style={{ color: '#EF4444' }}>*</span>
+                      </Typography>
+                    </Box>
                     <TextField
                       fullWidth
                       size="small"
+                      autoComplete="new-password"
                       inputRef={confirmPasswordRef}
                       type={showConfirmPassword ? 'text' : 'password'}
                       value={confirmPassword}
@@ -1338,7 +1511,7 @@ const Register = () => {
                           handleSubmit(e);
                         }
                       }}
-                      placeholder="Re-enter New Password"
+                      placeholder="Re-enter your password"
                       slotProps={{
                         input: {
                           startAdornment: (
@@ -1366,37 +1539,28 @@ const Register = () => {
                   </Box>
                 </Box>
               )}
-            </Box>
 
-            {/* ─── FIXED FOOTER ─── */}
-            <Box
-              sx={{
-                flexShrink: 0,
-                px: { xs: 3, sm: 4.5 },
-                py: 2,
-                borderTop: '1px solid #F1F5F9',
-                bgcolor: '#FFFFFF',
-                boxShadow: '0 -4px 16px rgba(0,0,0,0.03)',
-                zIndex: 5
-              }}
-            >
+            {/* Submit Button */}
+            <Box sx={{ mt: 2.8 }}>
               {step === 1 ? (
                 <Button
                   fullWidth
                   size="large"
+                  type="button"
                   variant="contained"
                   onClick={handleNextStep}
                   endIcon={<ArrowForwardIcon />}
                   sx={{
-                    py: 1.25,
-                    borderRadius: '10px',
+                    py: 1.35,
+                    borderRadius: '12px',
                     fontWeight: 700,
-                    fontSize: '15px',
+                    fontSize: '15.5px',
                     textTransform: 'none',
-                    background: 'linear-gradient(135deg, #1877F2 0%, #0D62D9 100%)',
-                    boxShadow: '0 8px 20px rgba(24, 119, 242, 0.35)',
+                    bgcolor: '#0088ff',
+                    boxShadow: 'none',
                     '&:hover': {
-                      background: 'linear-gradient(135deg, #0D62D9 0%, #0B57D0 100%)'
+                      bgcolor: '#0077e6',
+                      boxShadow: 'none'
                     }
                   }}
                 >
@@ -1411,61 +1575,115 @@ const Register = () => {
                   endIcon={<ArrowForwardIcon />}
                   disabled={loading}
                   sx={{
-                    py: 1.25,
-                    borderRadius: '10px',
+                    py: 1.35,
+                    borderRadius: '12px',
                     fontWeight: 700,
-                    fontSize: '15px',
+                    fontSize: '15.5px',
                     textTransform: 'none',
-                    background: 'linear-gradient(135deg, #1877F2 0%, #0D62D9 100%)',
-                    boxShadow: '0 8px 20px rgba(24, 119, 242, 0.35)',
+                    bgcolor: '#0088ff',
+                    boxShadow: 'none',
                     '&:hover': {
-                      background: 'linear-gradient(135deg, #0D62D9 0%, #0B57D0 100%)',
-                      boxShadow: '0 10px 24px rgba(24, 119, 242, 0.45)'
+                      bgcolor: '#0077e6',
+                      boxShadow: 'none'
                     },
                     '&.Mui-disabled': {
                       bgcolor: '#93C5FD'
                     }
                   }}
                 >
-                  {loading ? <CircularProgress size={22} sx={{ color: '#FFFFFF' }} /> : 'Create'}
+                  {loading ? <CircularProgress size={22} sx={{ color: '#FFFFFF' }} /> : 'Create Account'}
                 </Button>
               )}
+            </Box>
 
-              {/* Divider */}
-              <Box sx={{ display: 'flex', alignItems: 'center', my: 1.5 }}>
-                <Divider sx={{ flexGrow: 1, borderColor: '#F1F5F9' }} />
-                <Typography
-                  variant="caption"
+            {/* Divider OR */}
+            <Box sx={{ display: 'flex', alignItems: 'center', my: 2 }}>
+              <Box sx={{ flex: 1, height: '1px', bgcolor: '#F1F5F9' }} />
+              <Typography
+                variant="caption"
+                sx={{
+                  px: 1.5,
+                  color: '#94A3B8',
+                  fontWeight: 700,
+                  fontSize: '11px',
+                  letterSpacing: '1px'
+                }}
+              >
+                OR
+              </Typography>
+              <Box sx={{ flex: 1, height: '1px', bgcolor: '#F1F5F9' }} />
+            </Box>
+
+            {/* Login footer link */}
+            <Box sx={{ textAlign: 'center'}}>
+              <Typography variant="body2" sx={{ color: '#64748B', fontSize: '13.5px' }}>
+                Already have an account?{' '}
+                <Link
+                  component={RouterLink}
+                  to="/login"
                   sx={{
-                    px: 1.5,
-                    color: '#94A3B8',
+                    color: '#2563EB',
                     fontWeight: 700,
-                    fontSize: '11px',
-                    letterSpacing: '1px'
+                    textDecoration: 'none',
+                    '&:hover': { textDecoration: 'underline' }
                   }}
                 >
-                  OR
-                </Typography>
-                <Divider sx={{ flexGrow: 1, borderColor: '#F1F5F9' }} />
+                  Sign In
+                </Link>
+              </Typography>
+            </Box>
+
+            {/* 3 Trust Badges */}
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                pt: 2.5,
+             
+              }}
+            >
+              {/* 1. Stay Connected */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Diversity3Outlined sx={{ color: '#2563EB', fontSize: 22 }} />
+                <Box>
+                  <Typography sx={{ fontWeight: 700, fontSize: '11.5px', color: '#1E293B', lineHeight: 1.2 }}>
+                    Stay Connected
+                  </Typography>
+                  <Typography sx={{ fontSize: '10.5px', color: '#64748B', lineHeight: 1.2 }}>
+                    With your community
+                  </Typography>
+                </Box>
               </Box>
 
-              {/* Login footer link */}
-              <Box sx={{ textAlign: 'center' }}>
-                <Typography variant="body2" sx={{ color: '#64748B', fontSize: '13px' }}>
-                  Already have an account?{' '}
-                  <Link
-                    component={RouterLink}
-                    to="/login"
-                    sx={{
-                      color: '#1877F2',
-                      fontWeight: 700,
-                      textDecoration: 'none',
-                      '&:hover': { textDecoration: 'underline' }
-                    }}
-                  >
-                    Sign In
-                  </Link>
-                </Typography>
+              <Divider orientation="vertical" flexItem sx={{ borderColor: '#E2E8F0', height: 26, my: 'auto' }} />
+
+              {/* 2. Build Relationships */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <ShieldOutlined sx={{ color: '#2563EB', fontSize: 22 }} />
+                <Box>
+                  <Typography sx={{ fontWeight: 700, fontSize: '11.5px', color: '#1E293B', lineHeight: 1.2 }}>
+                    Build Relationships
+                  </Typography>
+                  <Typography sx={{ fontSize: '10.5px', color: '#64748B', lineHeight: 1.2 }}>
+                    That last beyond hostel
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Divider orientation="vertical" flexItem sx={{ borderColor: '#E2E8F0', height: 26, my: 'auto' }} />
+
+              {/* 3. Share & Grow */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <StarBorderOutlined sx={{ color: '#2563EB', fontSize: 22 }} />
+                <Box>
+                  <Typography sx={{ fontWeight: 700, fontSize: '11.5px', color: '#1E293B', lineHeight: 1.2 }}>
+                    Share & Grow
+                  </Typography>
+                  <Typography sx={{ fontSize: '10.5px', color: '#64748B', lineHeight: 1.2 }}>
+                    Together
+                  </Typography>
+                </Box>
               </Box>
             </Box>
           </Box>
