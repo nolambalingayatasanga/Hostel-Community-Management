@@ -81,17 +81,17 @@ const checkAndTransitionStudents = async (reqOrUrl) => {
 
           // Send email notification
           try {
-            const subject = 'Update your career/employment details on Hostel Community';
+            const subject = 'Update your career/employment details on Kambi Connect Profile';
             const message = `Hi ${student.name},\n\n` +
               `Congratulations on your graduation! Since your expected graduation date (${endMonth}/${endYear}) has passed, we have updated your profile role to Alumni.\n\n` +
               `Please log in to your account and update your professional details (Job Title, Organization, or Business Details).\n\n` +
               `Best regards,\n` +
-              `Hostel Community Team`;
+              `Kambi Connect Team`;
             
             const html = `<p>Hi ${student.name},</p>` +
               `<p>Congratulations on your graduation! Since your expected graduation date (<strong>${endMonth}/${endYear}</strong>) has passed, we have updated your profile role to <strong>Alumni</strong>.</p>` +
               `<p>Please <a href="${baseUrl}/profile">log in to your profile</a> and update your professional details (Job Title, Organization, or Business Details).</p>` +
-              `<br/><p>Best regards,<br/>Hostel Community Team</p>`;
+              `<br/><p>Best regards,<br/>Kambi Connect Team</p>`;
 
             await sendEmail({
               email: student.email,

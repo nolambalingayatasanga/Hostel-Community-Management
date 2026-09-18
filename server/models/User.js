@@ -202,6 +202,13 @@ const UserSchema = new mongoose.Schema({
   },
   resetPasswordToken: String,
   resetPasswordExpires: Date,
+  qrScanCount: {
+    type: Number,
+    default: 0
+  },
+  lastQrScannedAt: {
+    type: Date
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'

@@ -4,7 +4,7 @@ const AccessSchema = new mongoose.Schema({
   page: {
     type: String,
     required: true,
-    enum: ['overview', 'users', 'events', 'gallery', 'profile', 'access_control']
+    enum: ['overview', 'users', 'events', 'gallery', 'profile', 'qr_scan_count', 'access_control']
   },
   role: {
     type: String,
@@ -31,11 +31,36 @@ AccessSchema.index({ page: 1, role: 1 }, { unique: true });
 
 // Standard default permissions seeder
 AccessSchema.statics.seedDefaults = async function() {
-  const pages = ['overview', 'users', 'events', 'gallery', 'profile', 'access_control'];
+  const pages = ['overview', 'users', 'events', 'gallery', 'profile', 'qr_scan_count', 'access_control'];
   const roles = ['ADMIN', 'WARDEN', 'STAFF', 'ALUMNI', 'STUDENT', 'MEMBER'];
 
   const count = await this.countDocuments();
   if (count > 0) {
+    // Ensure qr_scan_count permissions exist if table was already seeded
+    const qrCount = await this.countDocuments({ page: 'qr_scan_count' });
+    if (qrCount === 0) {
+      const qrEntries = roles.map(role => ({
+        page: 'qr_scan_count',
+        role,
+        permissions: role === 'ADMIN' ? {
+          fullAccess: true,
+          view: true,
+          create: true,
+          update: true,
+          delete: true,
+          noAccess: false
+        } : {
+          fullAccess: false,
+          view: false,
+          create: false,
+          update: false,
+          delete: false,
+          noAccess: true
+        }
+      }));
+      await this.insertMany(qrEntries);
+    }
+
     // Migrate legacy default gallery permissions for non-admin roles so they get create & delete
     await this.updateMany(
       {
@@ -61,6 +86,30 @@ AccessSchema.statics.seedDefaults = async function() {
 
   for (const page of pages) {
     for (const role of roles) {
+      if (page === 'qr_scan_count') {
+        // QR Scan Count is STRICTLY ADMIN only
+        defaultEntries.push({
+          page,
+          role,
+          permissions: role === 'ADMIN' ? {
+            fullAccess: true,
+            view: true,
+            create: true,
+            update: true,
+            delete: true,
+            noAccess: false
+          } : {
+            fullAccess: false,
+            view: false,
+            create: false,
+            update: false,
+            delete: false,
+            noAccess: true
+          }
+        });
+        continue;
+      }
+
       const isAdminOrWarden = role === 'ADMIN' || role === 'WARDEN';
 
       if (isAdminOrWarden) {

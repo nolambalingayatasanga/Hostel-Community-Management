@@ -36,6 +36,7 @@ import Gallery from './pages/gallery/Gallery';
 // Admin Page
 import UserManagement from './pages/admin/UserManagement';
 import AccessControl from './pages/access/AccessControl';
+import QrScanCount from './pages/qr/QrScanCount';
 import NotFound from './pages/common/NotFound';
 
 const queryClient = new QueryClient();
@@ -112,6 +113,13 @@ function App() {
                     <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'WARDEN']} />}>
                       <Route element={<DashboardLayout />}>
                         <Route path="/admin/users" element={<UserManagement />} />
+                      </Route>
+                    </Route>
+
+                    {/* Admin Only Routes */}
+                    <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+                      <Route element={<DashboardLayout />}>
+                        <Route path="/qr-scan-count" element={<QrScanCount />} />
                       </Route>
                     </Route>
 

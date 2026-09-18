@@ -31,6 +31,7 @@ import {
   AdminPanelSettings as AdminIcon,
   Collections as GalleryIcon,
   ArrowBack as ArrowBackIcon,
+  QrCodeScanner as QrCodeScannerIcon,
 } from '@mui/icons-material';
 import NotFound from '../pages/common/NotFound';
 
@@ -59,6 +60,11 @@ const DashboardLayout = () => {
     // Profile page check
     if (path.startsWith('/profile')) {
       return 'Profile';
+    }
+
+    // QR Scan Count page check
+    if (path.startsWith('/qr-scan-count')) {
+      return 'QR Scan Count';
     }
 
     // Access Control page check
@@ -97,6 +103,7 @@ const DashboardLayout = () => {
     EventIcon: <EventIcon />,
     GalleryIcon: <GalleryIcon />,
     ProfileIcon: <ProfileIcon />,
+    QrCodeIcon: <QrCodeScannerIcon />,
     AdminIcon: <AdminIcon />
   };
 
@@ -137,6 +144,7 @@ const DashboardLayout = () => {
     if (pathname.startsWith('/events')) return 'events';
     if (pathname.startsWith('/gallery')) return 'gallery';
     if (pathname.startsWith('/profile')) return 'profile';
+    if (pathname.startsWith('/qr-scan-count')) return 'qr_scan_count';
     if (pathname === '/access-control') return 'access_control';
     return null;
   };

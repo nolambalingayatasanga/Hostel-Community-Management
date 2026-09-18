@@ -75,6 +75,7 @@ const eventRoutes = require('./routes/eventRoutes');
 const galleryRoutes = require('./routes/galleryRoutes');
 const crmRoutes = require('./routes/crmRoutes');
 const accessRoutes = require('./routes/accessRoutes');
+const qrScanRoutes = require('./routes/qrScanRoutes');
 
 // Mount routes
 app.use('/api/auth', authLimiter, authRoutes);
@@ -83,6 +84,7 @@ app.use('/api/events', eventRoutes);
 app.use('/api/gallery', galleryRoutes);
 app.use('/api/crm', crmRoutes);
 app.use('/api/access', accessRoutes);
+app.use('/api/qr-scans', qrScanRoutes);
 
 // Health check endpoints
 app.get('/health', (req, res) => {

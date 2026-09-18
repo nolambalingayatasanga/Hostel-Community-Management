@@ -7,6 +7,7 @@ const ALL_PAGES = [
   { id: 'events', text: 'Events', path: '/events', icon: 'EventIcon' },
   { id: 'gallery', text: 'Gallery', path: '/gallery', icon: 'GalleryIcon' },
   { id: 'profile', text: 'Profile', path: '/profile', icon: 'ProfileIcon' },
+  { id: 'qr_scan_count', text: 'QR Scan Count', path: '/qr-scan-count', icon: 'QrCodeIcon' },
   { id: 'access_control', text: 'Access Control', path: '/access-control', icon: 'AdminIcon' }
 ];
 
@@ -98,7 +99,7 @@ exports.getMyPermissions = async (req, res) => {
 
     await Access.seedDefaults();
 
-    if (userRole === 'ADMIN' || userRole === 'WARDEN' || userRole === 'CHAIRPERSON') {
+    if (userRole === 'ADMIN') {
       const fullPerms = {};
       ALL_PAGES.forEach(p => {
         fullPerms[p.id] = {
@@ -109,6 +110,32 @@ exports.getMyPermissions = async (req, res) => {
           delete: true,
           noAccess: false
         };
+      });
+      return res.status(200).json({ success: true, data: fullPerms });
+    }
+
+    if (userRole === 'WARDEN' || userRole === 'CHAIRPERSON') {
+      const fullPerms = {};
+      ALL_PAGES.forEach(p => {
+        if (p.id === 'qr_scan_count') {
+          fullPerms[p.id] = {
+            fullAccess: false,
+            view: false,
+            create: false,
+            update: false,
+            delete: false,
+            noAccess: true
+          };
+        } else {
+          fullPerms[p.id] = {
+            fullAccess: true,
+            view: true,
+            create: true,
+            update: true,
+            delete: true,
+            noAccess: false
+          };
+        }
       });
       return res.status(200).json({ success: true, data: fullPerms });
     }
@@ -172,13 +199,18 @@ exports.getNavigation = async (req, res) => {
 
     // Filter pages based on role permissions
     const accessibleTabs = ALL_PAGES.filter(pageItem => {
+      // QR Scan Count is strictly ADMIN only
+      if (pageItem.id === 'qr_scan_count') {
+        return userRole === 'ADMIN';
+      }
+
       const perms = pagePermMap[pageItem.id];
       if (!perms) {
-        // Fallback: If ADMIN, allow; else if overview or access_control, deny
+        // Fallback: If ADMIN, allow; else if overview, access_control or qr_scan_count, deny
         if (userRole === 'ADMIN' || userRole === 'CHAIRPERSON' || userRole === 'WARDEN') {
           return true;
         }
-        return pageItem.id !== 'overview' && pageItem.id !== 'access_control';
+        return pageItem.id !== 'overview' && pageItem.id !== 'access_control' && pageItem.id !== 'qr_scan_count';
       }
 
       if (perms.noAccess) {
