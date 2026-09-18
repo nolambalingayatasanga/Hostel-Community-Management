@@ -222,3 +222,102 @@ exports.downloadLoginQr = async (req, res) => {
     });
   }
 };
+
+/**
+ * DELETE /api/qr-scans/login-qr/device/:id
+ * Delete a specific device scan log and decrement appropriate count
+ */
+exports.deleteDeviceLog = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const link = await LoginQrLink.findOne({ slug: LOGIN_QR_SLUG });
+    if (!link) {
+      return res.status(404).json({ success: false, message: 'Login QR record not found' });
+    }
+
+    const device = link.devices.id(id);
+    if (!device) {
+      return res.status(404).json({ success: false, message: 'Device scan log not found' });
+    }
+
+    const isQr = device.accessType === 'qr';
+    link.devices.pull({ _id: id });
+    if (isQr) {
+      link.scanCount = Math.max(0, (link.scanCount || 0) - 1);
+    } else {
+      link.clickCount = Math.max(0, (link.clickCount || 0) - 1);
+    }
+
+    await link.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Scan log deleted successfully',
+      data: buildAnalytics(link, { page: req.query.page, limit: req.query.limit })
+    });
+  } catch (error) {
+    console.error('Error deleting device log:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to delete scan log',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * DELETE /api/qr-scans/login-qr/devices
+ * Clear all device scan logs or selected device IDs, resetting counts accordingly
+ */
+exports.clearDeviceLogs = async (req, res) => {
+  try {
+    const link = await LoginQrLink.findOne({ slug: LOGIN_QR_SLUG });
+    if (!link) {
+      return res.status(404).json({ success: false, message: 'Login QR record not found' });
+    }
+
+    const { ids, resetCounts = true } = req.body || {};
+
+    if (Array.isArray(ids) && ids.length > 0) {
+      const idSet = new Set(ids.map(String));
+      let qrRemoved = 0;
+      let clickRemoved = 0;
+
+      link.devices = link.devices.filter(d => {
+        if (idSet.has(String(d._id))) {
+          if (d.accessType === 'qr') qrRemoved++;
+          else clickRemoved++;
+          return false;
+        }
+        return true;
+      });
+
+      link.scanCount = Math.max(0, (link.scanCount || 0) - qrRemoved);
+      link.clickCount = Math.max(0, (link.clickCount || 0) - clickRemoved);
+    } else {
+      link.devices = [];
+      if (resetCounts !== false) {
+        link.scanCount = 0;
+        link.clickCount = 0;
+      }
+    }
+
+    await link.save();
+
+    return res.status(200).json({
+      success: true,
+      message: Array.isArray(ids) && ids.length > 0
+        ? `${ids.length} scan logs deleted successfully`
+        : 'All scan logs and counts cleared successfully',
+      data: buildAnalytics(link, { page: 1, limit: req.query.limit })
+    });
+  } catch (error) {
+    console.error('Error clearing device logs:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to clear scan logs',
+      error: error.message
+    });
+  }
+};
+
