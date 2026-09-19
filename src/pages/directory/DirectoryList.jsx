@@ -18,6 +18,8 @@ import {
   Avatar,
   Skeleton,
   Checkbox,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -55,6 +57,8 @@ export default function DirectoryList() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdminOrWarden = ["ADMIN", "WARDEN"].includes(user?.role);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
   const meta = useCrmMeta();
   const { update, updateField, createLead } = useLeadMutations();
@@ -199,8 +203,14 @@ export default function DirectoryList() {
     } else {
       next.role = "MEMBER";
     }
-    if (joinDateMin) next.joinDateMin = joinDateMin;
-    if (joinDateMax) next.joinDateMax = joinDateMax;
+    if (joinDateMin) {
+      next.joinDateMin = joinDateMin;
+      next.startDate = joinDateMin;
+    }
+    if (joinDateMax) {
+      next.joinDateMax = joinDateMax;
+      next.endDate = joinDateMax;
+    }
     return next;
   }, [activeTabId, joinDateMin, joinDateMax]);
 
@@ -658,7 +668,7 @@ export default function DirectoryList() {
   const busy = isLoading || meta.isLoading || isTabSwitching;
 
   return (
-    <Container maxWidth={false} sx={{ pb: 0 }}>
+    <Container maxWidth={false} sx={{ pb: 0, px: { xs: 0, sm: 2, md: 3 } }}>
       {isError && (
         <Alert severity="error" sx={{ mb: 2 }}>
           Could not load members data: {error?.message}
@@ -668,13 +678,13 @@ export default function DirectoryList() {
       <Card
         sx={{
           border: "1px solid #EAECF0",
-          borderRadius: "16px",
+          borderRadius: { xs: 0, sm: "16px" },
           boxShadow: "none",
           overflow: "hidden",
           backgroundColor: "#FFFFFF",
           display: "flex",
           flexDirection: "column",
-          height: "calc(100dvh - 120px)",
+          height: { xs: "calc(100dvh - 90px)", md: "calc(100dvh - 120px)" },
         }}
       >
         {/* Drag-and-drop Status Group Filter Tabs */}
@@ -682,12 +692,13 @@ export default function DirectoryList() {
           direction="row"
           spacing={1}
           sx={{
-            px: 3,
-            py: 1.5,
+            px: { xs: 1.5, sm: 3 },
+            py: { xs: 1, sm: 1.5 },
             borderBottom: "1px solid #EAECF0",
             overflowX: "auto",
             whiteSpace: "nowrap",
             alignItems: "center",
+            WebkitOverflowScrolling: "touch",
             "&::-webkit-scrollbar": { display: "none" },
             msOverflowStyle: "none",
             scrollbarWidth: "none",
@@ -782,19 +793,21 @@ export default function DirectoryList() {
         {/* Date, Search, Actions Filter Bar */}
         <Stack
           direction="row"
-          spacing={2}
+          spacing={{ xs: 1, sm: 2 }}
           sx={{
-            px: 3,
-            py: 2,
+            px: { xs: 1.5, sm: 3 },
+            py: { xs: 1.25, sm: 2 },
             borderBottom: "1px solid #EAECF0",
             alignItems: "center",
             overflowX: "auto",
-            flexWrap: "nowrap"
+            flexWrap: "nowrap",
+            WebkitOverflowScrolling: "touch",
           }}
         >
           {/* Static Date Range Input styling */}
           <CustomDateRangePicker
             incApply={true}
+            placeholder="Filter by Joining Date"
             start={joinDateMin}
             end={joinDateMax}
             onFilterRange={(range) => {
@@ -825,7 +838,7 @@ export default function DirectoryList() {
                 startAdornment: <SearchIcon sx={{ color: "text.secondary", mr: 1, fontSize: 18 }} />
               }
             }}
-            sx={{ width: 300, flexShrink: 0, "& .MuiOutlinedInput-root": { borderRadius: "8px" } }}
+            sx={{ width: { xs: 180, sm: 240, md: 300 }, flexShrink: 0, "& .MuiOutlinedInput-root": { borderRadius: "8px" } }}
           />
 
           {/* Table Fields Settings Button */}
@@ -1027,8 +1040,8 @@ export default function DirectoryList() {
               {/* Sticky Avatar Column Header */}
               <Box
                 sx={{
-                  position: "sticky",
-                  left: isAdminOrWarden ? 44 : 0,
+                  position: isMobile ? "relative" : "sticky",
+                  left: isMobile ? "auto" : (isAdminOrWarden ? 44 : 0),
                   width: 52,
                   minWidth: 52,
                   alignSelf: "stretch",
@@ -1043,8 +1056,8 @@ export default function DirectoryList() {
               {/* Sticky Name Column Header - Fixed and non-draggable */}
               <Box
                 sx={{
-                  position: "sticky",
-                  left: isAdminOrWarden ? 96 : 52,
+                  position: isMobile ? "relative" : "sticky",
+                  left: isMobile ? "auto" : (isAdminOrWarden ? 96 : 52),
                   width: nameCol.width || 220,
                   minWidth: nameCol.width || 220,
                   alignSelf: "stretch",
@@ -1141,10 +1154,10 @@ export default function DirectoryList() {
                         <Skeleton variant="rounded" width={18} height={18} />
                       </Box>
                     )}
-                    <Box sx={{ position: "sticky", left: isAdminOrWarden ? 44 : 0, width: 52, minWidth: 52, alignSelf: "stretch", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 4, backgroundColor: "#FFFFFF" }}>
+                    <Box sx={{ position: isMobile ? "relative" : "sticky", left: isMobile ? "auto" : (isAdminOrWarden ? 44 : 0), width: 52, minWidth: 52, alignSelf: "stretch", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 4, backgroundColor: "#FFFFFF" }}>
                       <Skeleton variant="circular" width={38} height={38} />
                     </Box>
-                    <Box sx={{ position: "sticky", left: isAdminOrWarden ? 96 : 52, width: nameCol.width || 220, minWidth: nameCol.width || 220, alignSelf: "stretch", px: 2, display: "flex", alignItems: "center", zIndex: 4, backgroundColor: "#FFFFFF" }}>
+                    <Box sx={{ position: isMobile ? "relative" : "sticky", left: isMobile ? "auto" : (isAdminOrWarden ? 96 : 52), width: nameCol.width || 220, minWidth: nameCol.width || 220, alignSelf: "stretch", px: 2, display: "flex", alignItems: "center", zIndex: 4, backgroundColor: "#FFFFFF" }}>
                       <Skeleton variant="rounded" height={32} sx={{ width: "85%", borderRadius: "8px" }} />
                     </Box>
                     <Stack direction="row" sx={{ alignItems: "center", py: 1 }}>
@@ -1230,8 +1243,8 @@ export default function DirectoryList() {
                       <Box
                         className="sticky-col"
                         sx={{
-                          position: "sticky",
-                          left: isAdminOrWarden ? 44 : 0,
+                          position: isMobile ? "relative" : "sticky",
+                          left: isMobile ? "auto" : (isAdminOrWarden ? 44 : 0),
                           width: 52,
                           minWidth: 52,
                           alignSelf: "stretch",
@@ -1320,8 +1333,8 @@ export default function DirectoryList() {
                         onOpenProfile={() => setDetailLead(row)}
                         className="sticky-col"
                         sx={{
-                          position: "sticky",
-                          left: isAdminOrWarden ? 96 : 52,
+                          position: isMobile ? "relative" : "sticky",
+                          left: isMobile ? "auto" : (isAdminOrWarden ? 96 : 52),
                           zIndex: 4,
                           alignSelf: "stretch",
                           display: "flex",
@@ -1370,18 +1383,19 @@ export default function DirectoryList() {
           sx={{
             display: "flex",
             alignItems: "center",
-            justifyContent: "flex-end",
-            px: 3,
-            py: 1.5,
+            justifyContent: { xs: "space-between", sm: "flex-end" },
+            px: { xs: 1.5, sm: 3 },
+            py: { xs: 1, sm: 1.5 },
             borderTop: "1px solid #EAECF0",
             backgroundColor: "#FFFFFF",
-            gap: 3,
-            flexWrap: "wrap"
+            gap: { xs: 1, sm: 3 },
+            flexWrap: "nowrap",
+            overflowX: "auto"
           }}
         >
           {/* Rows per page selector */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Typography variant="body2" sx={{ color: "#475467", fontSize: "0.875rem" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 0.5, sm: 1 }, flexShrink: 0 }}>
+            <Typography variant="body2" sx={{ color: "#475467", fontSize: { xs: "0.75rem", sm: "0.875rem" }, whiteSpace: "nowrap" }}>
               Rows per page:
             </Typography>
             <Select
@@ -1394,16 +1408,16 @@ export default function DirectoryList() {
               variant="standard"
               disableUnderline
               sx={{
-                fontSize: "0.875rem",
-                fontWeight: 500,
+                fontSize: { xs: "0.75rem", sm: "0.875rem" },
+                fontWeight: 600,
                 color: "#344054",
                 "& .MuiSelect-select": {
-                  py: 0.5,
-                  pr: "20px !important",
-                  pl: 0.5
+                  py: 0.25,
+                  pr: "16px !important",
+                  pl: 0.25
                 },
                 "& .MuiSvgIcon-root": {
-                  fontSize: 18,
+                  fontSize: 16,
                   color: "#667085"
                 }
               }}
@@ -1416,9 +1430,9 @@ export default function DirectoryList() {
 
           {/* Range count text */}
           {showSkeleton ? (
-            <Skeleton variant="text" width={90} height={20} />
+            <Skeleton variant="text" width={70} height={18} />
           ) : (
-            <Typography variant="body2" sx={{ color: "#344054", fontSize: "0.875rem", fontWeight: 500 }}>
+            <Typography variant="body2" sx={{ color: "#344054", fontSize: { xs: "0.75rem", sm: "0.875rem" }, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}>
               {totalLeads === 0
                 ? "0-0 of 0"
                 : `${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, totalLeads)} of ${totalLeads}`}
@@ -1426,17 +1440,18 @@ export default function DirectoryList() {
           )}
 
           {/* Prev / Next buttons */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexShrink: 0 }}>
             <IconButton
               size="small"
               disabled={page <= 1 || isFetching}
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
               sx={{
-                width: 32,
-                height: 32,
+                width: { xs: 26, sm: 32 },
+                height: { xs: 26, sm: 32 },
                 borderRadius: "6px",
                 border: "1px solid #D0D5DD",
                 color: "#344054",
+                p: 0,
                 "&:disabled": {
                   borderColor: "#EAECF0",
                   color: "#D0D5DD"
@@ -1447,7 +1462,7 @@ export default function DirectoryList() {
                 }
               }}
             >
-              <ChevronLeftIcon sx={{ fontSize: 18 }} />
+              <ChevronLeftIcon sx={{ fontSize: { xs: 15, sm: 18 } }} />
             </IconButton>
 
             <IconButton
@@ -1455,11 +1470,12 @@ export default function DirectoryList() {
               disabled={page >= totalPages || isFetching}
               onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
               sx={{
-                width: 32,
-                height: 32,
+                width: { xs: 26, sm: 32 },
+                height: { xs: 26, sm: 32 },
                 borderRadius: "6px",
                 border: "1px solid #D0D5DD",
                 color: "#344054",
+                p: 0,
                 "&:disabled": {
                   borderColor: "#EAECF0",
                   color: "#D0D5DD"
@@ -1470,7 +1486,7 @@ export default function DirectoryList() {
                 }
               }}
             >
-              <ChevronRightIcon sx={{ fontSize: 18 }} />
+              <ChevronRightIcon sx={{ fontSize: { xs: 15, sm: 18 } }} />
             </IconButton>
           </Box>
         </Box>

@@ -212,14 +212,15 @@ const UserDirectory = ({ directoryRole, title }) => {
 
   return (
     <Box sx={{ width: '100%' }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" sx={{ fontWeight: 800 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 2, mb: 3 }}>
+        <Typography variant="h4" sx={{ fontWeight: 800, fontSize: { xs: '1.5rem', sm: '2.125rem' } }}>
           {title} ({totalUsers})
         </Typography>
         {isAdmin && (
           <Button
             variant="contained"
             onClick={() => navigate('/admin/users?action=new')}
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
           >
             Add New Profile
           </Button>
@@ -246,17 +247,18 @@ const UserDirectory = ({ directoryRole, title }) => {
                 />
               </Box>
               <Box sx={{ display: 'flex', gap: 1.5, width: { xs: '100%', sm: 'auto' }, flexWrap: 'wrap', alignItems: 'center' }}>
-                <Button type="submit" variant="contained">
+                <Button type="submit" variant="contained" sx={{ flex: { xs: 1, sm: 'initial' } }}>
                   Search
                 </Button>
                 <Button
                   variant="outlined"
                   onClick={() => setShowFilters(!showFilters)}
                   startIcon={<FilterIcon />}
+                  sx={{ flex: { xs: 1, sm: 'initial' } }}
                 >
                   Filters
                 </Button>
-                <FormControl size="small" sx={{ minWidth: 140 }}>
+                <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 140 }, mt: { xs: 0.5, sm: 0 } }}>
                   <InputLabel id="sort-select-label">Sort By</InputLabel>
                   <Select
                     labelId="sort-select-label"

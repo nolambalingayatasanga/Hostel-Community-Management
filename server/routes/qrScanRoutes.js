@@ -8,6 +8,10 @@ const loginQrController = require('../controllers/loginQrController');
 // Public tracking: scan domain/{code}?r=qr → count + redirect to kambi-connect login
 router.get('/t/:code', deviceDetector, loginQrController.trackLoginQr);
 
+// Public direct portal click tracking (API beacon)
+router.get('/track-direct', deviceDetector, loginQrController.trackDirectClick);
+router.post('/track-direct', deviceDetector, loginQrController.trackDirectClick);
+
 // Public scan redirect endpoint (legacy member identifier scans)
 router.get('/public-scan/:identifier', qrScanController.publicScan);
 

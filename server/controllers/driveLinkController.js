@@ -1,4 +1,5 @@
 const DriveLink = require('../models/DriveLink');
+const { uploadImage } = require('../config/cloudinary');
 
 /**
  * GET /api/drive-links
@@ -87,6 +88,7 @@ exports.getDriveLinkById = async (req, res) => {
 exports.createDriveLink = async (req, res) => {
   try {
     const { title, description, driveUrl, eventDate, category } = req.body;
+    let thumbnail = req.body.thumbnail ? String(req.body.thumbnail).trim() : '';
 
     if (!title || !title.trim()) {
       return res.status(400).json({
@@ -109,6 +111,23 @@ exports.createDriveLink = async (req, res) => {
       });
     }
 
+    // Process file upload if provided
+    if (req.file) {
+      try {
+        const uploadRes = await uploadImage(
+          req.file.buffer,
+          'hostel-community/drive-links',
+          req.file.mimetype,
+          'image'
+        );
+        if (uploadRes?.url) {
+          thumbnail = uploadRes.url;
+        }
+      } catch (uploadErr) {
+        console.error('Thumbnail upload error:', uploadErr);
+      }
+    }
+
     // Ensure URL has protocol
     let formattedUrl = driveUrl.trim();
     if (!/^https?:\/\//i.test(formattedUrl)) {
@@ -121,6 +140,7 @@ exports.createDriveLink = async (req, res) => {
       driveUrl: formattedUrl,
       eventDate: new Date(eventDate),
       category: (category || 'General').trim(),
+      thumbnail: thumbnail || '',
       createdBy: req.user._id,
       updatedBy: req.user._id
     });
@@ -149,7 +169,7 @@ exports.createDriveLink = async (req, res) => {
  */
 exports.updateDriveLink = async (req, res) => {
   try {
-    const { title, description, driveUrl, eventDate, category } = req.body;
+    const { title, description, driveUrl, eventDate, category, thumbnail } = req.body;
 
     const driveLink = await DriveLink.findById(req.params.id);
     if (!driveLink) {
@@ -170,6 +190,26 @@ exports.updateDriveLink = async (req, res) => {
     }
     if (eventDate !== undefined) driveLink.eventDate = new Date(eventDate);
     if (category !== undefined) driveLink.category = category.trim();
+
+    // Process file upload if provided
+    if (req.file) {
+      try {
+        const uploadRes = await uploadImage(
+          req.file.buffer,
+          'hostel-community/drive-links',
+          req.file.mimetype,
+          'image'
+        );
+        if (uploadRes?.url) {
+          driveLink.thumbnail = uploadRes.url;
+        }
+      } catch (uploadErr) {
+        console.error('Thumbnail upload error:', uploadErr);
+      }
+    } else if (thumbnail !== undefined) {
+      driveLink.thumbnail = String(thumbnail).trim();
+    }
+
     driveLink.updatedBy = req.user._id;
 
     await driveLink.save();

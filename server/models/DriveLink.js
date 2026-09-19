@@ -25,6 +25,11 @@ const DriveLinkSchema = new mongoose.Schema({
     trim: true,
     default: 'General'
   },
+  thumbnail: {
+    type: String,
+    trim: true,
+    default: ''
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'

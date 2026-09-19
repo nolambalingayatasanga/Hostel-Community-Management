@@ -33,6 +33,7 @@ import {
   ArrowBack as ArrowBackIcon,
   QrCodeScanner as QrCodeScannerIcon,
   CloudQueue as CloudQueueIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
 import NotFound from '../pages/common/NotFound';
 
@@ -164,25 +165,39 @@ const DashboardLayout = () => {
 
 
 
+  const handleNavClick = (path) => {
+    navigate(path);
+    setMobileOpen(false);
+  };
+
   const drawerContent = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff', borderRight: '1px solid #e2e8f0' }}>
 
-      <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Avatar
-          src={user?.profilePhoto?.url || ''}
-          alt={user?.name || 'User'}
-          sx={{ width: 48, height: 48, border: '2px solid #0088ff' }}
-        >
-          {user?.name?.charAt(0)}
-        </Avatar>
-        <Box sx={{ overflow: 'hidden' }}>
-          <Typography variant="subtitle2" noWrap sx={{ fontWeight: 'bold', color: '#1e293b' }}>
-            {user?.name}
-          </Typography>
-          <Typography variant="caption" sx={{ color: '#0088ff', fontWeight: 'bold' }}>
-            {user?.role}
-          </Typography>
+      <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, flex: 1 }}>
+          <Avatar
+            src={user?.profilePhoto?.url || ''}
+            alt={user?.name || 'User'}
+            sx={{ width: 44, height: 44, border: '2px solid #0088ff', flexShrink: 0 }}
+          >
+            {user?.name?.charAt(0)}
+          </Avatar>
+          <Box sx={{ overflow: 'hidden' }}>
+            <Typography variant="subtitle2" noWrap sx={{ fontWeight: 'bold', color: '#1e293b' }}>
+              {user?.name}
+            </Typography>
+            <Typography variant="caption" sx={{ color: '#0088ff', fontWeight: 'bold' }}>
+              {user?.role}
+            </Typography>
+          </Box>
         </Box>
+        <IconButton
+          onClick={() => setMobileOpen(false)}
+          sx={{ display: { xs: 'flex', md: 'none' }, color: '#64748B', p: 0.5 }}
+          aria-label="close drawer"
+        >
+          <CloseIcon fontSize="small" />
+        </IconButton>
       </Box>
 
       <Divider sx={{ borderColor: '#f1f5f9' }} />
@@ -191,7 +206,7 @@ const DashboardLayout = () => {
         {navItems.map((item) => (
           <ListItem key={item.id || item.text} disablePadding sx={{ mb: 0.5 }}>
             <ListItemButton
-              onClick={() => navigate(item.path)}
+              onClick={() => handleNavClick(item.path)}
               selected={
                 location.pathname === item.path ||
                 (item.path === '/profile' && location.pathname.startsWith('/profile')) ||
@@ -234,7 +249,10 @@ const DashboardLayout = () => {
       <List sx={{ p: 1 }}>
         <ListItem disablePadding>
           <ListItemButton
-            onClick={handleLogoutClick}
+            onClick={() => {
+              setMobileOpen(false);
+              handleLogoutClick();
+            }}
             sx={{ borderRadius: 2, color: 'error.main', '&:hover': { backgroundColor: 'rgba(244, 63, 94, 0.1)' } }}
           >
             <ListItemIcon sx={{ minWidth: 40, color: 'error.main' }}>
@@ -304,33 +322,131 @@ const DashboardLayout = () => {
                 Back to Events
               </Button>
             ) : (
-              <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 600, display: { xs: 'none', sm: 'block' } }}>
+              <Typography
+                variant="h6"
+                noWrap
+                component="div"
+                sx={{
+                  fontWeight: 700,
+                  fontSize: { xs: '1rem', sm: '1.25rem' },
+                  color: '#0F172A',
+                  letterSpacing: '-0.01em',
+                  display: 'block'
+                }}
+              >
                 {getPageTitle()}
               </Typography>
             )}
           </Box>
 
           {/* Right side header actions & user profile */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box id="dashboard-header-actions" sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }} />
-         
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box id="dashboard-header-actions" sx={{ display: 'flex', alignItems: 'center', gap: 1 }} />
+            <IconButton
+              onClick={(e) => setAnchorEl(e.currentTarget)}
+              size="small"
+              sx={{
+                p: '3px',
+                border: '1.5px solid #E2E8F0',
+                bgcolor: '#F8FAFC',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                '&:hover': {
+                  borderColor: '#CBD5E1',
+                  bgcolor: '#F1F5F9',
+                  transform: 'scale(1.02)'
+                }
+              }}
+              aria-label="account settings"
+            >
+              <Avatar
+                src={user?.profilePhoto?.url || ''}
+                alt={user?.name || 'User'}
+                sx={{
+                  width: 34,
+                  height: 34,
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  bgcolor: '#0088FF',
+                  boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.06)'
+                }}
+              >
+                {user?.name?.charAt(0) || 'U'}
+              </Avatar>
+            </IconButton>
+
             <Menu
               anchorEl={anchorEl}
               open={Boolean(anchorEl)}
               onClose={handleMenuClose}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'right' }}
               PaperProps={{
-                elevation: 3,
-                sx: { borderRadius: '12px', mt: 1, minWidth: 160 }
+                elevation: 0,
+                sx: {
+                  borderRadius: '14px',
+                  mt: 1.25,
+                  minWidth: 200,
+                  p: '6px',
+                  border: '1px solid #E2E8F0',
+                  boxShadow: '0 12px 28px -4px rgba(15, 23, 42, 0.12), 0 4px 10px -2px rgba(15, 23, 42, 0.06)'
+                }
               }}
             >
-              <MenuItem onClick={handleProfileClick}>
-                <ListItemIcon><ProfileIcon fontSize="small" /></ListItemIcon>
-                Profile
+              {/* User summary header */}
+              <Box sx={{ px: 1.5, py: 1.25, display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                <Avatar
+                  src={user?.profilePhoto?.url || ''}
+                  alt={user?.name || 'User'}
+                  sx={{ width: 34, height: 34, fontSize: '13px', fontWeight: 700, bgcolor: '#0088FF' }}
+                >
+                  {user?.name?.charAt(0) || 'U'}
+                </Avatar>
+                <Box sx={{ overflow: 'hidden', minWidth: 0 }}>
+                  <Typography sx={{ fontSize: '13.5px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {user?.name || 'User'}
+                  </Typography>
+                  <Typography sx={{ fontSize: '11px', fontWeight: 600, color: '#0088FF', bgcolor: '#F0F7FF', px: 0.75, py: 0.15, borderRadius: '4px', display: 'inline-block', mt: 0.25 }}>
+                    {user?.role || 'MEMBER'}
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Divider sx={{ my: 0.75, borderColor: '#F1F5F9' }} />
+
+              <MenuItem
+                onClick={handleProfileClick}
+                sx={{
+                  borderRadius: '8px',
+                  py: 1,
+                  px: 1.25,
+                  gap: 1.25,
+                  color: '#334155',
+                  transition: 'all 0.15s ease',
+                  '&:hover': { bgcolor: '#F8FAFC', color: '#0088FF' }
+                }}
+              >
+                <Box sx={{ width: 30, height: 30, borderRadius: '6px', bgcolor: '#F0F7FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0088FF' }}>
+                  <ProfileIcon sx={{ fontSize: 18 }} />
+                </Box>
+                <Typography sx={{ fontSize: '13.5px', fontWeight: 600 }}>Profile</Typography>
               </MenuItem>
-              <Divider />
-              <MenuItem onClick={handleLogoutClick} sx={{ color: 'error.main' }}>
-                <ListItemIcon><LogoutIcon fontSize="small" sx={{ color: 'error.main' }} /></ListItemIcon>
-                Logout
+
+              <MenuItem
+                onClick={handleLogoutClick}
+                sx={{
+                  borderRadius: '8px',
+                  py: 1,
+                  px: 1.25,
+                  gap: 1.25,
+                  color: '#EF4444',
+                  transition: 'all 0.15s ease',
+                  '&:hover': { bgcolor: '#FEF2F2', color: '#DC2626' }
+                }}
+              >
+                <Box sx={{ width: 30, height: 30, borderRadius: '6px', bgcolor: '#FEF2F2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#EF4444' }}>
+                  <LogoutIcon sx={{ fontSize: 18 }} />
+                </Box>
+                <Typography sx={{ fontSize: '13.5px', fontWeight: 600 }}>Logout</Typography>
               </MenuItem>
             </Menu>
           </Box>
@@ -376,9 +492,12 @@ const DashboardLayout = () => {
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
-          width: { md: `calc(100% - ${drawerWidth}px)` },
-          mt: 8 // spacing for fixed Appbar
+          p: { xs: 1.5, sm: 2.5, md: 3 },
+          width: { xs: '100%', md: `calc(100% - ${drawerWidth}px)` },
+          maxWidth: { xs: '100vw', md: '100%' },
+          overflowX: 'clip',
+          boxSizing: 'border-box',
+          mt: { xs: 7, sm: 8 } // spacing for fixed Appbar
         }}
       >
         {navLoading ? (

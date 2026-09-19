@@ -145,29 +145,81 @@ exports.trackLoginQr = async (req, res) => {
     const code = normalizeCode(rawCode);
     const isQr = req.query.r === 'qr' || /=qr$/i.test(rawCode);
 
-    if (code) {
-      await LoginQrLink.findOneAndUpdate(
-        { code },
-        {
-          $inc: {
-            [isQr ? 'scanCount' : 'clickCount']: 1
-          },
-          $push: {
-            devices: {
-              ...req.deviceInfo,
-              ip: getClientIp(req),
-              accessType: isQr ? 'qr' : 'direct',
-              timestamp: new Date()
-            }
+    const query = (code && code.toLowerCase() !== 'login' && code.toLowerCase() !== 'direct')
+      ? {
+          $or: [
+            { code: new RegExp(`^${code}$`, 'i') },
+            { slug: new RegExp(`^${code}$`, 'i') },
+            { slug: LOGIN_QR_SLUG }
+          ]
+        }
+      : { slug: LOGIN_QR_SLUG };
+
+    const link = await LoginQrLink.findOneAndUpdate(
+      query,
+      {
+        $inc: {
+          [isQr ? 'scanCount' : 'clickCount']: 1
+        },
+        $push: {
+          devices: {
+            ...req.deviceInfo,
+            ip: getClientIp(req),
+            accessType: isQr ? 'qr' : 'direct',
+            timestamp: new Date()
           }
         }
-      );
-    }
+      },
+      { new: true }
+    );
+
+    const redirectTarget = link?.redirectUrl || LOGIN_REDIRECT_URL;
+    return res.redirect(redirectTarget);
   } catch (error) {
     console.error('Error tracking login QR:', error);
+    return res.redirect(LOGIN_REDIRECT_URL);
   }
+};
 
-  return res.redirect(LOGIN_REDIRECT_URL);
+/**
+ * GET/POST /api/qr-scans/track-direct
+ * Directly track a portal link click without performing a 302 redirect
+ * Useful for client-side direct link visits or analytics beacon
+ */
+exports.trackDirectClick = async (req, res) => {
+  try {
+    const link = await LoginQrLink.findOneAndUpdate(
+      { slug: LOGIN_QR_SLUG },
+      {
+        $inc: { clickCount: 1 },
+        $push: {
+          devices: {
+            ...req.deviceInfo,
+            ip: getClientIp(req),
+            accessType: 'direct',
+            timestamp: new Date()
+          }
+        }
+      },
+      { new: true }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Direct click recorded',
+      data: {
+        clickCount: link?.clickCount || 0,
+        redirectUrl: link?.redirectUrl || LOGIN_REDIRECT_URL
+      }
+    });
+  } catch (error) {
+    console.error('Error tracking direct click:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to record click',
+      error: error.message
+    });
+  }
 };
 
 /**

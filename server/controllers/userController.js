@@ -91,8 +91,8 @@ exports.getUsers = async (req, res, next) => {
     const pincode = req.query.pincode || filters.pincode;
     const startYear = req.query.startYear || filters.startYear;
     const endYear = req.query.endYear || filters.endYear;
-    const joinDateMin = req.query.joinDateMin || filters.joinDateMin;
-    const joinDateMax = req.query.joinDateMax || filters.joinDateMax;
+    const joinDateMin = req.query.joinDateMin || req.query.startDate || filters.joinDateMin || filters.startDate;
+    const joinDateMax = req.query.joinDateMax || req.query.endDate || filters.joinDateMax || filters.endDate;
     const sortBy = req.query.sortBy || filters.sortBy;
 
     const query = {};
@@ -190,11 +190,56 @@ exports.getUsers = async (req, res, next) => {
     if (startYear) query['education.startYear'] = parseInt(startYear, 10);
     if (endYear) query['education.endYear'] = parseInt(endYear, 10);
 
-    // 3. Joining date range filter
+    // 3. Joining date range filter (maps to joiningDate & memberInfo.registeredDate)
     if (joinDateMin || joinDateMax) {
-      query.joiningDate = {};
-      if (joinDateMin) query.joiningDate.$gte = new Date(joinDateMin);
-      if (joinDateMax) query.joiningDate.$lte = new Date(joinDateMax);
+      let minDate = null;
+      if (joinDateMin) {
+        const rawMin = String(joinDateMin).trim();
+        minDate = /^\d{4}-\d{2}-\d{2}$/.test(rawMin)
+          ? new Date(`${rawMin}T00:00:00.000Z`)
+          : new Date(rawMin);
+      }
+
+      let maxDate = null;
+      if (joinDateMax) {
+        const rawMax = String(joinDateMax).trim();
+        maxDate = /^\d{4}-\d{2}-\d{2}$/.test(rawMax)
+          ? new Date(`${rawMax}T23:59:59.999Z`)
+          : new Date(rawMax);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(rawMax) && !isNaN(maxDate.getTime())) {
+          maxDate.setHours(23, 59, 59, 999);
+        }
+      }
+
+      const validMin = minDate && !isNaN(minDate.getTime());
+      const validMax = maxDate && !isNaN(maxDate.getTime());
+
+      if (validMin || validMax) {
+        // Date conditions for BSON Date fields
+        const dateCond = {};
+        if (validMin) dateCond.$gte = minDate;
+        if (validMax) dateCond.$lte = maxDate;
+
+        // String conditions in case dates were stored as ISO / YYYY-MM-DD strings
+        const strMin = validMin ? minDate.toISOString().slice(0, 10) : null;
+        const strMax = validMax ? maxDate.toISOString().slice(0, 10) + 'T23:59:59.999Z' : null;
+        const strCond = {};
+        if (strMin) strCond.$gte = strMin;
+        if (strMax) strCond.$lte = strMax;
+
+        const dateBranches = [
+          { joiningDate: dateCond },
+          { 'memberInfo.registeredDate': dateCond }
+        ];
+
+        if (strMin || strMax) {
+          dateBranches.push({ joiningDate: strCond });
+          dateBranches.push({ 'memberInfo.registeredDate': strCond });
+        }
+
+        if (!query.$and) query.$and = [];
+        query.$and.push({ $or: dateBranches });
+      }
     }
 
     // Sort setup

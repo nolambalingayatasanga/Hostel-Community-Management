@@ -66,14 +66,17 @@ const Login = () => {
   return (
     <Box
       sx={{
-        height: '100vh',
-        maxHeight: '100vh',
+        minHeight: { xs: '100dvh', md: '100vh' },
+        height: { xs: 'auto', md: '100vh' },
+        maxHeight: { md: '100vh' },
         width: '100vw',
         maxWidth: '100vw',
         display: 'flex',
         flexDirection: { xs: 'column', md: 'row' },
-        overflow: 'hidden',
-        fontFamily: '"Outfit", "Inter", sans-serif'
+        overflowY: { xs: 'auto', md: 'hidden' },
+        overflowX: 'hidden',
+        fontFamily: '"Outfit", "Inter", sans-serif',
+        bgcolor: '#FFFFFF'
       }}
     >
       {/* ─── LEFT PANEL — Single Static Background Image (60%) ─── */}
@@ -136,27 +139,28 @@ const Login = () => {
           width: { xs: '100%', md: '40%' },
           minWidth: { md: '40%' },
           maxWidth: { md: '40%' },
-          height: '100vh',
-          maxHeight: '100vh',
-          overflowY: 'auto',
+          minHeight: { xs: '100dvh', md: '100vh' },
+          height: { xs: 'auto', md: '100vh' },
+          maxHeight: { md: '100vh' },
+          overflowY: { xs: 'visible', md: 'auto' },
           bgcolor: '#FFFFFF',
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'center',
+          justifyContent: { xs: 'flex-start', md: 'center' },
           alignItems: 'center',
-          px: { xs: 3, sm: 5, md: 6, lg: 7 },
-          py: { xs: 4, sm: 5 }
+          px: { xs: 2.5, sm: 4, md: 6, lg: 7 },
+          py: { xs: 3, sm: 4, md: 5 }
         }}
       >
         <Box sx={{ width: '100%', maxWidth: 440 }}>
           {/* Top Center Avatar */}
-          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: { xs: 1.5, sm: 2 } }}>
             <Avatar
               src={ProfileIconImg}
               alt="Kambi Connect"
               sx={{
-                width: 96,
-                height: 96,
+                width: { xs: 72, sm: 84, md: 96 },
+                height: { xs: 72, sm: 84, md: 96 },
                 border: '3px solid #FFFFFF',
                 boxShadow: '0 0 0 3px #BFDBFE, 0 10px 24px -4px rgba(59, 130, 246, 0.35)',
                 transition: 'transform 0.3s ease',
@@ -170,12 +174,12 @@ const Login = () => {
             component="h1"
             sx={{
               fontWeight: 900,
-              fontSize: { xs: '28px', sm: '32px' },
+              fontSize: { xs: '24px', sm: '28px', md: '32px' },
               letterSpacing: '-0.5px',
               textAlign: 'center',
               color: '#0F172A',
               lineHeight: 1.2,
-              mb: 0.8
+              mb: 0.6
             }}
           >
             Kambi{' '}
@@ -191,7 +195,7 @@ const Login = () => {
               alignItems: 'center',
               justifyContent: 'center',
               gap: 1.5,
-              mb: 2
+              mb: { xs: 1.5, sm: 2 }
             }}
           >
             <Box sx={{ width: 45, height: '1.5px', bgcolor: '#CBD5E1' }} />
@@ -208,25 +212,23 @@ const Login = () => {
             <Box sx={{ width: 45, height: '1.5px', bgcolor: '#CBD5E1' }} />
           </Box>
 
-       
-
           {/* Community Info Box */}
           <Box
             sx={{
               display: 'flex',
               alignItems: 'center',
-              gap: 2,
-              p: 2,
+              gap: { xs: 1.5, sm: 2 },
+              p: { xs: 1.5, sm: 2 },
               borderRadius: '16px',
               bgcolor: '#F0F6FF',
-              mb: 2.8
+              mb: { xs: 2, sm: 2.8 }
             }}
           >
             <Box
               sx={{
-                width: 48,
-                height: 48,
-                minWidth: 48,
+                width: { xs: 40, sm: 48 },
+                height: { xs: 40, sm: 48 },
+                minWidth: { xs: 40, sm: 48 },
                 borderRadius: '50%',
                 bgcolor: '#DBEAFE',
                 display: 'flex',
@@ -234,13 +236,13 @@ const Login = () => {
                 justifyContent: 'center'
               }}
             >
-              <PeopleAltOutlined sx={{ color: '#2563EB', fontSize: 24 }} />
+              <PeopleAltOutlined sx={{ color: '#2563EB', fontSize: { xs: 20, sm: 24 } }} />
             </Box>
             <Box>
               <Typography
                 sx={{
                   fontWeight: 800,
-                  fontSize: '14.5px',
+                  fontSize: { xs: '13.5px', sm: '14.5px' },
                   color: '#1E3A8A',
                   mb: 0.3
                 }}
@@ -250,8 +252,8 @@ const Login = () => {
               <Typography
                 sx={{
                   color: '#64748B',
-                  fontSize: '12.5px',
-                  lineHeight: 1.45,
+                  fontSize: { xs: '11.5px', sm: '12.5px' },
+                  lineHeight: 1.4,
                   fontWeight: 400
                 }}
               >
@@ -438,10 +440,9 @@ const Login = () => {
           </Box>
 
           {/* Register link */}
-          <Box sx={{ textAlign: 'center', mt: 2.8 }}>
-            <Typography sx={{ color: '#64748B', fontSize: '13.5px' }}>
-              Don't have an account?{' '}
-           
+          <Box sx={{ textAlign: 'center', mt: { xs: 2, sm: 2.5 }, mb: 1 }}>
+            <Typography sx={{ color: '#64748B', fontSize: '13.5px', fontWeight: 500 }}>
+              Don't have an account?
             </Typography>
           </Box>
           {/* Create an Account button */}
@@ -453,7 +454,7 @@ const Login = () => {
             variant="outlined"
             startIcon={<PersonAddOutlined sx={{ fontSize: '20px !important' }} />}
             sx={{
-              py: 1.3,
+              py: { xs: 1.2, sm: 1.3 },
               borderRadius: '12px',
               fontWeight: 700,
               fontSize: '14.5px',
@@ -461,6 +462,7 @@ const Login = () => {
               color: '#1877F2',
               borderColor: '#93C5FD',
               bgcolor: '#FFFFFF',
+              mb: { xs: 3, md: 0 },
               '&:hover': {
                 borderColor: '#1877F2',
                 bgcolor: '#EFF6FF'

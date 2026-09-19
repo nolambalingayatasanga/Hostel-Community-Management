@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { Box, CircularProgress, Typography } from '@mui/material';
 import NotFound from '../common/NotFound';
 
-const CODE_PATTERN = /^[A-Za-z0-9]{6}(?:=qr)?$/;
+const FALLBACK_LOGIN = 'https://www.kambi-connect.in/login';
 
 export default function QrRedirect() {
   const { code } = useParams();
@@ -13,7 +13,7 @@ export default function QrRedirect() {
     const raw = String(code || '').trim();
     const fromPath = /=qr$/i.test(raw);
     const clean = raw.replace(/=qr$/i, '');
-    const isValid = /^[A-Za-z0-9]{6}$/.test(clean);
+    const isValid = /^[A-Za-z0-9_-]{3,64}$/.test(clean);
     const isQr = fromPath || searchParams.get('r') === 'qr';
     return { raw, clean, isValid, isQr };
   }, [code, searchParams]);
@@ -21,10 +21,21 @@ export default function QrRedirect() {
   useEffect(() => {
     if (!parsed.isValid) return;
     const access = parsed.isQr ? 'qr' : 'direct';
-    window.location.replace(`/api/qr-scans/t/${encodeURIComponent(parsed.clean)}?r=${access}`);
+    const apiBase = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
+    const trackingUrl = `${apiBase}/qr-scans/t/${encodeURIComponent(parsed.clean)}?r=${access}`;
+
+    // Redirect to tracking URL which will 302 redirect to https://www.kambi-connect.in/login
+    window.location.replace(trackingUrl);
+
+    // Fallback safety redirect in case server redirect hangs
+    const safetyTimer = setTimeout(() => {
+      window.location.replace(FALLBACK_LOGIN);
+    }, 2800);
+
+    return () => clearTimeout(safetyTimer);
   }, [parsed]);
 
-  if (!CODE_PATTERN.test(String(code || '').trim()) || !parsed.isValid) {
+  if (!parsed.isValid) {
     return <NotFound />;
   }
 

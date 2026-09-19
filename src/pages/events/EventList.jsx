@@ -77,97 +77,129 @@ function CalendarToolbar({ view, onViewChange, currentDate, onPrev, onNext, onTo
         : currentDate.format("MMMM YYYY");
 
   return (
-    <Stack
-      direction="row"
+    <Box
       sx={{
         width: "100%",
-        justifyContent: "space-between",
-        alignItems: "center",
-        px: 3,
-        py: 1.5,
+        px: { xs: 1.5, sm: 2.5 },
+        pt: { xs: 1.25, sm: 1.5 },
+        pb: { xs: 1.25, sm: 1.5 },
         borderBottom: "1px solid #F1F5F9",
-        flexWrap: "wrap",
-        gap: 2,
+        bgcolor: "#fff"
       }}
     >
-      {/* View switcher */}
-      <ToggleButtonGroup
-        value={view}
-        exclusive
-        onChange={(_, v) => v && onViewChange(v)}
-        size="small"
-        sx={{
-          bgcolor: "#F4F4F5",
-          p: 0.25,
-          borderRadius: "8px",
-          "& .MuiToggleButton-root": {
-            border: "none",
-            borderRadius: "6px !important",
-            textTransform: "none",
-            px: 2,
-            py: 0.5,
-            fontSize: "13px",
-            fontWeight: 600,
-            color: "#475467",
-            "&:hover": { bgcolor: "#E4E4E7" },
-            "&.Mui-selected": {
-              bgcolor: "#0088ff",
-              color: "#fff",
-              boxShadow: "none",
-              "&:hover": { bgcolor: "#0088ff" },
-            },
-          },
-        }}
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={{ xs: 1.25, sm: 2 }}
+        alignItems="center"
+        justifyContent="space-between"
+        sx={{ width: "100%" }}
       >
-        <ToggleButton value="month">Month</ToggleButton>
-        <ToggleButton value="week">Week</ToggleButton>
-        <ToggleButton value="day">Day</ToggleButton>
-      </ToggleButtonGroup>
-
-      {/* Navigation */}
-      <Stack direction="row" alignItems="center" spacing={1.5}>
-        <IconButton
+        {/* View switcher */}
+        <ToggleButtonGroup
+          value={view}
+          exclusive
+          onChange={(_, v) => v && onViewChange(v)}
           size="small"
-          onClick={onPrev}
-          sx={{ color: "#475467", "&:hover": { bgcolor: "#F1F5F9" } }}
-        >
-          <ChevronLeftIcon fontSize="small" />
-        </IconButton>
-        <Typography
-          variant="subtitle1"
-          sx={{ fontWeight: 700, color: "#111827", minWidth: 170, textAlign: "center" }}
-        >
-          {label}
-        </Typography>
-        <IconButton
-          size="small"
-          onClick={onNext}
-          sx={{ color: "#475467", "&:hover": { bgcolor: "#F1F5F9" } }}
-        >
-          <ChevronRightIcon fontSize="small" />
-        </IconButton>
-      </Stack>
-
-      {/* Actions (Today & Filter) */}
-      <Stack direction="row" alignItems="center" spacing={1.5}>
-        <Button
-          variant="outlined"
-          onClick={onToday}
           sx={{
+            bgcolor: "#F4F4F5",
+            p: 0.25,
             borderRadius: "8px",
-            textTransform: "none",
-            fontWeight: 600,
-            fontSize: "13px",
-            borderColor: "#D0D5DD",
-            color: "#344054",
-            bgcolor: "#fff",
-            "&:hover": { bgcolor: "#F9FAFB", borderColor: "#D0D5DD" },
+            width: { xs: "100%", sm: "auto" },
+            display: "flex",
+            "& .MuiToggleButton-root": {
+              border: "none",
+              borderRadius: "6px !important",
+              textTransform: "none",
+              flex: { xs: 1, sm: "initial" },
+              px: { xs: 1.5, sm: 2 },
+              py: 0.5,
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "#475467",
+              "&:hover": { bgcolor: "#E4E4E7" },
+              "&.Mui-selected": {
+                bgcolor: "#0088ff",
+                color: "#fff",
+                boxShadow: "none",
+                "&:hover": { bgcolor: "#0088ff" },
+              },
+            },
           }}
         >
-          Today
-        </Button>
+          <ToggleButton value="month">Month</ToggleButton>
+          <ToggleButton value="week">Week</ToggleButton>
+          <ToggleButton value="day">Day</ToggleButton>
+        </ToggleButtonGroup>
+
+        {/* Navigation & Today in same row with space-between */}
+        <Box
+          sx={{
+            width: "100%",
+            alignSelf: "stretch",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: { xs: "space-between", sm: "flex-end" },
+            flex: { sm: 1 },
+            ml: { sm: 2 }
+          }}
+        >
+          <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mx: { sm: "auto" } }}>
+            <IconButton
+              size="small"
+              onClick={onPrev}
+              sx={{ color: "#475467", p: 0.5, "&:hover": { bgcolor: "#F1F5F9" } }}
+            >
+              <ChevronLeftIcon fontSize="small" sx={{ display: "block" }} />
+            </IconButton>
+            <Typography
+              variant="subtitle1"
+              sx={{
+                fontWeight: 700,
+                color: "#111827",
+                minWidth: { xs: "auto", sm: 170 },
+                textAlign: "center",
+                fontSize: { xs: "14px", sm: "16px" },
+                whiteSpace: "nowrap",
+                lineHeight: 1,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {label}
+            </Typography>
+            <IconButton
+              size="small"
+              onClick={onNext}
+              sx={{ color: "#475467", p: 0.5, "&:hover": { bgcolor: "#F1F5F9" } }}
+            >
+              <ChevronRightIcon fontSize="small" sx={{ display: "block" }} />
+            </IconButton>
+          </Stack>
+
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={onToday}
+            sx={{
+              borderRadius: "8px",
+              textTransform: "none",
+              fontWeight: 600,
+              fontSize: "13px",
+              borderColor: "#D0D5DD",
+              color: "#344054",
+              bgcolor: "#fff",
+              px: { xs: 1.5, sm: 2 },
+              py: 0.5,
+              flexShrink: 0,
+              "&:hover": { bgcolor: "#F9FAFB", borderColor: "#D0D5DD" },
+            }}
+          >
+            Today
+          </Button>
+        </Box>
       </Stack>
-    </Stack>
+    </Box>
   );
 }
 
@@ -230,7 +262,7 @@ function PillList({ events, onNavigate }) {
   const hidden = events.length - max;
 
   return (
-    <Stack spacing={0.4} sx={{ mt: 0.5 }}>
+    <Stack spacing={0.4} sx={{ mt: 0.5, minWidth: 0, width: "100%" }}>
       {visible.map((ev) => (
         <EventPill key={ev._id} event={ev} onClick={onNavigate} />
       ))}
@@ -284,6 +316,9 @@ function DayCell({
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
+        minWidth: 0,
+        width: "100%",
+        boxSizing: "border-box",
         "&:hover": {
           bgcolor: isToday ? "#E6F0FA" : "rgba(0, 136, 255, 0.015)",
           borderColor: isToday ? "#0077ee" : "#0088ff",
@@ -348,7 +383,7 @@ function DayCell({
         </Box>
 
         {/* Scrollable pill area */}
-        <Box sx={{ flex: 1, overflowY: "auto", "&::-webkit-scrollbar": { width: 2 } }}>
+        <Box sx={{ flex: 1, overflowY: "auto", minWidth: 0, width: "100%", "&::-webkit-scrollbar": { width: 2 } }}>
           <PillList events={events} onNavigate={onNavigate} />
         </Box>
       </>
@@ -378,62 +413,77 @@ function MonthView({ events, currentDate, onOpenCreate, onNavigate, isLoading, c
   }
 
   return (
-    <Box sx={{ bgcolor: "#F8FAFC", pb: "16px" }}>
-      {/* Column labels */}
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: "repeat(7, 1fr)",
-          gap: "12px",
-          px: "12px",
-          pt: "12px",
-        }}
-      >
-        {WEEK_LABELS.map((l) => (
-          <Paper
-            key={l}
-            variant="outlined"
-            sx={{
-              py: 1.25,
-              textAlign: "center",
-              borderRadius: "12px",
-              borderColor: "#EAECF0",
-              bgcolor: "#fff",
-              boxShadow: "none"
-            }}
-          >
-            <Typography sx={{ fontSize: "13px", fontWeight: 700, color: "#1E293B" }}>{l}</Typography>
-          </Paper>
-        ))}
-      </Box>
+    <Box sx={{ bgcolor: "#F8FAFC", pb: "16px", overflowX: "auto", width: "100%", WebkitOverflowScrolling: "touch" }}>
+      <Box sx={{ width: "100%" }}>
+        {/* Column labels */}
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "repeat(7, minmax(0, 1fr))", md: "repeat(7, 1fr)" },
+            gap: { xs: "10px", md: "12px" },
+            px: { xs: "10px", md: "12px" },
+            pt: "12px",
+            width: { xs: "calc(306% - 15px)", md: "100%" },
+            minWidth: { xs: "calc(306% - 15px)", md: "100%" }
+          }}
+        >
+          {WEEK_LABELS.map((l) => (
+            <Paper
+              key={l}
+              variant="outlined"
+              sx={{
+                py: 1.25,
+                textAlign: "center",
+                borderRadius: "12px",
+                borderColor: "#EAECF0",
+                bgcolor: "#fff",
+                boxShadow: "none"
+              }}
+            >
+              <Typography sx={{ fontSize: "13px", fontWeight: 700, color: "#1E293B" }}>
+                <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>{l}</Box>
+                <Box component="span" sx={{ display: { xs: "inline", sm: "none" } }}>{l.slice(0, 3)}</Box>
+              </Typography>
+            </Paper>
+          ))}
+        </Box>
 
-      {/* Date cells */}
-      <Box
-        onMouseLeave={() => setHoveredDate(null)}
-        sx={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "12px", px: "12px", pt: "12px" }}
-      >
-        {days.map((date) => {
-          const ds = date.format("YYYY-MM-DD");
-          const isToday = ds === today;
-          const isTodayActive = isToday && (!hoveredDate || hoveredDate === today);
-          const dayEvents = events.filter(
-            (ev) => ev.eventDate && dayjs(ev.eventDate).format("YYYY-MM-DD") === ds
-          );
-          return (
-            <DayCell
-              key={ds}
-              dateStr={ds}
-              events={dayEvents}
-              onOpenCreate={onOpenCreate}
-              onNavigate={onNavigate}
-              isLoading={isLoading}
-              canCreate={canCreate}
-              isCurrentMonth={date.month() === currentDate.month()}
-              isTodayActive={isTodayActive}
-              onMouseEnter={() => setHoveredDate(ds)}
-            />
-          );
-        })}
+        {/* Date cells */}
+        <Box
+          onMouseLeave={() => setHoveredDate(null)}
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "repeat(7, minmax(0, 1fr))", md: "repeat(7, 1fr)" },
+            gap: { xs: "10px", md: "12px" },
+            px: { xs: "10px", md: "12px" },
+            pt: "8px",
+            width: { xs: "calc(306% - 15px)", md: "100%" },
+            minWidth: { xs: "calc(306% - 15px)", md: "100%" }
+          }}
+        >
+          {days.map((date) => {
+            const ds = date.format("YYYY-MM-DD");
+            const isToday = ds === today;
+            const isTodayActive = isToday && (!hoveredDate || hoveredDate === today);
+            const dayEvents = events.filter(
+              (ev) => ev.eventDate && dayjs(ev.eventDate).format("YYYY-MM-DD") === ds
+            );
+            return (
+              <DayCell
+                key={ds}
+                dateStr={ds}
+                events={dayEvents}
+                onOpenCreate={onOpenCreate}
+                onNavigate={onNavigate}
+                isLoading={isLoading}
+                canCreate={canCreate}
+                isCurrentMonth={date.month() === currentDate.month()}
+                isTodayActive={isTodayActive}
+                onMouseEnter={() => setHoveredDate(ds)}
+              />
+            );
+          })}
+        </Box>
       </Box>
     </Box>
   );
@@ -446,70 +496,80 @@ function WeekView({ events, currentDate, onOpenCreate, onNavigate, isLoading, ca
   const todayStr = dayjs().format("YYYY-MM-DD");
 
   return (
-    <Box sx={{ bgcolor: "#F8FAFC", pb: "16px" }}>
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: "repeat(7, 1fr)",
-          gap: "12px",
-          px: "12px",
-          pt: "12px",
-        }}
-      >
-        {days.map((date) => {
-          const isToday = date.format("YYYY-MM-DD") === todayStr;
-          return (
-            <Paper
-              key={date.toString()}
-              variant="outlined"
-              sx={{
-                py: 1.5,
-                textAlign: "center",
-                borderRadius: "12px",
-                borderColor: "#EAECF0",
-                bgcolor: "#fff",
-                boxShadow: "none"
-              }}
-            >
-              <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#6B7280", display: "block" }}>
-                {date.format("dddd")}
-              </Typography>
-              <Box
+    <Box sx={{ bgcolor: "#F8FAFC", pb: "16px", overflowX: "auto", width: "100%", WebkitOverflowScrolling: "touch" }}>
+      <Box sx={{ width: "100%" }}>
+        {/* Column labels */}
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "repeat(7, minmax(0, 1fr))", md: "repeat(7, 1fr)" },
+            gap: { xs: "10px", md: "12px" },
+            px: { xs: "10px", md: "12px" },
+            pt: "12px",
+            width: { xs: "calc(306% - 15px)", md: "100%" },
+            minWidth: { xs: "calc(306% - 15px)", md: "100%" }
+          }}
+        >
+          {days.map((date) => (
+              <Paper
+                key={date.toString()}
+                variant="outlined"
                 sx={{
-                  width: 30, height: 30, borderRadius: "50%",
-                  bgcolor: isToday ? "#0088ff" : "transparent",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  mx: "auto", mt: 0.5,
+                  py: { xs: 1, sm: 1.25 },
+                  px: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 0.75,
+                  borderRadius: "12px",
+                  borderColor: "#EAECF0",
+                  bgcolor: "#fff",
+                  boxShadow: "none"
                 }}
               >
-                <Typography sx={{ fontWeight: isToday ? 700 : 500, color: isToday ? "#fff" : "#374151", fontSize: 14 }}>
+                <Typography sx={{ fontSize: "13px", fontWeight: 700, color: "#1E293B", lineHeight: 1 }}>
+                  <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>{date.format("dddd")}</Box>
+                  <Box component="span" sx={{ display: { xs: "inline", sm: "none" } }}>{date.format("ddd")}</Box>
+                </Typography>
+                <Typography sx={{ fontSize: "13px", fontWeight: 600, color: "#64748B", lineHeight: 1 }}>
                   {date.date()}
                 </Typography>
-              </Box>
-            </Paper>
-          );
-        })}
-      </Box>
+              </Paper>
+          ))}
+        </Box>
 
-      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "12px", px: "12px", pt: "12px" }}>
-        {days.map((date) => {
-          const ds = date.format("YYYY-MM-DD");
-          const dayEvents = events.filter(
-            (ev) => ev.eventDate && dayjs(ev.eventDate).format("YYYY-MM-DD") === ds
-          );
-          return (
-            <DayCell
-              key={ds}
-              dateStr={ds}
-              events={dayEvents}
-              onOpenCreate={onOpenCreate}
-              onNavigate={onNavigate}
-              isLoading={isLoading}
-              canCreate={canCreate}
-              isCurrentMonth
-            />
-          );
-        })}
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "repeat(7, minmax(0, 1fr))", md: "repeat(7, 1fr)" },
+            gap: { xs: "10px", md: "12px" },
+            px: { xs: "10px", md: "12px" },
+            pt: "8px",
+            width: { xs: "calc(306% - 15px)", md: "100%" },
+            minWidth: { xs: "calc(306% - 15px)", md: "100%" }
+          }}
+        >
+          {days.map((date) => {
+            const ds = date.format("YYYY-MM-DD");
+            const dayEvents = events.filter(
+              (ev) => ev.eventDate && dayjs(ev.eventDate).format("YYYY-MM-DD") === ds
+            );
+            return (
+              <DayCell
+                key={ds}
+                dateStr={ds}
+                events={dayEvents}
+                onOpenCreate={onOpenCreate}
+                onNavigate={onNavigate}
+                isLoading={isLoading}
+                canCreate={canCreate}
+                isCurrentMonth={true}
+                isTodayActive={ds === todayStr}
+                onMouseEnter={() => {}}
+              />
+            );
+          })}
+        </Box>
       </Box>
     </Box>
   );

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 
-import { Box, Button, Card, Stack} from "@mui/material";
+import { Box, Button, Card, Stack, IconButton } from "@mui/material";
 
 import {
   format,
@@ -96,6 +96,7 @@ const CustomDateRangePicker = ({
   incApply,
   disablePast = false,
   compact = false,
+  placeholder = "Filter by Joining Date",
 }) => {
   const minDate = disablePast ? getTodayGMT() : undefined;
   const parsedStart = parsePickerDate(start);
@@ -141,6 +142,14 @@ const CustomDateRangePicker = ({
       });
     }
   };
+  const handleClear = (e) => {
+    if (e) e.stopPropagation();
+    setRange([{ startDate: null, endDate: null, key: "selection" }]);
+    if (typeof onFilterRange === "function") {
+      onFilterRange(null);
+    }
+    setCalenderOpen(false);
+  };
   const returnFilterValue = () => {
     if (
       range[0].startDate &&
@@ -172,6 +181,8 @@ const CustomDateRangePicker = ({
     ? `${format(range[0].startDate, "MMM dd, yyyy")}  →  ${format(range[0].endDate, "MMM dd, yyyy")}`
     : "Select date range";
 
+  const hasSelectedRange = Boolean(range[0].startDate && range[0].endDate);
+
   return (
     <div style={{ display: 'inline-block' }}>
       <div className={styles.dateRangePickerContainer}>
@@ -180,31 +191,56 @@ const CustomDateRangePicker = ({
           spacing={2}
           sx={{ alignItems: "center" }}
         >
-          <Button
-            onClick={handleCalenderOpen}
-            variant="outlined"
-            color="inherit"
-            startIcon={<CalendarIcon sx={{ color: "text.disabled" }} />}
-            sx={{
-              borderColor: "rgba(145, 158, 171, 0.32)",
-              color: "text.secondary",
-              textTransform: "none",
-              fontWeight: 500,
-              padding: "6px 16px",
-              minWidth: "260px",
-              justifyContent: "flex-start",
-              borderRadius: "8px",
-              backgroundColor: "#fff",
-              "&:hover": {
-                borderColor: "rgba(145, 158, 171, 0.5)",
-                backgroundColor: "#fff",
-              }
-            }}
-          >
-            {range[0].startDate ? format(range[0].startDate, "MMM dd, yyyy") : "Start Date"}
-            <Box component="span" sx={{ mx: 1.5, color: "text.disabled", display: "inline-flex", alignItems: "center" }}>&rarr;</Box>
-            {range[0].endDate ? format(range[0].endDate, "MMM dd, yyyy") : "End Date"}
-          </Button>
+          <Box sx={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+            <Button
+              onClick={handleCalenderOpen}
+              variant="outlined"
+              color="inherit"
+              startIcon={<CalendarIcon sx={{ color: hasSelectedRange ? "#0088ff" : "text.disabled" }} />}
+              sx={{
+                borderColor: hasSelectedRange ? "#0088ff" : "rgba(145, 158, 171, 0.32)",
+                color: hasSelectedRange ? "#0F172A" : "text.secondary",
+                textTransform: "none",
+                fontWeight: hasSelectedRange ? 600 : 500,
+                padding: "6px 16px",
+                pr: hasSelectedRange ? "34px" : "16px",
+                minWidth: "240px",
+                justifyContent: "flex-start",
+                borderRadius: "8px",
+                backgroundColor: hasSelectedRange ? "rgba(0, 136, 255, 0.04)" : "#fff",
+                "&:hover": {
+                  borderColor: hasSelectedRange ? "#0077ee" : "rgba(145, 158, 171, 0.5)",
+                  backgroundColor: hasSelectedRange ? "rgba(0, 136, 255, 0.08)" : "#fff",
+                }
+              }}
+            >
+              {hasSelectedRange ? (
+                <>
+                  {format(range[0].startDate, "MMM dd, yyyy")}
+                  <Box component="span" sx={{ mx: 1, color: "text.disabled", display: "inline-flex", alignItems: "center" }}>&rarr;</Box>
+                  {format(range[0].endDate, "MMM dd, yyyy")}
+                </>
+              ) : (
+                placeholder
+              )}
+            </Button>
+            {hasSelectedRange && (
+              <IconButton
+                size="small"
+                onClick={handleClear}
+                title="Clear date filter"
+                sx={{
+                  position: "absolute",
+                  right: 4,
+                  p: 0.5,
+                  color: "#94A3B8",
+                  "&:hover": { color: "#EF4444", backgroundColor: "rgba(239, 68, 68, 0.08)" }
+                }}
+              >
+                <CloseIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            )}
+          </Box>
           {!incApply && (
             <Button
               variant="contained"
@@ -275,7 +311,7 @@ const CustomDateRangePicker = ({
                             label: "AllTime",
                             hasCustomRendering: true,
                             range: () => ({
-                              startDate: new Date("2000-01-01"),
+                              startDate: new Date("1950-01-01"),
                               endDate: new Date(),
                             }),
                             isSelected() {
@@ -285,10 +321,19 @@ const CustomDateRangePicker = ({
                         ]}
                       />
                       {incApply && (
-                        <Stack sx={{ alignItems: "flex-end", width: "100%", px: 2 }}>
+                        <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end", width: "100%", px: 2, pb: 1 }}>
+                          <Button
+                            onClick={handleClear}
+                            variant="outlined"
+                            color="inherit"
+                            size="small"
+                          >
+                            Clear
+                          </Button>
                           <Button
                             onClick={handleCalenderClose}
                             variant="contained"
+                            size="small"
                           >
                             Apply
                           </Button>
@@ -309,10 +354,19 @@ const CustomDateRangePicker = ({
                         minDate={minDate}
                       />
                       {incApply && (
-                        <Stack sx={{ alignItems: "flex-end", width: "100%", px: 2 }}>
+                        <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end", width: "100%", px: 2, pb: 1 }}>
+                          <Button
+                            onClick={handleClear}
+                            variant="outlined"
+                            color="inherit"
+                            size="small"
+                          >
+                            Clear
+                          </Button>
                           <Button
                             onClick={handleCalenderClose}
                             variant="contained"
+                            size="small"
                           >
                             Apply
                           </Button>

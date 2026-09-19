@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Card,
   CardContent,
+  CardMedia,
   Typography,
   Grid,
   Button,
@@ -36,10 +37,11 @@ import {
   MoreVert as MoreVertIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  FilterList as FilterIcon,
   FolderSpecial as FolderIcon,
   Close as CloseIcon,
-  Refresh as RefreshIcon
+  AddPhotoAlternate as AddPhotoIcon,
+  Image as ImageIcon,
+  DeleteOutlined as RemoveImageIcon
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import { useAuth } from '../../context/AuthContext';
@@ -59,8 +61,10 @@ const CATEGORIES = [
 
 export default function DriveLinks() {
   const { user } = useAuth();
-  const { canCreate, canUpdate, canDelete } = usePermissions();
+  const { canCreate } = usePermissions();
   const { enqueueSnackbar } = useSnackbar();
+  const fileInputRef = useRef(null);
+  const quickThumbnailInputRef = useRef(null);
 
   const isAdmin = user?.role === 'ADMIN';
   const hasFullAccess = isAdmin || canCreate('drive_links');
@@ -69,9 +73,6 @@ export default function DriveLinks() {
   const [links, setLinks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [selectedYear, setSelectedYear] = useState('ALL');
-  const [selectedCategory, setSelectedCategory] = useState('ALL');
-  const [sortBy, setSortBy] = useState('newest');
 
   // Dialog State
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -84,6 +85,17 @@ export default function DriveLinks() {
   const [driveUrl, setDriveUrl] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [category, setCategory] = useState('General');
+  const [thumbnailUrl, setThumbnailUrl] = useState('');
+  const [thumbnailFile, setThumbnailFile] = useState(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState('');
+
+  // Quick Thumbnail Upload Modal State
+  const [quickThumbItem, setQuickThumbItem] = useState(null);
+  const [quickThumbDialogOpen, setQuickThumbDialogOpen] = useState(false);
+  const [quickThumbFile, setQuickThumbFile] = useState(null);
+  const [quickThumbUrl, setQuickThumbUrl] = useState('');
+  const [quickThumbPreview, setQuickThumbPreview] = useState('');
+  const [savingQuickThumb, setSavingQuickThumb] = useState(false);
 
   // Menu State
   const [menuAnchorEl, setMenuAnchorEl] = useState(null);
@@ -100,9 +112,7 @@ export default function DriveLinks() {
       setLoading(true);
       const res = await API.get('/drive-links', {
         params: {
-          search: search || undefined,
-          year: selectedYear !== 'ALL' ? selectedYear : undefined,
-          category: selectedCategory !== 'ALL' ? selectedCategory : undefined
+          search: search || undefined
         }
       });
       if (res.data?.success) {
@@ -118,43 +128,15 @@ export default function DriveLinks() {
 
   useEffect(() => {
     fetchDriveLinks();
-  }, [selectedYear, selectedCategory]);
+  }, []);
 
   // Debounced search
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchDriveLinks();
-    }, 400);
+    }, 350);
     return () => clearTimeout(timer);
   }, [search]);
-
-  // Extract unique event years from links
-  const availableYears = useMemo(() => {
-    const yearsSet = new Set();
-    links.forEach(l => {
-      if (l.eventDate) {
-        const y = new Date(l.eventDate).getFullYear();
-        if (!isNaN(y)) yearsSet.add(y);
-      }
-    });
-    return Array.from(yearsSet).sort((a, b) => b - a);
-  }, [links]);
-
-  // Sorted links
-  const sortedLinks = useMemo(() => {
-    return [...links].sort((a, b) => {
-      if (sortBy === 'newest') {
-        return new Date(b.eventDate) - new Date(a.eventDate);
-      }
-      if (sortBy === 'oldest') {
-        return new Date(a.eventDate) - new Date(b.eventDate);
-      }
-      if (sortBy === 'title') {
-        return a.title.localeCompare(b.title);
-      }
-      return 0;
-    });
-  }, [links, sortBy]);
 
   // Open Create Dialog
   const handleOpenCreate = () => {
@@ -164,6 +146,9 @@ export default function DriveLinks() {
     setDriveUrl('');
     setEventDate(new Date().toISOString().split('T')[0]);
     setCategory('General');
+    setThumbnailUrl('');
+    setThumbnailFile(null);
+    setThumbnailPreview('');
     setDialogOpen(true);
   };
 
@@ -175,8 +160,41 @@ export default function DriveLinks() {
     setDriveUrl(item.driveUrl || '');
     setEventDate(item.eventDate ? new Date(item.eventDate).toISOString().split('T')[0] : '');
     setCategory(item.category || 'General');
+    setThumbnailUrl(item.thumbnail || '');
+    setThumbnailFile(null);
+    setThumbnailPreview(item.thumbnail || '');
     setDialogOpen(true);
     handleMenuClose();
+  };
+
+  // Open Quick Thumbnail Upload
+  const handleOpenQuickThumbnail = (item) => {
+    setQuickThumbItem(item);
+    setQuickThumbUrl(item.thumbnail || '');
+    setQuickThumbFile(null);
+    setQuickThumbPreview(item.thumbnail || '');
+    setQuickThumbDialogOpen(true);
+    handleMenuClose();
+  };
+
+  // Handle Thumbnail File Selection
+  const handleFileChange = (e, isQuick = false) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      enqueueSnackbar('Please select a valid image file (PNG, JPG, WEBP)', { variant: 'warning' });
+      return;
+    }
+
+    const preview = URL.createObjectURL(file);
+    if (isQuick) {
+      setQuickThumbFile(file);
+      setQuickThumbPreview(preview);
+    } else {
+      setThumbnailFile(file);
+      setThumbnailPreview(preview);
+    }
   };
 
   // Submit Create or Edit
@@ -189,29 +207,30 @@ export default function DriveLinks() {
 
     try {
       setSaving(true);
+      const formData = new FormData();
+      formData.append('title', title.trim());
+      formData.append('description', description.trim());
+      formData.append('driveUrl', driveUrl.trim());
+      formData.append('eventDate', eventDate);
+      formData.append('category', category);
+
+      if (thumbnailFile) {
+        formData.append('thumbnail', thumbnailFile);
+      } else {
+        formData.append('thumbnail', thumbnailUrl.trim());
+      }
+
+      const headers = { 'Content-Type': 'multipart/form-data' };
+
       if (editingLink) {
-        // Update
-        const res = await API.put(`/drive-links/${editingLink._id}`, {
-          title: title.trim(),
-          description: description.trim(),
-          driveUrl: driveUrl.trim(),
-          eventDate,
-          category
-        });
+        const res = await API.put(`/drive-links/${editingLink._id}`, formData, { headers });
         if (res.data?.success) {
           enqueueSnackbar('Google Drive link updated successfully', { variant: 'success' });
           setDialogOpen(false);
           fetchDriveLinks();
         }
       } else {
-        // Create
-        const res = await API.post('/drive-links', {
-          title: title.trim(),
-          description: description.trim(),
-          driveUrl: driveUrl.trim(),
-          eventDate,
-          category
-        });
+        const res = await API.post('/drive-links', formData, { headers });
         if (res.data?.success) {
           enqueueSnackbar('Google Drive link added successfully', { variant: 'success' });
           setDialogOpen(false);
@@ -224,6 +243,37 @@ export default function DriveLinks() {
       enqueueSnackbar(errMsg, { variant: 'error' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Save Quick Thumbnail
+  const handleSaveQuickThumbnail = async () => {
+    if (!quickThumbItem) return;
+
+    try {
+      setSavingQuickThumb(true);
+      const formData = new FormData();
+      if (quickThumbFile) {
+        formData.append('thumbnail', quickThumbFile);
+      } else {
+        formData.append('thumbnail', quickThumbUrl.trim());
+      }
+
+      const res = await API.put(`/drive-links/${quickThumbItem._id}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      if (res.data?.success) {
+        enqueueSnackbar('Thumbnail updated successfully', { variant: 'success' });
+        setQuickThumbDialogOpen(false);
+        setQuickThumbItem(null);
+        fetchDriveLinks();
+      }
+    } catch (err) {
+      console.error('Error updating thumbnail:', err);
+      enqueueSnackbar(err.response?.data?.message || 'Failed to update thumbnail', { variant: 'error' });
+    } finally {
+      setSavingQuickThumb(false);
     }
   };
 
@@ -264,12 +314,12 @@ export default function DriveLinks() {
   };
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1400, mx: 'auto' }}>
+    <Box sx={{ p: { xs: 1.5, sm: 2.5, md: 3 }, maxWidth: 1400, mx: 'auto' }}>
       {/* Header Bar */}
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
         justifyContent="space-between"
-        alignItems={{ xs: 'flex-start', sm: 'center' }}
+        alignItems={{ xs: 'stretch', sm: 'center' }}
         spacing={2}
         sx={{ mb: 3 }}
       >
@@ -279,125 +329,33 @@ export default function DriveLinks() {
               width: 44,
               height: 44,
               borderRadius: '12px',
-              background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
+              background: 'linear-gradient(135deg, #0284C7 0%, #0369A1 100%)',
               color: '#FFFFFF',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(29, 78, 216, 0.25)'
+              boxShadow: '0 4px 14px rgba(2, 132, 199, 0.25)',
+              flexShrink: 0
             }}
           >
             <CloudQueueIcon sx={{ fontSize: 26 }} />
           </Box>
           <Box>
-            <Typography variant="h5" sx={{ fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
+            <Typography variant="h5" sx={{ fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
               Google Drive Event Links
             </Typography>
-          
+    
           </Box>
         </Stack>
 
-        <Stack direction="row" spacing={1.5}
-         justifyContent={'end'}>
-
-
-          {hasFullAccess && (
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleOpenCreate}
-              sx={{
-                borderRadius: '9px',
-                textTransform: 'none',
-                fontWeight: 700,
-                bgcolor: '#0088FF',
-                color: '#FFFFFF',
-                boxShadow: '0 4px 14px rgba(0, 136, 255, 0.3)',
-                px: 2.5,
-                '&:hover': { bgcolor: '#0070D4' }
-              }}
-            >
-              Add Drive Link
-            </Button>
-          )}
-        </Stack>
       </Stack>
-
-      {/* Filter & Search Toolbar Card */}
-      <Card sx={{ borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: 'none', mb: 3, p: 2, bgcolor: '#FFFFFF' }}>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems="center">
-          <TextField
-            size="small"
-            placeholder="Search events by title, description or category..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon sx={{ color: '#94A3B8' }} />
-                  </InputAdornment>
-                )
-              }
-            }}
-            sx={{ width: { xs: '100%', md: 360 } }}
-          />
-
-          {/* Filters */}
-          <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" sx={{ width: { xs: '100%', md: 'auto' } }}>
-            {/* Category Filter */}
-            <FormControl size="small" sx={{ minWidth: 150 }}>
-              <InputLabel>Category</InputLabel>
-              <Select
-                value={selectedCategory}
-                label="Category"
-                onChange={(e) => setSelectedCategory(e.target.value)}
-              >
-                <MenuItem value="ALL">All Categories</MenuItem>
-                {CATEGORIES.map((c) => (
-                  <MenuItem key={c} value={c}>{c}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            {/* Year Filter */}
-            <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>Event Year</InputLabel>
-              <Select
-                value={selectedYear}
-                label="Event Year"
-                onChange={(e) => setSelectedYear(e.target.value)}
-              >
-                <MenuItem value="ALL">All Years</MenuItem>
-                {availableYears.map((y) => (
-                  <MenuItem key={y} value={String(y)}>{y}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            {/* Sort Filter */}
-            <FormControl size="small" sx={{ minWidth: 140 }}>
-              <InputLabel>Sort By</InputLabel>
-              <Select
-                value={sortBy}
-                label="Sort By"
-                onChange={(e) => setSortBy(e.target.value)}
-              >
-                <MenuItem value="newest">Newest Events</MenuItem>
-                <MenuItem value="oldest">Oldest Events</MenuItem>
-                <MenuItem value="title">Title (A-Z)</MenuItem>
-              </Select>
-            </FormControl>
-          </Stack>
-        </Stack>
-      </Card>
 
       {/* Drive Links Cards Grid */}
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
           <CircularProgress size={36} />
         </Box>
-      ) : sortedLinks.length === 0 ? (
+      ) : links.length === 0 ? (
         <Card sx={{ borderRadius: '16px', border: '1px solid #E2E8F0', p: 6, textAlign: 'center', bgcolor: '#FFFFFF' }}>
           <Box
             sx={{
@@ -405,7 +363,7 @@ export default function DriveLinks() {
               height: 64,
               borderRadius: '50%',
               bgcolor: '#EFF8FF',
-              color: '#0088FF',
+              color: '#0284C7',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -418,8 +376,8 @@ export default function DriveLinks() {
             No Google Drive event links found
           </Typography>
           <Typography variant="body2" sx={{ color: '#64748B', maxWidth: 440, mx: 'auto', mb: 3 }}>
-            {search || selectedCategory !== 'ALL' || selectedYear !== 'ALL'
-              ? 'No events match your current filter criteria. Try resetting the filters.'
+            {search
+              ? 'No events match your current search query.'
               : 'Google Drive folders containing high-resolution event media will appear here.'}
           </Typography>
           {hasFullAccess && (
@@ -427,7 +385,7 @@ export default function DriveLinks() {
               variant="contained"
               startIcon={<AddIcon />}
               onClick={handleOpenCreate}
-              sx={{ bgcolor: '#0088FF', textTransform: 'none', fontWeight: 600, '&:hover': { bgcolor: '#0070D4' } }}
+              sx={{ bgcolor: '#0284C7', textTransform: 'none', fontWeight: 600, '&:hover': { bgcolor: '#0369A1' } }}
             >
               Add First Drive Link
             </Button>
@@ -435,7 +393,7 @@ export default function DriveLinks() {
         </Card>
       ) : (
         <Grid container spacing={2.5}>
-          {sortedLinks.map((item) => {
+          {links.map((item) => {
             const formattedDate = item.eventDate
               ? new Date(item.eventDate).toLocaleDateString('en-US', {
                   month: 'short',
@@ -453,60 +411,183 @@ export default function DriveLinks() {
                     flexDirection: 'column',
                     borderRadius: '16px',
                     border: '1px solid #E2E8F0',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
-                    transition: 'all 0.2s ease-in-out',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                    transition: 'all 0.22s ease-in-out',
                     bgcolor: '#FFFFFF',
+                    overflow: 'hidden',
+                    position: 'relative',
                     '&:hover': {
-                      boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
+                      boxShadow: '0 10px 28px rgba(0,0,0,0.08)',
                       borderColor: '#CBD5E1',
-                      transform: 'translateY(-2px)'
+                      transform: 'translateY(-3px)'
                     }
                   }}
                 >
-                  <CardContent sx={{ p: 2.5, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                    {/* Header Row: Folder Tag + Menu */}
-                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
-                      <Chip
-                        size="small"
-                        icon={<FolderIcon sx={{ fontSize: '14px !important', color: '#0088FF !important' }} />}
-                        label={item.category || 'Event Media'}
+                  {/* Card Thumbnail / Header Banner */}
+                  {item.thumbnail ? (
+                    <Box sx={{ position: 'relative', width: '100%', height: 180, overflow: 'hidden', bgcolor: '#0F172A' }}>
+                      <CardMedia
+                        component="img"
+                        image={item.thumbnail}
+                        alt={item.title}
                         sx={{
-                          bgcolor: '#EFF8FF',
-                          color: '#0088FF',
-                          fontWeight: 700,
-                          fontSize: 11,
-                          border: '1px solid #B2DDFF'
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          transition: 'transform 0.4s ease',
+                          '&:hover': { transform: 'scale(1.05)' }
                         }}
                       />
+                      <Box
+                        sx={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 50%, rgba(0,0,0,0.6) 100%)',
+                          pointerEvents: 'none'
+                        }}
+                      />
+                      {/* Category Chip Overlaid */}
+                      <Chip
+                        size="small"
+                        icon={<FolderIcon sx={{ fontSize: '13px !important', color: '#FFFFFF !important' }} />}
+                        label={item.category || 'Event Media'}
+                        sx={{
+                          position: 'absolute',
+                          top: 12,
+                          left: 12,
+                          bgcolor: 'rgba(15, 23, 42, 0.75)',
+                          backdropFilter: 'blur(6px)',
+                          color: '#FFFFFF',
+                          fontWeight: 700,
+                          fontSize: 11,
+                          border: '1px solid rgba(255,255,255,0.25)'
+                        }}
+                      />
+
+                      {/* Quick Thumbnail Option Button on Image for Admins */}
+                      {hasFullAccess && (
+                        <Tooltip title="Change Thumbnail">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleOpenQuickThumbnail(item)}
+                            sx={{
+                              position: 'absolute',
+                              bottom: 10,
+                              right: 10,
+                              bgcolor: 'rgba(15, 23, 42, 0.75)',
+                              color: '#FFFFFF',
+                              backdropFilter: 'blur(6px)',
+                              p: 0.6,
+                              '&:hover': { bgcolor: 'rgba(2, 132, 199, 0.9)' }
+                            }}
+                          >
+                            <AddPhotoIcon sx={{ fontSize: 16 }} />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Box>
+                  ) : (
+                    <Box
+                      sx={{
+                        width: '100%',
+                        height: 120,
+                        background: 'linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%)',
+                        borderBottom: '1px solid #E0F2FE',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        px: 2.5,
+                        position: 'relative'
+                      }}
+                    >
+                      <Stack direction="row" spacing={1.5} alignItems="center">
+                        <Box
+                          sx={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: '12px',
+                            bgcolor: '#FFFFFF',
+                            boxShadow: '0 2px 8px rgba(2, 132, 199, 0.15)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#0284C7'
+                          }}
+                        >
+                          <CloudQueueIcon sx={{ fontSize: 26 }} />
+                        </Box>
+                        <Chip
+                          size="small"
+                          label={item.category || 'Event Media'}
+                          sx={{
+                            bgcolor: '#FFFFFF',
+                            color: '#0284C7',
+                            fontWeight: 700,
+                            fontSize: 11,
+                            border: '1px solid #BAE6FD'
+                          }}
+                        />
+                      </Stack>
+
+                      {hasFullAccess && (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<AddPhotoIcon sx={{ fontSize: 15 }} />}
+                          onClick={() => handleOpenQuickThumbnail(item)}
+                          sx={{
+                            borderRadius: '7px',
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            fontSize: 11,
+                            bgcolor: '#FFFFFF',
+                            borderColor: '#BAE6FD',
+                            color: '#0369A1',
+                            py: 0.4,
+                            px: 1.2,
+                            '&:hover': { bgcolor: '#F0F9FF', borderColor: '#7DD3FC' }
+                          }}
+                        >
+                          Add Thumbnail
+                        </Button>
+                      )}
+                    </Box>
+                  )}
+
+                  <CardContent sx={{ p: 2.5, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                    {/* Header Row: Title & Action Menu */}
+                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 0.75 }}>
+                      <Typography
+                        variant="h6"
+                        sx={{
+                          fontWeight: 800,
+                          color: '#0F172A',
+                          fontSize: 16,
+                          lineHeight: 1.35,
+                          flexGrow: 1,
+                          mr: 1
+                        }}
+                      >
+                        {item.title}
+                      </Typography>
 
                       {hasFullAccess && (
                         <IconButton
                           size="small"
                           onClick={(e) => handleMenuOpen(e, item)}
-                          sx={{ color: '#94A3B8', '&:hover': { color: '#0F172A' } }}
+                          sx={{ color: '#94A3B8', mt: -0.5, mr: -1, '&:hover': { color: '#0F172A' } }}
                         >
                           <MoreVertIcon fontSize="small" />
                         </IconButton>
                       )}
                     </Stack>
 
-                    {/* Event Title */}
-                    <Typography
-                      variant="h6"
-                      sx={{
-                        fontWeight: 800,
-                        color: '#0F172A',
-                        fontSize: 17,
-                        lineHeight: 1.35,
-                        mb: 1
-                      }}
-                    >
-                      {item.title}
-                    </Typography>
-
                     {/* Event Date */}
                     <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mb: 1.5 }}>
-                      <CalendarIcon sx={{ fontSize: 16, color: '#64748B' }} />
+                      <CalendarIcon sx={{ fontSize: 15, color: '#64748B' }} />
                       <Typography variant="caption" sx={{ color: '#475467', fontWeight: 600 }}>
                         {formattedDate}
                       </Typography>
@@ -517,12 +598,12 @@ export default function DriveLinks() {
                       variant="body2"
                       sx={{
                         color: '#64748B',
-                        fontSize: 13.5,
+                        fontSize: 13,
                         lineHeight: 1.55,
                         mb: 2,
                         flexGrow: 1,
                         display: '-webkit-box',
-                        WebkitLineClamp: 3,
+                        WebkitLineClamp: 2,
                         WebkitBoxOrient: 'vertical',
                         overflow: 'hidden'
                       }}
@@ -542,7 +623,7 @@ export default function DriveLinks() {
                         rel="noopener noreferrer"
                         endIcon={<OpenInNewIcon sx={{ fontSize: 16 }} />}
                         sx={{
-                          bgcolor: '#0088FF',
+                          bgcolor: '#0284C7',
                           color: '#FFFFFF',
                           textTransform: 'none',
                           fontWeight: 700,
@@ -550,7 +631,7 @@ export default function DriveLinks() {
                           borderRadius: '8px',
                           boxShadow: 'none',
                           py: 1,
-                          '&:hover': { bgcolor: '#0070D4', boxShadow: 'none' }
+                          '&:hover': { bgcolor: '#0369A1', boxShadow: 'none' }
                         }}
                       >
                         Open in Google Drive
@@ -565,7 +646,7 @@ export default function DriveLinks() {
                             borderRadius: '8px',
                             color: '#64748B',
                             p: 0.9,
-                            '&:hover': { bgcolor: '#F8FAFC', color: '#0088FF' }
+                            '&:hover': { bgcolor: '#F8FAFC', color: '#0284C7' }
                           }}
                         >
                           <ContentCopyIcon sx={{ fontSize: 18 }} />
@@ -589,16 +670,26 @@ export default function DriveLinks() {
           sx: {
             borderRadius: '12px',
             boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-            minWidth: 140
+            minWidth: 160
           }
         }}
       >
         <MenuItem onClick={() => handleOpenEdit(activeItemForMenu)}>
           <ListItemIcon>
-            <EditIcon fontSize="small" sx={{ color: '#0088FF' }} />
+            <EditIcon fontSize="small" sx={{ color: '#0284C7' }} />
           </ListItemIcon>
           <ListItemText primary="Edit Link" primaryTypographyProps={{ fontSize: 13.5, fontWeight: 600 }} />
         </MenuItem>
+
+        <MenuItem onClick={() => handleOpenQuickThumbnail(activeItemForMenu)}>
+          <ListItemIcon>
+            <AddPhotoIcon fontSize="small" sx={{ color: '#8B5CF6' }} />
+          </ListItemIcon>
+          <ListItemText primary="Change Thumbnail" primaryTypographyProps={{ fontSize: 13.5, fontWeight: 600 }} />
+        </MenuItem>
+
+        <Divider sx={{ my: 0.5 }} />
+
         <MenuItem
           onClick={() => {
             setItemToDelete(activeItemForMenu);
@@ -614,6 +705,120 @@ export default function DriveLinks() {
         </MenuItem>
       </Menu>
 
+      {/* Quick Thumbnail Upload Dialog */}
+      <Dialog
+        open={quickThumbDialogOpen}
+        onClose={() => !savingQuickThumb && setQuickThumbDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: '16px' } }}
+      >
+        <DialogTitle sx={{ fontWeight: 800, color: '#0F172A', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <ImageIcon sx={{ color: '#0284C7' }} />
+            <Typography variant="h6" sx={{ fontWeight: 800 }}>
+              Update Thumbnail
+            </Typography>
+          </Stack>
+          <IconButton onClick={() => setQuickThumbDialogOpen(false)} disabled={savingQuickThumb}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+
+        <DialogContent dividers sx={{ p: 2.5 }}>
+          <Typography variant="body2" sx={{ color: '#64748B', mb: 2 }}>
+            Add an attractive preview image or cover photo to <strong>{quickThumbItem?.title}</strong>
+          </Typography>
+
+          {/* Live Preview */}
+          {quickThumbPreview ? (
+            <Box sx={{ position: 'relative', mb: 2, borderRadius: '12px', overflow: 'hidden', height: 160, border: '1px solid #E2E8F0' }}>
+              <img src={quickThumbPreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <IconButton
+                size="small"
+                onClick={() => {
+                  setQuickThumbFile(null);
+                  setQuickThumbPreview('');
+                  setQuickThumbUrl('');
+                }}
+                sx={{ position: 'absolute', top: 8, right: 8, bgcolor: 'rgba(15, 23, 42, 0.75)', color: '#FFFFFF', '&:hover': { bgcolor: '#EF4444' } }}
+              >
+                <RemoveImageIcon fontSize="small" />
+              </IconButton>
+            </Box>
+          ) : (
+            <Box
+              onClick={() => quickThumbnailInputRef.current?.click()}
+              sx={{
+                height: 120,
+                borderRadius: '12px',
+                border: '2px dashed #CBD5E1',
+                bgcolor: '#F8FAFC',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 1,
+                cursor: 'pointer',
+                mb: 2,
+                transition: 'border-color 0.2s',
+                '&:hover': { borderColor: '#0284C7', bgcolor: '#F0F9FF' }
+              }}
+            >
+              <AddPhotoIcon sx={{ color: '#94A3B8', fontSize: 32 }} />
+              <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600 }}>
+                Click to upload thumbnail image
+              </Typography>
+            </Box>
+          )}
+
+          <input
+            type="file"
+            accept="image/*"
+            ref={quickThumbnailInputRef}
+            style={{ display: 'none' }}
+            onChange={(e) => handleFileChange(e, true)}
+          />
+
+          <Divider sx={{ my: 2 }}>
+            <Typography variant="caption" sx={{ color: '#94A3B8' }}>OR ENTER IMAGE URL</Typography>
+          </Divider>
+
+          <TextField
+            fullWidth
+            size="small"
+            label="Thumbnail Image URL"
+            placeholder="https://example.com/image.jpg"
+            value={quickThumbUrl}
+            onChange={(e) => {
+              setQuickThumbUrl(e.target.value);
+              setQuickThumbPreview(e.target.value);
+              setQuickThumbFile(null);
+            }}
+          />
+        </DialogContent>
+
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setQuickThumbDialogOpen(false)} disabled={savingQuickThumb} sx={{ textTransform: 'none', fontWeight: 600 }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveQuickThumbnail}
+            disabled={savingQuickThumb}
+            sx={{
+              bgcolor: '#0284C7',
+              textTransform: 'none',
+              fontWeight: 700,
+              px: 2.5,
+              '&:hover': { bgcolor: '#0369A1' }
+            }}
+          >
+            {savingQuickThumb ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : 'Save Thumbnail'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Add / Edit Drive Link Dialog (Admin only) */}
       <Dialog
         open={dialogOpen}
@@ -624,7 +829,7 @@ export default function DriveLinks() {
       >
         <DialogTitle sx={{ fontWeight: 800, color: '#0F172A', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Stack direction="row" spacing={1} alignItems="center">
-            <CloudQueueIcon sx={{ color: '#0088FF' }} />
+            <CloudQueueIcon sx={{ color: '#0284C7' }} />
             <Typography variant="h6" sx={{ fontWeight: 800 }}>
               {editingLink ? 'Edit Google Drive Link' : 'Add Google Drive Event Link'}
             </Typography>
@@ -673,33 +878,85 @@ export default function DriveLinks() {
                 />
               </Grid>
 
-              {/* Category */}
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth>
-                  <InputLabel>Category</InputLabel>
-                  <Select
-                    value={category}
-                    label="Category"
-                    onChange={(e) => setCategory(e.target.value)}
-                  >
-                    {CATEGORIES.map((c) => (
-                      <MenuItem key={c} value={c}>{c}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
             </Grid>
 
             {/* Description */}
             <TextField
               fullWidth
               multiline
-              rows={3}
+              rows={2.5}
               label="Event Description"
               placeholder="Brief description of the photos, highlights, or event details..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              sx={{ mb: 2.5 }}
             />
+
+            {/* Thumbnail Upload Section */}
+            <Box sx={{ p: 2, borderRadius: '12px', bgcolor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0F172A', mb: 1, display: 'flex', alignItems: 'center', gap: 0.8 }}>
+                <ImageIcon sx={{ fontSize: 18, color: '#0284C7' }} /> Card Thumbnail / Cover Photo
+              </Typography>
+
+              {thumbnailPreview ? (
+                <Box sx={{ position: 'relative', height: 140, borderRadius: '10px', overflow: 'hidden', mb: 1.5, border: '1px solid #E2E8F0' }}>
+                  <img src={thumbnailPreview} alt="Thumbnail Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <IconButton
+                    size="small"
+                    onClick={() => {
+                      setThumbnailFile(null);
+                      setThumbnailPreview('');
+                      setThumbnailUrl('');
+                    }}
+                    sx={{ position: 'absolute', top: 6, right: 6, bgcolor: 'rgba(15, 23, 42, 0.75)', color: '#FFFFFF', '&:hover': { bgcolor: '#EF4444' } }}
+                  >
+                    <RemoveImageIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              ) : null}
+
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<AddPhotoIcon />}
+                  onClick={() => fileInputRef.current?.click()}
+                  sx={{
+                    borderRadius: '8px',
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    borderColor: '#CBD5E1',
+                    color: '#334155',
+                    bgcolor: '#FFFFFF',
+                    '&:hover': { bgcolor: '#F1F5F9' }
+                  }}
+                >
+                  Upload File
+                </Button>
+                <Typography variant="caption" sx={{ color: '#94A3B8' }}>or paste URL below</Typography>
+              </Stack>
+
+              <input
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                onChange={(e) => handleFileChange(e, false)}
+              />
+
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="https://example.com/thumbnail.jpg"
+                value={thumbnailUrl}
+                onChange={(e) => {
+                  setThumbnailUrl(e.target.value);
+                  setThumbnailPreview(e.target.value);
+                  setThumbnailFile(null);
+                }}
+                sx={{ mt: 1.5, bgcolor: '#FFFFFF' }}
+              />
+            </Box>
           </DialogContent>
 
           <DialogActions sx={{ p: 2.5 }}>
@@ -711,11 +968,11 @@ export default function DriveLinks() {
               variant="contained"
               disabled={saving}
               sx={{
-                bgcolor: '#0088FF',
+                bgcolor: '#0284C7',
                 textTransform: 'none',
                 fontWeight: 700,
                 px: 3,
-                '&:hover': { bgcolor: '#0070D4' }
+                '&:hover': { bgcolor: '#0369A1' }
               }}
             >
               {saving ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : editingLink ? 'Update Link' : 'Add Link'}

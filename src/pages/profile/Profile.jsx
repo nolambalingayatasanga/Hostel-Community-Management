@@ -33,7 +33,9 @@ import {
   DialogActions,
   Chip,
   Menu,
-  InputAdornment
+  InputAdornment,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   Save as SaveIcon,
@@ -179,6 +181,8 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
   const navigate = useNavigate();
   const { user: currentUser, updateUser: updateAuthUser } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const isOwnProfile = !isCreate && Boolean(
     (!id && !propUserId) ||
@@ -930,12 +934,12 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <Box sx={{ flexGrow: 1, maxWidth: 1200, mx: 'auto', p: isDialog ? { xs: 1.5, sm: 2.5 } : 2 }}>
-      <Grid container spacing={4}>
+      <Box sx={{ flexGrow: 1, maxWidth: 1200, mx: 'auto', p: isDialog ? { xs: 1.5, sm: 2.5 } : { xs: 1, sm: 2 }, pb: { xs: '84px', md: isDialog ? 2.5 : 2 } }}>
+      <Grid container spacing={{ xs: 2.5, sm: 3, md: 4 }}>
         {/* LEFT COLUMN: EDIT PROFILE FORM */}
-        <Grid size={{ xs: 12, md: 8 }}>
+        <Grid size={{ xs: 12, md: 8 }} sx={{ order: { xs: 2, md: 1 } }}>
           <Card sx={{ borderRadius: "12px", border: "1px solid #E2E8F0", boxShadow: "none", overflow: "hidden" }}>
-            <CardContent sx={{ p: { xs: 3, md: 4 } }}>
+            <CardContent sx={{ p: { xs: 2, sm: 3, md: 4 } }}>
               <Stack spacing={4}>
                 {/* 1. PERSONAL INFORMATION */}
                 <Box>
@@ -1188,7 +1192,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                       <TextField
                         fullWidth
                         multiline
-                        rows={2}
+                        rows={isMobile ? 5 : 3}
                         size="small"
                         disabled={!canEdit}
                         value={localLanguageDetails}
@@ -1742,13 +1746,31 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                   </Grid>
                 </Box>
 
-                {/* Save Changes Button Row */}
+                {/* Save Changes Action Bar */}
                 {canEdit && (
-                  <Stack direction="row" sx={{ mt: 1 , justifyContent:"flex-end"}}>
+                  <Box
+                    sx={{
+                      position: { xs: 'fixed', md: 'static' },
+                      bottom: { xs: 0, md: 'auto' },
+                      left: { xs: 0, md: 'auto' },
+                      right: { xs: 0, md: 'auto' },
+                      zIndex: { xs: 1100, md: 'auto' },
+                      bgcolor: { xs: 'rgba(255, 255, 255, 0.95)', md: 'transparent' },
+                      backdropFilter: { xs: 'blur(10px)', md: 'none' },
+                      borderTop: { xs: '1px solid #E2E8F0', md: 'none' },
+                      p: { xs: '12px 16px', md: 0 },
+                      mt: { xs: 0, md: 1 },
+                      boxShadow: { xs: '0 -4px 16px rgba(0, 0, 0, 0.06)', md: 'none' },
+                      display: 'flex',
+                      justifyContent: { xs: 'stretch', md: 'flex-end' }
+                    }}
+                  >
                     <Button
                       variant="contained"
                       onClick={handleProfileSave}
+                      fullWidth
                       sx={{
+                        width: { xs: '100%', md: 'auto' },
                         bgcolor: '#0088ff',
                         color: '#ffffff',
                         borderRadius: '10px',
@@ -1762,7 +1784,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                     >
                       {isCreate ? 'Add Member' : 'Save Changes'}
                     </Button>
-                  </Stack>
+                  </Box>
                 )}
               </Stack>
             </CardContent>
@@ -1774,7 +1796,8 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
           size={{ xs: 12, md: 4 }}
           sx={{
             display: 'flex',
-            flexDirection: 'column'
+            flexDirection: 'column',
+            order: { xs: 1, md: 2 }
           }}
         >
           <Box

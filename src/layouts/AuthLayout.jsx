@@ -11,7 +11,8 @@ const AuthLayout = ({ children }) => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        overflow: 'hidden',
+        overflowY: 'auto',
+        overflowX: 'hidden',
         py: { xs: 4, sm: 6 },
         px: { xs: 2, sm: 3 }
       }}

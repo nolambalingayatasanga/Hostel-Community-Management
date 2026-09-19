@@ -102,6 +102,9 @@ app.use("/api/access", accessRoutes);
 try {
   const qrScanRoutes = require("./routes/qrScanRoutes");
   app.use("/api/qr-scans", qrScanRoutes);
+  const deviceDetector = require("./middleware/deviceMiddleware");
+  const loginQrController = require("./controllers/loginQrController");
+  app.get("/t/:code", deviceDetector, loginQrController.trackLoginQr);
 } catch (err) {
   console.error(
     "QR scan routes failed to load (login still works):",

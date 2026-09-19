@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { protect, restrictTo } = require('../middleware/authMiddleware');
+const upload = require('../middleware/uploadMiddleware');
 const driveLinkController = require('../controllers/driveLinkController');
 
 // All drive link routes require authentication
@@ -11,8 +12,8 @@ router.get('/', driveLinkController.getDriveLinks);
 router.get('/:id', driveLinkController.getDriveLinkById);
 
 // Write routes: Strictly full access for Admin
-router.post('/', restrictTo('ADMIN'), driveLinkController.createDriveLink);
-router.put('/:id', restrictTo('ADMIN'), driveLinkController.updateDriveLink);
+router.post('/', restrictTo('ADMIN'), upload.single('thumbnail'), upload.validateMediaLimits, driveLinkController.createDriveLink);
+router.put('/:id', restrictTo('ADMIN'), upload.single('thumbnail'), upload.validateMediaLimits, driveLinkController.updateDriveLink);
 router.delete('/:id', restrictTo('ADMIN'), driveLinkController.deleteDriveLink);
 
 module.exports = router;

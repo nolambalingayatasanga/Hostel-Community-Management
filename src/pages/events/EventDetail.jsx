@@ -4585,7 +4585,7 @@ export default function EventDetail() {
 
   // Role checks:
   // 1. Staff/Admin roles: ADMIN, WARDEN
-  const isStaffOrAdmin = ["ADMIN", "WARDEN"].includes(user?.role);
+  const isStaffOrAdmin = ["ADMIN", "WARDEN"].includes(user?.role?.toUpperCase());
   // 2. Can manage events (edit/delete event, reorder): ADMIN & WARDEN only
   const canManage = isStaffOrAdmin;
   // 3. User can upload media only if granted create permission in Access Control
@@ -4787,15 +4787,15 @@ export default function EventDetail() {
 
 
   return (
-    <Container maxWidth="xl" sx={{ pb: 8, px: 2 }}>
+    <Container maxWidth="xl" sx={{ pb: 8, px: { xs: 1, sm: 2 } }}>
 
 
       {/* ── Conditional Layout: Admin vs Other Users ── */}
       {canManage ? (
-        /* ── ADMIN VIEW: Fixed/Sticky Right Controls, Left Side Scrolls ── */
-        <Grid container spacing={3.5} alignItems="stretch">
-          {/* Left Column (Scrolls smoothly) */}
-          <Grid size={{ xs: 12, lg: 8 }}>
+        /* ── ADMIN VIEW ── */
+        <>
+          {/* Mobile Flow: Medias first -> Event details -> Counts -> Admin controls -> Comments */}
+          <Box sx={{ display: { xs: "block", lg: "none" } }}>
             <EventMediaHero
               coverImage={event.coverImage}
               additionalImages={event.additionalImages}
@@ -4803,7 +4803,7 @@ export default function EventDetail() {
               onZoom={(url) => setActiveImageUrl(url)}
               canManage={canManage}
               onManageMedia={() => setManageMediaOpen(true)}
-              sx={{ mb: 3 }}
+              sx={{ mb: 2.5 }}
             />
 
             <EventDetailsCard
@@ -4813,7 +4813,23 @@ export default function EventDetail() {
               formattedTime={formattedTime}
               organizerDisplay={organizerDisplay}
               isFullWidth={false}
-              sx={{ mb: 3 }}
+              sx={{ mb: 2.5 }}
+            />
+
+            <EventQuickSummaryCard
+              event={event}
+              allImagesList={allImagesList}
+              avgRating={avgRating}
+              sx={{ mb: 2.5 }}
+            />
+
+            <AdminControlsCard
+              onEdit={() => setEditOpen(true)}
+              onDelete={() => setDeleteEventOpen(true)}
+              onManageMedia={() => setManageMediaOpen(true)}
+              onReorderMedia={() => setReorderMediaOpen(true)}
+              photoCount={allImagesList.length}
+              sx={{ mb: 2.5 }}
             />
 
             <EventCommentsSection
@@ -4824,101 +4840,184 @@ export default function EventDetail() {
               }
               user={user}
             />
-          </Grid>
+          </Box>
 
-          {/* Right Column: Fixed in position on the screen, left side scrolls */}
-          <Grid
-            size={{ xs: 12, lg: 4 }}
-            sx={{
-              position: "relative",
-            }}
-          >
-            <Box
-              sx={{
-                position: { lg: "sticky" },
-                top: { lg: 84 },
-                display: "flex",
-                flexDirection: "column",
-                gap: 2.5,
-                zIndex: 10,
-              }}
-            >
-              <EventQuickSummaryCard
-                event={event}
-                allImagesList={allImagesList}
-                avgRating={avgRating}
-                sx={{ mb: 0 }}
-              />
+          {/* Desktop Flow (lg and up): 2-Column with sticky sidebar */}
+          <Box sx={{ display: { xs: "none", lg: "block" } }}>
+            <Grid container spacing={3.5} alignItems="stretch">
+              {/* Left Column */}
+              <Grid size={{ xs: 12, lg: 8 }}>
+                <EventMediaHero
+                  coverImage={event.coverImage}
+                  additionalImages={event.additionalImages}
+                  onOpenAllMedia={() => setViewAllMediaOpen(true)}
+                  onZoom={(url) => setActiveImageUrl(url)}
+                  canManage={canManage}
+                  onManageMedia={() => setManageMediaOpen(true)}
+                  sx={{ mb: 3 }}
+                />
 
-              <AdminControlsCard
-                onEdit={() => setEditOpen(true)}
-                onDelete={() => setDeleteEventOpen(true)}
-                onManageMedia={() => setManageMediaOpen(true)}
-                onReorderMedia={() => setReorderMediaOpen(true)}
-                photoCount={allImagesList.length}
-                sx={{ mb: 0 }}
-              />
-            </Box>
-          </Grid>
-        </Grid>
-      ) : (
-        /* ── OTHER USERS VIEW: Top row preview + 2 cards with matching height; Full-width details & comments below ── */
-        <Box>
-          {/* Top Row: Preview on left, 2 cards on right with exact matching height */}
-          <Grid container spacing={3} alignItems="stretch" sx={{ mb: 3 }}>
-            {/* Left: Preview Card */}
-            <Grid size={{ xs: 12, md: 7, lg: 7.5 }} sx={{ display: "flex" }}>
-              <EventMediaHero
-                coverImage={event.coverImage}
-                additionalImages={event.additionalImages}
-                onOpenAllMedia={() => setViewAllMediaOpen(true)}
-                onZoom={(url) => setActiveImageUrl(url)}
-                canManage={canUploadMedia}
-                onManageMedia={() => setManageMediaOpen(true)}
-                sx={{
-                  flex: 1,
-                  width: "100%",
-                  height: "100%",
-                  mb: 0,
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-              />
-            </Grid>
+                <EventDetailsCard
+                  event={event}
+                  avgRating={avgRating}
+                  formattedDate={formattedDate}
+                  formattedTime={formattedTime}
+                  organizerDisplay={organizerDisplay}
+                  isFullWidth={false}
+                  sx={{ mb: 3 }}
+                />
 
-            {/* Right: 2 Cards taking full matching height of preview card */}
-            <Grid size={{ xs: 12, md: 5, lg: 4.5 }} sx={{ display: "flex" }}>
-              <Box
-                sx={{
-                  width: "100%",
-                  height: "100%",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 2.5,
-                }}
-              >
-                <Box sx={{ flex: 1, display: "flex" }}>
+                <EventCommentsSection
+                  eventId={event._id}
+                  comments={event.comments || []}
+                  onCommentsUpdated={(updatedComments) =>
+                    setEvent((prev) => ({ ...prev, comments: updatedComments }))
+                  }
+                  user={user}
+                />
+              </Grid>
+
+              {/* Right Column: Sticky Sidebar */}
+              <Grid size={{ xs: 12, lg: 4 }} sx={{ position: "relative" }}>
+                <Box
+                  sx={{
+                    position: "sticky",
+                    top: 84,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 2.5,
+                    zIndex: 10,
+                  }}
+                >
                   <EventQuickSummaryCard
                     event={event}
                     allImagesList={allImagesList}
                     avgRating={avgRating}
-                    sx={{
-                      flex: 1,
-                      width: "100%",
-                      height: "100%",
-                      mb: 0,
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "center",
-                    }}
+                    sx={{ mb: 0 }}
+                  />
+
+                  <AdminControlsCard
+                    onEdit={() => setEditOpen(true)}
+                    onDelete={() => setDeleteEventOpen(true)}
+                    onManageMedia={() => setManageMediaOpen(true)}
+                    onReorderMedia={() => setReorderMediaOpen(true)}
+                    photoCount={allImagesList.length}
+                    sx={{ mb: 0 }}
                   />
                 </Box>
-                {!isStaffOrAdmin && (
+              </Grid>
+            </Grid>
+          </Box>
+        </>
+      ) : (
+        /* ── OTHER USERS VIEW ── */
+        <>
+          {/* Mobile Flow: Medias first -> Event details -> Review card -> Counts -> Comments */}
+          <Box sx={{ display: { xs: "block", md: "none" } }}>
+            <EventMediaHero
+              coverImage={event.coverImage}
+              additionalImages={event.additionalImages}
+              onOpenAllMedia={() => setViewAllMediaOpen(true)}
+              onZoom={(url) => setActiveImageUrl(url)}
+              canManage={canUploadMedia}
+              onManageMedia={() => setManageMediaOpen(true)}
+              sx={{ mb: 2.5 }}
+            />
+
+            <EventDetailsCard
+              event={event}
+              avgRating={avgRating}
+              formattedDate={formattedDate}
+              formattedTime={formattedTime}
+              organizerDisplay={organizerDisplay}
+              isFullWidth={true}
+              sx={{ mb: 2.5 }}
+            />
+
+            {!isStaffOrAdmin && (
+              <VisitorOneLineRatingCard
+                myRating={myRating}
+                onRate={handleQuickRate}
+                submitting={ratingSubmitting}
+                sx={{ mb: 2.5 }}
+              />
+            )}
+
+            <EventQuickSummaryCard
+              event={event}
+              allImagesList={allImagesList}
+              avgRating={avgRating}
+              sx={{ mb: 2.5 }}
+            />
+
+            <EventCommentsSection
+              eventId={event._id}
+              comments={event.comments || []}
+              onCommentsUpdated={(updatedComments) =>
+                setEvent((prev) => ({ ...prev, comments: updatedComments }))
+              }
+              user={user}
+            />
+          </Box>
+
+          {/* Desktop Flow (md and up) */}
+          <Box sx={{ display: { xs: "none", md: "block" } }}>
+            {/* Top Row: Preview on left, review + counts on right */}
+            <Grid container spacing={3} alignItems="stretch" sx={{ mb: 3 }}>
+              {/* Left: Preview Card */}
+              <Grid size={{ xs: 12, md: 7, lg: 7.5 }} sx={{ display: "flex" }}>
+                <EventMediaHero
+                  coverImage={event.coverImage}
+                  additionalImages={event.additionalImages}
+                  onOpenAllMedia={() => setViewAllMediaOpen(true)}
+                  onZoom={(url) => setActiveImageUrl(url)}
+                  canManage={canUploadMedia}
+                  onManageMedia={() => setManageMediaOpen(true)}
+                  sx={{
+                    flex: 1,
+                    width: "100%",
+                    height: "100%",
+                    mb: 0,
+                    display: "flex",
+                    flexDirection: "column",
+                  }}
+                />
+              </Grid>
+
+              {/* Right: Review Card + Counts Card */}
+              <Grid size={{ xs: 12, md: 5, lg: 4.5 }} sx={{ display: "flex" }}>
+                <Box
+                  sx={{
+                    width: "100%",
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 2.5,
+                  }}
+                >
+                  {!isStaffOrAdmin && (
+                    <Box sx={{ flex: 1, display: "flex" }}>
+                      <VisitorOneLineRatingCard
+                        myRating={myRating}
+                        onRate={handleQuickRate}
+                        submitting={ratingSubmitting}
+                        sx={{
+                          flex: 1,
+                          width: "100%",
+                          height: "100%",
+                          mb: 0,
+                          display: "flex",
+                          flexDirection: "column",
+                          justifyContent: "center",
+                        }}
+                      />
+                    </Box>
+                  )}
                   <Box sx={{ flex: 1, display: "flex" }}>
-                    <VisitorOneLineRatingCard
-                      myRating={myRating}
-                      onRate={handleQuickRate}
-                      submitting={ratingSubmitting}
+                    <EventQuickSummaryCard
+                      event={event}
+                      allImagesList={allImagesList}
+                      avgRating={avgRating}
                       sx={{
                         flex: 1,
                         width: "100%",
@@ -4930,32 +5029,32 @@ export default function EventDetail() {
                       }}
                     />
                   </Box>
-                )}
-              </Box>
+                </Box>
+              </Grid>
             </Grid>
-          </Grid>
 
-          {/* Full Width Event Info Card Below */}
-          <EventDetailsCard
-            event={event}
-            avgRating={avgRating}
-            formattedDate={formattedDate}
-            formattedTime={formattedTime}
-            organizerDisplay={organizerDisplay}
-            isFullWidth={true}
-            sx={{ mb: 3 }}
-          />
+            {/* Full Width Event Info Card Below */}
+            <EventDetailsCard
+              event={event}
+              avgRating={avgRating}
+              formattedDate={formattedDate}
+              formattedTime={formattedTime}
+              organizerDisplay={organizerDisplay}
+              isFullWidth={true}
+              sx={{ mb: 3 }}
+            />
 
-          {/* Full Width Comments Section Below */}
-          <EventCommentsSection
-            eventId={event._id}
-            comments={event.comments || []}
-            onCommentsUpdated={(updatedComments) =>
-              setEvent((prev) => ({ ...prev, comments: updatedComments }))
-            }
-            user={user}
-          />
-        </Box>
+            {/* Full Width Comments Section Below */}
+            <EventCommentsSection
+              eventId={event._id}
+              comments={event.comments || []}
+              onCommentsUpdated={(updatedComments) =>
+                setEvent((prev) => ({ ...prev, comments: updatedComments }))
+              }
+              user={user}
+            />
+          </Box>
+        </>
       )}
 
       {/* ── Dialogs ── */}

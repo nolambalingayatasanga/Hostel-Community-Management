@@ -30,7 +30,9 @@ import {
   Chip,
   Avatar,
   Skeleton,
-  LinearProgress
+  LinearProgress,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   AddPhotoAlternate as AddIcon,
@@ -114,6 +116,8 @@ const Gallery = () => {
   const { user } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
   const { enqueueFiles } = useUploadQueue();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   // Tab State: 'all' | 'folders'
   const [activeTab, setActiveTab] = useState('all');
@@ -172,7 +176,7 @@ const Gallery = () => {
   const observerTarget = useRef(null);
 
   const { canCreate, canDelete, canUpdate } = usePermissions();
-  const isAdminOrWarden = ['ADMIN', 'WARDEN'].includes(user?.role);
+  const isAdminOrWarden = ['ADMIN', 'WARDEN'].includes(user?.role?.toUpperCase());
 
   // Dynamic upload permission from Access Control
   const canUpload = canCreate('gallery');
@@ -619,12 +623,12 @@ const Gallery = () => {
   // 8. Selection & Bulk Download
   // -------------------------------------------------------------
   const handleSelectAll = (e) => {
-    if (e.target.checked) {
-      // In select-all mode, select all photos the user owns or admin selects all
-      const selectablePhotos = photos.filter(p => canDeletePhoto(p));
-      setSelectedIds(isAdminOrWarden ? photos.map(p => p._id) : selectablePhotos.map(p => p._id));
-    } else {
+    if (e && e.stopPropagation) e.stopPropagation();
+    // If all photos are currently selected, deselect all; otherwise select all photos in view
+    if (photos.length > 0 && selectedIds.length === photos.length) {
       setSelectedIds([]);
+    } else {
+      setSelectedIds(photos.map(p => p._id));
     }
   };
 
@@ -755,129 +759,160 @@ const Gallery = () => {
   return (
     <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 120px)', pb: 4 }}>
       {/* ------------------------------------------------------------- */}
-      {/* Top Header & Navigation Bar */}
+      {/* Top Header & Navigation Bar (Sticky on Mobile, Clean Single Row on Desktop) */}
       {/* ------------------------------------------------------------- */}
       <Box
         sx={{
+          position: { xs: 'sticky', md: 'static' },
+          top: { xs: 56, sm: 64, md: 'auto' },
+          zIndex: 100,
+          bgcolor: isMobile ? '#fff' : 'none',
+          mx: { xs: -1.5, sm: -2.5, md: 0 },
+          px: { xs: 1.5, sm: 2.5, md: 0 },
+          mt: { xs: -1.5, sm: -2.5, md: 0 },
+          pt: { xs: 0.5, sm: 1, md: 0 },
+          pb: { xs: 1, sm: 1.5, md: 0 },
+          mb: { xs: 1.5, sm: 2, md: 2.5 },
+          borderBottom: { xs: '1px solid #E2E8F0', md: 'none' },
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 2,
-          mb: 3
+          flexDirection: 'column',
+          gap: { xs: 1, md: 1.5 }
         }}
       >
-        {/* Left Side: Tabs or Folder Breadcrumbs */}
-        {activeTab === 'folders' && currentFolder ? (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <IconButton
-              onClick={handleBackToFolders}
-              sx={{
-                bgcolor: '#F1F5F9',
-                color: '#1E293B',
-                '&:hover': { bgcolor: '#E2E8F0' }
-              }}
-              size="small"
-            >
-              <ArrowBackIcon fontSize="small" />
-            </IconButton>
-
-            <Breadcrumbs separator="/" aria-label="breadcrumb">
-              <Link
-                component="button"
-                variant="h6"
-                onClick={() => setCurrentFolder(null)}
-                underline="hover"
+        {/* Main Row: On Desktop, single row with Tabs/Breadcrumbs on Left & Actions on Right */}
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: { xs: 'column', md: 'row' },
+            justifyContent: { md: 'space-between' },
+            alignItems: { xs: 'stretch', md: 'center' },
+            width: '100%',
+            gap: { xs: 1, md: 2 }
+          }}
+        >
+          {/* Left Side: Tabs or Folder Breadcrumbs */}
+          {activeTab === 'folders' && currentFolder ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, overflowX: 'auto', py: 1, flexShrink: 0 }}>
+              <IconButton
+                onClick={handleBackToFolders}
                 sx={{
-                  color: '#64748B',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0.5
+                  width: 30,
+                  height: 30,
+                  bgcolor: '#F1F5F9',
+                  color: '#1E293B',
+                  flexShrink: 0,
+                  '&:hover': { bgcolor: '#E2E8F0' }
                 }}
+                size="medium"
               >
-                <FolderIcon sx={{ fontSize: 20 }} />
-                Folders
-              </Link>
-              {folderTrail.map((folderCrumb, idx) => {
-                const isLast = idx === folderTrail.length - 1;
-                if (isLast) {
-                  return (
-                    <Box key={folderCrumb._id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography
-                        variant="h6"
-                        sx={{
-                          fontWeight: 700,
-                          color: '#1E293B',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 0.75
-                        }}
-                      >
-                        <Box
+                <ArrowBackIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+
+              <Breadcrumbs separator="/" aria-label="breadcrumb" sx={{ flexWrap: 'nowrap' }}>
+                <Link
+                  component="button"
+                  variant="body2"
+                  onClick={() => setCurrentFolder(null)}
+                  underline="hover"
+                  sx={{
+                    color: '#64748B',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                    fontSize: '13px',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  <FolderIcon sx={{ fontSize: 18 }} />
+                  Folders
+                </Link>
+                {folderTrail.map((folderCrumb, idx) => {
+                  const isLast = idx === folderTrail.length - 1;
+                  if (isLast) {
+                    return (
+                      <Box key={folderCrumb._id} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, whiteSpace: 'nowrap' }}>
+                        <Typography
+                          variant="body2"
                           sx={{
-                            width: 12,
-                            height: 12,
-                            borderRadius: '4px',
-                            bgcolor: folderCrumb.color || '#0F9D58'
+                            fontWeight: 700,
+                            color: '#1E293B',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.5,
+                            fontSize: '13px'
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              width: 10,
+                              height: 10,
+                              borderRadius: '3px',
+                              bgcolor: folderCrumb.color || '#0F9D58'
+                            }}
+                          />
+                          {folderCrumb.name}
+                        </Typography>
+                        <Chip
+                          label={`${totalPhotos} items`}
+                          size="small"
+                          sx={{
+                            fontWeight: 600,
+                            bgcolor: '#F1F5F9',
+                            color: '#475569',
+                            fontSize: '11px',
+                            height: 20
                           }}
                         />
-                        {folderCrumb.name}
-                      </Typography>
-                      <Chip
-                        label={`${totalPhotos} items`}
-                        size="small"
+                      </Box>
+                    );
+                  }
+                  return (
+                    <Link
+                      key={folderCrumb._id}
+                      component="button"
+                      variant="body2"
+                      onClick={() => setCurrentFolder(folderCrumb)}
+                      underline="hover"
+                      sx={{
+                        color: '#64748B',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.5,
+                        fontSize: '13px',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      <Box
                         sx={{
-                          fontWeight: 600,
-                          bgcolor: '#F1F5F9',
-                          color: '#475569',
-                          fontSize: '12px'
+                          width: 8,
+                          height: 8,
+                          borderRadius: '2px',
+                          bgcolor: folderCrumb.color || '#0F9D58'
                         }}
                       />
-                    </Box>
+                      {folderCrumb.name}
+                    </Link>
                   );
-                }
-                return (
-                  <Link
-                    key={folderCrumb._id}
-                    component="button"
-                    variant="h6"
-                    onClick={() => setCurrentFolder(folderCrumb)}
-                    underline="hover"
-                    sx={{
-                      color: '#64748B',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 0.5
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: '3px',
-                        bgcolor: folderCrumb.color || '#0F9D58'
-                      }}
-                    />
-                    {folderCrumb.name}
-                  </Link>
-                );
-              })}
-            </Breadcrumbs>
-          </Box>
-        ) : (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                })}
+              </Breadcrumbs>
+            </Box>
+          ) : (
             <Tabs
               value={activeTab}
               onChange={handleTabChange}
+              variant={isMobile ? 'fullWidth' : 'standard'}
               sx={{
-                minHeight: '44px',
+                width: { xs: '100%', md: 'auto' },
+                display: 'inline-flex',
+                minHeight: '34px',
                 bgcolor: '#F1F5F9',
-                p: '4px',
-                borderRadius: '16px',
+                p: '3px',
+                borderRadius: '12px',
+                flexShrink: 0,
                 '& .MuiTabs-indicator': {
                   display: 'none'
                 }
@@ -886,40 +921,43 @@ const Gallery = () => {
               <Tab
                 value="all"
                 label={
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <CollectionsIcon sx={{ fontSize: 18 }} />
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.75 }}>
+                    <CollectionsIcon sx={{ fontSize: 16 }} />
                     <span>All Media</span>
                   </Box>
                 }
                 sx={{
-                  minHeight: '36px',
-                  borderRadius: '12px',
+                  flex: { xs: 1, md: 'none' },
+                  minWidth: { md: 105 },
+                  minHeight: '28px',
+                  borderRadius: '9px',
                   fontWeight: 600,
-                  fontSize: '14px',
+                  fontSize: '12.5px',
+                  py: 0.5,
+                  px: { xs: 1.5, md: 2 },
                   textTransform: 'none',
                   color: '#64748B',
-                  px: 2.5,
                   transition: 'all 0.2s',
                   '&.Mui-selected': {
                     bgcolor: '#FFFFFF',
                     color: '#0088ff',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
                   }
                 }}
               />
               <Tab
                 value="folders"
                 label={
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <FolderIcon sx={{ fontSize: 18 }} />
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.75 }}>
+                    <FolderIcon sx={{ fontSize: 16 }} />
                     <span>Folders</span>
                     {folders.length > 0 && (
                       <Chip
                         label={folders.length}
                         size="small"
                         sx={{
-                          height: '20px',
-                          fontSize: '11px',
+                          height: '18px',
+                          fontSize: '10px',
                           fontWeight: 700,
                           bgcolor: activeTab === 'folders' ? 'rgba(0, 136, 255, 0.1)' : '#E2E8F0',
                           color: activeTab === 'folders' ? '#0088ff' : '#64748B'
@@ -929,110 +967,226 @@ const Gallery = () => {
                   </Box>
                 }
                 sx={{
-                  minHeight: '36px',
-                  borderRadius: '12px',
+                  flex: { xs: 1, md: 'none' },
+                  minWidth: { md: 105 },
+                  minHeight: '28px',
+                  borderRadius: '9px',
                   fontWeight: 600,
-                  fontSize: '14px',
+                  fontSize: '12.5px',
+                  py: 0.5,
+                  px: { xs: 1.5, md: 2 },
                   textTransform: 'none',
                   color: '#64748B',
-                  px: 2.5,
                   transition: 'all 0.2s',
                   '&.Mui-selected': {
                     bgcolor: '#FFFFFF',
                     color: '#0088ff',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
                   }
                 }}
               />
             </Tabs>
-          </Box>
-        )}
+          )}
 
-        {/* Right Side: Action Buttons */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-          {selectedIds.length > 0 && (
-            <>
+          {/* Right Side: Action Buttons (Add photos, Select all, New folder) */}
+          {(() => {
+            const showSelectAll = (activeTab === 'all' || currentFolder) && photos.length > 0;
+            const showNewFolder = isAdminOrWarden && activeTab === 'folders' && !currentFolder;
+            const rightAction = showSelectAll ? 'select' : (showNewFolder ? 'new_folder' : null);
+            const hasTwoColumns = canUpload && Boolean(rightAction);
+
+            if (!canUpload && !rightAction) return null;
+
+            return (
+              <Box
+                sx={{
+                  display: { xs: 'grid', md: 'flex' },
+                  gridTemplateColumns: hasTwoColumns ? 'repeat(2, minmax(0, 1fr))' : '1fr',
+                  alignItems: 'center',
+                  justifyContent: { md: 'flex-end' },
+                  width: { xs: '100%', md: 'auto' },
+                  gap: 1
+                }}
+              >
+                {/* Add photos */}
+                {canUpload && (
+                  <Button
+                    variant="contained"
+                    size="small"
+                    startIcon={<AddIcon sx={{ fontSize: '16px !important' }} />}
+                    onClick={handleOpenUpload}
+                    sx={{
+                      width: { xs: '100%', md: 'auto' },
+                      background: '#0088ff',
+                      color: '#fff',
+                      borderRadius: '9px',
+                      px: { xs: 1.5, md: 2 },
+                      py: 0.5,
+                      height: 34,
+                      fontSize: '12.5px',
+                      fontWeight: 600,
+                      textTransform: 'none',
+                      boxShadow: 'none',
+                      whiteSpace: 'nowrap',
+                      justifyContent: 'center',
+                      '&:hover': {
+                        background: '#0077ee',
+                        boxShadow: 'none'
+                      }
+                    }}
+                  >
+                    Add photos
+                  </Button>
+                )}
+
+                {/* New folder (on Folders root) */}
+                {showNewFolder && !showSelectAll && (
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<CreateNewFolderIcon sx={{ fontSize: '16px !important' }} />}
+                    onClick={() => handleOpenCreateFolderDialog(null)}
+                    sx={{
+                      width: { xs: '100%', md: 'auto' },
+                      borderRadius: '9px',
+                      borderColor: '#0088ff',
+                      color: '#0088ff',
+                      fontWeight: 600,
+                      textTransform: 'none',
+                      px: { xs: 1.5, md: 2 },
+                      py: 0.5,
+                      height: 34,
+                      fontSize: '12px',
+                      whiteSpace: 'nowrap',
+                      justifyContent: 'center',
+                      '&:hover': {
+                        borderColor: '#0077ee',
+                        backgroundColor: 'rgba(0, 136, 255, 0.04)'
+                      }
+                    }}
+                  >
+                    New folder
+                  </Button>
+                )}
+
+                {/* Select all */}
+                {showSelectAll && (
+                  <Box
+                    onClick={handleSelectAll}
+                    sx={{
+                      width: { xs: '100%', md: 'auto' },
+                      height: 34,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 0.75,
+                      borderRadius: '9px',
+                      border: '1px solid #E2E8F0',
+                      bgcolor: selectedIds.length > 0 ? 'rgba(0, 136, 255, 0.04)' : '#F8FAFC',
+                      px: { xs: 1.5, md: 2 },
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                      boxSizing: 'border-box',
+                      whiteSpace: 'nowrap',
+                      transition: 'all 0.15s ease',
+                      '&:hover': {
+                        bgcolor: selectedIds.length > 0 ? 'rgba(0, 136, 255, 0.08)' : '#F1F5F9',
+                        borderColor: '#CBD5E1'
+                      }
+                    }}
+                  >
+                    <Checkbox
+                      size="small"
+                      checked={photos.length > 0 && selectedIds.length === photos.length}
+                      indeterminate={selectedIds.length > 0 && selectedIds.length < photos.length}
+                      onChange={handleSelectAll}
+                      onClick={(e) => e.stopPropagation()}
+                      sx={{
+                        p: 0,
+                        color: '#667085',
+                        '&.Mui-checked': { color: '#0088ff' }
+                      }}
+                    />
+                    <Typography
+                      component="span"
+                      sx={{
+                        fontSize: '12.5px',
+                        fontWeight: 600,
+                        color: '#344054',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Select all ({photos.length})
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+            );
+          })()}
+        </Box>
+
+        {/* Selection Actions: Download below tabs on left, Delete on opposite end (right) on desktop */}
+        {selectedIds.length > 0 && (
+          <Box
+            sx={{
+              display: { xs: 'grid', md: 'flex' },
+              gridTemplateColumns: { xs: deletableSelectedCount > 0 ? 'repeat(2, minmax(0, 1fr))' : '1fr', md: 'none' },
+              justifyContent: { md: 'space-between' },
+              alignItems: 'center',
+              gap: 1,
+              width: '100%',
+              pt: { xs: 0.25, md: 0.5 }
+            }}
+          >
+            {/* Download on the left */}
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<DownloadIcon sx={{ fontSize: '15px !important' }} />}
+              onClick={handleDownloadSelected}
+              sx={{
+                width: { xs: '100%', md: 'auto' },
+                height: 32,
+                px: 2,
+                py: 0.5,
+                fontSize: '12px',
+                borderRadius: '8px',
+                textTransform: 'none',
+                fontWeight: 600,
+                borderColor: '#D0D5DD',
+                color: '#344054',
+                justifyContent: 'center',
+                '&:hover': { borderColor: '#D0D5DD', backgroundColor: '#F9FAFB' }
+              }}
+            >
+              Download ({selectedIds.length})
+            </Button>
+
+            {/* Delete on the opposite end (right) */}
+            {deletableSelectedCount > 0 && (
               <Button
                 variant="outlined"
-                color="primary"
-                startIcon={<DownloadIcon />}
-                onClick={handleDownloadSelected}
+                color="error"
+                size="small"
+                startIcon={<DeleteIcon sx={{ fontSize: '15px !important' }} />}
+                onClick={handleDeleteSelectedPhotosClick}
                 sx={{
+                  width: { xs: '100%', md: 'auto' },
+                  height: 32,
+                  px: 2,
+                  py: 0.5,
+                  fontSize: '12px',
                   borderRadius: '8px',
                   textTransform: 'none',
                   fontWeight: 600,
-                  borderColor: '#D0D5DD',
-                  color: '#344054',
-                  '&:hover': { borderColor: '#D0D5DD', backgroundColor: '#F9FAFB' }
+                  justifyContent: 'center'
                 }}
               >
-                Download ({selectedIds.length})
+                Delete ({deletableSelectedCount})
               </Button>
-
-              {/* Show delete for selected only if the user can delete at least one selected item */}
-              {deletableSelectedCount > 0 && (
-                <Button
-                  variant="outlined"
-                  color="error"
-                  startIcon={<DeleteIcon />}
-                  onClick={handleDeleteSelectedPhotosClick}
-                  sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 600 }}
-                >
-                  Delete ({deletableSelectedCount})
-                </Button>
-              )}
-            </>
-          )}
-
-          {/* Folder management stays admin-only */}
-          {isAdminOrWarden && activeTab === 'folders' && (
-            <Button
-              variant="outlined"
-              startIcon={<CreateNewFolderIcon />}
-              onClick={() => handleOpenCreateFolderDialog(currentFolder ? currentFolder._id : null)}
-              sx={{
-                borderRadius: '8px',
-                borderColor: '#0088ff',
-                color: '#0088ff',
-                fontWeight: 600,
-                textTransform: 'none',
-                px: 2.5,
-                py: 0.9,
-                '&:hover': {
-                  borderColor: '#0077ee',
-                  backgroundColor: 'rgba(0, 136, 255, 0.04)'
-                }
-              }}
-            >
-              {currentFolder ? 'New subfolder' : 'New folder'}
-            </Button>
-          )}
-
-          {/* Add photos button — available only if user has create permission */}
-          {canUpload && (
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleOpenUpload}
-              sx={{
-                background: '#0088ff',
-                color: '#fff',
-                borderRadius: '8px',
-                px: 3,
-                py: 1,
-                fontWeight: 600,
-                textTransform: 'none',
-                boxShadow: 'none',
-                '&:hover': {
-                  background: '#0077ee',
-                  boxShadow: 'none'
-                }
-              }}
-            >
-              Add photos
-            </Button>
-          )}
-        </Box>
+            )}
+          </Box>
+        )}
       </Box>
 
       {/* ------------------------------------------------------------- */}
@@ -1040,25 +1194,7 @@ const Gallery = () => {
       {/* ------------------------------------------------------------- */}
       {activeTab === 'all' && (
         <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-          {/* Top selection bar */}
-          {photos.length > 0 && (
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Checkbox
-                  checked={photos.length > 0 && selectedIds.length === photos.length}
-                  indeterminate={selectedIds.length > 0 && selectedIds.length < photos.length}
-                  onChange={handleSelectAll}
-                  sx={{ color: '#667085', '&.Mui-checked': { color: '#0088ff' } }}
-                />
-                <Typography variant="body2" sx={{ fontWeight: 600, color: '#344054' }}>
-                  Select all ({photos.length})
-                </Typography>
-              </Box>
-              {/* <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 500 }}>
-                Showing {photos.length} of {totalPhotos} media assets
-              </Typography> */}
-            </Box>
-          )}
+
 
           {/* Photos Grid Container */}
           <Box sx={{ flex: 1 }}>
@@ -1074,7 +1210,7 @@ const Gallery = () => {
                 subtitle="Upload media to share them with your community."
               />
             ) : (
-              <Grid container spacing={2.5}>
+              <Grid container spacing={{ xs: 1.5, sm: 2, md: 2.5 }}>
                 {photos.map((photo) => renderPhotoCard(photo))}
               </Grid>
             )}
@@ -1169,25 +1305,7 @@ const Gallery = () => {
                   </Box>
                 )}
 
-                {/* Photos selection bar */}
-                {photos.length > 0 && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Checkbox
-                        checked={photos.length > 0 && selectedIds.length === photos.length}
-                        indeterminate={selectedIds.length > 0 && selectedIds.length < photos.length}
-                        onChange={handleSelectAll}
-                        sx={{ color: '#667085', '&.Mui-checked': { color: '#0088ff' } }}
-                      />
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#344054' }}>
-                        Select all
-                      </Typography>
-                    </Box>
-                    <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 500 }}>
-                      Showing {photos.length} of {totalPhotos} items
-                    </Typography>
-                  </Box>
-                )}
+
 
                 {photosLoading ? (
                   <Box sx={{ display: 'flex', justifyContent: 'center', py: 12 }}>
@@ -1242,7 +1360,7 @@ const Gallery = () => {
                     />
                   )
                 ) : (
-                  <Grid container spacing={2.5}>
+                  <Grid container spacing={{ xs: 1.5, sm: 2, md: 2.5 }}>
                     {photos.map((photo) => renderPhotoCard(photo))}
                   </Grid>
                 )}
@@ -1772,16 +1890,16 @@ const Gallery = () => {
             onClick={() => setLightboxOpen(false)}
             sx={{
               position: 'fixed',
-              top: 24,
-              right: 24,
+              top: { xs: 14, sm: 24 },
+              right: { xs: 14, sm: 24 },
               zIndex: 1600,
               color: '#FFFFFF',
               backgroundColor: 'rgba(255, 255, 255, 0.15)',
               backdropFilter: 'blur(10px)',
               border: '1px solid rgba(255, 255, 255, 0.25)',
               boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-              width: 44,
-              height: 44,
+              width: { xs: 38, sm: 44 },
+              height: { xs: 38, sm: 44 },
               transition: 'all 0.2s ease',
               '&:hover': {
                 backgroundColor: 'rgba(255, 255, 255, 0.3)',
@@ -1789,7 +1907,7 @@ const Gallery = () => {
               }
             }}
           >
-            <CloseIcon sx={{ fontSize: 24 }} />
+            <CloseIcon sx={{ fontSize: { xs: 20, sm: 24 } }} />
           </IconButton>
 
           {/* Navigation Button - Left End */}
@@ -1799,7 +1917,7 @@ const Gallery = () => {
               aria-label="Previous media"
               sx={{
                 position: 'fixed',
-                left: { xs: 12, sm: 24, md: 32 },
+                left: { xs: 6, sm: 24, md: 32 },
                 top: '50%',
                 transform: 'translateY(-50%)',
                 zIndex: 1600,
@@ -1808,8 +1926,8 @@ const Gallery = () => {
                 backdropFilter: 'blur(10px)',
                 border: '1px solid rgba(255, 255, 255, 0.25)',
                 boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-                width: { xs: 44, sm: 52 },
-                height: { xs: 44, sm: 52 },
+                width: { xs: 38, sm: 52 },
+                height: { xs: 38, sm: 52 },
                 transition: 'all 0.2s ease',
                 '&:hover': {
                   backgroundColor: 'rgba(255, 255, 255, 0.3)',
@@ -1817,7 +1935,7 @@ const Gallery = () => {
                 }
               }}
             >
-              <ChevronLeftIcon sx={{ fontSize: { xs: 28, sm: 36 } }} />
+              <ChevronLeftIcon sx={{ fontSize: { xs: 24, sm: 36 } }} />
             </IconButton>
           )}
 
@@ -1828,7 +1946,7 @@ const Gallery = () => {
               aria-label="Next media"
               sx={{
                 position: 'fixed',
-                right: { xs: 12, sm: 24, md: 32 },
+                right: { xs: 6, sm: 24, md: 32 },
                 top: '50%',
                 transform: 'translateY(-50%)',
                 zIndex: 1600,
@@ -1837,8 +1955,8 @@ const Gallery = () => {
                 backdropFilter: 'blur(10px)',
                 border: '1px solid rgba(255, 255, 255, 0.25)',
                 boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-                width: { xs: 44, sm: 52 },
-                height: { xs: 44, sm: 52 },
+                width: { xs: 38, sm: 52 },
+                height: { xs: 38, sm: 52 },
                 transition: 'all 0.2s ease',
                 '&:hover': {
                   backgroundColor: 'rgba(255, 255, 255, 0.3)',
@@ -1846,7 +1964,7 @@ const Gallery = () => {
                 }
               }}
             >
-              <ChevronRightIcon sx={{ fontSize: { xs: 28, sm: 36 } }} />
+              <ChevronRightIcon sx={{ fontSize: { xs: 24, sm: 36 } }} />
             </IconButton>
           )}
 
@@ -1855,8 +1973,8 @@ const Gallery = () => {
             <Box
               sx={{
                 position: 'fixed',
-                top: 24,
-                left: 24,
+                top: { xs: 14, sm: 24 },
+                left: { xs: 14, sm: 24 },
                 zIndex: 1600,
                 color: '#FFFFFF',
                 backgroundColor: 'rgba(255, 255, 255, 0.15)',
@@ -1864,9 +1982,9 @@ const Gallery = () => {
                 border: '1px solid rgba(255, 255, 255, 0.25)',
                 boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
                 borderRadius: '20px',
-                px: 2,
-                py: 0.75,
-                fontSize: '13px',
+                px: { xs: 1.5, sm: 2 },
+                py: { xs: 0.5, sm: 0.75 },
+                fontSize: { xs: '12px', sm: '13px' },
                 fontWeight: 600,
                 letterSpacing: '0.5px'
               }}
@@ -2288,7 +2406,7 @@ const Gallery = () => {
   function renderPhotoCard(photo) {
     const isSelected = selectedIds.includes(photo._id);
     return (
-      <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={photo._id}>
+      <Grid size={{ xs: 6, sm: 4, md: 4, lg: 3 }} key={photo._id}>
         <Box sx={{ width: '100%', position: 'relative', pb: '75%' }}>
           <Card
             sx={{
