@@ -7,6 +7,7 @@ const ALL_PAGES = [
   { id: 'events', text: 'Events', path: '/events', icon: 'EventIcon' },
   { id: 'gallery', text: 'Gallery', path: '/gallery', icon: 'GalleryIcon' },
   { id: 'drive_links', text: 'Drive Links', path: '/drive-links', icon: 'CloudQueueIcon' },
+  { id: 'request_upload', text: 'Request Upload', path: '/request-upload', icon: 'CloudUploadIcon' },
   { id: 'profile', text: 'Profile', path: '/profile', icon: 'ProfileIcon' },
   { id: 'qr_scan_count', text: 'QR Scan Count', path: '/qr-scan-count', icon: 'QrCodeIcon' },
   { id: 'access_control', text: 'Access Control', path: '/access-control', icon: 'AdminIcon' }

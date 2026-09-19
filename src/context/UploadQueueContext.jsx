@@ -169,7 +169,7 @@ export function UploadQueueProvider({ children }) {
       if (pendingItem.destinationType === 'gallery') {
         // 1. Try Cloudflare R2 direct upload first
         let directResult = await tryDirectCloudflareR2Upload('gallery');
-        
+
         // 2. If R2 is not configured, fallback to direct Cloudinary upload
         if (!directResult) {
           directResult = await tryDirectCloudinaryUpload('hostel-community/gallery');
@@ -260,12 +260,18 @@ export function UploadQueueProvider({ children }) {
         })
       );
     } catch (err) {
-      if (err.name === 'CanceledError' || err.message === 'canceled') {
-        setQueue((prev) =>
-          prev.map((item) =>
-            item.id === currentId ? { ...item, status: 'cancelled', progress: 0 } : item
-          )
-        );
+      const isCanceled =
+        axios.isCancel(err) ||
+        err.name === 'CanceledError' ||
+        err.name === 'AbortError' ||
+        err.code === 'ERR_CANCELED' ||
+        err.message === 'canceled';
+
+      if (isCanceled) {
+        setQueue((prev) => prev.filter((item) => item.id !== currentId));
+        enqueueSnackbar(`Cancelled upload for "${pendingItem.name}"`, {
+          variant: 'info',
+        });
       } else {
         const errorMsg =
           err.response?.data?.message || err.message || 'Failed to upload media to Cloudinary.';
@@ -413,7 +419,7 @@ export function UploadQueueProvider({ children }) {
       if (target.previewUrl) {
         try {
           URL.revokeObjectURL(target.previewUrl);
-        } catch {}
+        } catch { }
       }
 
       return prev.filter((item) => item.id !== id);
@@ -441,7 +447,7 @@ export function UploadQueueProvider({ children }) {
           if (item.previewUrl) {
             try {
               URL.revokeObjectURL(item.previewUrl);
-            } catch {}
+            } catch { }
           }
         }
       });
@@ -461,7 +467,7 @@ export function UploadQueueProvider({ children }) {
         if (item.previewUrl) {
           try {
             URL.revokeObjectURL(item.previewUrl);
-          } catch {}
+          } catch { }
         }
       });
       return [];

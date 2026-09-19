@@ -604,7 +604,18 @@ const UserManagement = () => {
               <Button variant="outlined" onClick={() => navigate('/admin/users')}>
                 Cancel
               </Button>
-              <Button type="submit" variant="contained" disabled={loading} startIcon={<SaveIcon />}>
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={loading}
+                startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
+                sx={{
+                  bgcolor: '#0088ff',
+                  textTransform: 'none',
+                  fontWeight: 700,
+                  '&:hover': { bgcolor: '#0077EE' }
+                }}
+              >
                 {loading ? 'Saving...' : action === 'edit' ? 'Update Member Profile' : 'Register Member'}
               </Button>
             </Box>

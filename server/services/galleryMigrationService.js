@@ -62,7 +62,7 @@ const startMigrationQueue = async (onProgressCallback = null) => {
     if (typeof onProgressCallback === 'function') {
       try {
         onProgressCallback(entry, migrationState);
-      } catch (e) {}
+      } catch (e) { }
     }
   };
 

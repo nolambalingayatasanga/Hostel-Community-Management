@@ -87,8 +87,9 @@ exports.getDriveLinkById = async (req, res) => {
  */
 exports.createDriveLink = async (req, res) => {
   try {
-    const { title, description, driveUrl, eventDate, category } = req.body;
+    const { title, description, driveUrl, eventDate, category, thumbnailFocus } = req.body;
     let thumbnail = req.body.thumbnail ? String(req.body.thumbnail).trim() : '';
+    const validFocus = ['center', 'top', 'bottom', 'left', 'right'].includes(thumbnailFocus) ? thumbnailFocus : 'center';
 
     if (!title || !title.trim()) {
       return res.status(400).json({
@@ -141,6 +142,7 @@ exports.createDriveLink = async (req, res) => {
       eventDate: new Date(eventDate),
       category: (category || 'General').trim(),
       thumbnail: thumbnail || '',
+      thumbnailFocus: validFocus,
       createdBy: req.user._id,
       updatedBy: req.user._id
     });
@@ -169,7 +171,7 @@ exports.createDriveLink = async (req, res) => {
  */
 exports.updateDriveLink = async (req, res) => {
   try {
-    const { title, description, driveUrl, eventDate, category, thumbnail } = req.body;
+    const { title, description, driveUrl, eventDate, category, thumbnail, thumbnailFocus } = req.body;
 
     const driveLink = await DriveLink.findById(req.params.id);
     if (!driveLink) {
@@ -208,6 +210,12 @@ exports.updateDriveLink = async (req, res) => {
       }
     } else if (thumbnail !== undefined) {
       driveLink.thumbnail = String(thumbnail).trim();
+    }
+
+    if (thumbnailFocus !== undefined) {
+      driveLink.thumbnailFocus = ['center', 'top', 'bottom', 'left', 'right'].includes(thumbnailFocus)
+        ? thumbnailFocus
+        : 'center';
     }
 
     driveLink.updatedBy = req.user._id;

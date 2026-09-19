@@ -33,6 +33,7 @@ import {
   ArrowBack as ArrowBackIcon,
   QrCodeScanner as QrCodeScannerIcon,
   CloudQueue as CloudQueueIcon,
+  CloudUpload as CloudUploadIcon,
   Close as CloseIcon
 } from '@mui/icons-material';
 import NotFound from '../pages/common/NotFound';
@@ -79,6 +80,11 @@ const DashboardLayout = () => {
       return 'Access Control';
     }
 
+    // Request Upload page check
+    if (path.startsWith('/request-upload')) {
+      return 'Request Upload';
+    }
+
     // Default formatting logic
     return path.substring(1).charAt(0).toUpperCase() + path.substring(2).replace('/', ' / ');
   };
@@ -110,6 +116,7 @@ const DashboardLayout = () => {
     EventIcon: <EventIcon />,
     GalleryIcon: <GalleryIcon />,
     CloudQueueIcon: <CloudQueueIcon />,
+    CloudUploadIcon: <CloudUploadIcon />,
     ProfileIcon: <ProfileIcon />,
     QrCodeIcon: <QrCodeScannerIcon />,
     AdminIcon: <AdminIcon />
@@ -152,6 +159,7 @@ const DashboardLayout = () => {
     if (pathname.startsWith('/events')) return 'events';
     if (pathname.startsWith('/gallery')) return 'gallery';
     if (pathname.startsWith('/drive-links')) return 'drive_links';
+    if (pathname.startsWith('/request-upload')) return 'request_upload';
     if (pathname.startsWith('/profile')) return 'profile';
     if (pathname.startsWith('/qr-scan-count')) return 'qr_scan_count';
     if (pathname === '/access-control') return 'access_control';
@@ -175,13 +183,7 @@ const DashboardLayout = () => {
 
       <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, flex: 1 }}>
-          <Avatar
-            src={user?.profilePhoto?.url || ''}
-            alt={user?.name || 'User'}
-            sx={{ width: 44, height: 44, border: '2px solid #0088ff', flexShrink: 0 }}
-          >
-            {user?.name?.charAt(0)}
-          </Avatar>
+
           <Box sx={{ overflow: 'hidden' }}>
             <Typography variant="subtitle2" noWrap sx={{ fontWeight: 'bold', color: '#1e293b' }}>
               {user?.name}

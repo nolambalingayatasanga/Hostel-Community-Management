@@ -8,6 +8,7 @@ import {
   CircularProgress,
   IconButton,
   Tooltip,
+  Button,
 } from '@mui/material';
 import {
   CloudUploadRounded as CloudUploadIcon,
@@ -187,6 +188,27 @@ export default function UploadManager() {
           </Stack>
 
           <Stack direction="row" spacing={0.5} alignItems="center">
+            {isUploading && (
+              <Tooltip title="Cancel all uploads">
+                <Button
+                  size="small"
+                  variant="text"
+                  onClick={clearAll}
+                  sx={{
+                    color: '#FCA5A5',
+                    fontSize: '11.5px',
+                    textTransform: 'none',
+                    fontWeight: 700,
+                    px: 1,
+                    py: 0.2,
+                    borderRadius: '6px',
+                    '&:hover': { color: '#EF4444', bgcolor: 'rgba(239, 68, 68, 0.18)' }
+                  }}
+                >
+                  Cancel All
+                </Button>
+              </Tooltip>
+            )}
             <Tooltip title="Minimize">
               <IconButton
                 size="small"
@@ -359,7 +381,24 @@ export default function UploadManager() {
                   {/* Status / action */}
                   <Box sx={{ flexShrink: 0 }}>
                     {isDone && <CheckCircleIcon sx={{ color: '#16A34A', fontSize: 20 }} />}
-                    {isCurrent && <CircularProgress size={18} sx={{ color: '#2563EB' }} />}
+                    {isCurrent && (
+                      <Stack direction="row" spacing={0.75} alignItems="center">
+                        <CircularProgress size={16} sx={{ color: '#2563EB' }} />
+                        <Tooltip title="Cancel upload">
+                          <IconButton
+                            size="small"
+                            onClick={() => cancelItem(item.id)}
+                            sx={{
+                              color: '#94A3B8',
+                              p: 0.4,
+                              '&:hover': { color: '#EF4444', bgcolor: 'rgba(239, 68, 68, 0.1)' }
+                            }}
+                          >
+                            <CloseIcon sx={{ fontSize: 16 }} />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                    )}
                     {isQueued && (
                       <Tooltip title="Cancel from queue">
                         <IconButton

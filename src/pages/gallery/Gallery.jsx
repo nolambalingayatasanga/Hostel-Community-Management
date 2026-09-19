@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -116,6 +117,7 @@ const Gallery = () => {
   const { user } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
   const { enqueueFiles } = useUploadQueue();
+  const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
@@ -167,6 +169,7 @@ const Gallery = () => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null); // { type: 'photo'|'bulk-photos'|'folder', id: string, name?: string }
   const [deleting, setDeleting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   // Lightbox Modal State
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -646,7 +649,8 @@ const Gallery = () => {
   };
 
   const handleDownloadSelected = async () => {
-    if (selectedIds.length === 0) return;
+    if (selectedIds.length === 0 || downloading) return;
+    setDownloading(true);
     try {
       let index = 1;
       for (const id of selectedIds) {
@@ -682,6 +686,8 @@ const Gallery = () => {
       setSelectedIds([]);
     } catch (err) {
       enqueueSnackbar('An error occurred during download.', { variant: 'error' });
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -993,9 +999,7 @@ const Gallery = () => {
             const showSelectAll = (activeTab === 'all' || currentFolder) && photos.length > 0;
             const showNewFolder = isAdminOrWarden && activeTab === 'folders' && !currentFolder;
             const rightAction = showSelectAll ? 'select' : (showNewFolder ? 'new_folder' : null);
-            const hasTwoColumns = canUpload && Boolean(rightAction);
-
-            if (!canUpload && !rightAction) return null;
+            const hasTwoColumns = Boolean(rightAction);
 
             return (
               <Box
@@ -1008,8 +1012,8 @@ const Gallery = () => {
                   gap: 1
                 }}
               >
-                {/* Add photos */}
-                {canUpload && (
+                {/* Add photos (Admin / Authorized) */}
+                {canUpload ? (
                   <Button
                     variant="contained"
                     size="small"
@@ -1036,6 +1040,34 @@ const Gallery = () => {
                     }}
                   >
                     Add photos
+                  </Button>
+                ) : (
+                  <Button
+                    variant="contained"
+                    size="small"
+                    startIcon={<UploadIcon sx={{ fontSize: '16px !important' }} />}
+                    onClick={() => navigate('/request-upload?category=gallery')}
+                    sx={{
+                      width: { xs: '100%', md: 'auto' },
+                      background: 'linear-gradient(135deg, #0088ff 0%, #0066cc 100%)',
+                      color: '#fff',
+                      borderRadius: '9px',
+                      px: { xs: 1.5, md: 2 },
+                      py: 0.5,
+                      height: 34,
+                      fontSize: '12.5px',
+                      fontWeight: 600,
+                      textTransform: 'none',
+                      boxShadow: '0 2px 8px rgba(0, 136, 255, 0.25)',
+                      whiteSpace: 'nowrap',
+                      justifyContent: 'center',
+                      '&:hover': {
+                        background: '#0077ee',
+                        boxShadow: '0 4px 12px rgba(0, 136, 255, 0.35)'
+                      }
+                    }}
+                  >
+                    Request Upload
                   </Button>
                 )}
 
@@ -1142,7 +1174,8 @@ const Gallery = () => {
             <Button
               variant="outlined"
               size="small"
-              startIcon={<DownloadIcon sx={{ fontSize: '15px !important' }} />}
+              disabled={downloading}
+              startIcon={downloading ? <CircularProgress size={13} color="inherit" /> : <DownloadIcon sx={{ fontSize: '15px !important' }} />}
               onClick={handleDownloadSelected}
               sx={{
                 width: { xs: '100%', md: 'auto' },
@@ -1159,7 +1192,7 @@ const Gallery = () => {
                 '&:hover': { borderColor: '#D0D5DD', backgroundColor: '#F9FAFB' }
               }}
             >
-              Download ({selectedIds.length})
+              {downloading ? 'Downloading...' : `Download (${selectedIds.length})`}
             </Button>
 
             {/* Delete on the opposite end (right) */}
@@ -1204,10 +1237,11 @@ const Gallery = () => {
               </Box>
             ) : photos.length === 0 ? (
               <EmptyGalleryCard
-                isAdmin={canUpload}
-                onUpload={canUpload ? handleOpenUpload : null}
+                isAdmin={true}
+                onUpload={canUpload ? handleOpenUpload : () => navigate('/request-upload?category=gallery')}
+                buttonLabel={canUpload ? 'Add photos' : 'Request Upload'}
                 title="No Media Found"
-                subtitle="Upload media to share them with your community."
+                subtitle="Upload media or submit memories to share them with your community."
               />
             ) : (
               <Grid container spacing={{ xs: 1.5, sm: 2, md: 2.5 }}>
@@ -1332,8 +1366,7 @@ const Gallery = () => {
                       <Typography variant="body2" sx={{ color: '#64748B', fontWeight: 500 }}>
                         No media uploaded directly into this folder yet.
                       </Typography>
-                      {/* Upload button available if user has create permission */}
-                      {canUpload && (
+                      {canUpload ? (
                         <Button
                           size="small"
                           variant="outlined"
@@ -1343,14 +1376,24 @@ const Gallery = () => {
                         >
                           Upload to this folder
                         </Button>
+                      ) : (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<UploadIcon />}
+                          onClick={() => navigate(`/request-upload?category=gallery`)}
+                          sx={{ textTransform: 'none', fontWeight: 600, borderRadius: '8px', mt: 0.5 }}
+                        >
+                          Request Upload to this folder
+                        </Button>
                       )}
                     </Box>
                   ) : (
                     <EmptyGalleryCard
-                      isAdmin={canUpload}
-                      onUpload={canUpload ? handleOpenUpload : null}
+                      isAdmin={true}
+                      onUpload={canUpload ? handleOpenUpload : () => navigate(`/request-upload?category=gallery`)}
                       title="Folder is Empty"
-                      buttonLabel="Upload to Folder"
+                      buttonLabel={canUpload ? 'Upload to Folder' : 'Request Upload'}
                       icon={<FolderOpenIcon sx={{ fontSize: 40, color: currentFolder.color || '#0F9D58' }} />}
                       secondaryButton={isAdminOrWarden ? {
                         label: 'New Subfolder',

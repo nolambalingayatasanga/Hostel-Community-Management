@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Box,
   Card,
@@ -24,7 +25,15 @@ import {
   DialogContent,
   DialogActions,
   Checkbox,
+  FormControlLabel,
   Alert,
+  TextField,
+  MenuItem,
+  Select,
+  FormControl,
+  InputLabel,
+  Tabs,
+  Tab,
   useMediaQuery,
   useTheme
 } from "@mui/material";
@@ -44,12 +53,18 @@ import {
   Computer as DesktopIcon,
   TabletMac as TabletIcon,
   DeleteOutlined as DeleteIcon,
-  DeleteSweep as DeleteSweepIcon,
   Link as LinkIcon,
   PlayArrow as PlayArrowIcon,
   FiberManualRecord as DotIcon,
-  AccessTime as TimeIcon,
-  CalendarToday as DateIcon
+  Edit as EditIcon,
+  ArrowForward as ArrowForwardIcon,
+  ArrowBack as ArrowBackIcon,
+  Dashboard as DashboardIcon,
+  History as HistoryIcon,
+  FileDownload as FileDownloadIcon,
+  WarningAmber as WarningIcon,
+  InfoOutlined as InfoIcon,
+  FilterList as FilterListIcon
 } from "@mui/icons-material";
 import {
   AreaChart,
@@ -63,11 +78,6 @@ import {
 import { useSnackbar } from "notistack";
 import QRCode from "qrcode";
 import API from "../../api";
-
-const ACCESS_STYLES = {
-  qr: { bg: "#EFF8FF", color: "#1D4ED8", border: "#BFDBFE", label: "QR Scan" },
-  direct: { bg: "#F0FDF4", color: "#15803D", border: "#BBF7D0", label: "Direct Click" },
-};
 
 const formatDate = (value) => {
   if (!value) return "—";
@@ -89,27 +99,64 @@ const DeviceIcon = ({ type }) => {
   return <DesktopIcon sx={{ fontSize: 18, color: "#475467" }} />;
 };
 
+// Subtle background SVG wave for Screen 1 Overview Cards
+const BottomWave = ({ color }) => (
+  <svg
+    viewBox="0 0 500 120"
+    preserveAspectRatio="none"
+    style={{
+      position: "absolute",
+      bottom: 0,
+      left: 0,
+      width: "100%",
+      height: "44px",
+      pointerEvents: "none",
+      zIndex: 0
+    }}
+  >
+    <path
+      d="M0,40 C150,110 350,-20 500,50 L500,120 L0,120 Z"
+      fill={color}
+      opacity="0.12"
+    />
+  </svg>
+);
+
 export default function QrScanCount() {
   const { enqueueSnackbar } = useSnackbar();
+  const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const qrCanvasRef = useRef(null);
 
+  // Active navigation tab (0: Overview, 1: QR & Links, 2: Analytics, 3: Activity Logs)
+  const [activeTab, setActiveTab] = useState(0);
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
-  const [downloadFormat, setDownloadFormat] = useState(null);
   const [copiedQr, setCopiedQr] = useState(false);
   const [copiedDirect, setCopiedDirect] = useState(false);
+  const [copiedAccess, setCopiedAccess] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
   const [testingClick, setTestingClick] = useState(false);
   const [page, setPage] = useState(1);
 
-  // Delete state
+  // Update Link Dialog state
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+  const [newRedirectUrl, setNewRedirectUrl] = useState("");
+  const [regenerateQrCheck, setRegenerateQrCheck] = useState(false);
+  const [updatingLink, setUpdatingLink] = useState(false);
+  const [qrUpdatedBanner, setQrUpdatedBanner] = useState(false);
+
+  // Activity Logs Filters
+  const [deviceFilter, setDeviceFilter] = useState("all");
+  const [osFilter, setOsFilter] = useState("all");
+  const [browserFilter, setBrowserFilter] = useState("all");
+
+  // Delete log state
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [batchDeleteDialogOpen, setBatchDeleteDialogOpen] = useState(false);
-  const [clearDialogOpen, setClearDialogOpen] = useState(false);
-  const [selectedIds, setSelectedIds] = useState([]);
   const [deleting, setDeleting] = useState(false);
 
   const fetchLoginQr = useCallback(
@@ -117,9 +164,14 @@ export default function QrScanCount() {
       try {
         if (!silent) setLoading(true);
         const res = await API.get("/qr-scans/login-qr", {
-          params: { page: currentPage, limit: 10 },
+          params: { page: currentPage, limit: 30 },
         });
-        if (res.data?.success) setData(res.data.data);
+        if (res.data?.success) {
+          setData(res.data.data);
+          if (res.data.data?.redirectUrl && !newRedirectUrl) {
+            setNewRedirectUrl(res.data.data.redirectUrl);
+          }
+        }
       } catch (err) {
         if (!silent) {
           enqueueSnackbar(err.response?.data?.message || "Failed to load QR scan data", { variant: "error" });
@@ -128,7 +180,7 @@ export default function QrScanCount() {
         if (!silent) setLoading(false);
       }
     },
-    [page, enqueueSnackbar],
+    [page, enqueueSnackbar, newRedirectUrl]
   );
 
   useEffect(() => { fetchLoginQr(page); }, [page]);
@@ -141,38 +193,26 @@ export default function QrScanCount() {
   useEffect(() => {
     if (!data?.qrTrackingLink || !qrCanvasRef.current) return;
     QRCode.toCanvas(qrCanvasRef.current, data.qrTrackingLink, {
-      width: isMobile ? 160 : 180,
+      width: isMobile ? 180 : 200,
       margin: 1,
       color: { dark: "#0F172A", light: "#FFFFFF" },
     }).catch((err) => console.error("QR render error:", err));
-  }, [data?.qrTrackingLink, isMobile]);
+  }, [data?.qrTrackingLink, isMobile, activeTab]);
 
-  const handleCopyQrLink = async () => {
-    if (!data?.qrTrackingLink) return;
+  const directLinkUrl = data?.trackingLink || `${window.location.origin}/login`;
+
+  const handleCopyText = async (text, setter, label) => {
+    if (!text) return;
     try {
-      await navigator.clipboard.writeText(data.qrTrackingLink);
-      setCopiedQr(true);
-      enqueueSnackbar("QR tracking link copied to clipboard", { variant: "success" });
-      setTimeout(() => setCopiedQr(false), 2000);
+      await navigator.clipboard.writeText(text);
+      setter(true);
+      enqueueSnackbar(`${label} copied to clipboard`, { variant: "success" });
+      setTimeout(() => setter(false), 2000);
     } catch {
-      enqueueSnackbar("Unable to copy link", { variant: "error" });
+      enqueueSnackbar("Unable to copy to clipboard", { variant: "error" });
     }
   };
 
-  const handleCopyDirectLink = async () => {
-    const directUrl = data?.trackingLink || (data?.code ? `${window.location.origin}/${data.code}` : "");
-    if (!directUrl) return;
-    try {
-      await navigator.clipboard.writeText(directUrl);
-      setCopiedDirect(true);
-      enqueueSnackbar("Direct login link copied to clipboard", { variant: "success" });
-      setTimeout(() => setCopiedDirect(false), 2000);
-    } catch {
-      enqueueSnackbar("Unable to copy link", { variant: "error" });
-    }
-  };
-
-  // Test Direct Click: simulates or executes a direct link click and refreshes stats
   const handleTestDirectClick = async () => {
     try {
       setTestingClick(true);
@@ -182,11 +222,7 @@ export default function QrScanCount() {
         await fetchLoginQr(page, true);
       }
     } catch (_err) {
-      // Fallback: open tracking link directly in new tab
-      const directUrl = data?.trackingLink || (data?.code ? `${window.location.origin}/${data.code}` : "");
-      if (directUrl) {
-        window.open(directUrl, "_blank", "noopener,noreferrer");
-      }
+      window.open(directLinkUrl, "_blank", "noopener,noreferrer");
     } finally {
       setTestingClick(false);
     }
@@ -195,7 +231,6 @@ export default function QrScanCount() {
   const handleDownloadQr = async (format = "png") => {
     try {
       setDownloading(true);
-      setDownloadFormat(format);
       const res = await API.get("/qr-scans/login-qr/download", { params: { format }, responseType: "blob" });
       const blobUrl = window.URL.createObjectURL(res.data);
       const a = document.createElement("a");
@@ -210,17 +245,85 @@ export default function QrScanCount() {
       enqueueSnackbar("Failed to download QR code", { variant: "error" });
     } finally {
       setDownloading(false);
-      setDownloadFormat(null);
     }
   };
 
+  const handleOpenUpdateDialog = () => {
+    setNewRedirectUrl(data?.redirectUrl || "https://www.kambi-connect.in/login");
+    setRegenerateQrCheck(false);
+    setUpdateDialogOpen(true);
+  };
+
+  const handleUpdateLinkSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!newRedirectUrl.trim()) {
+      enqueueSnackbar("Please enter a valid destination redirect URL", { variant: "warning" });
+      return;
+    }
+    try {
+      setUpdatingLink(true);
+      const res = await API.put("/qr-scans/login-qr", {
+        redirectUrl: newRedirectUrl.trim(),
+        regenerateQr: regenerateQrCheck
+      });
+      if (res.data?.success) {
+        setData(res.data.data);
+        setUpdateDialogOpen(false);
+        if (res.data.qrUpdated) {
+          setQrUpdatedBanner(true);
+          enqueueSnackbar("Destination updated and new QR code generated! Please download the new QR.", { variant: "warning", autoHideDuration: 6000 });
+        } else {
+          enqueueSnackbar("Destination link updated! Existing QR code and counts are preserved.", { variant: "success" });
+        }
+      }
+    } catch (err) {
+      enqueueSnackbar(err.response?.data?.message || "Failed to update link", { variant: "error" });
+    } finally {
+      setUpdatingLink(false);
+    }
+  };
+
+  const confirmDeleteSingle = async () => {
+    if (!deleteTarget?._id) return;
+    try {
+      setDeleting(true);
+      const res = await API.delete(`/qr-scans/login-qr/device/${deleteTarget._id}`, { params: { page, limit: 30 } });
+      if (res.data?.success) {
+        setData(res.data.data || null);
+        if (!res.data.data) fetchLoginQr(page);
+        enqueueSnackbar("Scan record deleted", { variant: "success" });
+        setDeleteDialogOpen(false);
+        setDeleteTarget(null);
+      }
+    } catch (err) {
+      enqueueSnackbar(err.response?.data?.message || "Failed to delete record", { variant: "error" });
+    } finally { setDeleting(false); }
+  };
+
+  // Filtered devices list for Tab 4 (Activity Logs)
+  const filteredDevices = useMemo(() => {
+    const list = data?.devices || [];
+    return list.filter((item) => {
+      if (deviceFilter !== "all" && (item.type || "desktop").toLowerCase() !== deviceFilter.toLowerCase()) {
+        return false;
+      }
+      if (osFilter !== "all" && !String(item.os || "").toLowerCase().includes(osFilter.toLowerCase())) {
+        return false;
+      }
+      if (browserFilter !== "all" && !String(item.browser || "").toLowerCase().includes(browserFilter.toLowerCase())) {
+        return false;
+      }
+      return true;
+    });
+  }, [data?.devices, deviceFilter, osFilter, browserFilter]);
+
   const handleExportCsv = () => {
-    const devices = data?.devices || [];
+    const devices = filteredDevices;
     if (!devices.length) { enqueueSnackbar("No scan records to export", { variant: "info" }); return; }
-    const headers = ["IP Address", "Device Type", "OS", "Browser", "Access Type", "Date", "Time"];
+    const headers = ["IP Address", "Device Type", "OS", "Browser", "Access Method", "Date", "Time"];
     const rows = devices.map((d) => [
       `"${d.ip || ""}"`, `"${d.type || ""}"`, `"${d.os || ""}"`,
-      `"${d.browser || ""}"`, `"${d.accessType || ""}"`,
+      `"${d.browser || ""}"`, `"${d.accessType === "qr" ? "QR Scan" : "Direct Click"}"`,
       `"${formatDate(d.timestamp)}"`, `"${formatTime(d.timestamp)}"`,
     ]);
     const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
@@ -228,872 +331,1015 @@ export default function QrScanCount() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `QR_Scan_Devices_${new Date().toISOString().split("T")[0]}.csv`;
+    a.download = `QR_Activity_Logs_${new Date().toISOString().split("T")[0]}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
   };
 
-  const handleSelectAll = (e) => {
-    if (e.target.checked) {
-      setSelectedIds((data?.devices || []).map((d) => d._id).filter(Boolean));
-    } else {
-      setSelectedIds([]);
-    }
-  };
-
-  const handleSelectRow = (id) => {
-    setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
-  };
-
-  const confirmDeleteSingle = async () => {
-    if (!deleteTarget?._id) return;
-    try {
-      setDeleting(true);
-      const res = await API.delete(`/qr-scans/login-qr/device/${deleteTarget._id}`, { params: { page, limit: 10 } });
-      if (res.data?.success) {
-        setData(res.data.data || null);
-        if (!res.data.data) fetchLoginQr(page);
-        setSelectedIds((prev) => prev.filter((id) => id !== deleteTarget._id));
-        enqueueSnackbar("Scan record deleted", { variant: "success" });
-        setDeleteDialogOpen(false);
-        setDeleteTarget(null);
-      }
-    } catch (err) {
-      enqueueSnackbar(err.response?.data?.message || "Failed to delete scan record", { variant: "error" });
-    } finally { setDeleting(false); }
-  };
-
-  const confirmDeleteBatch = async () => {
-    if (!selectedIds.length) return;
-    try {
-      setDeleting(true);
-      const res = await API.delete("/qr-scans/login-qr/devices", { data: { ids: selectedIds }, params: { page, limit: 10 } });
-      if (res.data?.success) {
-        setData(res.data.data || null);
-        if (!res.data.data) fetchLoginQr(page);
-        enqueueSnackbar(`${selectedIds.length} records deleted`, { variant: "success" });
-        setSelectedIds([]);
-        setBatchDeleteDialogOpen(false);
-      }
-    } catch (err) {
-      enqueueSnackbar(err.response?.data?.message || "Failed to delete selected records", { variant: "error" });
-    } finally { setDeleting(false); }
-  };
-
-  const confirmClearAll = async () => {
-    try {
-      setDeleting(true);
-      const res = await API.delete("/qr-scans/login-qr/devices", { data: { resetCounts: true }, params: { page: 1, limit: 10 } });
-      if (res.data?.success) {
-        setData(res.data.data || null);
-        if (!res.data.data) fetchLoginQr(1);
-        setPage(1);
-        setSelectedIds([]);
-        enqueueSnackbar("All scan logs and counts cleared", { variant: "success" });
-        setClearDialogOpen(false);
-      }
-    } catch (err) {
-      enqueueSnackbar(err.response?.data?.message || "Failed to clear scan records", { variant: "error" });
-    } finally { setDeleting(false); }
-  };
-
-  const pagination = data?.pagination || { page: 1, totalPages: 1, total: 0 };
-  const directLinkUrl = data?.trackingLink || (data?.code ? `${window.location.origin}/${data.code}` : "Loading...");
+  const navTabs = [
+    { label: "Overview", icon: <DashboardIcon sx={{ fontSize: 19 }} /> },
+    { label: "QR & Links", icon: <QrCodeIcon sx={{ fontSize: 19 }} /> },
+    { label: "Analytics", icon: <TrendingUpIcon sx={{ fontSize: 19 }} /> },
+    { label: "Activity Logs", icon: <HistoryIcon sx={{ fontSize: 19 }} /> }
+  ];
 
   return (
-    <Box sx={{ p: { xs: 1.5, sm: 2.5, md: 3 }, maxWidth: 1400, mx: "auto" }}>
+    <Box sx={{ p: { xs: 1.5, sm: 2.5, md: 3 }, maxWidth: 1440, mx: "auto" }}>
 
-      {/* ── Top Header ── */}
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        justifyContent="space-between"
-        alignItems={{ xs: "stretch", sm: "center" }}
-        spacing={2}
-        sx={{ mb: 3 }}
-      >
-        <Stack direction="row" spacing={1.5} alignItems="center">
-          <Box
-            sx={{
-              width: { xs: 40, sm: 46 },
-              height: { xs: 40, sm: 46 },
-              borderRadius: "14px",
-              background: "linear-gradient(135deg, #0284C7 0%, #0369A1 100%)",
-              color: "#FFFFFF",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "0 4px 14px rgba(2, 132, 199, 0.28)",
-              flexShrink: 0
-            }}
-          >
-            <QrScannerIcon sx={{ fontSize: { xs: 24, sm: 28 } }} />
-          </Box>
-          <Box>
-            <Stack direction="row" alignItems="center" spacing={1}>
-              <Typography variant="h5" sx={{ fontWeight: 800, color: "#0F172A", letterSpacing: "-0.02em", fontSize: { xs: "1.25rem", sm: "1.5rem" } }}>
-                QR & Link Analytics
-              </Typography>
-              <Chip
-                size="small"
-                icon={<DotIcon sx={{ fontSize: "10px !important", color: "#16A34A !important" }} />}
-                label="LIVE"
-                sx={{
-                  bgcolor: "#DCFCE7",
-                  color: "#166534",
-                  fontWeight: 800,
-                  fontSize: 10,
-                  height: 20,
-                  border: "1px solid #BBF7D0",
-                  display: { xs: "none", sm: "inline-flex" }
-                }}
-              />
-            </Stack>
-            <Typography variant="body2" sx={{ color: "#64748B", mt: 0.25, fontSize: { xs: "0.8rem", sm: "0.875rem" } }}>
-              Real-time traffic tracking for Kambi Connect portal login link & QR scans.
-            </Typography>
-          </Box>
-        </Stack>
+      {/* ── Persistent Warning when QR is updated ── */}
+      {qrUpdatedBanner && (
+        <Alert
+          severity="warning"
+          icon={<WarningIcon fontSize="inherit" />}
+          onClose={() => setQrUpdatedBanner(false)}
+          sx={{ mb: 2.5, borderRadius: "12px", fontWeight: 600 }}
+          action={
+            <Button size="small" color="inherit" onClick={() => handleDownloadQr("png")} sx={{ fontWeight: 700, textTransform: "none" }}>
+              Download New QR
+            </Button>
+          }
+        >
+          Destination updated and new QR code generated! Please download and replace previous printed or distributed QR codes. All previous scan statistics remain preserved.
+        </Alert>
+      )}
 
-        <Stack direction="row" spacing={1.5} alignItems="center">
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={loading ? <CircularProgress size={14} /> : <RefreshIcon sx={{ fontSize: 18 }} />}
-            onClick={() => fetchLoginQr(page)}
-            disabled={loading}
+      {/* ── Main Layout: Responsive Left Sidebar on Desktop, Top Tabs on Mobile ── */}
+      <Grid container spacing={{ xs: 2, md: 3 }}>
+
+        {/* ── Sidebar Column (Desktop) / Top Tabs (Mobile) ── */}
+        <Grid size={{ xs: 12, md: 3, lg: 2.5 }}>
+          <Card
             sx={{
-              borderRadius: "9px",
-              textTransform: "none",
-              fontWeight: 600,
-              borderColor: "#E2E8F0",
-              color: "#334155",
+              borderRadius: "18px",
+              border: "1px solid #E2E8F0",
+              boxShadow: "0 2px 12px rgba(0,0,0,0.03)",
               bgcolor: "#FFFFFF",
-              height: 38,
-              px: 2,
-              "&:hover": { bgcolor: "#F8FAFC", borderColor: "#CBD5E1" },
+              p: { xs: 1.25, md: 2 }
             }}
           >
-            Refresh
-          </Button>
-        </Stack>
-      </Stack>
-
-      {/* ── Stat Cards (2x2 on Mobile, 4 in a row on Desktop) ── */}
-      <Grid container spacing={{ xs: 1.5, sm: 2, md: 2.5 }} sx={{ mb: 3 }}>
-        {[
-          { label: "Total Scans", value: data?.scanCount, color: "#0284C7", icon: <QrCodeIcon sx={{ fontSize: 22 }} />, sub: "Camera scans" },
-          { label: "Direct Clicks", value: data?.clickCount, color: "#16A34A", icon: <ClickIcon sx={{ fontSize: 22 }} />, sub: "Link opened directly" },
-          { label: "Today's Activity", value: (Number(data?.todayScans || 0) + Number(data?.todayClicks || 0)), color: "#EAB308", icon: <TodayIcon sx={{ fontSize: 22 }} />, sub: "Scans & clicks today" },
-          { label: "Unique Devices", value: data?.uniqueDeviceCount, color: "#8B5CF6", icon: <DevicesIcon sx={{ fontSize: 22 }} />, sub: "Distinct devices" },
-        ].map(({ label, value, color, icon, sub }) => (
-          <Grid key={label} size={{ xs: 6, sm: 6, md: 3 }}>
-            <Card
-              sx={{
-                borderRadius: "16px",
-                border: "1px solid #E2E8F0",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
-                bgcolor: "#FFFFFF",
-                transition: "all 0.2s ease-in-out",
-                "&:hover": {
-                  boxShadow: "0 6px 18px rgba(0,0,0,0.06)",
-                  transform: "translateY(-2px)",
-                  borderColor: "#CBD5E1"
-                },
-              }}
-            >
-              <CardContent sx={{ p: { xs: 1.75, sm: 2.25 } }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                  <Box>
-                    <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", fontSize: { xs: "0.65rem", sm: "0.75rem" } }}>
-                      {label}
-                    </Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 800, color: "#0F172A", mt: 0.5, lineHeight: 1.1, fontSize: { xs: "1.35rem", sm: "1.75rem" } }}>
-                      {loading && value == null ? <CircularProgress size={20} sx={{ color }} /> : Number(value || 0).toLocaleString()}
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: "#94A3B8", fontWeight: 500, mt: 0.75, display: "block", fontSize: { xs: "0.7rem", sm: "0.75rem" } }}>
-                      {sub}
-                    </Typography>
-                  </Box>
-                  <Box
-                    sx={{
-                      width: { xs: 36, sm: 42 },
-                      height: { xs: 36, sm: 42 },
-                      borderRadius: "10px",
-                      bgcolor: `${color}15`,
-                      color,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0
-                    }}
-                  >
-                    {icon}
-                  </Box>
-                </Stack>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-
-      {/* ── Tracking Links & QR Panel ── */}
-      <Grid container spacing={2.5} sx={{ mb: 3 }}>
-
-        {/* QR & Direct Links Panel */}
-        <Grid size={{ xs: 12, md: 5 }}>
-          <Card sx={{ borderRadius: "16px", border: "1px solid #E2E8F0", boxShadow: "none", bgcolor: "#FFFFFF", height: "100%" }}>
-            <CardContent sx={{ p: { xs: 2, sm: 2.5 }, display: "flex", flexDirection: "column", height: "100%" }}>
-
-              {/* Card Header */}
-              <Stack direction="row" alignItems="center" spacing={1.2} sx={{ mb: 0.5 }}>
-                <Box sx={{ width: 32, height: 32, borderRadius: "8px", bgcolor: "#EFF8FF", color: "#0284C7", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <QrCodeIcon sx={{ fontSize: 20 }} />
-                </Box>
-                <Box>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#0F172A", lineHeight: 1.2 }}>
-                    Login Access Links
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: "#64748B" }}>
-                    Redirects to https://www.kambi-connect.in/login
-                  </Typography>
-                </Box>
-              </Stack>
-
-              <Divider sx={{ my: 1.5 }} />
-
-              {/* QR Canvas Display */}
+            {/* Sidebar Brand Header (Desktop) */}
+            <Box sx={{ display: { xs: "none", md: "flex" }, alignItems: "center", gap: 1.5, mb: 2.5, px: 1 }}>
               <Box
                 sx={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  py: 2.5,
-                  px: 2,
-                  mb: 2,
+                  width: 40,
+                  height: 40,
                   borderRadius: "12px",
-                  bgcolor: "#F8FAFC",
-                  border: "1px solid #E2E8F0",
+                  background: "linear-gradient(135deg, #0284C7 0%, #0369A1 100%)",
+                  color: "#FFFFFF",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 4px 12px rgba(2, 132, 199, 0.25)"
                 }}
               >
-                <Box
-                  sx={{
-                    p: 1.5,
-                    borderRadius: "12px",
-                    bgcolor: "#FFFFFF",
-                    border: "1px solid #E2E8F0",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  {loading && !data ? (
-                    <CircularProgress size={28} />
-                  ) : (
-                    <canvas ref={qrCanvasRef} style={{ display: "block" }} />
-                  )}
-                </Box>
-                {data?.code && (
-                  <Chip
-                    size="small"
-                    label={`Code: ${data.code}`}
-                    sx={{ mt: 1.5, fontWeight: 700, bgcolor: "#EFF8FF", color: "#0284C7", border: "1px solid #BAE6FD", fontSize: 11 }}
-                  />
-                )}
+                <QrScannerIcon sx={{ fontSize: 22 }} />
               </Box>
-
-              {/* SECTION 1: DIRECT LINK (CLICK COUNT) */}
-              <Box sx={{ p: 1.5, mb: 1.5, borderRadius: "12px", bgcolor: "#F0FDF4", border: "1px solid #BBF7D0" }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.75 }}>
-                  <Stack direction="row" spacing={0.8} alignItems="center">
-                    <ClickIcon sx={{ fontSize: 16, color: "#16A34A" }} />
-                    <Typography variant="caption" sx={{ fontWeight: 800, color: "#15803D", textTransform: "uppercase", letterSpacing: "0.03em" }}>
-                      Direct Portal Link (Tracks Clicks)
-                    </Typography>
-                  </Stack>
-                  <Chip size="small" label={`${data?.clickCount || 0} clicks`} sx={{ height: 18, fontSize: 10, fontWeight: 700, bgcolor: "#DCFCE7", color: "#15803D" }} />
-                </Stack>
-
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, bgcolor: "#FFFFFF", p: 0.8, borderRadius: "8px", border: "1px solid #BBF7D0", mb: 1 }}>
-                  <LinkIcon sx={{ fontSize: 14, color: "#16A34A", flexShrink: 0 }} />
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      flex: 1, minWidth: 0, color: "#1E293B", fontWeight: 600,
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      fontFamily: "ui-monospace, monospace", fontSize: 11
-                    }}
-                    title={directLinkUrl}
-                  >
-                    {directLinkUrl}
-                  </Typography>
-                  <Tooltip title={copiedDirect ? "Copied!" : "Copy Direct Link"}>
-                    <IconButton size="small" onClick={handleCopyDirectLink} sx={{ color: copiedDirect ? "#16A34A" : "#64748B", p: 0.5 }}>
-                      {copiedDirect ? <CheckIcon sx={{ fontSize: 15 }} /> : <CopyIcon sx={{ fontSize: 15 }} />}
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Open link in browser">
-                    <IconButton size="small" onClick={() => window.open(directLinkUrl, "_blank", "noopener,noreferrer")} sx={{ color: "#64748B", p: 0.5 }}>
-                      <OpenInNewIcon sx={{ fontSize: 15 }} />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-
-                <Stack direction="row" spacing={1}>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    startIcon={testingClick ? <CircularProgress size={12} color="inherit" /> : <PlayArrowIcon sx={{ fontSize: 15 }} />}
-                    onClick={handleTestDirectClick}
-                    disabled={testingClick}
-                    sx={{
-                      flex: 1,
-                      textTransform: "none",
-                      fontWeight: 700,
-                      fontSize: 11,
-                      borderRadius: "7px",
-                      borderColor: "#86EFAC",
-                      color: "#15803D",
-                      bgcolor: "#FFFFFF",
-                      "&:hover": { bgcolor: "#DCFCE7", borderColor: "#4ADE80" }
-                    }}
-                  >
-                    {testingClick ? "Testing..." : "Test Direct Click"}
-                  </Button>
-                  <Button
-                    size="small"
-                    variant="contained"
-                    startIcon={copiedDirect ? <CheckIcon sx={{ fontSize: 14 }} /> : <CopyIcon sx={{ fontSize: 14 }} />}
-                    onClick={handleCopyDirectLink}
-                    sx={{
-                      flex: 1,
-                      textTransform: "none",
-                      fontWeight: 700,
-                      fontSize: 11,
-                      borderRadius: "7px",
-                      bgcolor: "#16A34A",
-                      "&:hover": { bgcolor: "#15803D" }
-                    }}
-                  >
-                    {copiedDirect ? "Copied!" : "Copy Link"}
-                  </Button>
-                </Stack>
-              </Box>
-
-              {/* SECTION 2: QR TRACKING LINK (SCAN COUNT) */}
-              <Box sx={{ p: 1.5, mb: 2, borderRadius: "12px", bgcolor: "#F0F9FF", border: "1px solid #BAE6FD" }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.75 }}>
-                  <Stack direction="row" spacing={0.8} alignItems="center">
-                    <QrScannerIcon sx={{ fontSize: 16, color: "#0284C7" }} />
-                    <Typography variant="caption" sx={{ fontWeight: 800, color: "#0369A1", textTransform: "uppercase", letterSpacing: "0.03em" }}>
-                      QR Tracking Link (Camera Scans)
-                    </Typography>
-                  </Stack>
-                  <Chip size="small" label={`${data?.scanCount || 0} scans`} sx={{ height: 18, fontSize: 10, fontWeight: 700, bgcolor: "#E0F2FE", color: "#0369A1" }} />
-                </Stack>
-
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, bgcolor: "#FFFFFF", p: 0.8, borderRadius: "8px", border: "1px solid #BAE6FD", mb: 1 }}>
-                  <LinkIcon sx={{ fontSize: 14, color: "#0284C7", flexShrink: 0 }} />
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      flex: 1, minWidth: 0, color: "#1E293B", fontWeight: 600,
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      fontFamily: "ui-monospace, monospace", fontSize: 11
-                    }}
-                    title={data?.qrTrackingLink}
-                  >
-                    {data?.qrTrackingLink || "Generating..."}
-                  </Typography>
-                  <Tooltip title={copiedQr ? "Copied!" : "Copy QR Link"}>
-                    <IconButton size="small" onClick={handleCopyQrLink} sx={{ color: copiedQr ? "#16A34A" : "#64748B", p: 0.5 }}>
-                      {copiedQr ? <CheckIcon sx={{ fontSize: 15 }} /> : <CopyIcon sx={{ fontSize: 15 }} />}
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Open link in browser">
-                    <IconButton size="small" onClick={() => window.open(data?.qrTrackingLink, "_blank", "noopener,noreferrer")} sx={{ color: "#64748B", p: 0.5 }}>
-                      <OpenInNewIcon sx={{ fontSize: 15 }} />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-
-                <Button
-                  fullWidth
-                  size="small"
-                  variant="outlined"
-                  startIcon={copiedQr ? <CheckIcon sx={{ fontSize: 14 }} /> : <CopyIcon sx={{ fontSize: 14 }} />}
-                  onClick={handleCopyQrLink}
-                  sx={{
-                    textTransform: "none",
-                    fontWeight: 700,
-                    fontSize: 11,
-                    borderRadius: "7px",
-                    borderColor: "#BAE6FD",
-                    color: "#0369A1",
-                    bgcolor: "#FFFFFF",
-                    "&:hover": { bgcolor: "#E0F2FE", borderColor: "#7DD3FC" }
-                  }}
-                >
-                  {copiedQr ? "QR Link Copied!" : "Copy QR Tracking Link"}
-                </Button>
-              </Box>
-
-              {/* Download Buttons */}
-              <Stack direction="row" spacing={1} sx={{ mt: "auto" }}>
-                <Button
-                  fullWidth variant="contained" size="small"
-                  startIcon={downloading && downloadFormat === "png" ? <CircularProgress size={14} color="inherit" /> : <DownloadIcon />}
-                  onClick={() => handleDownloadQr("png")}
-                  disabled={downloading || !data}
-                  sx={{
-                    height: 38, borderRadius: "9px", textTransform: "none", fontWeight: 700,
-                    bgcolor: "#0284C7", boxShadow: "0 4px 12px rgba(2, 132, 199, 0.25)",
-                    "&:hover": { bgcolor: "#0369A1" },
-                  }}
-                >
-                  Download PNG
-                </Button>
-                <Button
-                  fullWidth variant="outlined" size="small"
-                  startIcon={downloading && downloadFormat === "svg" ? <CircularProgress size={14} color="inherit" /> : <DownloadIcon />}
-                  onClick={() => handleDownloadQr("svg")}
-                  disabled={downloading || !data}
-                  sx={{
-                    height: 38, borderRadius: "9px", textTransform: "none", fontWeight: 600,
-                    borderColor: "#E2E8F0", color: "#334155", bgcolor: "#FFFFFF",
-                    "&:hover": { bgcolor: "#F8FAFC", borderColor: "#CBD5E1" },
-                  }}
-                >
-                  Download SVG
-                </Button>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* 7-Day Frequency Chart */}
-        <Grid size={{ xs: 12, md: 7 }}>
-          <Card sx={{ borderRadius: "16px", border: "1px solid #E2E8F0", boxShadow: "none", bgcolor: "#FFFFFF", height: "100%", p: { xs: 2, sm: 2.5 } }}>
-            <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }} spacing={1} sx={{ mb: 2.5 }}>
               <Box>
-                <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#0F172A" }}>
-                  7-Day Traffic Trends
+                <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#0F172A", lineHeight: 1.15, fontSize: "0.95rem" }}>
+                  QR Scanner
                 </Typography>
-                <Typography variant="caption" sx={{ color: "#64748B" }}>
-                  Comparison of QR scans vs direct portal clicks over time
-                </Typography>
+                <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mt: 0.25 }}>
+                  <DotIcon sx={{ fontSize: 9, color: "#16A34A" }} />
+                  <Typography variant="caption" sx={{ color: "#16A34A", fontWeight: 700, fontSize: "0.7rem" }}>
+                    Live Tracking
+                  </Typography>
+                </Stack>
               </Box>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Chip
-                  icon={<TrendingUpIcon sx={{ fontSize: "14px !important" }} />}
-                  label={`${data?.weekScans || 0} scans this week`}
-                  sx={{ fontWeight: 700, bgcolor: "#EFF8FF", color: "#0284C7", border: "1px solid #BAE6FD", fontSize: 11 }}
+            </Box>
+
+            {/* Desktop Vertical Tabs / Mobile Horizontal Tabs */}
+            <Tabs
+              value={activeTab}
+              onChange={(_, val) => setActiveTab(val)}
+              orientation={isMobile ? "horizontal" : "vertical"}
+              variant={isMobile ? "scrollable" : "standard"}
+              scrollButtons={isMobile ? "auto" : false}
+              sx={{
+                "& .MuiTabs-indicator": { display: "none" },
+                gap: 0.5,
+                "& .MuiTab-root": {
+                  minHeight: { xs: 40, md: 44 },
+                  borderRadius: "12px",
+                  justifyContent: { xs: "center", md: "flex-start" },
+                  textAlign: "left",
+                  px: { xs: 1.5, md: 2 },
+                  py: 1,
+                  mb: { xs: 0, md: 0.75 },
+                  mr: { xs: 0.75, md: 0 },
+                  textTransform: "none",
+                  fontWeight: 600,
+                  fontSize: { xs: "0.82rem", md: "0.9rem" },
+                  color: "#64748B",
+                  transition: "all 0.18s ease-in-out",
+                  "&:hover": {
+                    bgcolor: "#F8FAFC",
+                    color: "#0F172A"
+                  },
+                  "&.Mui-selected": {
+                    bgcolor: "#EFF8FF",
+                    color: "#0284C7",
+                    fontWeight: 800,
+                    boxShadow: "0 1px 4px rgba(2, 132, 199, 0.08)"
+                  }
+                }
+              }}
+            >
+              {navTabs.map((item, idx) => (
+                <Tab
+                  key={item.label}
+                  icon={item.icon}
+                  iconPosition="start"
+                  label={item.label}
+                  id={`qr-tab-${idx}`}
                 />
-              </Stack>
-            </Stack>
+              ))}
+            </Tabs>
 
-            <Box sx={{ width: "100%", height: { xs: 220, sm: 260, md: 280 } }}>
-              {data?.trend?.length ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={data.trend} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="scanGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#0284C7" stopOpacity={0.35} />
-                        <stop offset="95%" stopColor="#0284C7" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="clickGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#16A34A" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#16A34A" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                    <XAxis dataKey="day" stroke="#94A3B8" fontSize={11} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
-                    <ChartTooltip
-                      contentStyle={{ backgroundColor: "#0F172A", borderRadius: "8px", border: "none", color: "#FFFFFF", fontSize: "12px", padding: "8px 12px" }}
-                      itemStyle={{ color: "#FFFFFF" }}
-                      labelStyle={{ fontWeight: 700 }}
-                    />
-                    <Area type="monotone" dataKey="scans" stroke="#0284C7" strokeWidth={2.5} fill="url(#scanGradient)" name="QR Scans" />
-                    <Area type="monotone" dataKey="clicks" stroke="#16A34A" strokeWidth={2} fill="url(#clickGradient)" name="Direct Clicks" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              ) : (
-                <Box sx={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1 }}>
-                  <Box sx={{ width: 52, height: 52, borderRadius: "50%", bgcolor: "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <TrendingUpIcon sx={{ fontSize: 28, color: "#CBD5E1" }} />
-                  </Box>
-                  <Typography variant="body2" sx={{ color: "#94A3B8", fontWeight: 600 }}>No scan activity recorded yet</Typography>
-                </Box>
-              )}
-            </Box>
+            <Divider sx={{ my: { xs: 1, md: 2 } }} />
 
-            <Stack direction="row" spacing={3} justifyContent="center" sx={{ mt: 1.5 }}>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: "#0284C7" }} />
-                <Typography variant="caption" sx={{ color: "#475467", fontWeight: 600 }}>QR Scans</Typography>
-              </Stack>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: "#16A34A" }} />
-                <Typography variant="caption" sx={{ color: "#475467", fontWeight: 600 }}>Direct Clicks</Typography>
-              </Stack>
-            </Stack>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* ── Device & Time Log Section ── */}
-      <Card sx={{ borderRadius: "16px", border: "1px solid #E2E8F0", boxShadow: "none", bgcolor: "#FFFFFF", overflow: "hidden" }}>
-
-        {/* Section Header Toolbar */}
-        <Box sx={{ p: { xs: 2, sm: 2.5 }, borderBottom: "1px solid #F1F5F9" }}>
-          <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "stretch", sm: "center" }} spacing={1.5}>
-            <Box>
-              <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#0F172A" }}>
-                Device & Time Activity Log
-              </Typography>
-              <Typography variant="caption" sx={{ color: "#64748B" }}>
-                Records device type, OS, browser, IP address, access method, and exact timestamp.
-              </Typography>
-            </Box>
-
-            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-              {selectedIds.length > 0 && (
-                <Button
-                  variant="contained" color="error" size="small"
-                  startIcon={<DeleteIcon sx={{ fontSize: 16 }} />}
-                  onClick={() => setBatchDeleteDialogOpen(true)}
-                  sx={{ borderRadius: "8px", textTransform: "none", fontWeight: 700, height: 34, px: 1.5 }}
-                >
-                  Delete ({selectedIds.length})
-                </Button>
-              )}
-              {(data?.devices?.length > 0 || data?.totalInteractions > 0) && (
-                <Button
-                  variant="outlined" color="error" size="small"
-                  startIcon={<DeleteSweepIcon sx={{ fontSize: 16 }} />}
-                  onClick={() => setClearDialogOpen(true)}
-                  sx={{ borderRadius: "8px", textTransform: "none", fontWeight: 600, height: 34, px: 1.5 }}
-                >
-                  Clear All
-                </Button>
-              )}
+            {/* Quick Refresh & Live Indicator */}
+            <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ px: { xs: 0.5, md: 1 } }}>
               <Button
-                variant="outlined" size="small"
-                startIcon={<DownloadIcon sx={{ fontSize: 16 }} />}
-                onClick={handleExportCsv}
-                sx={{ borderRadius: "8px", textTransform: "none", fontWeight: 600, borderColor: "#E2E8F0", color: "#475467", height: 34, px: 1.5 }}
+                fullWidth
+                size="small"
+                variant="outlined"
+                startIcon={loading ? <CircularProgress size={14} /> : <RefreshIcon sx={{ fontSize: 16 }} />}
+                onClick={() => fetchLoginQr(page)}
+                disabled={loading}
+                sx={{
+                  borderRadius: "10px",
+                  textTransform: "none",
+                  fontWeight: 700,
+                  fontSize: "0.78rem",
+                  borderColor: "#E2E8F0",
+                  color: "#475569",
+                  bgcolor: "#FFFFFF",
+                  py: 0.6,
+                  "&:hover": { bgcolor: "#F8FAFC" }
+                }}
               >
-                Export CSV
+                Refresh Data
               </Button>
             </Stack>
-          </Stack>
-        </Box>
+          </Card>
+        </Grid>
 
-        {/* Mobile View: Card List (xs to sm) */}
-        {isMobile ? (
-          <Box sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1.5 }}>
-            {loading && !data ? (
-              <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
-                <CircularProgress size={30} />
-              </Box>
-            ) : !data?.devices?.length ? (
-              <Box sx={{ textAlign: "center", py: 6, px: 2 }}>
-                <DevicesIcon sx={{ fontSize: 36, color: "#94A3B8", mb: 1 }} />
-                <Typography variant="body2" sx={{ fontWeight: 700, color: "#475467" }}>No scan records found</Typography>
-                <Typography variant="caption" sx={{ color: "#94A3B8" }}>Camera scans and direct clicks will appear here.</Typography>
-              </Box>
-            ) : (
-              data.devices.map((device) => {
-                const accessStyle = ACCESS_STYLES[device.accessType] || ACCESS_STYLES.qr;
-                const isSelected = selectedIds.includes(device._id);
+        {/* ── Main Content Column ── */}
+        <Grid size={{ xs: 12, md: 9, lg: 9.5 }}>
 
-                return (
-                  <Card
-                    key={device._id || `${device.ip}-${device.timestamp}`}
-                    variant="outlined"
-                    sx={{
-                      p: 1.75,
-                      borderRadius: "12px",
-                      bgcolor: isSelected ? "#F0F9FF" : "#FFFFFF",
-                      borderColor: isSelected ? "#0284C7" : "#E2E8F0",
-                      transition: "all 0.15s ease"
-                    }}
-                  >
-                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <Checkbox
-                          size="small"
-                          checked={isSelected}
-                          onChange={() => handleSelectRow(device._id)}
-                          sx={{ p: 0 }}
-                        />
-                        <DeviceIcon type={device.type} />
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: "#0F172A", textTransform: "capitalize" }}>
-                          {device.type || "desktop"}
+          {/* ══════════════════════════════════════════════════════════
+              SCREEN 1: OVERVIEW TAB
+             ══════════════════════════════════════════════════════════ */}
+          {activeTab === 0 && (
+            <Box>
+              <Grid container spacing={{ xs: 1.5, sm: 2, md: 2.5 }}>
+                {/* 1. TOTAL SCANS */}
+                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                  <Card sx={{ borderRadius: "18px", border: "1px solid #EBF0F5", boxShadow: "0 2px 10px rgba(0,0,0,0.02)", bgcolor: "#FFFFFF", position: "relative", overflow: "hidden", minHeight: 180, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                    <CardContent sx={{ p: 2.5, position: "relative", zIndex: 1 }}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                        <Stack direction="row" spacing={1.25} alignItems="center">
+                          <Box sx={{ width: 42, height: 42, borderRadius: "12px", bgcolor: "#EFF8FF", color: "#0284C7", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <QrCodeIcon sx={{ fontSize: 24 }} />
+                          </Box>
+                          <Typography variant="caption" sx={{ fontWeight: 800, color: "#475569", letterSpacing: "0.06em", textTransform: "uppercase", fontSize: "0.75rem" }}>
+                            TOTAL SCANS
+                          </Typography>
+                        </Stack>
+                        <Box sx={{ width: 28, height: 28, borderRadius: "8px", bgcolor: "#F0F9FF", color: "#0284C7", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <TrendingUpIcon sx={{ fontSize: 16 }} />
+                        </Box>
+                      </Stack>
+                      <Box sx={{ mt: 2 }}>
+                        <Typography variant="h3" sx={{ fontWeight: 900, color: "#0F172A", lineHeight: 1 }}>
+                          {Number(data?.scanCount || 0).toLocaleString()}
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: "#64748B", fontWeight: 500, mt: 0.75, fontSize: "0.85rem" }}>
+                          Camera scans
+                        </Typography>
+                      </Box>
+                    </CardContent>
+                    <BottomWave color="#0284C7" />
+                  </Card>
+                </Grid>
+
+                {/* 2. DIRECT CLICKS */}
+                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                  <Card sx={{ borderRadius: "18px", border: "1px solid #EBF0F5", boxShadow: "0 2px 10px rgba(0,0,0,0.02)", bgcolor: "#FFFFFF", position: "relative", overflow: "hidden", minHeight: 180, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                    <CardContent sx={{ p: 2.5, position: "relative", zIndex: 1 }}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                        <Stack direction="row" spacing={1.25} alignItems="center">
+                          <Box sx={{ width: 42, height: 42, borderRadius: "12px", bgcolor: "#F0FDF4", color: "#16A34A", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <ClickIcon sx={{ fontSize: 22 }} />
+                          </Box>
+                          <Typography variant="caption" sx={{ fontWeight: 800, color: "#475569", letterSpacing: "0.06em", textTransform: "uppercase", fontSize: "0.75rem" }}>
+                            DIRECT CLICKS
+                          </Typography>
+                        </Stack>
+                        <Box sx={{ width: 28, height: 28, borderRadius: "8px", bgcolor: "#DCFCE7", color: "#16A34A", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <TrendingUpIcon sx={{ fontSize: 16 }} />
+                        </Box>
+                      </Stack>
+                      <Box sx={{ mt: 2 }}>
+                        <Typography variant="h3" sx={{ fontWeight: 900, color: "#0F172A", lineHeight: 1 }}>
+                          {Number(data?.clickCount || 0).toLocaleString()}
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: "#64748B", fontWeight: 500, mt: 0.75, fontSize: "0.85rem" }}>
+                          Link opened directly
+                        </Typography>
+                      </Box>
+                    </CardContent>
+                    <BottomWave color="#16A34A" />
+                  </Card>
+                </Grid>
+
+                {/* 3. TODAY'S ACTIVITY */}
+                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                  <Card sx={{ borderRadius: "18px", border: "1px solid #EBF0F5", boxShadow: "0 2px 10px rgba(0,0,0,0.02)", bgcolor: "#FFFFFF", position: "relative", overflow: "hidden", minHeight: 180, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                    <CardContent sx={{ p: 2.5, position: "relative", zIndex: 1 }}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                        <Stack direction="row" spacing={1.25} alignItems="center">
+                          <Box sx={{ width: 42, height: 42, borderRadius: "12px", bgcolor: "#FEF9C3", color: "#CA8A04", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <TodayIcon sx={{ fontSize: 22 }} />
+                          </Box>
+                          <Typography variant="caption" sx={{ fontWeight: 800, color: "#475569", letterSpacing: "0.06em", textTransform: "uppercase", fontSize: "0.75rem" }}>
+                            TODAY'S ACTIVITY
+                          </Typography>
+                        </Stack>
+                        <Box sx={{ width: 28, height: 28, borderRadius: "8px", bgcolor: "#FEF08A", color: "#CA8A04", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <TrendingUpIcon sx={{ fontSize: 16 }} />
+                        </Box>
+                      </Stack>
+                      <Box sx={{ mt: 2 }}>
+                        <Typography variant="h3" sx={{ fontWeight: 900, color: "#0F172A", lineHeight: 1 }}>
+                          {(Number(data?.todayScans || 0) + Number(data?.todayClicks || 0)).toLocaleString()}
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: "#64748B", fontWeight: 500, mt: 0.75, fontSize: "0.85rem" }}>
+                          Scans & clicks today
+                        </Typography>
+                      </Box>
+                    </CardContent>
+                    <BottomWave color="#EAB308" />
+                  </Card>
+                </Grid>
+
+                {/* 4. UNIQUE DEVICES */}
+                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                  <Card sx={{ borderRadius: "18px", border: "1px solid #EBF0F5", boxShadow: "0 2px 10px rgba(0,0,0,0.02)", bgcolor: "#FFFFFF", position: "relative", overflow: "hidden", minHeight: 180, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                    <CardContent sx={{ p: 2.5, position: "relative", zIndex: 1 }}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                        <Stack direction="row" spacing={1.25} alignItems="center">
+                          <Box sx={{ width: 42, height: 42, borderRadius: "12px", bgcolor: "#F3E8FF", color: "#7C3AED", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <DevicesIcon sx={{ fontSize: 22 }} />
+                          </Box>
+                          <Typography variant="caption" sx={{ fontWeight: 800, color: "#475569", letterSpacing: "0.06em", textTransform: "uppercase", fontSize: "0.75rem" }}>
+                            UNIQUE DEVICES
+                          </Typography>
+                        </Stack>
+                        <Box sx={{ width: 28, height: 28, borderRadius: "8px", bgcolor: "#EDE9FE", color: "#7C3AED", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <DevicesIcon sx={{ fontSize: 16 }} />
+                        </Box>
+                      </Stack>
+                      <Box sx={{ mt: 2 }}>
+                        <Typography variant="h3" sx={{ fontWeight: 900, color: "#0F172A", lineHeight: 1 }}>
+                          {Number(data?.uniqueDeviceCount || 0).toLocaleString()}
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: "#64748B", fontWeight: 500, mt: 0.75, fontSize: "0.85rem" }}>
+                          Distinct devices
+                        </Typography>
+                      </Box>
+                    </CardContent>
+                    <BottomWave color="#8B5CF6" />
+                  </Card>
+                </Grid>
+
+                {/* 5. TOTAL LINKS */}
+                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                  <Card sx={{ borderRadius: "18px", border: "1px solid #EBF0F5", boxShadow: "0 2px 10px rgba(0,0,0,0.02)", bgcolor: "#FFFFFF", position: "relative", overflow: "hidden", minHeight: 180, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                    <CardContent sx={{ p: 2.5, position: "relative", zIndex: 1 }}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                        <Stack direction="row" spacing={1.25} alignItems="center">
+                          <Box sx={{ width: 42, height: 42, borderRadius: "12px", bgcolor: "#FFE4E6", color: "#E11D48", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <TrendingUpIcon sx={{ fontSize: 22 }} />
+                          </Box>
+                          <Typography variant="caption" sx={{ fontWeight: 800, color: "#475569", letterSpacing: "0.06em", textTransform: "uppercase", fontSize: "0.75rem" }}>
+                            TOTAL LINKS
+                          </Typography>
+                        </Stack>
+                        <Box sx={{ width: 28, height: 28, borderRadius: "8px", bgcolor: "#FFE4E6", color: "#E11D48", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <TrendingUpIcon sx={{ fontSize: 16 }} />
+                        </Box>
+                      </Stack>
+                      <Box sx={{ mt: 2 }}>
+                        <Typography variant="h3" sx={{ fontWeight: 900, color: "#0F172A", lineHeight: 1 }}>
+                          {Number(data?.totalDriveLinks || 3).toLocaleString()}
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: "#64748B", fontWeight: 500, mt: 0.75, fontSize: "0.85rem" }}>
+                          Active drive links
+                        </Typography>
+                      </Box>
+                    </CardContent>
+                    <BottomWave color="#E11D48" />
+                  </Card>
+                </Grid>
+
+                {/* 6. SHARE YOUR LINKS */}
+                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                  <Card sx={{ borderRadius: "18px", border: "1px solid #E0F2FE", bgcolor: "#F0F9FF", minHeight: 180, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                    <CardContent sx={{ p: 2.5 }}>
+                      <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 1 }}>
+                        <Box sx={{ width: 36, height: 36, borderRadius: "10px", bgcolor: "#BAE6FD", color: "#0284C7", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <LinkIcon sx={{ fontSize: 20 }} />
+                        </Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#0369A1", fontSize: "0.95rem" }}>
+                          Share your links
+                        </Typography>
+                      </Stack>
+                      <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.82rem", lineHeight: 1.4, mb: 2 }}>
+                        Create and share drive links with QR codes for easy access.
+                      </Typography>
+                      <Button
+                        variant="contained"
+                        endIcon={<ArrowForwardIcon sx={{ fontSize: 16 }} />}
+                        onClick={() => navigate("/drive")}
+                        sx={{
+                          bgcolor: "#0284C7",
+                          textTransform: "none",
+                          fontWeight: 700,
+                          borderRadius: "10px",
+                          fontSize: "0.82rem",
+                          px: 2.5,
+                          boxShadow: "0 2px 8px rgba(2, 132, 199, 0.3)",
+                          "&:hover": { bgcolor: "#0369A1" }
+                        }}
+                      >
+                        Create New Link
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+            </Box>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════
+              SCREEN 2: QR & DIRECT LINKS TAB
+             ══════════════════════════════════════════════════════════ */}
+          {activeTab === 1 && (
+            <Box>
+              <Grid container spacing={{ xs: 2, md: 2.5 }}>
+                {/* Left Card: QR CODE */}
+                <Grid size={{ xs: 12, md: 5.5 }}>
+                  <Card sx={{ borderRadius: "18px", border: "1px solid #E2E8F0", boxShadow: "0 2px 10px rgba(0,0,0,0.02)", bgcolor: "#FFFFFF", p: 3, height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                    <Box>
+                      <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 2.5 }}>
+                        <Box sx={{ width: 40, height: 40, borderRadius: "12px", bgcolor: "#EFF8FF", color: "#0284C7", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <QrCodeIcon sx={{ fontSize: 24 }} />
+                        </Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#1E293B", letterSpacing: "0.04em" }}>
+                          QR CODE
                         </Typography>
                       </Stack>
 
-                      <Stack direction="row" spacing={0.8} alignItems="center">
-                        <Chip
-                          size="small"
-                          label={accessStyle.label}
+                      {/* QR Canvas Container */}
+                      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", my: 1 }}>
+                        <Box
                           sx={{
-                            fontWeight: 700,
-                            fontSize: 10,
-                            height: 20,
-                            bgcolor: accessStyle.bg,
-                            color: accessStyle.color,
-                            border: `1px solid ${accessStyle.border}`
+                            p: 2,
+                            borderRadius: "16px",
+                            bgcolor: "#FFFFFF",
+                            border: "1px solid #E2E8F0",
+                            boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+                            display: "inline-flex"
                           }}
-                        />
-                        <IconButton
-                          size="small"
-                          onClick={() => { setDeleteTarget(device); setDeleteDialogOpen(true); }}
-                          sx={{ color: "#94A3B8", p: 0.5, "&:hover": { color: "#EF4444" } }}
                         >
-                          <DeleteIcon sx={{ fontSize: 16 }} />
-                        </IconButton>
-                      </Stack>
+                          <canvas ref={qrCanvasRef} style={{ display: "block" }} />
+                        </Box>
+
+                        {/* Code badge with copy */}
+                        {data?.code && (
+                          <Box sx={{ mt: 2, display: "inline-flex", alignItems: "center", gap: 1, bgcolor: "#EFF8FF", px: 2, py: 0.75, borderRadius: "20px", border: "1px solid #BAE6FD" }}>
+                            <Typography sx={{ color: "#0284C7", fontWeight: 700, fontSize: "0.85rem", fontFamily: "monospace" }}>
+                              Code: {data.code}
+                            </Typography>
+                            <Tooltip title="Copy Code">
+                              <IconButton size="small" onClick={() => handleCopyText(data.code, setCopiedCode, "Code")} sx={{ color: "#0284C7", p: 0.25 }}>
+                                {copiedCode ? <CheckIcon sx={{ fontSize: 15 }} /> : <CopyIcon sx={{ fontSize: 15 }} />}
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        )}
+                      </Box>
+                    </Box>
+
+                    {/* Download Buttons */}
+                    <Stack direction="row" spacing={1.5} sx={{ mt: 3 }}>
+                      <Button
+                        fullWidth
+                        variant="outlined"
+                        startIcon={downloading ? <CircularProgress size={16} /> : <DownloadIcon />}
+                        onClick={() => handleDownloadQr("png")}
+                        disabled={downloading}
+                        sx={{ borderRadius: "10px", textTransform: "none", fontWeight: 700, borderColor: "#CBD5E1", color: "#334155" }}
+                      >
+                        Download PNG
+                      </Button>
+                      <Button
+                        fullWidth
+                        variant="outlined"
+                        startIcon={<DownloadIcon />}
+                        onClick={() => handleDownloadQr("svg")}
+                        disabled={downloading}
+                        sx={{ borderRadius: "10px", textTransform: "none", fontWeight: 700, borderColor: "#CBD5E1", color: "#334155" }}
+                      >
+                        Download SVG
+                      </Button>
                     </Stack>
+                  </Card>
+                </Grid>
 
-                    <Stack spacing={0.6} sx={{ pl: 3 }}>
-                      <Typography variant="caption" sx={{ color: "#475467", fontWeight: 600 }}>
-                        {device.os || "Unknown OS"} · {device.browser || "Unknown Browser"}
-                      </Typography>
+                {/* Right Card: DIRECT PORTAL LINK (TRACKS CLICKS) */}
+                <Grid size={{ xs: 12, md: 6.5 }}>
+                  <Card sx={{ borderRadius: "18px", border: "1px solid #E2E8F0", boxShadow: "0 2px 10px rgba(0,0,0,0.02)", bgcolor: "#FFFFFF", p: 3, height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                    <Box>
+                      <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 2.5 }}>
+                        <Box sx={{ width: 40, height: 40, borderRadius: "12px", bgcolor: "#F0FDF4", color: "#16A34A", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <LinkIcon sx={{ fontSize: 24 }} />
+                        </Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#1E293B", letterSpacing: "0.04em" }}>
+                          DIRECT PORTAL LINK (TRACKS CLICKS)
+                        </Typography>
+                      </Stack>
 
-                      <Typography variant="caption" sx={{ fontFamily: "ui-monospace, monospace", color: "#64748B", fontSize: 11 }}>
-                        IP: {device.ip || "—"}
-                      </Typography>
+                      {/* URL Box */}
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          p: 1.5,
+                          borderRadius: "12px",
+                          border: "1px solid #CBD5E1",
+                          bgcolor: "#FFFFFF",
+                          mb: 2
+                        }}
+                      >
+                        <Typography
+                          sx={{
+                            fontFamily: "monospace",
+                            fontSize: "0.88rem",
+                            fontWeight: 600,
+                            color: "#1E293B",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            pr: 1
+                          }}
+                        >
+                          {directLinkUrl}
+                        </Typography>
+                        <Tooltip title="Copy Direct Link">
+                          <IconButton size="small" onClick={() => handleCopyText(directLinkUrl, setCopiedDirect, "Direct portal link")} sx={{ color: "#64748B" }}>
+                            {copiedDirect ? <CheckIcon sx={{ fontSize: 18, color: "#16A34A" }} /> : <CopyIcon sx={{ fontSize: 18 }} />}
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
 
-                      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mt: 0.5 }}>
-                        <Stack direction="row" spacing={0.5} alignItems="center">
-                          <DateIcon sx={{ fontSize: 12, color: "#94A3B8" }} />
-                          <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 500 }}>
-                            {formatDate(device.timestamp)}
+                      {/* Action Buttons */}
+                      <Stack direction="row" spacing={1.5} sx={{ mb: 2.5 }}>
+                        <Button
+                          variant="outlined"
+                          fullWidth
+                          startIcon={testingClick ? <CircularProgress size={14} color="inherit" /> : <PlayArrowIcon sx={{ fontSize: 18 }} />}
+                          onClick={handleTestDirectClick}
+                          disabled={testingClick}
+                          sx={{
+                            borderRadius: "10px",
+                            textTransform: "none",
+                            fontWeight: 700,
+                            color: "#16A34A",
+                            borderColor: "#86EFAC",
+                            bgcolor: "#FFFFFF",
+                            py: 1,
+                            "&:hover": { bgcolor: "#F0FDF4", borderColor: "#4ADE80" }
+                          }}
+                        >
+                          Test Direct Click
+                        </Button>
+                        <Button
+                          variant="contained"
+                          fullWidth
+                          startIcon={copiedDirect ? <CheckIcon sx={{ fontSize: 18 }} /> : <CopyIcon sx={{ fontSize: 18 }} />}
+                          onClick={() => handleCopyText(directLinkUrl, setCopiedDirect, "Direct portal link")}
+                          sx={{
+                            borderRadius: "10px",
+                            textTransform: "none",
+                            fontWeight: 700,
+                            bgcolor: "#16A34A",
+                            py: 1,
+                            boxShadow: "0 2px 8px rgba(22, 163, 74, 0.25)",
+                            "&:hover": { bgcolor: "#15803D" }
+                          }}
+                        >
+                          {copiedDirect ? "Copied" : "Copy Link"}
+                        </Button>
+                      </Stack>
+                    </Box>
+
+                    {/* Status Box */}
+                    <Box sx={{ p: 2, borderRadius: "12px", bgcolor: "#F0FDF4", border: "1px solid #BBF7D0", display: "flex", alignItems: "center", gap: 1.5 }}>
+                      <DotIcon sx={{ fontSize: 16, color: "#16A34A" }} />
+                      <Box>
+                        <Typography sx={{ fontWeight: 800, color: "#15803D", fontSize: "0.85rem" }}>
+                          Link is active
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: "#4B7C59", fontWeight: 500 }}>
+                          Clicks are being tracked & added to total analytics
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Card>
+                </Grid>
+
+                {/* Bottom Card: Login Access Link + UPDATE LINK OPTION */}
+                <Grid size={{ xs: 12 }}>
+                  <Card sx={{ borderRadius: "18px", border: "1px solid #E2E8F0", boxShadow: "0 2px 10px rgba(0,0,0,0.02)", bgcolor: "#FFFFFF", p: { xs: 2, sm: 2.5 } }}>
+                    <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }} spacing={2}>
+                      <Stack direction="row" spacing={1.5} alignItems="center">
+                        <Box sx={{ width: 44, height: 44, borderRadius: "12px", bgcolor: "#EFF8FF", color: "#0284C7", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <QrCodeIcon sx={{ fontSize: 24 }} />
+                        </Box>
+                        <Box>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#0F172A", lineHeight: 1.2 }}>
+                            Login Access Link
                           </Typography>
-                        </Stack>
-                        <Stack direction="row" spacing={0.5} alignItems="center">
-                          <TimeIcon sx={{ fontSize: 12, color: "#94A3B8" }} />
-                          <Typography variant="caption" sx={{ color: "#0F172A", fontWeight: 600 }}>
-                            {formatTime(device.timestamp)}
+                          <Typography variant="body2" sx={{ color: "#64748B", fontSize: "0.82rem" }}>
+                            Redirects to <strong>{data?.redirectUrl || "https://www.kambi-connect.in/login"}</strong>
                           </Typography>
-                        </Stack>
+                        </Box>
+                      </Stack>
+
+                      <Stack direction="row" spacing={1.25} alignItems="center" sx={{ width: { xs: "100%", sm: "auto" }, justifyContent: "flex-end", flexWrap: "wrap", gap: 1 }}>
+                        <Tooltip title="Copy destination URL">
+                          <IconButton size="small" onClick={() => handleCopyText(data?.redirectUrl || "https://www.kambi-connect.in/login", setCopiedAccess, "Access link")} sx={{ border: "1px solid #E2E8F0", borderRadius: "9px" }}>
+                            {copiedAccess ? <CheckIcon sx={{ fontSize: 18, color: "#16A34A" }} /> : <CopyIcon sx={{ fontSize: 18, color: "#64748B" }} />}
+                          </IconButton>
+                        </Tooltip>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          endIcon={<OpenInNewIcon sx={{ fontSize: 16 }} />}
+                          onClick={() => window.open(data?.redirectUrl || "https://www.kambi-connect.in/login", "_blank", "noopener,noreferrer")}
+                          sx={{ textTransform: "none", fontWeight: 700, borderRadius: "10px", borderColor: "#CBD5E1", color: "#0284C7" }}
+                        >
+                          Open Link
+                        </Button>
+                        <Button
+                          variant="contained"
+                          size="small"
+                          startIcon={<EditIcon sx={{ fontSize: 16 }} />}
+                          onClick={handleOpenUpdateDialog}
+                          sx={{
+                            textTransform: "none",
+                            fontWeight: 700,
+                            borderRadius: "10px",
+                            bgcolor: "#0284C7",
+                            "&:hover": { bgcolor: "#0369A1" }
+                          }}
+                        >
+                          Update Link
+                        </Button>
                       </Stack>
                     </Stack>
                   </Card>
-                );
-              })
-            )}
-          </Box>
-        ) : (
-          /* Desktop View: Full Table */
-          <TableContainer sx={{ minHeight: 240 }}>
-            <Table>
-              <TableHead sx={{ bgcolor: "#F8FAFC" }}>
-                <TableRow>
-                  <TableCell padding="checkbox" sx={{ pl: 2 }}>
-                    <Checkbox
-                      size="small"
-                      indeterminate={selectedIds.length > 0 && selectedIds.length < (data?.devices?.length || 0)}
-                      checked={Boolean(data?.devices?.length) && selectedIds.length === data.devices.length}
-                      onChange={handleSelectAll}
-                    />
-                  </TableCell>
-                  {["Device", "OS", "Browser", "IP Address", "Access", "Date", "Time", ""].map((h, i) => (
-                    <TableCell
-                      key={h || i}
-                      align={i === 7 ? "right" : "left"}
-                      sx={{ fontWeight: 700, color: "#475467", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", py: 1.25, ...(i === 7 ? { pr: 2.5 } : {}) }}
-                    >
-                      {h}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              </TableHead>
-
-              <TableBody>
-                {loading && !data ? (
-                  <TableRow>
-                    <TableCell colSpan={9} align="center" sx={{ py: 8 }}>
-                      <CircularProgress size={30} />
-                    </TableCell>
-                  </TableRow>
-                ) : !data?.devices?.length ? (
-                  <TableRow>
-                    <TableCell colSpan={9} align="center" sx={{ py: 8 }}>
-                      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1.5 }}>
-                        <Box sx={{ width: 52, height: 52, borderRadius: "50%", bgcolor: "#EFF8FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <DevicesIcon sx={{ fontSize: 26, color: "#0284C7" }} />
-                        </Box>
-                        <Typography variant="body1" sx={{ color: "#475467", fontWeight: 700 }}>No scans recorded yet</Typography>
-                        <Typography variant="body2" sx={{ color: "#94A3B8", maxWidth: 380, textAlign: "center" }}>
-                          Download or share the tracking links above. Every scan and click will appear here.
-                        </Typography>
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  data.devices.map((device) => {
-                    const accessStyle = ACCESS_STYLES[device.accessType] || ACCESS_STYLES.qr;
-                    const isSelected = selectedIds.includes(device._id);
-                    return (
-                      <TableRow
-                        key={device._id || `${device.ip}-${device.timestamp}`}
-                        hover
-                        selected={isSelected}
-                        sx={{
-                          "&.Mui-selected": { bgcolor: "#EFF8FF" },
-                          "&.Mui-selected:hover": { bgcolor: "#E0F2FE" },
-                          transition: "background 0.15s",
-                        }}
-                      >
-                        <TableCell padding="checkbox" sx={{ pl: 2 }}>
-                          <Checkbox size="small" checked={isSelected} onChange={() => handleSelectRow(device._id)} />
-                        </TableCell>
-                        <TableCell>
-                          <Stack direction="row" spacing={1} alignItems="center">
-                            <DeviceIcon type={device.type} />
-                            <Typography variant="body2" sx={{ fontWeight: 600, color: "#0F172A", textTransform: "capitalize" }}>
-                              {device.type || "desktop"}
-                            </Typography>
-                          </Stack>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" sx={{ color: "#334155" }}>{device.os || "—"}</Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" sx={{ color: "#334155" }}>{device.browser || "—"}</Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" sx={{ fontFamily: "ui-monospace, Menlo, monospace", color: "#0F172A", fontSize: 12 }}>
-                            {device.ip || "—"}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            size="small"
-                            label={accessStyle.label}
-                            sx={{ fontWeight: 700, fontSize: 11, bgcolor: accessStyle.bg, color: accessStyle.color, border: `1px solid ${accessStyle.border}` }}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" sx={{ color: "#475467", fontWeight: 500 }}>{formatDate(device.timestamp)}</Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" sx={{ color: "#0F172A", fontWeight: 600 }}>{formatTime(device.timestamp)}</Typography>
-                        </TableCell>
-                        <TableCell align="right" sx={{ pr: 2 }}>
-                          <Tooltip title="Delete record" arrow>
-                            <IconButton
-                              size="small"
-                              onClick={() => { setDeleteTarget(device); setDeleteDialogOpen(true); }}
-                              sx={{ color: "#CBD5E1", borderRadius: "7px", "&:hover": { color: "#EF4444", bgcolor: "#FEE2E2" } }}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
-
-        {/* Pagination footer */}
-        <Divider />
-        <Box sx={{ px: { xs: 2, sm: 2.5 }, py: 1.75, display: "flex", flexDirection: { xs: "column", sm: "row" }, justifyContent: "space-between", alignItems: { xs: "flex-start", sm: "center" }, gap: 1.5 }}>
-          <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 500 }}>
-            Showing <strong>{data?.devices?.length || 0}</strong> of <strong>{pagination.total || 0}</strong> records
-          </Typography>
-          <Pagination
-            count={pagination.totalPages || 1}
-            page={page}
-            onChange={(e, nextPage) => setPage(nextPage)}
-            color="primary"
-            shape="rounded"
-            size="small"
-          />
-        </Box>
-      </Card>
-
-      {/* ── Single Delete Dialog ── */}
-      <Dialog open={deleteDialogOpen} onClose={() => !deleting && setDeleteDialogOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: "16px" } }}>
-        <DialogTitle sx={{ fontWeight: 800, color: "#0F172A" }}>Delete Scan Record?</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            This will permanently remove the log entry and decrement the corresponding count.
-          </Typography>
-          {deleteTarget && (
-            <Box sx={{ p: 2, borderRadius: "10px", bgcolor: "#F8FAFC", border: "1px solid #E2E8F0" }}>
-              <Typography variant="body2" sx={{ fontWeight: 700, color: "#1E293B" }}>
-                {(deleteTarget.type || "device").toUpperCase()} · {deleteTarget.os || "Unknown OS"} · {deleteTarget.browser || "Unknown Browser"}
-              </Typography>
-              <Typography variant="caption" sx={{ color: "#64748B", display: "block", mt: 0.5 }}>
-                IP: {deleteTarget.ip || "—"} · {deleteTarget.accessType === "qr" ? "QR Scan" : "Direct Click"}
-              </Typography>
-              <Typography variant="caption" sx={{ color: "#94A3B8", display: "block" }}>
-                {formatDate(deleteTarget.timestamp)} at {formatTime(deleteTarget.timestamp)}
-              </Typography>
+                </Grid>
+              </Grid>
             </Box>
           )}
-        </DialogContent>
-        <DialogActions sx={{ p: 2.5, pt: 1 }}>
-          <Button onClick={() => setDeleteDialogOpen(false)} disabled={deleting} sx={{ textTransform: "none", fontWeight: 600, color: "#64748B" }}>Cancel</Button>
-          <Button
-            variant="contained" color="error" onClick={confirmDeleteSingle} disabled={deleting}
-            startIcon={deleting ? <CircularProgress size={14} color="inherit" /> : <DeleteIcon />}
-            sx={{ textTransform: "none", fontWeight: 700, borderRadius: "8px" }}
-          >
-            {deleting ? "Deleting..." : "Delete"}
-          </Button>
-        </DialogActions>
+
+          {/* ══════════════════════════════════════════════════════════
+              SCREEN 3: ANALYTICS & TRENDS TAB
+             ══════════════════════════════════════════════════════════ */}
+          {activeTab === 2 && (
+            <Box>
+              <Grid container spacing={{ xs: 2, md: 2.5 }}>
+                {/* Left: Weekly Area Chart */}
+                <Grid size={{ xs: 12, lg: 8 }}>
+                  <Card sx={{ borderRadius: "18px", border: "1px solid #E2E8F0", boxShadow: "0 2px 10px rgba(0,0,0,0.02)", bgcolor: "#FFFFFF", p: { xs: 2, sm: 3 } }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                      <Box sx={{ display: "inline-flex", alignItems: "center", gap: 1, bgcolor: "#EFF8FF", px: 1.5, py: 0.6, borderRadius: "16px", border: "1px solid #BAE6FD" }}>
+                        <TrendingUpIcon sx={{ fontSize: 16, color: "#0284C7" }} />
+                        <Typography sx={{ color: "#0284C7", fontWeight: 800, fontSize: "0.82rem" }}>
+                          {data?.weekScans || 100} scans this week
+                        </Typography>
+                      </Box>
+                    </Stack>
+
+                    {/* Chart Container */}
+                    <Box sx={{ width: "100%", height: 320, mt: 1 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={data?.trend || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="qrColor" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#0284C7" stopOpacity={0.4} />
+                              <stop offset="95%" stopColor="#0284C7" stopOpacity={0.0} />
+                            </linearGradient>
+                            <linearGradient id="clickColor" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#16A34A" stopOpacity={0.35} />
+                              <stop offset="95%" stopColor="#16A34A" stopOpacity={0.0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                          <XAxis dataKey="day" tickLine={false} axisLine={{ stroke: "#E2E8F0" }} tick={{ fill: "#64748B", fontSize: 12, fontWeight: 600 }} />
+                          <YAxis tickLine={false} axisLine={{ stroke: "#E2E8F0" }} tick={{ fill: "#64748B", fontSize: 12 }} allowDecimals={false} />
+                          <ChartTooltip
+                            contentStyle={{ borderRadius: 12, border: "1px solid #E2E8F0", boxShadow: "0 4px 14px rgba(0,0,0,0.08)" }}
+                          />
+                          <Area type="monotone" dataKey="scans" stroke="#0284C7" strokeWidth={3} fillOpacity={1} fill="url(#qrColor)" name="QR Scans" />
+                          <Area type="monotone" dataKey="clicks" stroke="#16A34A" strokeWidth={3} fillOpacity={1} fill="url(#clickColor)" name="Direct Clicks" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </Box>
+
+                    {/* Legend */}
+                    <Stack direction="row" spacing={3} justifyContent="center" sx={{ mt: 2 }}>
+                      <Stack direction="row" spacing={0.8} alignItems="center">
+                        <DotIcon sx={{ fontSize: 14, color: "#0284C7" }} />
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: "#334155" }}>QR Scans</Typography>
+                      </Stack>
+                      <Stack direction="row" spacing={0.8} alignItems="center">
+                        <DotIcon sx={{ fontSize: 14, color: "#16A34A" }} />
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: "#334155" }}>Direct Clicks</Typography>
+                      </Stack>
+                    </Stack>
+                  </Card>
+                </Grid>
+
+                {/* Right: 3 Stacked Metric Cards */}
+                <Grid size={{ xs: 12, lg: 4 }}>
+                  <Stack spacing={2}>
+                    {/* Card 1: Total Scans */}
+                    <Card sx={{ borderRadius: "18px", border: "1px solid #E2E8F0", p: 2.5, bgcolor: "#FFFFFF" }}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                        <Stack direction="row" spacing={1.5} alignItems="center">
+                          <Box sx={{ width: 44, height: 44, borderRadius: "12px", bgcolor: "#EFF8FF", color: "#0284C7", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <QrCodeIcon sx={{ fontSize: 24 }} />
+                          </Box>
+                          <Box>
+                            <Typography variant="body2" sx={{ color: "#64748B", fontWeight: 700 }}>
+                              Total Scans
+                            </Typography>
+                            <Typography variant="h4" sx={{ fontWeight: 900, color: "#0F172A", lineHeight: 1.1 }}>
+                              {Number(data?.scanCount || 0).toLocaleString()}
+                            </Typography>
+                          </Box>
+                        </Stack>
+                        <Chip
+                          label={`+${data?.scanGrowth ?? 78}% vs last week`}
+                          size="small"
+                          sx={{ bgcolor: "#DCFCE7", color: "#166534", fontWeight: 800, fontSize: "0.72rem", height: 24 }}
+                        />
+                      </Stack>
+                    </Card>
+
+                    {/* Card 2: Total Clicks */}
+                    <Card sx={{ borderRadius: "18px", border: "1px solid #E2E8F0", p: 2.5, bgcolor: "#FFFFFF" }}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                        <Stack direction="row" spacing={1.5} alignItems="center">
+                          <Box sx={{ width: 44, height: 44, borderRadius: "12px", bgcolor: "#F0FDF4", color: "#16A34A", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <LinkIcon sx={{ fontSize: 24 }} />
+                          </Box>
+                          <Box>
+                            <Typography variant="body2" sx={{ color: "#64748B", fontWeight: 700 }}>
+                              Total Clicks
+                            </Typography>
+                            <Typography variant="h4" sx={{ fontWeight: 900, color: "#0F172A", lineHeight: 1.1 }}>
+                              {Number(data?.clickCount || 0).toLocaleString()}
+                            </Typography>
+                          </Box>
+                        </Stack>
+                        <Chip
+                          label={`${data?.clickGrowth ?? 0}% vs last week`}
+                          size="small"
+                          sx={{ bgcolor: "#F1F5F9", color: "#475569", fontWeight: 800, fontSize: "0.72rem", height: 24 }}
+                        />
+                      </Stack>
+                    </Card>
+
+                    {/* Card 3: Unique Devices */}
+                    <Card sx={{ borderRadius: "18px", border: "1px solid #E2E8F0", p: 2.5, bgcolor: "#FFFFFF" }}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                        <Stack direction="row" spacing={1.5} alignItems="center">
+                          <Box sx={{ width: 44, height: 44, borderRadius: "12px", bgcolor: "#F3E8FF", color: "#7C3AED", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <DevicesIcon sx={{ fontSize: 24 }} />
+                          </Box>
+                          <Box>
+                            <Typography variant="body2" sx={{ color: "#64748B", fontWeight: 700 }}>
+                              Unique Devices
+                            </Typography>
+                            <Typography variant="h4" sx={{ fontWeight: 900, color: "#0F172A", lineHeight: 1.1 }}>
+                              {Number(data?.uniqueDeviceCount || 0).toLocaleString()}
+                            </Typography>
+                          </Box>
+                        </Stack>
+                        <Chip
+                          label={`+${data?.deviceGrowth ?? 62}% vs last week`}
+                          size="small"
+                          sx={{ bgcolor: "#DCFCE7", color: "#166534", fontWeight: 800, fontSize: "0.72rem", height: 24 }}
+                        />
+                      </Stack>
+                    </Card>
+                  </Stack>
+                </Grid>
+              </Grid>
+            </Box>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════
+              SCREEN 4: ACTIVITY LOGS TAB
+             ══════════════════════════════════════════════════════════ */}
+          {activeTab === 3 && (
+            <Box>
+              <Card sx={{ borderRadius: "18px", border: "1px solid #E2E8F0", boxShadow: "0 2px 10px rgba(0,0,0,0.02)", bgcolor: "#FFFFFF", overflow: "hidden" }}>
+                {/* Header */}
+                <Box sx={{ p: { xs: 2, sm: 2.5 }, borderBottom: "1px solid #F1F5F9" }}>
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    <IconButton size="small" onClick={() => setActiveTab(0)} sx={{ color: "#64748B" }}>
+                      <ArrowBackIcon fontSize="small" />
+                    </IconButton>
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 800, color: "#0F172A", fontSize: "1.05rem" }}>
+                        Device & Time Activity Log
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: "#64748B" }}>
+                        Records device type, OS, browser, IP address, access method, and exact timestamp.
+                      </Typography>
+                    </Box>
+                  </Stack>
+
+                  {/* Filter Toolbar */}
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ xs: "stretch", sm: "center" }} sx={{ mt: 2.5, flexWrap: "wrap", gap: 1 }}>
+                    <FormControl size="small" sx={{ minWidth: 130 }}>
+                      <InputLabel sx={{ fontSize: 13 }}>All Devices</InputLabel>
+                      <Select
+                        value={deviceFilter}
+                        label="All Devices"
+                        onChange={(e) => setDeviceFilter(e.target.value)}
+                        sx={{ borderRadius: "10px", fontSize: 13 }}
+                      >
+                        <MenuItem value="all">All Devices</MenuItem>
+                        <MenuItem value="mobile">Mobile</MenuItem>
+                        <MenuItem value="desktop">Desktop</MenuItem>
+                        <MenuItem value="tablet">Tablet</MenuItem>
+                      </Select>
+                    </FormControl>
+
+                    <FormControl size="small" sx={{ minWidth: 120 }}>
+                      <InputLabel sx={{ fontSize: 13 }}>All OS</InputLabel>
+                      <Select
+                        value={osFilter}
+                        label="All OS"
+                        onChange={(e) => setOsFilter(e.target.value)}
+                        sx={{ borderRadius: "10px", fontSize: 13 }}
+                      >
+                        <MenuItem value="all">All OS</MenuItem>
+                        <MenuItem value="Android">Android</MenuItem>
+                        <MenuItem value="iOS">iOS</MenuItem>
+                        <MenuItem value="Windows">Windows</MenuItem>
+                        <MenuItem value="macOS">macOS</MenuItem>
+                        <MenuItem value="Linux">Linux</MenuItem>
+                      </Select>
+                    </FormControl>
+
+                    <FormControl size="small" sx={{ minWidth: 130 }}>
+                      <InputLabel sx={{ fontSize: 13 }}>All Browsers</InputLabel>
+                      <Select
+                        value={browserFilter}
+                        label="All Browsers"
+                        onChange={(e) => setBrowserFilter(e.target.value)}
+                        sx={{ borderRadius: "10px", fontSize: 13 }}
+                      >
+                        <MenuItem value="all">All Browsers</MenuItem>
+                        <MenuItem value="Chrome">Chrome</MenuItem>
+                        <MenuItem value="Safari">Safari</MenuItem>
+                        <MenuItem value="Firefox">Firefox</MenuItem>
+                        <MenuItem value="Edge">Edge</MenuItem>
+                      </Select>
+                    </FormControl>
+
+                    {(deviceFilter !== "all" || osFilter !== "all" || browserFilter !== "all") && (
+                      <Button
+                        size="small"
+                        onClick={() => { setDeviceFilter("all"); setOsFilter("all"); setBrowserFilter("all"); }}
+                        sx={{ textTransform: "none", color: "#64748B", fontWeight: 700 }}
+                      >
+                        Reset Filters
+                      </Button>
+                    )}
+
+                    <Box sx={{ ml: { sm: "auto !important" } }}>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<FileDownloadIcon sx={{ fontSize: 18 }} />}
+                        onClick={handleExportCsv}
+                        sx={{
+                          borderRadius: "10px",
+                          textTransform: "none",
+                          fontWeight: 700,
+                          color: "#334155",
+                          borderColor: "#CBD5E1",
+                          bgcolor: "#FFFFFF"
+                        }}
+                      >
+                        Export CSV
+                      </Button>
+                    </Box>
+                  </Stack>
+                </Box>
+
+                {/* Table */}
+                <TableContainer>
+                  <Table size="medium">
+                    <TableHead sx={{ bgcolor: "#F8FAFC" }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 700, color: "#64748B", fontSize: "0.78rem" }}>Device / OS / Browser</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: "#64748B", fontSize: "0.78rem" }}>IP Address</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: "#64748B", fontSize: "0.78rem" }}>Access Method</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: "#64748B", fontSize: "0.78rem" }}>Timestamp</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 700, color: "#64748B", fontSize: "0.78rem" }}></TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {filteredDevices.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} align="center" sx={{ py: 6, color: "#94A3B8" }}>
+                            No activity records found matching filters.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredDevices.map((item) => {
+                          const isQr = item.accessType === "qr";
+                          return (
+                            <TableRow key={item._id} hover sx={{ "&:last-child td, &:last-child th": { border: 0 } }}>
+                              <TableCell>
+                                <Stack direction="row" spacing={1.5} alignItems="center">
+                                  <DeviceIcon type={item.type} />
+                                  <Box>
+                                    <Typography sx={{ fontWeight: 700, color: "#0F172A", fontSize: "0.86rem" }}>
+                                      {item.type ? item.type.charAt(0).toUpperCase() + item.type.slice(1) : "Device"}
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ color: "#64748B", fontSize: "0.75rem" }}>
+                                      ({item.os || "OS"} • {item.browser || "Browser"})
+                                    </Typography>
+                                  </Box>
+                                </Stack>
+                              </TableCell>
+                              <TableCell sx={{ fontFamily: "monospace", fontSize: "0.85rem", color: "#334155" }}>
+                                {item.ip || "—"}
+                              </TableCell>
+                              <TableCell>
+                                <Chip
+                                  size="small"
+                                  label={isQr ? "QR Scan" : "Direct Click"}
+                                  sx={{
+                                    fontWeight: 700,
+                                    fontSize: "0.72rem",
+                                    bgcolor: isQr ? "#EFF8FF" : "#F0FDF4",
+                                    color: isQr ? "#0284C7" : "#16A34A",
+                                    border: `1px solid ${isQr ? "#BAE6FD" : "#BBF7D0"}`,
+                                    height: 22
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell sx={{ color: "#64748B", fontSize: "0.82rem" }}>
+                                {formatDate(item.timestamp)} {formatTime(item.timestamp)}
+                              </TableCell>
+                              <TableCell align="right">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => { setDeleteTarget(item); setDeleteDialogOpen(true); }}
+                                  sx={{ color: "#94A3B8", "&:hover": { color: "#EF4444" } }}
+                                >
+                                  <DeleteIcon sx={{ fontSize: 18 }} />
+                                </IconButton>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+                {/* Pagination */}
+                {data?.pagination?.totalPages > 1 && (
+                  <Box sx={{ p: 2, display: "flex", justifyContent: "center", borderTop: "1px solid #F1F5F9" }}>
+                    <Pagination
+                      count={data.pagination.totalPages}
+                      page={page}
+                      onChange={(_, val) => setPage(val)}
+                      color="primary"
+                      shape="rounded"
+                    />
+                  </Box>
+                )}
+              </Card>
+            </Box>
+          )}
+        </Grid>
+      </Grid>
+
+      {/* ── UPDATE LINK DIALOG ── */}
+      <Dialog
+        open={updateDialogOpen}
+        onClose={() => setUpdateDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: "18px" } }}
+      >
+        <form onSubmit={handleUpdateLinkSubmit}>
+          <DialogTitle sx={{ fontWeight: 800, color: "#0F172A", display: "flex", alignItems: "center", gap: 1 }}>
+            <EditIcon sx={{ color: "#0284C7" }} />
+            Update Destination Link
+          </DialogTitle>
+          <DialogContent dividers sx={{ p: 2.5 }}>
+            <Typography variant="body2" sx={{ color: "#475569", mb: 2 }}>
+              Update where visitors are redirected when scanning the QR code or clicking the direct portal link.
+            </Typography>
+
+            <TextField
+              fullWidth
+              label="Destination URL"
+              value={newRedirectUrl}
+              onChange={(e) => setNewRedirectUrl(e.target.value)}
+              placeholder="https://www.kambi-connect.in/login"
+              helperText="Target URL where users will land upon scanning or clicking."
+              sx={{ mb: 2.5 }}
+            />
+
+            <Box sx={{ p: 2, bgcolor: "#F8FAFC", borderRadius: "12px", border: "1px solid #E2E8F0", mb: 2 }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={regenerateQrCheck}
+                    onChange={(e) => setRegenerateQrCheck(e.target.checked)}
+                    color="primary"
+                  />
+                }
+                label={
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: "#0F172A" }}>
+                      Regenerate QR Code with a new code
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: "#64748B" }}>
+                      Leave unchecked to keep current QR code (it will automatically redirect to the new destination). Check this if you require a brand new unique QR code.
+                    </Typography>
+                  </Box>
+                }
+              />
+            </Box>
+
+            <Alert severity="info" icon={<InfoIcon fontSize="inherit" />} sx={{ borderRadius: "10px", fontSize: "0.82rem" }}>
+              <strong>All existing analytics are preserved:</strong> Your previous scan counts, direct clicks, and device history will remain untouched. Any new interactions will seamlessly accumulate on top of old counts.
+            </Alert>
+          </DialogContent>
+          <DialogActions sx={{ p: 2.5 }}>
+            <Button onClick={() => setUpdateDialogOpen(false)} sx={{ textTransform: "none", fontWeight: 600 }}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={updatingLink}
+              sx={{
+                bgcolor: "#0284C7",
+                textTransform: "none",
+                fontWeight: 700,
+                px: 3,
+                "&:hover": { bgcolor: "#0369A1" }
+              }}
+            >
+              {updatingLink ? <CircularProgress size={20} sx={{ color: "#fff" }} /> : "Save & Update Link"}
+            </Button>
+          </DialogActions>
+        </form>
       </Dialog>
 
-      {/* ── Batch Delete Dialog ── */}
-      <Dialog open={batchDeleteDialogOpen} onClose={() => !deleting && setBatchDeleteDialogOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: "16px" } }}>
-        <DialogTitle sx={{ fontWeight: 800, color: "#0F172A" }}>Delete Selected Records?</DialogTitle>
+      {/* ── DELETE SINGLE RECORD DIALOG ── */}
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: "16px" } }}>
+        <DialogTitle sx={{ fontWeight: 800, color: "#0F172A" }}>Delete Activity Record?</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary">
-            Are you sure you want to delete <strong>{selectedIds.length}</strong> selected scan record{selectedIds.length > 1 ? "s" : ""}? Counts will be adjusted accordingly.
+            Are you sure you want to delete this scan entry from {deleteTarget?.ip || "unknown IP"}? The overall scan count will adjust accordingly.
           </Typography>
         </DialogContent>
-        <DialogActions sx={{ p: 2.5, pt: 1 }}>
-          <Button onClick={() => setBatchDeleteDialogOpen(false)} disabled={deleting} sx={{ textTransform: "none", fontWeight: 600, color: "#64748B" }}>Cancel</Button>
-          <Button
-            variant="contained" color="error" onClick={confirmDeleteBatch} disabled={deleting}
-            startIcon={deleting ? <CircularProgress size={14} color="inherit" /> : <DeleteIcon />}
-            sx={{ textTransform: "none", fontWeight: 700, borderRadius: "8px" }}
-          >
-            {deleting ? "Deleting..." : `Delete (${selectedIds.length})`}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* ── Clear All Dialog ── */}
-      <Dialog open={clearDialogOpen} onClose={() => !deleting && setClearDialogOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: "16px" } }}>
-        <DialogTitle sx={{ fontWeight: 800, color: "#DC2626" }}>Clear All Logs & Counts?</DialogTitle>
-        <DialogContent>
-          <Alert severity="warning" sx={{ mb: 2, borderRadius: "10px" }}>
-            All device history will be permanently erased and scan / click counts will be reset to 0.
-          </Alert>
-          <Typography variant="body2" color="text.secondary">
-            This action cannot be undone. Are you sure you want to proceed?
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ p: 2.5, pt: 1 }}>
-          <Button onClick={() => setClearDialogOpen(false)} disabled={deleting} sx={{ textTransform: "none", fontWeight: 600, color: "#64748B" }}>Cancel</Button>
-          <Button
-            variant="contained" color="error" onClick={confirmClearAll} disabled={deleting}
-            startIcon={deleting ? <CircularProgress size={14} color="inherit" /> : <DeleteSweepIcon />}
-            sx={{ textTransform: "none", fontWeight: 700, borderRadius: "8px" }}
-          >
-            {deleting ? "Clearing..." : "Clear All"}
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setDeleteDialogOpen(false)} sx={{ textTransform: "none", fontWeight: 600 }}>Cancel</Button>
+          <Button variant="contained" color="error" onClick={confirmDeleteSingle} disabled={deleting} sx={{ textTransform: "none", fontWeight: 700 }}>
+            {deleting ? <CircularProgress size={20} sx={{ color: "#fff" }} /> : "Delete"}
           </Button>
         </DialogActions>
       </Dialog>

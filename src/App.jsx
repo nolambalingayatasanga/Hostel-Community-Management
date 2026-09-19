@@ -34,6 +34,7 @@ import EventList from './pages/events/EventList';
 import EventDetail from './pages/events/EventDetail';
 import Gallery from './pages/gallery/Gallery';
 import DriveLinks from './pages/drive/DriveLinks';
+import RequestUpload from './pages/upload-request/RequestUpload';
 
 // Admin Page
 import UserManagement from './pages/admin/UserManagement';
@@ -110,6 +111,7 @@ function App() {
                         <Route path="/events/:id" element={<EventDetail />} />
                         <Route path="/gallery" element={<Gallery />} />
                         <Route path="/drive-links" element={<DriveLinks />} />
+                        <Route path="/request-upload" element={<RequestUpload />} />
                         <Route path="/access-control" element={<AccessControl />} />
                       </Route>
                     </Route>

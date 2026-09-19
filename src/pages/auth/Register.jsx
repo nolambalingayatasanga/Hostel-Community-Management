@@ -445,71 +445,29 @@ const Register = () => {
     }
 
     if (!phone.trim()) { notifyWarn('Phone Number is mandatory.'); return; }
-    if (!gender) { notifyWarn('Gender is mandatory.'); return; }
-
-    let cleanAdhaar = '';
-    if (adhaar && adhaar.trim()) {
-      cleanAdhaar = adhaar.replace(/\s+/g, '');
-      if (cleanAdhaar.length !== 12 || !/^\d{12}$/.test(cleanAdhaar)) {
-        notifyWarn('Aadhaar Number must be exactly 12 digits if provided.');
-        return;
-      }
-    }
-
-    if (!dob || !dayjs(dob).isValid()) {
-      notifyWarn('Date of Birth is mandatory (DD/MM/YYYY).');
-      return;
-    }
+    if (phone.trim().length !== 10) { notifyWarn('Phone Number must be exactly 10 digits.'); return; }
 
     // Role-specific validations
-    let sYearStr = '';
     let eYearStr = '';
-
     const collegeValue = (college || collegeRef.current?.value || '').trim();
-    const courseValue = (course || courseRef.current?.value || '').trim();
-
-    // Ensure state stays synchronized
     if (collegeValue && college !== collegeValue) setCollege(collegeValue);
-    if (courseValue && course !== courseValue) setCourse(courseValue);
 
     if (role === 'STUDENT' || role === 'ALUMNI') {
       if (!collegeValue) { notifyWarn('College / University Name is mandatory.'); return; }
-      if (!courseValue) { notifyWarn('Course / Degree is mandatory.'); return; }
-      if (!startYear) { notifyWarn('College Joining Date is mandatory (DD/MM/YYYY).'); return; }
-      if (!endYear) { notifyWarn('Graduation Date is mandatory (DD/MM/YYYY).'); return; }
+      if (!endYear) { notifyWarn('College Graduation Year is mandatory.'); return; }
 
-      const startParsed = dayjs(startYear);
-      const endParsed = dayjs(endYear);
-
-      if (!startParsed.isValid()) {
-        notifyWarn('Please enter a valid Joining Date (DD/MM/YYYY).');
+      const gradYearNum = endYearDayjs?.isValid() ? endYearDayjs.year() : parseInt(endYear, 10);
+      if (!gradYearNum || isNaN(gradYearNum) || gradYearNum < 1950 || gradYearNum > 2100) {
+        notifyWarn('Please enter a valid 4-digit Graduation Year (e.g. 2026).');
         return;
       }
-      if (!endParsed.isValid()) {
-        notifyWarn('Please enter a valid Graduation Date (DD/MM/YYYY).');
-        return;
-      }
-      if (endParsed.isBefore(startParsed)) {
-        notifyWarn('Graduation Date cannot be earlier than Joining Date.');
-        return;
-      }
-
-      sYearStr = String(startParsed.year());
-      eYearStr = String(endParsed.year());
+      eYearStr = String(gradYearNum);
     }
 
-    // Password validations at the end
-    if (!password) { notifyWarn('New Password is mandatory.'); return; }
+    // Password validation
+    if (!password) { notifyWarn('Please create a password.'); return; }
     if (password.length < 6) {
-      notifyWarn('New Password must be at least 6 characters.');
-      return;
-    }
-    if (!confirmPassword) {
-      notifyWarn('Please confirm your new password.');
-      return;
-    }
-    if (password !== confirmPassword) {
-      notifyWarn('New Password and Confirm New Password do not match.');
+      notifyWarn('Password must be at least 6 characters.');
       return;
     }
 
@@ -518,21 +476,15 @@ const Register = () => {
       name: name.trim(),
       email: email.trim(),
       phone: phone.trim(),
-      adhaar: cleanAdhaar || undefined,
-      gender,
-      dob: dob || undefined,
-      registrationNumber: registrationNumber?.trim() || undefined,
       password,
       role,
       privacySettings: {
         maskPhone: Boolean(privacySettings.maskPhone),
-        maskEmail: Boolean(privacySettings.maskEmail),
-        maskAdhaar: Boolean(privacySettings.maskAdhaar)
+        maskEmail: Boolean(privacySettings.maskEmail)
       },
-      college: collegeValue,
-      course: courseValue,
-      startYear: sYearStr,
-      endYear: eYearStr
+      college: role === 'STUDENT' ? collegeValue : undefined,
+      endYear: role === 'STUDENT' ? eYearStr : undefined,
+      registrationNumber: role === 'MEMBER' ? registrationNumber?.trim() || undefined : undefined
     });
     setLoading(false);
 
@@ -942,7 +894,7 @@ const Register = () => {
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
-                          genderRef.current?.focus();
+                          phoneRef.current?.focus();
                         }
                       }}
                       placeholder="you@example.com"
@@ -996,50 +948,7 @@ const Register = () => {
                     )}
                   </Box>
 
-                  {/* 3. Gender */}
-                  <Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
-                      <Typography component="label" sx={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
-                        Gender <span style={{ color: '#EF4444' }}>*</span>
-                      </Typography>
-                    </Box>
-                    <TextField
-                      select
-                      fullWidth
-                      size="small"
-                      inputRef={genderRef}
-                      value={gender}
-                      onChange={(e) => setGender(e.target.value)}
-                      slotProps={{
-                        select: {
-                          displayEmpty: true,
-                          renderValue: (selected) => {
-                            if (!selected) {
-                              return <span style={{ color: '#94A3B8' }}>Select gender</span>;
-                            }
-                            return selected === 'MALE' ? 'Male' : selected === 'FEMALE' ? 'Female' : 'Other';
-                          }
-                        },
-                        input: {
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <GenderIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
-                            </InputAdornment>
-                          ),
-                        }
-                      }}
-                      sx={inputStyle}
-                    >
-                      <MenuItem value="" disabled sx={{ color: '#94A3B8' }}>
-                        Select gender
-                      </MenuItem>
-                      <MenuItem value="MALE">Male</MenuItem>
-                      <MenuItem value="FEMALE">Female</MenuItem>
-                      <MenuItem value="OTHER">Other</MenuItem>
-                    </TextField>
-                  </Box>
-
-                  {/* 4. Phone Number */}
+                  {/* 3. Phone Number */}
                   <Box>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
                       <Typography component="label" sx={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
@@ -1079,7 +988,11 @@ const Register = () => {
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
-                          aadhaarRef.current?.focus();
+                          if (role === 'STUDENT') {
+                            collegeRef.current?.focus();
+                          } else {
+                            (regNoRef.current || passwordRef.current)?.focus();
+                          }
                         }
                       }}
                       placeholder="Enter Phone Number"
@@ -1097,111 +1010,10 @@ const Register = () => {
                     />
                   </Box>
 
-                  {/* 5. Aadhaar Number (Optional) */}
-                  <Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
-                      <Typography component="label" sx={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
-                        Aadhaar Number <span style={{ color: '#94A3B8', fontWeight: 400, fontSize: '12px' }}>(Optional)</span>
-                      </Typography>
-                      <Tooltip title="When enabled, your Aadhaar number is hidden for other users.">
-                        <FormControlLabel
-                          control={
-                            <Switch
-                              size="small"
-                              checked={Boolean(privacySettings.maskAdhaar)}
-                              onChange={(e) => setPrivacySettings(prev => ({ ...prev, maskAdhaar: e.target.checked }))}
-                              sx={{
-                                transform: 'scale(0.8)',
-                                mr: -0.5,
-                                '& .MuiSwitch-switchBase.Mui-checked': { color: '#0088ff' },
-                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#0088ff' }
-                              }}
-                            />
-                          }
-                          label={
-                            <Typography variant="caption" sx={{ color: privacySettings.maskAdhaar ? '#0088ff' : '#64748B', fontWeight: 600, fontSize: 11, display: 'flex', alignItems: 'center', gap: 0.4 }}>
-                              <VisibilityOffIcon sx={{ fontSize: 13 }} /> Hide
-                            </Typography>
-                          }
-                          sx={{ m: 0 }}
-                        />
-                      </Tooltip>
-                    </Box>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      inputRef={aadhaarRef}
-                      value={adhaar}
-                      onChange={handleAadhaarChange}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          dobRef.current?.focus();
-                        }
-                      }}
-                      placeholder="XXXX XXXX XXXX"
-                      slotProps={{
-                        htmlInput: { inputMode: 'numeric', maxLength: 14 },
-                        input: {
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <AadhaarIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
-                            </InputAdornment>
-                          ),
-                        }
-                      }}
-                      sx={inputStyle}
-                    />
-                  </Box>
-
-                  {/* 6. Date of Birth */}
-                  <Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
-                      <Typography component="label" sx={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
-                        Date of Birth <span style={{ color: '#EF4444' }}>*</span>
-                      </Typography>
-                    </Box>
-                    <DatePicker
-                      format="DD/MM/YYYY"
-                      views={['year', 'month', 'day']}
-                      closeOnSelect={true}
-                      value={dobDayjs}
-                      onChange={(newValue) => {
-                        setDobDayjs(newValue);
-                        if (!newValue) {
-                          setDob('');
-                        } else if (dayjs.isDayjs(newValue) && newValue.isValid()) {
-                          setDob(newValue.format('YYYY-MM-DD'));
-                        }
-                      }}
-                      maxDate={dayjs()}
-                      slotProps={{
-                        field: { clearable: true },
-                        textField: {
-                          fullWidth: true,
-                          size: 'small',
-                          inputRef: dobRef,
-                          placeholder: 'DD/MM/YYYY',
-                          onKeyDown: (e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              if (role === 'STUDENT' || role === 'ALUMNI') {
-                                collegeRef.current?.focus();
-                              } else {
-                                (regNoRef.current || passwordRef.current)?.focus();
-                              }
-                            }
-                          },
-                          sx: inputStyle
-                        }
-                      }}
-                    />
-                  </Box>
-
-                  {/* Student / Alumni Specific Fields (College, Course, Joining Date, Graduation Date) */}
-                  {(role === 'STUDENT' || role === 'ALUMNI') && (
+                  {/* Student / Alumni Specific Fields (College & Graduation Year) */}
+                  {role === 'STUDENT' && (
                     <>
-                      {/* 7. College / University Name */}
+                      {/* 4. College / University Name */}
                       <Box>
                         <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
                           <Typography component="label" sx={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
@@ -1248,7 +1060,7 @@ const Register = () => {
                                       }
                                       if (e.key === 'Enter' && !e.defaultPrevented) {
                                         e.preventDefault();
-                                        courseRef.current?.focus();
+                                        endYearRef.current?.focus();
                                       }
                                     }
                                   },
@@ -1271,126 +1083,17 @@ const Register = () => {
                         />
                       </Box>
 
-                      {/* 8. Course / Degree */}
+                      {/* 5. College Graduation Year (Note: Only Year) */}
                       <Box>
                         <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
                           <Typography component="label" sx={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
-                            Course / Degree <span style={{ color: '#EF4444' }}>*</span>
-                          </Typography>
-                        </Box>
-                        <Autocomplete
-                          freeSolo
-                          clearOnBlur={false}
-                          openOnFocus={false}
-                          options={courseSuggestions}
-                          value={course}
-                          onChange={(event, newValue) => {
-                            setCourse(newValue || '');
-                          }}
-                          inputValue={course}
-                          onInputChange={(event, newInputValue, reason) => {
-                            if (reason === 'reset') return;
-                            setCourse(newInputValue || '');
-                          }}
-                          renderInput={(params) => {
-                            const { InputProps, inputProps: pInputProps, ...restParams } = params;
-                            const { onKeyDown: origOnKeyDown, ref: origRef, ...otherInputProps } = pInputProps || {};
-                            return (
-                              <TextField
-                                {...restParams}
-                                fullWidth
-                                size="small"
-                                placeholder="B.E, B.Tech, MBBS, MBA"
-                                slotProps={{
-                                  htmlInput: {
-                                    ...otherInputProps,
-                                    ref: (node) => {
-                                      if (typeof origRef === 'function') {
-                                        origRef(node);
-                                      } else if (origRef && typeof origRef === 'object') {
-                                        origRef.current = node;
-                                      }
-                                      courseRef.current = node;
-                                    },
-                                    onKeyDown: (e) => {
-                                      if (typeof origOnKeyDown === 'function') {
-                                        origOnKeyDown(e);
-                                      }
-                                      if (e.key === 'Enter' && !e.defaultPrevented) {
-                                        e.preventDefault();
-                                        startYearRef.current?.focus();
-                                      }
-                                    }
-                                  },
-                                  input: {
-                                    ...(InputProps || {}),
-                                    startAdornment: (
-                                      <>
-                                        <InputAdornment position="start">
-                                          <CourseIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
-                                        </InputAdornment>
-                                        {InputProps?.startAdornment}
-                                      </>
-                                    ),
-                                  }
-                                }}
-                                sx={inputStyle}
-                              />
-                            );
-                          }}
-                        />
-                      </Box>
-
-                      {/* 9. College Joining Date */}
-                      <Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
-                          <Typography component="label" sx={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
-                            College Joining Date <span style={{ color: '#EF4444' }}>*</span>
+                            College Graduation Year <span style={{ color: '#EF4444' }}>*</span>
                           </Typography>
                         </Box>
                         <DatePicker
-                          format="DD/MM/YYYY"
-                          views={['year', 'month', 'day']}
-                          closeOnSelect={true}
-                          value={startYearDayjs}
-                          onChange={(newValue) => {
-                            setStartYearDayjs(newValue);
-                            if (!newValue) {
-                              setStartYear('');
-                            } else if (dayjs.isDayjs(newValue) && newValue.isValid()) {
-                              setStartYear(newValue.format('YYYY-MM-DD'));
-                            }
-                          }}
-                          maxDate={dayjs().add(5, 'year')}
-                          slotProps={{
-                            field: { clearable: true },
-                            textField: {
-                              fullWidth: true,
-                              size: 'small',
-                              inputRef: startYearRef,
-                              placeholder: 'DD/MM/YYYY',
-                              onKeyDown: (e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  endYearRef.current?.focus();
-                                }
-                              },
-                              sx: inputStyle
-                            }
-                          }}
-                        />
-                      </Box>
-
-                      {/* 10. Graduation Date */}
-                      <Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
-                          <Typography component="label" sx={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
-                            Graduation Date <span style={{ color: '#EF4444' }}>*</span>
-                          </Typography>
-                        </Box>
-                        <DatePicker
-                          format="DD/MM/YYYY"
-                          views={['year', 'month', 'day']}
+                          views={['year']}
+                          openTo="year"
+                          format="YYYY"
                           closeOnSelect={true}
                           value={endYearDayjs}
                           onChange={(newValue) => {
@@ -1398,9 +1101,10 @@ const Register = () => {
                             if (!newValue) {
                               setEndYear('');
                             } else if (dayjs.isDayjs(newValue) && newValue.isValid()) {
-                              setEndYear(newValue.format('YYYY-MM-DD'));
+                              setEndYear(String(newValue.year()));
                             }
                           }}
+                          minDate={dayjs().subtract(60, 'year')}
                           maxDate={dayjs().add(15, 'year')}
                           slotProps={{
                             field: { clearable: true },
@@ -1408,7 +1112,7 @@ const Register = () => {
                               fullWidth: true,
                               size: 'small',
                               inputRef: endYearRef,
-                              placeholder: 'DD/MM/YYYY',
+                              placeholder: 'YYYY (e.g. 2026)',
                               onKeyDown: (e) => {
                                 if (e.key === 'Enter') {
                                   e.preventDefault();
@@ -1425,7 +1129,7 @@ const Register = () => {
 
                   {/* Community Member Specific Field: Registration Number */}
                   {role === 'MEMBER' && (
-                    <Box sx={{ gridColumn: { sm: 'span 2' } }}>
+                    <Box>
                       <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
                         <Typography component="label" sx={{ display: 'flex', alignItems: 'center', gap: 0.7, fontWeight: 600, color: '#334155', fontSize: '13px' }}>
                           Registration Number <span style={{ color: '#94A3B8', fontWeight: 400, fontSize: '12px' }}>(Optional)</span>
@@ -1458,11 +1162,11 @@ const Register = () => {
                     </Box>
                   )}
 
-                  {/* 11. New Password */}
-                  <Box>
+                  {/* 6. Create Password */}
+                  <Box sx={{ gridColumn: role === 'MEMBER' ? { sm: 'span 2' } : undefined }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
                       <Typography component="label" sx={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
-                        New Password <span style={{ color: '#EF4444' }}>*</span>
+                        Create Password <span style={{ color: '#EF4444' }}>*</span>
                       </Typography>
                     </Box>
                     <TextField
@@ -1476,10 +1180,10 @@ const Register = () => {
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
-                          confirmPasswordRef.current?.focus();
+                          handleSubmit(e);
                         }
                       }}
-                      placeholder="Enter new password"
+                      placeholder="Enter password (min 6 characters)"
                       slotProps={{
                         input: {
                           startAdornment: (
@@ -1497,54 +1201,6 @@ const Register = () => {
                                 title={showPassword ? "Hide password" : "Show password"}
                               >
                                 {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
-                              </IconButton>
-                            </InputAdornment>
-                          ),
-                        }
-                      }}
-                      sx={inputStyle}
-                    />
-                  </Box>
-
-                  {/* 12. Confirm New Password */}
-                  <Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.6, minHeight: '24px' }}>
-                      <Typography component="label" sx={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>
-                        Confirm New Password <span style={{ color: '#EF4444' }}>*</span>
-                      </Typography>
-                    </Box>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      autoComplete="new-password"
-                      inputRef={confirmPasswordRef}
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleSubmit(e);
-                        }
-                      }}
-                      placeholder="Re-enter your password"
-                      slotProps={{
-                        input: {
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <LockIcon sx={{ color: '#94A3B8', fontSize: 19 }} />
-                            </InputAdornment>
-                          ),
-                          endAdornment: (
-                            <InputAdornment position="end">
-                              <IconButton
-                                size="small"
-                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                edge="end"
-                                sx={{ color: '#64748B', p: 0.5 }}
-                                title={showConfirmPassword ? "Hide password" : "Show password"}
-                              >
-                                {showConfirmPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
                               </IconButton>
                             </InputAdornment>
                           ),

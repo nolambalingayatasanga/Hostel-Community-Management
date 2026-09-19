@@ -56,10 +56,10 @@ exports.register = async (req, res, next) => {
     } = req.body;
 
     // Validate mandatory common fields
-    if (!name || !email || !phone || !password || !role || !dob) {
+    if (!name || !email || !phone || !password || !role) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide all mandatory fields (Name, Email, Phone, Password, Role, Date of Birth).'
+        message: 'Please provide all mandatory fields (Name, Email, Phone, Password, Role).'
       });
     }
 
@@ -124,21 +124,20 @@ exports.register = async (req, res, next) => {
     let memberInfoData = undefined;
 
     if (finalRole === 'STUDENT' || finalRole === 'ALUMNI') {
-      if (!college || !startYear || !endYear) {
+      if (!college || !endYear) {
         return res.status(400).json({
           success: false,
-          message: 'College Name, Joining Year, and Graduation Year are mandatory for Student/Alumni registration.'
+          message: 'College Name and Graduation Year are mandatory for Student/Alumni registration.'
         });
       }
 
       const currentYear = new Date().getFullYear();
       const gradYearNum = parseInt(endYear, 10);
-      const startYearNum = parseInt(startYear, 10);
 
-      if (isNaN(gradYearNum) || isNaN(startYearNum)) {
+      if (isNaN(gradYearNum)) {
         return res.status(400).json({
           success: false,
-          message: 'Please provide valid 4-digit years for Joining and Graduation Year.'
+          message: 'Please provide a valid 4-digit Graduation Year.'
         });
       }
 
@@ -149,7 +148,12 @@ exports.register = async (req, res, next) => {
       if (course && course.trim()) {
         educationData.course = course.trim();
       }
-      educationData.startYear = startYearNum;
+      if (startYear) {
+        const startYearNum = parseInt(startYear, 10);
+        if (!isNaN(startYearNum)) {
+          educationData.startYear = startYearNum;
+        }
+      }
       educationData.endYear = gradYearNum;
     } else if (finalRole === 'MEMBER') {
       finalRole = 'MEMBER';
@@ -310,11 +314,11 @@ exports.login = async (req, res, next) => {
       $or: buildUserSearchConditions(loginIdentifier)
     }).select('+passwordHash'); // include passwordHash
 
-    if (!user || !(await user.comparePassword(password))) {
+    if (!user) {
       // Log failed login attempt for security / brute-force monitoring
       logAuditEvent({
         req,
-        user: user || null,
+        user: null,
         action: 'LOGIN',
         status: 'FAILURE',
         details: { loginIdentifier, reason: 'Invalid credentials' }
@@ -337,7 +341,7 @@ exports.login = async (req, res, next) => {
 
       return res.status(403).json({
         success: false,
-        message: 'Your account has been dropped. Access is denied. Please contact an administrator.'
+        message: 'Your account has been Blocked. Access is denied. Please contact an administrator.'
       });
     }
 
@@ -353,6 +357,22 @@ exports.login = async (req, res, next) => {
       return res.status(403).json({
         success: false,
         message: `Your account is currently ${user.accountStatus}. Please contact an administrator.`
+      });
+    }
+
+    if (!(await user.comparePassword(password))) {
+      // Log failed login attempt for security / brute-force monitoring
+      logAuditEvent({
+        req,
+        user,
+        action: 'LOGIN',
+        status: 'FAILURE',
+        details: { loginIdentifier, reason: 'Invalid credentials' }
+      });
+
+      return res.status(401).json({
+        success: false,
+        message: 'Incorrect login credentials or password.'
       });
     }
 
@@ -432,7 +452,7 @@ exports.forgotPassword = async (req, res, next) => {
     if (user.isDropped) {
       return res.status(403).json({
         success: false,
-        message: 'Your account has been dropped. Access is denied. Please contact an administrator.'
+        message: 'Your account has been Blocked. Access is denied. Please contact an administrator.'
       });
     }
 
@@ -745,7 +765,7 @@ exports.verifyResetOtp = async (req, res, next) => {
     if (user.isDropped) {
       return res.status(403).json({
         success: false,
-        message: 'Your account has been dropped. Access is denied.'
+        message: 'Your account has been Blocked. Access is denied.'
       });
     }
 
@@ -821,7 +841,7 @@ exports.resetPassword = async (req, res, next) => {
     if (user.isDropped) {
       return res.status(403).json({
         success: false,
-        message: 'Your account has been dropped. Access is denied.'
+        message: 'Your account has been Blocked. Access is denied.'
       });
     }
 

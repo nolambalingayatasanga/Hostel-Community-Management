@@ -1,7 +1,8 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
 import { useAuth } from '../../context/AuthContext';
+import API from '../../api';
 import {
   Box,
   TextField,
@@ -38,6 +39,37 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const hasTrackedDirectRef = useRef(false);
+
+  // Track direct portal hits on https://www.kambi-connect.in/login
+  useEffect(() => {
+    if (hasTrackedDirectRef.current) return;
+    hasTrackedDirectRef.current = true;
+
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const fromParam = searchParams.get('from');
+      const rParam = searchParams.get('r');
+
+      // If redirected from QR scan or short link tracking, do not double-count
+      if (fromParam === 'qr' || rParam === 'qr' || fromParam === 'tracked') {
+        searchParams.delete('from');
+        searchParams.delete('r');
+        const newSearch = searchParams.toString();
+        const cleanUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '');
+        window.history.replaceState({}, '', cleanUrl);
+        return;
+      }
+
+      // Record direct portal click
+      API.post('/qr-scans/track-direct').catch((err) => {
+        console.debug('Direct click track beacon:', err?.message);
+      });
+    } catch (e) {
+      console.debug('Tracking error:', e);
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

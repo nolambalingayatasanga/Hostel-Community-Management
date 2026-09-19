@@ -256,6 +256,8 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
 
   // Photo upload
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [transitionSubmitting, setTransitionSubmitting] = useState(false);
 
   // Photo upload & Camera Dialog State
   const [photoMenuAnchor, setPhotoMenuAnchor] = useState(null);
@@ -805,6 +807,8 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
         }
       }
 
+      setProfileSaving(true);
+
       const payload = {
         name: (name || '').trim(),
         email: (email || '').trim(),
@@ -883,14 +887,16 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
       const saveErr = err.response?.data?.message || 'Could not save profile details.';
       setError(saveErr);
       enqueueSnackbar(saveErr, { variant: 'error' });
+    } finally {
+      setProfileSaving(false);
     }
   };
 
   const handleTransitionSubmit = async () => {
     try {
+      setTransitionSubmitting(true);
       setError('');
       setSuccess('');
-      setTransitionOpen(false);
 
       const res = await API.post('/users/profile/transition', {
         graduationYear: gradYear,
@@ -906,12 +912,15 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
         setUser(res.data.data.user);
         updateAuthUser(res.data.data.user);
         fetchProfile();
+        setTransitionOpen(false);
       }
     } catch (err) {
       console.error('Alumni transition failed:', err);
       const transErr = err.response?.data?.message || 'Failed to transition to Alumni.';
       setError(transErr);
       enqueueSnackbar(transErr, { variant: 'error' });
+    } finally {
+      setTransitionSubmitting(false);
     }
   };
 
@@ -1768,6 +1777,8 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                     <Button
                       variant="contained"
                       onClick={handleProfileSave}
+                      disabled={profileSaving}
+                      startIcon={profileSaving ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : null}
                       fullWidth
                       sx={{
                         width: { xs: '100%', md: 'auto' },
@@ -1779,10 +1790,13 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                         px: 4,
                         py: 1.25,
                         boxShadow: 'none',
-                        '&:hover': { bgcolor: '#0077EE', boxShadow: 'none' }
+                        '&:hover': { bgcolor: '#0077EE', boxShadow: 'none' },
+                        '&.Mui-disabled': { bgcolor: '#93C5FD', color: '#ffffff' }
                       }}
                     >
-                      {isCreate ? 'Add Member' : 'Save Changes'}
+                      {profileSaving
+                        ? (isCreate ? 'Adding Member...' : 'Saving Changes...')
+                        : (isCreate ? 'Add Member' : 'Save Changes')}
                     </Button>
                   </Box>
                 )}
@@ -2237,11 +2251,17 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
           </Grid>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3 }}>
-          <Button onClick={() => setTransitionOpen(false)} variant="outlined">
+          <Button onClick={() => setTransitionOpen(false)} variant="outlined" disabled={transitionSubmitting}>
             Cancel
           </Button>
-          <Button onClick={handleTransitionSubmit} variant="contained" color="secondary">
-            Complete Transition
+          <Button
+            onClick={handleTransitionSubmit}
+            variant="contained"
+            color="secondary"
+            disabled={transitionSubmitting}
+            startIcon={transitionSubmitting ? <CircularProgress size={18} color="inherit" /> : null}
+          >
+            {transitionSubmitting ? 'Transitioning...' : 'Complete Transition'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -2401,11 +2421,12 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                   </Button>
                   <Button
                     onClick={uploadCapturedPhoto}
+                    disabled={photoUploading}
                     variant="contained"
-                    startIcon={<SaveIcon />}
+                    startIcon={photoUploading ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <SaveIcon />}
                     sx={{ background: '#0088ff', color: '#fff', fontWeight: 'bold', '&:hover': { background: '#0077EE' } }}
                   >
-                    Save & Upload
+                    {photoUploading ? 'Uploading...' : 'Save & Upload'}
                   </Button>
                 </>
               )}

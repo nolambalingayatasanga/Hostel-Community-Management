@@ -4,7 +4,7 @@ const AccessSchema = new mongoose.Schema({
   page: {
     type: String,
     required: true,
-    enum: ['overview', 'users', 'events', 'gallery', 'drive_links', 'profile', 'qr_scan_count', 'access_control']
+    enum: ['overview', 'users', 'events', 'gallery', 'drive_links', 'request_upload', 'profile', 'qr_scan_count', 'access_control']
   },
   role: {
     type: String,
@@ -31,7 +31,7 @@ AccessSchema.index({ page: 1, role: 1 }, { unique: true });
 
 // Standard default permissions seeder
 AccessSchema.statics.seedDefaults = async function() {
-  const pages = ['overview', 'users', 'events', 'gallery', 'drive_links', 'profile', 'qr_scan_count', 'access_control'];
+  const pages = ['overview', 'users', 'events', 'gallery', 'drive_links', 'request_upload', 'profile', 'qr_scan_count', 'access_control'];
   const roles = ['ADMIN', 'WARDEN', 'STAFF', 'ALUMNI', 'STUDENT', 'MEMBER'];
 
   const count = await this.countDocuments();
@@ -86,21 +86,42 @@ AccessSchema.statics.seedDefaults = async function() {
       await this.insertMany(driveEntries);
     }
 
-    // Migrate legacy default gallery permissions for non-admin roles so they get create & delete
+    // Ensure request_upload permissions exist
+    const reqCount = await this.countDocuments({ page: 'request_upload' });
+    if (reqCount === 0) {
+      const reqEntries = roles.map(role => ({
+        page: 'request_upload',
+        role,
+        permissions: (role === 'ADMIN' || role === 'WARDEN') ? {
+          fullAccess: true,
+          view: true,
+          create: true,
+          update: true,
+          delete: true,
+          noAccess: false
+        } : {
+          fullAccess: false,
+          view: true,
+          create: true,
+          update: false,
+          delete: false,
+          noAccess: false
+        }
+      }));
+      await this.insertMany(reqEntries);
+    }
+
+    // Restrict direct upload and delete access for normal users in Gallery and Events
     await this.updateMany(
       {
-        page: 'gallery',
-        role: { $nin: ['ADMIN', 'WARDEN'] },
-        'permissions.create': false,
-        'permissions.delete': false,
-        'permissions.view': true,
-        'permissions.noAccess': false,
-        'permissions.fullAccess': false
+        page: { $in: ['gallery', 'events'] },
+        role: { $nin: ['ADMIN', 'WARDEN'] }
       },
       {
         $set: {
-          'permissions.create': true,
-          'permissions.delete': true
+          'permissions.fullAccess': false,
+          'permissions.create': false,
+          'permissions.delete': false
         }
       }
     );
@@ -181,8 +202,8 @@ AccessSchema.statics.seedDefaults = async function() {
               noAccess: false
             }
           });
-        } else if (page === 'gallery') {
-          // Gallery: Users can view, upload media (create), and delete their own media (delete)
+        } else if (page === 'request_upload') {
+          // Request Upload: Users can view and submit upload requests (create)
           defaultEntries.push({
             page,
             role,
@@ -191,12 +212,12 @@ AccessSchema.statics.seedDefaults = async function() {
               view: true,
               create: true,
               update: false,
-              delete: true,
+              delete: false,
               noAccess: false
             }
           });
         } else {
-          // Users, Events: View access
+          // Users, Events, Gallery, Drive Links: View access only for normal users
           defaultEntries.push({
             page,
             role,

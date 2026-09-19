@@ -21,6 +21,7 @@ router.use(restrictTo('ADMIN'));
 
 // Login QR dashboard
 router.get('/login-qr', loginQrController.getLoginQr);
+router.put('/login-qr', loginQrController.updateLoginQr);
 router.get('/login-qr/download', loginQrController.downloadLoginQr);
 router.delete('/login-qr/device/:id', loginQrController.deleteDeviceLog);
 router.delete('/login-qr/devices', loginQrController.clearDeviceLogs);

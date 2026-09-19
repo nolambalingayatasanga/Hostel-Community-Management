@@ -17,7 +17,8 @@ import {
   InputLabel,
   Divider,
   Alert,
-  Container
+  Container,
+  CircularProgress
 } from '@mui/material';
 
 const months = [
@@ -351,9 +352,10 @@ const CompleteProfile = () => {
                 type="submit"
                 variant="contained"
                 disabled={loading}
-                sx={{ py: 1.5 }}
+                startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
+                sx={{ py: 1.5, textTransform: 'none', fontWeight: 700 }}
               >
-                Save and Enter Portal
+                {loading ? 'Saving Profile...' : 'Save and Enter Portal'}
               </Button>
             </form>
           </CardContent>

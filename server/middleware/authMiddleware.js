@@ -44,7 +44,7 @@ const protect = async (req, res, next) => {
     if (currentUser.isDropped) {
       return res.status(403).json({
         success: false,
-        message: 'Your account has been dropped. Access is denied.'
+        message: 'Your account has been Blocked. Access is denied.'
       });
     }
 

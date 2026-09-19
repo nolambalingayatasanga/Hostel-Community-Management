@@ -30,6 +30,11 @@ const DriveLinkSchema = new mongoose.Schema({
     trim: true,
     default: ''
   },
+  thumbnailFocus: {
+    type: String,
+    enum: ['center', 'top', 'bottom', 'left', 'right'],
+    default: 'center'
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
