@@ -22,6 +22,15 @@ const hasModerationAccess = async (user) => {
  */
 exports.createRequest = async (req, res, next) => {
   try {
+    // Verify Access Control create permission for request_upload
+    const isAdminOrWarden = ['ADMIN', 'WARDEN', 'CHAIRPERSON'].includes(req.user.role);
+    if (!isAdminOrWarden) {
+      const accessRec = await Access.findOne({ page: 'request_upload', role: req.user.role });
+      if (accessRec && (accessRec.permissions?.noAccess || (!accessRec.permissions?.fullAccess && !accessRec.permissions?.create))) {
+        return res.status(403).json({ success: false, message: 'You do not have permission to submit upload requests.' });
+      }
+    }
+
     const {
       targetCategory,
       title,
@@ -339,6 +348,16 @@ exports.deleteRequest = async (req, res, next) => {
       });
     }
 
+    if (!isAdminOrWarden) {
+      const accessRec = await Access.findOne({ page: 'request_upload', role: req.user.role });
+      if (accessRec && (accessRec.permissions?.noAccess || (!accessRec.permissions?.fullAccess && !accessRec.permissions?.delete))) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have permission to delete upload requests.'
+        });
+      }
+    }
+
     if (!isAdminOrWarden && request.status !== 'PENDING') {
       return res.status(400).json({
         success: false,
@@ -359,60 +378,38 @@ exports.deleteRequest = async (req, res, next) => {
 
 /**
  * POST /api/upload-requests/upload-media
- * Upload a media file directly for use in an upload request
+ * Upload a media file directly using MinIO / S3 middleware
  */
 exports.uploadMediaAsset = async (req, res, next) => {
   try {
-    if (!req.file) {
+    const file = (req.files && (req.files.media?.[0] || req.files.file?.[0])) || req.file;
+
+    if (!file) {
       return res.status(400).json({
         success: false,
         message: 'Please provide a media file to upload.'
       });
     }
 
-    const { isR2Configured, uploadToR2 } = require('../config/cloudflareR2');
-    const { uploadImage } = require('../config/cloudinary');
+    const endpoint = (process.env.MINIO_ENDPOINT || 'https://staging-storage-api.emovur.com').replace(/\/+$/, '');
+    const bucket = file.bucket || 'madhan';
+    const key = file.key;
+    const finalUrl = file.location && file.location.startsWith('http') && file.location.includes(bucket)
+      ? file.location
+      : `${endpoint}/${bucket}/${key}`;
 
-    const isVideo = req.file.mimetype.startsWith('video/');
+    const isVideo = (file.mimetype || '').startsWith('video/');
     const resourceType = isVideo ? 'video' : 'image';
-
-    let finalUrl = '';
-    let finalPublicId = '';
-    let storageProvider = 'cloudflare';
-
-    if (isR2Configured()) {
-      const timestamp = Date.now();
-      const randomStr = Math.random().toString(36).substring(2, 9);
-      const ext = req.file.originalname.includes('.')
-        ? req.file.originalname.substring(req.file.originalname.lastIndexOf('.'))
-        : (isVideo ? '.mp4' : '.jpg');
-      const key = `upload-requests/${timestamp}_${randomStr}${ext}`;
-
-      const r2Result = await uploadToR2(req.file.buffer, key, req.file.mimetype);
-      finalUrl = r2Result.url;
-      finalPublicId = r2Result.key;
-      storageProvider = 'cloudflare';
-    } else {
-      const uploadResult = await uploadImage(
-        req.file.buffer,
-        'hostel-community/upload-requests',
-        req.file.mimetype,
-        resourceType
-      );
-      finalUrl = uploadResult.url;
-      finalPublicId = uploadResult.publicId;
-      storageProvider = 'cloudinary';
-    }
 
     res.status(200).json({
       success: true,
       data: {
         url: finalUrl,
-        publicId: finalPublicId,
-        storageProvider,
+        publicId: file.key,
+        storageProvider: 's3',
         resourceType,
-        originalName: req.file.originalname,
-        size: req.file.size
+        originalName: file.originalname,
+        size: file.size
       }
     });
   } catch (err) {

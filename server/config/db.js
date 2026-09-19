@@ -8,12 +8,32 @@ const connectDB = async () => {
     // Auto-seed missing schema fields into CustomField collection
     try {
       const CustomField = require('../models/CustomField');
+
+      // Migrate any legacy Age field to DOB date field
+      await CustomField.updateMany(
+        {
+          $or: [
+            { slug: { $regex: /^age$/i } },
+            { name: { $regex: /^age$/i } }
+          ]
+        },
+        {
+          $set: {
+            name: 'DOB',
+            slug: 'dob',
+            type: 'date',
+            isInternal: true
+          }
+        }
+      );
+
       const schemaFields = [
         { name: 'Slot No.', slug: 'slNo', type: 'number', isInternal: true },
         { name: 'Reg No.', slug: 'registrationNumber', type: 'text', isInternal: true },
         { name: 'Receipt No', slug: 'receiptNo', type: 'text', isInternal: true },
         { name: 'Kanada Overview', slug: 'localLanguageDetails', type: 'text', isInternal: true },
         { name: 'Adhaar', slug: 'adhaar', type: 'text', isInternal: true },
+        { name: 'DOB', slug: 'dob', type: 'date', isInternal: true },
         { name: 'Role', slug: 'role', type: 'select', options: ['ADMIN', 'WARDEN', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'], isInternal: true },
         { name: 'Relative Name', slug: 'relativeName', type: 'text', isInternal: true },
         { name: 'Channels', slug: 'channels', type: 'text', isInternal: true },
@@ -36,11 +56,37 @@ const connectDB = async () => {
         { name: 'Organization', slug: 'employment.organization', type: 'text', isInternal: true },
         { name: 'Industry', slug: 'employment.industry', type: 'text', isInternal: true },
         { name: 'Work Location', slug: 'employment.workLocation', type: 'text', isInternal: true },
-        { name: 'Employment', slug: 'employment.employmentStatus', type: 'select', options: ['Intern', 'Employed', 'Business Owner', 'Entrepreneur', 'Higher Studies', 'Government Service', 'Retired', 'Unemployed'], isInternal: true },
+        { name: 'Employment', slug: 'employment.employmentStatus', type: 'select', options: ['Student', 'Intern', 'Employed', 'Business Owner', 'Entrepreneur', 'Higher Studies', 'Government Service', 'Retired', 'Unemployed'], isInternal: true },
         { name: 'Business Name', slug: 'employment.businessName', type: 'text', isInternal: true },
         { name: 'Business Type', slug: 'employment.businessType', type: 'text', isInternal: true },
         { name: 'Login Details', slug: 'loginDetails', type: 'text', isInternal: true }
       ];
+
+      // Update Employment CustomField options in DB
+      await CustomField.updateMany(
+        {
+          $or: [
+            { slug: { $regex: /^employment(\.employmentStatus)?$/i } },
+            { name: { $regex: /^employment$/i } }
+          ]
+        },
+        {
+          $set: {
+            options: ['Student', 'Intern', 'Employed', 'Business Owner', 'Entrepreneur', 'Higher Studies', 'Government Service', 'Retired', 'Unemployed']
+          }
+        }
+      );
+
+      // Automatically set all students in students tab to employmentStatus: 'Student'
+      const User = require('../models/User');
+      const studentUpdateRes = await User.updateMany(
+        { role: 'STUDENT' },
+        { $set: { 'employment.employmentStatus': 'Student' } }
+      );
+      if (studentUpdateRes.modifiedCount > 0) {
+        console.log(`✓ Updated ${studentUpdateRes.modifiedCount} student(s) employmentStatus to 'Student'`);
+      }
+
 
       let maxOrder = 7;
       const existingFields = await CustomField.find({});

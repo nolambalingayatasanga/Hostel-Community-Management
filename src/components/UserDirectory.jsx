@@ -350,6 +350,7 @@ const UserDirectory = ({ directoryRole, title }) => {
                       <InputLabel>Employment Status</InputLabel>
                       <Select value={employmentStatus} label="Employment Status" onChange={(e) => setEmploymentStatus(e.target.value)}>
                         <MenuItem value="">Any</MenuItem>
+                        <MenuItem value="Student">Student</MenuItem>
                         <MenuItem value="Intern">Intern</MenuItem>
                         <MenuItem value="Employed">Employed</MenuItem>
                         <MenuItem value="Business Owner">Business Owner</MenuItem>

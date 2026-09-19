@@ -3,6 +3,8 @@ const galleryController = require('../controllers/galleryController');
 const { protect, restrictTo } = require('../middleware/authMiddleware');
 const upload = require('../middleware/uploadMiddleware');
 
+const s3UploadMiddleware = require('../middleware/s3UploadMiddleware');
+
 const router = express.Router();
 
 // Public endpoint for slideshow preview images (only images, unauthenticated)
@@ -30,8 +32,16 @@ router.get('/admin/migrate-status', restrictTo('ADMIN'), galleryController.getCl
 // Read gallery (all authenticated roles)
 router.get('/', galleryController.getGalleryPhotos);
 
-// Upload photo (any authenticated user)
-router.post('/', upload.single('photo'), galleryController.uploadGalleryPhoto);
+// Upload photo/video to gallery (any authenticated user) - Streams directly to MinIO / S3
+router.post(
+  '/',
+  s3UploadMiddleware([
+    { name: 'photo' },
+    { name: 'file' },
+    { name: 'media' }
+  ]),
+  galleryController.uploadGalleryPhoto
+);
 
 // Delete photo from gallery (any authenticated user — controller enforces ownership)
 router.delete('/:id', galleryController.deleteGalleryPhoto);

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import {
   Box,
   Container,
@@ -82,14 +83,37 @@ export default function RequestUpload() {
     pagePerms?.update
   );
 
+  const canCreate = Boolean(
+    user?.role === 'ADMIN' ||
+    user?.role === 'WARDEN' ||
+    user?.role === 'CHAIRPERSON' ||
+    pagePerms?.fullAccess ||
+    pagePerms?.create
+  );
+
+  const canDelete = Boolean(
+    user?.role === 'ADMIN' ||
+    user?.role === 'WARDEN' ||
+    user?.role === 'CHAIRPERSON' ||
+    pagePerms?.fullAccess ||
+    pagePerms?.delete
+  );
+
+  const hasPageAccess = Boolean(
+    user?.role === 'ADMIN' ||
+    user?.role === 'WARDEN' ||
+    user?.role === 'CHAIRPERSON' ||
+    !pagePerms?.noAccess
+  );
+
   const adminTabs = ['request_queue', 'request_accepted', 'request_rejected'];
-  const userTabs = ['submit', 'my_requests'];
+  const userTabs = canCreate ? ['submit', 'my_requests'] : ['my_requests'];
 
   // Active top-level tab
   const urlTab = searchParams.get('tab');
   const initialTab = isAdminOrReviewer
     ? (adminTabs.includes(urlTab) ? urlTab : 'request_queue')
-    : (userTabs.includes(urlTab) ? urlTab : 'submit');
+    : (userTabs.includes(urlTab) ? urlTab : (canCreate ? 'submit' : 'my_requests'));
 
   const [activeTab, setActiveTab] = useState(initialTab);
 
@@ -101,10 +125,10 @@ export default function RequestUpload() {
       }
     } else {
       if (!userTabs.includes(activeTab)) {
-        setActiveTab('submit');
+        setActiveTab(canCreate ? 'submit' : 'my_requests');
       }
     }
-  }, [isAdminOrReviewer]);
+  }, [isAdminOrReviewer, canCreate]);
 
   // ----------------------------------------------------
   // Form State (Normal User submission)
@@ -272,7 +296,41 @@ export default function RequestUpload() {
   // File Upload Handlers
   // ----------------------------------------------------
   const handleDirectUploadFile = async (file) => {
+    try {
+      // 1. Try MinIO client-side direct upload via presigned URL (bypasses Vercel 4.5MB limit)
+      const presignedRes = await API.get('/gallery/presigned-url', {
+        params: {
+          filename: file.name,
+          fileType: file.type || 'application/octet-stream',
+          folder: 'uploads'
+        }
+      });
+
+      if (presignedRes.data?.success && presignedRes.data?.data) {
+        const { uploadUrl, publicUrl, key } = presignedRes.data.data;
+        await axios.put(uploadUrl, file, {
+          headers: {
+            'Content-Type': file.type || 'application/octet-stream'
+          }
+        });
+
+        const isVideo = (file.type || '').startsWith('video/');
+        return {
+          url: publicUrl,
+          publicId: key,
+          storageProvider: 's3',
+          resourceType: isVideo ? 'video' : 'image',
+          originalName: file.name,
+          size: file.size
+        };
+      }
+    } catch (directErr) {
+      console.warn('Direct MinIO upload fallback to server route:', directErr.message);
+    }
+
+    // 2. Fallback to multipart stream to backend
     const formData = new FormData();
+    formData.append('media', file);
     formData.append('file', file);
     const res = await API.post('/upload-requests/upload-media', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
@@ -585,6 +643,19 @@ export default function RequestUpload() {
     return r.status === myStatusFilter;
   });
 
+  if (!hasPageAccess) {
+    return (
+      <Box sx={{ p: { xs: 2, sm: 4 }, maxWidth: 800, mx: 'auto', mt: 4 }}>
+        <Alert severity="error" sx={{ borderRadius: '14px', p: 2 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>Access Denied</Typography>
+          <Typography variant="body2" sx={{ mt: 0.5 }}>
+            Your account role does not have permission to access the Request Upload page. Please contact an administrator.
+          </Typography>
+        </Alert>
+      </Box>
+    );
+  }
+
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Box sx={{ minHeight: '100vh', bgcolor: '#F8FAFC', pb: 8 }}>
@@ -800,9 +871,31 @@ export default function RequestUpload() {
         {/* ========================================================= */}
         {!isAdminOrReviewer && activeTab === 'submit' && (
           <Box component="form" onSubmit={handleSubmitRequest}>
-            <Grid container spacing={3}>
-              {/* Left Column: Form Details */}
-              <Grid size={{ xs: 12, md: 8 }}>
+            <Grid container spacing={3} alignItems="flex-start">
+              {/* Left Column: Form Details (Scrollable Cards) */}
+              <Grid
+                size={{ xs: 12, md: 8 }}
+                sx={{
+                  maxHeight: { md: 'calc(100vh - 210px)' },
+                  overflowY: { md: 'auto' },
+                  pr: { md: 1.5 },
+                  scrollbarWidth: 'thin',
+                  scrollbarColor: '#CBD5E1 transparent',
+                  '&::-webkit-scrollbar': {
+                    width: '6px'
+                  },
+                  '&::-webkit-scrollbar-track': {
+                    background: 'transparent'
+                  },
+                  '&::-webkit-scrollbar-thumb': {
+                    backgroundColor: '#CBD5E1',
+                    borderRadius: '6px'
+                  },
+                  '&::-webkit-scrollbar-thumb:hover': {
+                    backgroundColor: '#94A3B8'
+                  }
+                }}
+              >
                 {/* Step 1: Destination Selection */}
                 <Card sx={{ borderRadius: '16px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', border: '1px solid #E2E8F0', mb: 3 }}>
                   <CardContent sx={{ p: 3 }}>
@@ -1118,7 +1211,7 @@ export default function RequestUpload() {
                           {uploadingFiles ? 'Uploading assets...' : 'Click to select or drag and drop photos & videos'}
                         </Typography>
                         <Typography variant="caption" sx={{ color: '#64748B', display: 'block', mt: 0.5 }}>
-                          Images up to 10MB • Videos up to 100MB
+                          Photos & Videos • Unlimited file size • Any number of files
                         </Typography>
                       </Box>
 
@@ -1182,8 +1275,26 @@ export default function RequestUpload() {
                 )}
               </Grid>
 
-              {/* Right Column: Submission Info & Cover/Thumbnail Helper */}
-              <Grid size={{ xs: 12, md: 4 }}>
+              {/* Right Column: Submission Info & Cover/Thumbnail Helper (Fixed/Sticky) */}
+              <Grid
+                size={{ xs: 12, md: 4 }}
+                sx={{
+                  position: { md: 'sticky' },
+                  top: { md: 24 },
+                  alignSelf: { md: 'flex-start' },
+                  maxHeight: { md: 'calc(100vh - 210px)' },
+                  overflowY: { md: 'auto' },
+                  scrollbarWidth: 'thin',
+                  scrollbarColor: '#CBD5E1 transparent',
+                  '&::-webkit-scrollbar': {
+                    width: '4px'
+                  },
+                  '&::-webkit-scrollbar-thumb': {
+                    backgroundColor: '#CBD5E1',
+                    borderRadius: '4px'
+                  }
+                }}
+              >
                 {/* Specific thumbnail preview for Drive Links */}
                 {targetCategory === 'drive_links' && (
                   <Card sx={{ borderRadius: '16px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', border: '1px solid #E2E8F0', mb: 3 }}>
@@ -1264,6 +1375,9 @@ export default function RequestUpload() {
                     <CardContent sx={{ p: 2.5 }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0F172A', mb: 1 }}>
                         Event Banner / Cover Image
+                      </Typography>
+                       <Typography variant="caption" sx={{ color: '#64748B', display: 'block', mb: 2 }}>
+                        Set a custom thumbnail photo to represent this Event related detail.
                       </Typography>
                       {eventCover.url ? (
                         <Box sx={{ position: 'relative', borderRadius: '12px', overflow: 'hidden', height: 160, mb: 1 }}>

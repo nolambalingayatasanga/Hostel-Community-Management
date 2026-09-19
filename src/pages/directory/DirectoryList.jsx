@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useQueryClient } from "react-query";
 import {
@@ -67,29 +68,77 @@ export default function DirectoryList() {
   const { saveTabLayout } = useTabLayoutMutations();
   const tabLayoutsQuery = useTabLayouts();
 
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const resolveTabParamToId = useCallback((param, groups) => {
+    if (!param) return null;
+    const lower = param.toLowerCase().trim();
+    if (lower === "all" || lower === "members") return ALL_TAB;
+    if (lower === "dropped") return DROPPED_TAB;
+    if (groups && groups.length > 0) {
+      const found = groups.find(
+        (g) =>
+          (g.name || "").toLowerCase().replace(/\s+/g, "-") === lower ||
+          (g.name || "").toLowerCase() === lower ||
+          String(g._id) === param
+      );
+      if (found) return String(found._id);
+    }
+    if (/^[0-9a-fA-F]{24}$/.test(param)) {
+      return param;
+    }
+    return null;
+  }, []);
+
+  const getTabSlug = useCallback((tabId, groups) => {
+    if (!tabId || tabId === ALL_TAB) return "members";
+    if (tabId === DROPPED_TAB) return "dropped";
+    const g = (groups || []).find((group) => String(group._id) === String(tabId));
+    return g ? (g.name || "").toLowerCase().replace(/\s+/g, "-") : tabId;
+  }, []);
+
   const getInitialTabId = () => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam) {
+      const lower = tabParam.toLowerCase().trim();
+      if (lower === "all" || lower === "members") return ALL_TAB;
+      if (lower === "dropped") return DROPPED_TAB;
+      if (/^[0-9a-fA-F]{24}$/.test(tabParam)) return tabParam;
+    }
     const groups = meta.data?.statusGroups || [];
     const studentGroup = groups.find(
       (g) => (g.name || "").toLowerCase() === "students"
     );
-    return studentGroup ? String(studentGroup._id) : ALL_TAB;
+    return studentGroup ? String(studentGroup._id) : null;
   };
 
   const [activeTabId, setActiveTabId] = useState(getInitialTabId);
   const [isTabSwitching, setIsTabSwitching] = useState(false);
   const prevTabIdRef = useRef(activeTabId);
-  const userSwitchedTabRef = useRef(false);
+  const userSwitchedTabRef = useRef(Boolean(searchParams.get("tab")));
+  const lastKnownTabParamRef = useRef(searchParams.get("tab"));
+  const hasInitializedTabRef = useRef(false);
 
   const handleTabChange = (newTabId) => {
     userSwitchedTabRef.current = true;
     const idStr = String(newTabId);
     if (activeTabId !== idStr) {
+      setPage(1);
+      setEditingCell(null);
       setIsTabSwitching(true);
       setActiveTabId(idStr);
+
+      const tabSlug = getTabSlug(idStr, allStatusGroups);
+      lastKnownTabParamRef.current = tabSlug;
+      const nextParams = new URLSearchParams(searchParams);
+      if (tabSlug) nextParams.set("tab", tabSlug);
+      nextParams.delete("page");
+      setSearchParams(nextParams, { replace: true });
     }
   };
 
-  const [searchTerm, setSearchTerm] = useState("");
+  const initialSearchParam = searchParams.get("search") || "";
+  const [searchTerm, setSearchTerm] = useState(initialSearchParam);
   const [tabOrder, setTabOrder] = useState(null);
 
   useEffect(() => {
@@ -102,7 +151,7 @@ export default function DirectoryList() {
       } catch { /* ignore */ }
     }
   }, [user?._id]);
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearchParam);
 
   const debouncedSetSearch = useMemo(
     () => debounce((val) => setDebouncedSearch(val), 800),
@@ -121,7 +170,8 @@ export default function DirectoryList() {
     debouncedSetSearch(val);
   };
 
-  const [page, setPage] = useState(1);
+  const initialPageParam = parseInt(searchParams.get("page"), 10);
+  const [page, setPage] = useState(initialPageParam > 0 ? initialPageParam : 1);
   const [pageSize, setPageSize] = useState(25);
   const [addOpen, setAddOpen] = useState(false);
   const [editingCell, setEditingCell] = useState(null);
@@ -158,8 +208,10 @@ export default function DirectoryList() {
   const [tabColOrders, setTabColOrders] = useState({});
   const [tabHiddenCols, setTabHiddenCols] = useState({});
   const scrollContainerRef = useRef(null);
-  const [joinDateMin, setJoinDateMin] = useState(null);
-  const [joinDateMax, setJoinDateMax] = useState(null);
+  const initialStartDateParam = searchParams.get("startDate") || searchParams.get("from") || null;
+  const initialEndDateParam = searchParams.get("endDate") || searchParams.get("to") || null;
+  const [joinDateMin, setJoinDateMin] = useState(initialStartDateParam);
+  const [joinDateMax, setJoinDateMax] = useState(initialEndDateParam);
 
   // Initialize tab layouts directly from backend MongoDB database
   useEffect(() => {
@@ -183,6 +235,7 @@ export default function DirectoryList() {
   }, [tabLayoutsQuery.data, meta.data?.tableLayouts]);
 
   useEffect(() => {
+    if (!activeTabId) return;
     const savedOrder = getStoredTabColumnOrder(user?._id, activeTabId);
     const savedHidden = getStoredTabHiddenCols(user?._id, activeTabId);
     if (savedOrder && !tabColOrders[activeTabId]) {
@@ -224,8 +277,17 @@ export default function DirectoryList() {
     [page, pageSize, filters, debouncedSearch],
   );
 
+  const isTabReady = Boolean(
+    meta.data &&
+    activeTabId && (
+      userSwitchedTabRef.current ||
+      activeTabId !== ALL_TAB ||
+      (meta.data.statusGroups || []).length === 0
+    )
+  );
+
   const { data, isLoading, isFetching, isError, error } = useLeads(queryParams, {
-    enabled: !meta.isLoading || Boolean(meta.data),
+    enabled: isTabReady,
   });
 
   useEffect(() => {
@@ -241,7 +303,16 @@ export default function DirectoryList() {
     }
   }, [isTabSwitching, isFetching]);
 
-  const leads = useMemo(() => data?.leads || data?.data || [], [data?.leads, data?.data]);
+  const leads = useMemo(() => {
+    const list = data?.leads || data?.data || [];
+    const seen = new Set();
+    return list.filter((item) => {
+      const id = String(item._id || item.id);
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }, [data?.leads, data?.data]);
 
   const rows = useMemo(() => leads.map(toRow), [leads]);
 
@@ -354,7 +425,7 @@ export default function DirectoryList() {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = 0;
     }
-  }, [activeTabId, debouncedSearch, joinDateMin, joinDateMax, pageSize]);
+  }, [debouncedSearch, joinDateMin, joinDateMax, pageSize]);
 
   useEffect(() => {
     if (scrollContainerRef.current) {
@@ -387,7 +458,10 @@ export default function DirectoryList() {
   }, [user?.role]);
 
   const allStatusGroups = useMemo(() => {
-    const groups = meta.data?.statusGroups || [];
+    if (!meta.data?.statusGroups) {
+      return [];
+    }
+    const groups = meta.data.statusGroups || [];
     const fullList = [
       { _id: ALL_TAB, name: "Members" },
       ...groups,
@@ -422,24 +496,44 @@ export default function DirectoryList() {
     return list;
   }, [meta.data?.statusGroups, user?.role, tabOrder, permittedTabs]);
 
-  // Default to Students tab when status groups load, unless user explicitly switched tabs
+  // Resolve active tab on initial mount / refresh when status groups become available
   useEffect(() => {
-    if (!userSwitchedTabRef.current && allStatusGroups.length > 0) {
+    if (!meta.data?.statusGroups || allStatusGroups.length === 0 || hasInitializedTabRef.current) return;
+
+    const tabParam = searchParams.get("tab");
+    if (tabParam) {
+      const resolvedId = resolveTabParamToId(tabParam, allStatusGroups);
+      if (resolvedId) {
+        hasInitializedTabRef.current = true;
+        userSwitchedTabRef.current = true;
+        setActiveTabId(resolvedId);
+        lastKnownTabParamRef.current = tabParam;
+        return;
+      }
+    }
+
+    // Default to Students tab when status groups load, unless user explicitly switched tabs
+    if (!userSwitchedTabRef.current || !activeTabId) {
+      hasInitializedTabRef.current = true;
       const studentGroup = allStatusGroups.find(
         (g) => (g.name || "").toLowerCase() === "students"
       );
-      if (studentGroup) {
-        const studentGroupId = String(studentGroup._id);
-        if (activeTabId !== studentGroupId) {
-          setActiveTabId(studentGroupId);
-        }
+      const defaultGroup = studentGroup || allStatusGroups[0];
+      if (defaultGroup) {
+        const defaultId = String(defaultGroup._id);
+        const defaultSlug = getTabSlug(defaultId, allStatusGroups);
+        setActiveTabId(defaultId);
+        lastKnownTabParamRef.current = defaultSlug;
+        const nextParams = new URLSearchParams(searchParams);
+        if (defaultSlug) nextParams.set("tab", defaultSlug);
+        setSearchParams(nextParams, { replace: true });
       }
     }
-  }, [allStatusGroups, activeTabId]);
+  }, [meta.data?.statusGroups, allStatusGroups, resolveTabParamToId, getTabSlug, searchParams, setSearchParams, activeTabId]);
 
   // Ensure active tab is within permitted groups
   useEffect(() => {
-    if (allStatusGroups.length > 0) {
+    if (allStatusGroups.length > 0 && activeTabId && hasInitializedTabRef.current) {
       const isAllowed = allStatusGroups.some(g => String(g._id) === String(activeTabId));
       if (!isAllowed) {
         const studentGroup = allStatusGroups.find(
@@ -452,6 +546,80 @@ export default function DirectoryList() {
       }
     }
   }, [allStatusGroups, activeTabId]);
+
+  // Sync URL changes (e.g. browser back/forward buttons) into local state
+  useEffect(() => {
+    const currentTabParam = searchParams.get("tab");
+    if (lastKnownTabParamRef.current !== currentTabParam) {
+      lastKnownTabParamRef.current = currentTabParam;
+      if (currentTabParam && allStatusGroups.length > 0) {
+        const resolvedId = resolveTabParamToId(currentTabParam, allStatusGroups);
+        if (resolvedId && resolvedId !== activeTabId) {
+          userSwitchedTabRef.current = true;
+          setPage(1);
+          setEditingCell(null);
+          setIsTabSwitching(true);
+          setActiveTabId(resolvedId);
+        }
+      }
+    }
+
+    const paramPage = parseInt(searchParams.get("page"), 10);
+    const targetPage = paramPage > 0 ? paramPage : 1;
+    if (targetPage !== page) {
+      setPage(targetPage);
+    }
+
+    const paramSearch = searchParams.get("search") || "";
+    if (paramSearch !== searchTerm) {
+      setSearchTerm(paramSearch);
+      setDebouncedSearch(paramSearch);
+    }
+
+    const paramStart = searchParams.get("startDate") || searchParams.get("from") || null;
+    const paramEnd = searchParams.get("endDate") || searchParams.get("to") || null;
+    if (paramStart !== joinDateMin) setJoinDateMin(paramStart);
+    if (paramEnd !== joinDateMax) setJoinDateMax(paramEnd);
+  }, [searchParams, allStatusGroups, activeTabId, page, searchTerm, joinDateMin, joinDateMax, resolveTabParamToId]);
+
+  // Sync pagination to URL
+  useEffect(() => {
+    if (!hasInitializedTabRef.current) return;
+    const nextParams = new URLSearchParams(searchParams);
+    if (page > 1) nextParams.set("page", String(page));
+    else nextParams.delete("page");
+    if (searchParams.toString() !== nextParams.toString()) {
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [page]);
+
+  // Sync debounced search to URL
+  useEffect(() => {
+    if (!hasInitializedTabRef.current) return;
+    const nextParams = new URLSearchParams(searchParams);
+    if (debouncedSearch) {
+      nextParams.set("search", debouncedSearch);
+      nextParams.delete("page");
+    } else {
+      nextParams.delete("search");
+    }
+    if (searchParams.toString() !== nextParams.toString()) {
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [debouncedSearch]);
+
+  // Sync date range to URL
+  useEffect(() => {
+    if (!hasInitializedTabRef.current) return;
+    const nextParams = new URLSearchParams(searchParams);
+    if (joinDateMin) nextParams.set("startDate", joinDateMin);
+    else nextParams.delete("startDate");
+    if (joinDateMax) nextParams.set("endDate", joinDateMax);
+    else nextParams.delete("endDate");
+    if (searchParams.toString() !== nextParams.toString()) {
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [joinDateMin, joinDateMax]);
 
   const totalLeads = data?.totalLeads ?? 0;
   const totalPages = data?.totalPages ?? Math.max(1, Math.ceil(totalLeads / pageSize));
@@ -587,6 +755,8 @@ export default function DirectoryList() {
       updateData = { phone: String(value).trim() };
     } else if (lowerKey === "name") {
       updateData = { name: String(value).trim() };
+    } else if (lowerKey === "dob" || lowerKey === "dateofbirth" || lowerKey === "age") {
+      updateData = { dob: value || null, dateOfBirth: value || null };
     } else if (key.includes(".")) {
       const parts = key.split(".");
       if (parts.length === 3) {
@@ -628,7 +798,7 @@ export default function DirectoryList() {
         params: { ...queryParams, limit: 1000 }
       });
       const exportData = response.data.leads || [];
-      const headers = ["Name", "Email", "Phone", "Role", "Gender", "Age"];
+      const headers = ["Name", "Email", "Phone", "Role", "Gender", "DOB"];
 
       const csvRows = [headers.join(",")];
       for (const row of exportData) {
@@ -638,7 +808,7 @@ export default function DirectoryList() {
           `"${row.phone || ''}"`,
           `"${row.role || ''}"`,
           `"${row.gender || ''}"`,
-          `"${row.age || ''}"`
+          `"${row.dob || row.dateOfBirth || ''}"`
         ];
         csvRows.push(values.join(","));
       }

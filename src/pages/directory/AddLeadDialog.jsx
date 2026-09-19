@@ -52,6 +52,7 @@ const INITIAL_STATE = {
   password: "",
   role: "STUDENT",
   gender: "MALE",
+  dob: "",
   adhaar: "",
   registrationNumber: "",
   localLanguageDetails: "",
@@ -132,6 +133,8 @@ export default function AddLeadDialog({ open, onClose }) {
         password: basicValues.password,
         role: basicValues.role,
         gender: basicValues.gender,
+        dob: basicValues.dob || undefined,
+        dateOfBirth: basicValues.dob || undefined,
         adhaar: basicValues.adhaar || undefined,
         registrationNumber: basicValues.role !== 'STUDENT' ? basicValues.registrationNumber : undefined,
         localLanguageDetails: basicValues.localLanguageDetails || undefined,
@@ -149,7 +152,11 @@ export default function AddLeadDialog({ open, onClose }) {
         };
       }
 
-      if (['ALUMNI', 'MEMBER', 'STAFF', 'WARDEN', 'ADMIN'].includes(basicValues.role)) {
+      if (basicValues.role === 'STUDENT') {
+        payload.employment = {
+          employmentStatus: 'Student'
+        };
+      } else if (['ALUMNI', 'MEMBER', 'STAFF', 'WARDEN', 'ADMIN'].includes(basicValues.role)) {
         payload.employment = {
           occupation: basicValues.employment.occupation || undefined,
           organization: basicValues.employment.organization || undefined,
@@ -250,7 +257,18 @@ export default function AddLeadDialog({ open, onClose }) {
                 />
               </Grid>
             )}
-            <Grid item xs={12} sm={basicValues.role !== 'STUDENT' ? 6 : 12}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Date of Birth (DOB)"
+                type="date"
+                InputLabelProps={{ shrink: true }}
+                value={basicValues.dob}
+                onChange={(e) => handleBasicChange("dob", e.target.value)}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
                 size="small"
@@ -391,7 +409,7 @@ export default function AddLeadDialog({ open, onClose }) {
                       value={basicValues.employment.employmentStatus}
                       onChange={(e) => handleNestedChange("employment", "employmentStatus", e.target.value)}
                     >
-                      {['Intern', 'Employed', 'Self-Employed', 'Business Owner', 'Entrepreneur', 'Higher Studies', 'Government Service', 'Retired', 'Unemployed', 'Other'].map((status) => (
+                      {['Student', 'Intern', 'Employed', 'Business Owner', 'Entrepreneur', 'Higher Studies', 'Government Service', 'Retired', 'Unemployed'].map((status) => (
                         <MenuItem key={status} value={status}>
                           {status}
                         </MenuItem>

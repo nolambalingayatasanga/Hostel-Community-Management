@@ -43,7 +43,15 @@ import QrScanCount from './pages/qr/QrScanCount';
 import QrRedirect from './pages/qr/QrRedirect';
 import NotFound from './pages/common/NotFound';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      staleTime: 10000,
+      retry: 1,
+    },
+  },
+});
 
 function SnackbarCloseButton({ snackbarKey }) {
   const { closeSnackbar } = useSnackbar();
@@ -105,7 +113,8 @@ function App() {
                         <Route path="/profile/:id" element={<Profile />} />
                         
                         {/* Unified Directory Route */}
-                        <Route path="/members" element={<DirectoryList />} />
+                        <Route path="/users" element={<DirectoryList />} />
+                        <Route path="/members" element={<Navigate to="/users" replace />} />
                         
                         <Route path="/events" element={<EventList />} />
                         <Route path="/events/:id" element={<EventDetail />} />

@@ -161,12 +161,12 @@ export default function LoginDetailsModal({ open, onClose, userRow }) {
     }
     const actionPathMap = {
       PROFILE_EDIT: { path: "/profile", title: "My Profile" },
-      USER_EDIT: { path: "/members", title: "Directory List" },
-      STATUS_CHANGE: { path: "/members", title: "Status Update" },
+      USER_EDIT: { path: "/users", title: "Directory List" },
+      STATUS_CHANGE: { path: "/users", title: "Status Update" },
       EVENT_CREATE: { path: "/events", title: "Event Calendar" },
       EVENT_DELETE: { path: "/events", title: "Event Calendar" },
-      COMMENT_ADD: { path: "/members", title: "Member Directory" },
-      REPLY_ADD: { path: "/members", title: "Member Directory" },
+      COMMENT_ADD: { path: "/users", title: "Member Directory" },
+      REPLY_ADD: { path: "/users", title: "Member Directory" },
       LOGIN: { path: "/login", title: "Authentication Portal" },
       REGISTER: { path: "/register", title: "Registration" },
       PASSWORD_RESET: { path: "/forgot-password", title: "Forgot Password" }
@@ -444,7 +444,7 @@ export default function LoginDetailsModal({ open, onClose, userRow }) {
                   Tracked Paths & Route Navigation History ({pathLogs.length})
                 </Typography>
                 <Typography variant="caption" sx={{ color: "#64748B" }}>
-                  Monitored path transitions: /profile, /gallery, /events, /members & more
+                  Monitored path transitions: /profile, /gallery, /events, /users & more
                 </Typography>
               </Box>
 

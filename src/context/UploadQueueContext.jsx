@@ -5,8 +5,9 @@ import API from '../api';
 
 const UploadQueueContext = createContext(null);
 
-export const MAX_IMAGE_SIZE = 9.8 * 1024 * 1024; // 9.8 MB
-export const MAX_VIDEO_SIZE = 99 * 1024 * 1024;  // 99 MB
+// No media size limits for Gallery uploads
+export const MAX_IMAGE_SIZE = Infinity;
+export const MAX_VIDEO_SIZE = Infinity;
 
 export function UploadQueueProvider({ children }) {
   const [queue, setQueue] = useState([]);
@@ -68,8 +69,8 @@ export function UploadQueueProvider({ children }) {
     activeAbortControllerRef.current = abortController;
 
     try {
-      // Helper to attempt direct-to-Cloudflare R2 upload using presigned PUT URL
-      const tryDirectCloudflareR2Upload = async (folderName = 'gallery') => {
+      // Helper to attempt direct-to-MinIO S3 upload using presigned PUT URL (bypasses Vercel 4.5MB limit)
+      const tryDirectMinioUpload = async (folderName = 'uploads') => {
         try {
           const isVideo = pendingItem.file.type.startsWith('video/') ||
             /\.(mp4|mov|avi|webm|mkv)$/i.test(pendingItem.file.name);
@@ -87,7 +88,7 @@ export function UploadQueueProvider({ children }) {
           if (presignedRes.data?.success && presignedRes.data?.data) {
             const { uploadUrl, publicUrl, key } = presignedRes.data.data;
 
-            // Direct PUT to Cloudflare R2 presigned URL with progress tracking
+            // Direct PUT to MinIO presigned URL with progress tracking (zero Vercel load)
             await axios.put(uploadUrl, pendingItem.file, {
               headers: {
                 'Content-Type': pendingItem.file.type || (isVideo ? 'video/mp4' : 'image/jpeg')
@@ -107,11 +108,11 @@ export function UploadQueueProvider({ children }) {
               url: publicUrl,
               publicId: key,
               resourceType,
-              storageProvider: 'cloudflare'
+              storageProvider: 's3'
             };
           }
-        } catch (r2Err) {
-          console.warn('Direct Cloudflare R2 upload not used or failed, falling back:', r2Err.message);
+        } catch (minioErr) {
+          console.warn('Direct MinIO upload not used or failed, falling back to server route:', minioErr.message);
         }
         return null;
       };
@@ -167,25 +168,21 @@ export function UploadQueueProvider({ children }) {
 
       let res;
       if (pendingItem.destinationType === 'gallery') {
-        // 1. Try Cloudflare R2 direct upload first
-        let directResult = await tryDirectCloudflareR2Upload('gallery');
-
-        // 2. If R2 is not configured, fallback to direct Cloudinary upload
-        if (!directResult) {
-          directResult = await tryDirectCloudinaryUpload('hostel-community/gallery');
-        }
+        // 1. Try MinIO direct client-side upload first (bypasses Vercel 4.5MB payload limit completely)
+        const directResult = await tryDirectMinioUpload('uploads');
 
         if (directResult) {
-          // Bypasses Vercel payload limit entirely by sending only metadata
+          // Send tiny JSON metadata to backend (never exceeds 1KB, instant on Vercel)
           res = await API.post('/gallery', {
             url: directResult.url,
             publicId: directResult.publicId,
             resourceType: directResult.resourceType,
-            storageProvider: directResult.storageProvider || 'cloudflare',
+            storageProvider: 's3',
             folderId: pendingItem.destinationId || undefined,
             caption: ''
           }, { signal: abortController.signal });
         } else {
+          // 2. Fallback to multipart form data POST
           const formData = new FormData();
           if (pendingItem.destinationId) {
             formData.append('folderId', pendingItem.destinationId);
@@ -274,7 +271,7 @@ export function UploadQueueProvider({ children }) {
         });
       } else {
         const errorMsg =
-          err.response?.data?.message || err.message || 'Failed to upload media to Cloudinary.';
+          err.response?.data?.message || err.message || 'Failed to upload media.';
         setQueue((prev) =>
           prev.map((item) =>
             item.id === currentId
@@ -336,22 +333,6 @@ export function UploadQueueProvider({ children }) {
           rejectedFiles.push({
             name: file.name,
             reason: 'Unsupported format. Please select image or video files.',
-          });
-          continue;
-        }
-
-        if (isImage && file.size > MAX_IMAGE_SIZE) {
-          rejectedFiles.push({
-            name: file.name,
-            reason: `Image exceeds 9.8 MB limit. Size: ${(file.size / (1024 * 1024)).toFixed(2)} MB`,
-          });
-          continue;
-        }
-
-        if (isVideo && file.size > MAX_VIDEO_SIZE) {
-          rejectedFiles.push({
-            name: file.name,
-            reason: `Video exceeds 99 MB limit. Size: ${(file.size / (1024 * 1024)).toFixed(2)} MB`,
           });
           continue;
         }

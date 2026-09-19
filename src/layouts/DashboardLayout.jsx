@@ -155,7 +155,7 @@ const DashboardLayout = () => {
   // Map route path to access control page ID
   const getPageIdForPath = (pathname) => {
     if (pathname === '/dashboard') return 'overview';
-    if (pathname === '/members') return 'users';
+    if (pathname === '/users' || pathname === '/members') return 'users';
     if (pathname.startsWith('/events')) return 'events';
     if (pathname.startsWith('/gallery')) return 'gallery';
     if (pathname.startsWith('/drive-links')) return 'drive_links';

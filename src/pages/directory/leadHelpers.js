@@ -5,6 +5,9 @@ export const INTERNAL_SLUGS = {
   ROLE: "role",
   STATUS: "status",
   GENDER: "gender",
+  DOB: "dob",
+  DATE_OF_BIRTH: "dateOfBirth",
+  AGE: "age",
   JOINING_DATE: "joiningdate",
   ADHAAR: "adhaar",
   SL_NO: "slNo",
@@ -47,6 +50,7 @@ export const columnWidth = (field) => {
   if (slug === "phone") return 210;
   if (slug === "role") return 170;
   if (slug === "gender") return 130;
+  if (slug === "dob" || slug === "dateofbirth" || slug === "age" || name === "dob" || name === "age" || name === "date of birth") return 160;
   if (slug === "joiningdate") return 160;
   if (slug === "adhaar") return 190;
   if (slug === "slno" || slug === "sl_no") return 130;
@@ -92,6 +96,8 @@ export const columnWidth = (field) => {
 export const getColumnDisplayName = (field) => {
   if (!field) return "";
   const slug = (field.slug || "").toLowerCase();
+  const name = (field.name || "").toLowerCase();
+  if (slug === "age" || name === "age" || slug === "dob" || slug === "dateofbirth" || name === "date of birth") return "DOB";
   if (slug === "locallanguagedetails" || slug === "local_language_details") return "Kanada Overview";
   if (slug === "slno" || slug === "sl_no") return "Slot No.";
   if (slug === "registrationnumber" || slug === "registration_number") return "Reg No.";
@@ -186,13 +192,22 @@ export const toRow = (lead) => {
   const receipt = lead.receiptNo || lead.memberInfo?.receiptNo || "";
   const slNoVal = lead.memberInfo?.slNo != null ? String(lead.memberInfo.slNo) : "";
 
-  // Auto-compute age from DOB if missing
-  let computedAge = lead.age;
-  const dobVal = lead.dob || lead.dateOfBirth;
-  if ((computedAge == null || computedAge === "") && dobVal) {
-    const diff = Date.now() - new Date(dobVal).getTime();
-    const a = Math.floor(diff / (365.25 * 24 * 60 * 60 * 1000));
-    if (!isNaN(a) && a >= 0) computedAge = a;
+  // Real Date of Birth (DOB) only - format cleanly for display and editing
+  const rawDob = lead.dob || lead.dateOfBirth || lead.memberInfo?.dob || "";
+  let isoDob = "";
+  let formattedDob = "";
+  if (rawDob) {
+    const d = new Date(rawDob);
+    if (!isNaN(d.getTime())) {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      isoDob = `${year}-${month}-${day}`;
+      formattedDob = formatLeadDate(d);
+    } else {
+      isoDob = String(rawDob);
+      formattedDob = String(rawDob);
+    }
   }
 
   // Strictly separate name and relative name so they are NEVER combined in table
@@ -206,9 +221,10 @@ export const toRow = (lead) => {
     phone: lead.phone || "",
     role: lead.role || "",
     gender: lead.gender || "",
-    age: computedAge != null && computedAge !== "" ? String(computedAge) : "",
-    dob: dobVal || "",
-    dateOfBirth: dobVal || "",
+    dob: formattedDob,
+    dobRaw: isoDob,
+    dateOfBirth: formattedDob,
+    age: formattedDob, // Replace numeric age with real DOB display
     joiningDate: lead.joiningDate || lead.memberInfo?.registeredDate || "",
     profilePhoto: lead.profilePhoto,
     adhaar: lead.adhaar || "",
@@ -265,8 +281,8 @@ export const toRow = (lead) => {
     "employment.industry": lead.employment?.industry || "",
     "employment.workLocation": lead.employment?.workLocation || "",
     "employment.worklocation": lead.employment?.workLocation || "",
-    "employment.employmentStatus": lead.employment?.employmentStatus || "",
-    "employment.employmentstatus": lead.employment?.employmentStatus || "",
+    "employment.employmentStatus": lead.employment?.employmentStatus || (lead.role === "STUDENT" ? "Student" : ""),
+    "employment.employmentstatus": lead.employment?.employmentStatus || (lead.role === "STUDENT" ? "Student" : ""),
     "employment.businessName": lead.employment?.businessName || "",
     "employment.businessname": lead.employment?.businessName || "",
     "employment.businessType": lead.employment?.businessType || "",

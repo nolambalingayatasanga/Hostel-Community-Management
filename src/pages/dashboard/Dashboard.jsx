@@ -376,7 +376,7 @@ const Dashboard = () => {
             <Stack spacing={1} direction="row" justifyContent={{ xs: 'flex-start', md: 'flex-end' }} flexWrap="wrap" sx={{ rowGap: 1, columnGap: 1 }}>
               <Button
                 variant="contained"
-                onClick={() => navigate('/members')}
+                onClick={() => navigate('/users')}
                 startIcon={<PeopleIcon />}
                 sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, px: 2, backgroundColor: '#fff', color: '#1D4ED8', '&:hover': { backgroundColor: '#EAF2FF' } }}
               >

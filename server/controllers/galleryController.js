@@ -12,6 +12,9 @@ const {
   startMigrationQueue,
   getMigrationStatus: getQueueStatus
 } = require('../services/galleryMigrationService');
+const { PutObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const { getS3Client, deleteFromS3 } = require('../middleware/s3UploadMiddleware');
 
 /**
  * Get gallery photos with 30-items-per-page pagination and optional folder filter
@@ -64,27 +67,29 @@ exports.getGalleryPhotos = async (req, res, next) => {
 };
 
 /**
- * Get Cloudflare R2 presigned PUT URL for client-side direct uploads (zero server load, any file size)
+ * Get MinIO / S3 presigned PUT URL for client-side direct uploads
+ * (Bypasses Vercel 4.5MB serverless payload limit entirely; zero server load, any file size)
  */
-exports.getPresignedR2Url = async (req, res, next) => {
+exports.getPresignedMinioUrl = async (req, res, next) => {
   try {
-    if (!isR2Configured()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cloudflare R2 is not configured in environment variables. Please check your .env settings.'
-      });
-    }
-
     const filename = req.query.filename || 'media';
     const fileType = req.query.fileType || 'application/octet-stream';
-    const folder = req.query.folder || 'gallery';
+    const folder = req.query.folder || 'uploads';
     const timestamp = Date.now();
-    const randomStr = Math.random().toString(36).substring(2, 9);
+    const cleanFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const key = `${folder}/${timestamp}_${cleanFilename}`;
 
-    const ext = filename.includes('.') ? filename.substring(filename.lastIndexOf('.')) : '';
-    const key = `${folder}/${timestamp}_${randomStr}${ext}`;
+    const s3 = getS3Client();
+    const command = new PutObjectCommand({
+      Bucket: 'madhan',
+      Key: key,
+      ContentType: fileType,
+      ACL: 'public-read'
+    });
 
-    const { uploadUrl, publicUrl } = await getPresignedUploadUrl(key, fileType);
+    const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
+    const endpoint = (process.env.MINIO_ENDPOINT || 'https://staging-storage-api.emovur.com').replace(/\/+$/, '');
+    const publicUrl = `${endpoint}/madhan/${key}`;
 
     res.status(200).json({
       success: true,
@@ -92,13 +97,14 @@ exports.getPresignedR2Url = async (req, res, next) => {
         uploadUrl,
         publicUrl,
         key,
-        storageProvider: 'cloudflare'
+        storageProvider: 's3'
       }
     });
   } catch (err) {
     next(err);
   }
 };
+exports.getPresignedR2Url = exports.getPresignedMinioUrl; // Backwards compatible alias
 
 /**
  * Get Cloudinary upload signature for client-side direct uploads (kept for Events and fallback)
@@ -137,7 +143,7 @@ exports.getUploadSignature = async (req, res, next) => {
 };
 
 /**
- * Upload a photo/video to the community gallery (supports Cloudflare R2, direct URL, or multipart file buffer)
+ * Upload a photo/video to the community gallery (streams to MinIO / S3 with no size limits)
  */
 exports.uploadGalleryPhoto = async (req, res, next) => {
   try {
@@ -154,7 +160,7 @@ exports.uploadGalleryPhoto = async (req, res, next) => {
     const caption = req.body.caption || '';
     const directUrl = req.body.url;
     const directPublicId = req.body.publicId;
-    let storageProvider = req.body.storageProvider || 'cloudinary';
+    let storageProvider = req.body.storageProvider || 's3';
     let resourceType = req.body.resourceType;
 
     // Verify folder exists if specified
@@ -169,68 +175,38 @@ exports.uploadGalleryPhoto = async (req, res, next) => {
     let finalUrl = directUrl;
     let finalPublicId = directPublicId;
 
-    // If direct upload was performed by frontend (e.g. Cloudflare R2 or Cloudinary direct)
+    // If direct upload was performed by frontend
     if (finalUrl && finalPublicId) {
       if (!resourceType) {
         resourceType = (finalUrl.includes('/video/') || /\.(mp4|mov|webm|mkv|ogg)$/i.test(finalUrl)) ? 'video' : 'image';
       }
-      if (!req.body.storageProvider) {
-        storageProvider = finalUrl.includes('cloudinary.com') ? 'cloudinary' : 'cloudflare';
-      }
+      storageProvider = req.body.storageProvider || (finalUrl.includes('cloudinary.com') ? 'cloudinary' : 's3');
     } else {
-      // Fallback to multipart file upload
-      if (!req.file) {
+      // File uploaded via MinIO / S3 middleware (No limits on file size!)
+      const file = (req.files && (req.files.photo?.[0] || req.files.file?.[0] || req.files.media?.[0])) || req.file;
+      if (!file) {
         return res.status(400).json({ success: false, message: 'Please select a file to upload.' });
       }
 
-      const isVideo = req.file.mimetype.startsWith('video/');
-      const isImage = req.file.mimetype.startsWith('image/');
+      const isVideo = (file.mimetype || '').startsWith('video/');
+      const isImage = (file.mimetype || '').startsWith('image/');
       resourceType = isVideo ? 'video' : 'image';
 
       if (!isImage && !isVideo) {
         return res.status(400).json({
           success: false,
-          message: `Unsupported file format for "${req.file.originalname}". Only image and video files are supported.`
+          message: `Unsupported file format for "${file.originalname}". Only image and video files are supported.`
         });
       }
 
-      // If Cloudflare R2 is configured, upload directly to Cloudflare R2
-      if (isR2Configured()) {
-        const timestamp = Date.now();
-        const randomStr = Math.random().toString(36).substring(2, 9);
-        const ext = req.file.originalname.includes('.')
-          ? req.file.originalname.substring(req.file.originalname.lastIndexOf('.'))
-          : (isVideo ? '.mp4' : '.jpg');
-        const key = `gallery/${timestamp}_${randomStr}${ext}`;
-
-        const r2Result = await uploadToR2(req.file.buffer, key, req.file.mimetype);
-        finalUrl = r2Result.url;
-        finalPublicId = r2Result.key;
-        storageProvider = 'cloudflare';
-      } else {
-        // Fallback to Cloudinary if R2 is not configured
-        const MAX_IMAGE_SIZE = 9.8 * 1024 * 1024; // 9.8 MB
-        const MAX_VIDEO_SIZE = 99 * 1024 * 1024;  // 99 MB
-
-        if (isImage && req.file.size > MAX_IMAGE_SIZE) {
-          return res.status(400).json({
-            success: false,
-            message: `Image "${req.file.originalname}" exceeds 9.8 MB limit. Selected size: ${(req.file.size / (1024 * 1024)).toFixed(2)} MB.`
-          });
-        }
-
-        if (isVideo && req.file.size > MAX_VIDEO_SIZE) {
-          return res.status(400).json({
-            success: false,
-            message: `Video "${req.file.originalname}" exceeds 99 MB limit. Selected size: ${(req.file.size / (1024 * 1024)).toFixed(2)} MB.`
-          });
-        }
-
-        const uploadResult = await uploadImage(req.file.buffer, 'hostel-community/gallery', req.file.mimetype, resourceType);
-        finalUrl = uploadResult.url;
-        finalPublicId = uploadResult.publicId;
-        storageProvider = 'cloudinary';
-      }
+      const endpoint = (process.env.MINIO_ENDPOINT || 'https://staging-storage-api.emovur.com').replace(/\/+$/, '');
+      const bucket = file.bucket || 'madhan';
+      const key = file.key;
+      finalUrl = file.location && file.location.startsWith('http') && file.location.includes(bucket)
+        ? file.location
+        : `${endpoint}/${bucket}/${key}`;
+      finalPublicId = file.key;
+      storageProvider = 's3';
     }
 
     const newPhoto = await GalleryPhoto.create({
@@ -260,7 +236,7 @@ exports.uploadGalleryPhoto = async (req, res, next) => {
 };
 
 /**
- * Delete a photo from the gallery (deletes Cloudflare R2 or Cloudinary asset first)
+ * Delete a photo from the gallery (deletes MinIO / S3 or Cloudinary asset first)
  */
 exports.deleteGalleryPhoto = async (req, res, next) => {
   try {
@@ -286,9 +262,10 @@ exports.deleteGalleryPhoto = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'You can only delete media you uploaded.' });
     }
 
-    // 1. Delete asset from Cloudflare R2 or Cloudinary
-    const isCloudflare = photo.storageProvider === 'cloudflare' || (photo.url && !photo.url.includes('cloudinary.com'));
-    if (isCloudflare) {
+    // 1. Delete asset from MinIO / S3, Cloudflare R2, or Cloudinary
+    if (photo.storageProvider === 's3' || (photo.url && photo.url.includes('staging-storage-api.emovur.com'))) {
+      await deleteFromS3(photo.publicId || photo.url);
+    } else if (photo.storageProvider === 'cloudflare') {
       await deleteFromR2(photo.publicId || photo.url);
     } else {
       await deleteImage(photo.publicId || photo.url, photo.resourceType || 'image');
@@ -488,14 +465,14 @@ exports.deleteGalleryFolder = async (req, res, next) => {
     // 2. Find and delete all photos in this folder and descendant subfolders
     const photos = await GalleryPhoto.find({ folder: { $in: allFolderIds } });
     if (photos.length > 0) {
-      const cldPhotos = photos.filter(p => p.storageProvider !== 'cloudflare' && (p.url && p.url.includes('cloudinary.com')));
-      const r2Photos = photos.filter(p => p.storageProvider === 'cloudflare' || (p.url && !p.url.includes('cloudinary.com')));
-
-      if (cldPhotos.length > 0) {
-        await deleteMultipleMedia(cldPhotos);
-      }
-      for (const p of r2Photos) {
-        await deleteFromR2(p.publicId || p.url);
+      for (const p of photos) {
+        if (p.storageProvider === 's3' || (p.url && p.url.includes('staging-storage-api.emovur.com'))) {
+          await deleteFromS3(p.publicId || p.url);
+        } else if (p.storageProvider === 'cloudflare') {
+          await deleteFromR2(p.publicId || p.url);
+        } else {
+          await deleteImage(p.publicId || p.url, p.resourceType || 'image');
+        }
       }
     }
 

@@ -5,7 +5,7 @@ const PasswordResetActivity = require('../models/PasswordResetActivity');
 const sendEmail = require('../utils/email');
 const { extractClientInfo, logAuditEvent } = require('../utils/auditLogger');
 const { getDefaultProfilePhoto } = require('../utils/defaultProfilePhoto');
-const { verifyEmailDeliverability } = require('../utils/emailValidator');
+const { verifyEmailDeliverability, validateEmailSyntaxAndDomain } = require('../utils/emailValidator');
 
 // Helper to sign JWT token
 const signToken = (id) => {
@@ -88,6 +88,206 @@ exports.register = async (req, res, next) => {
     // Normalizing email, phone, and optional adhaar
     const normalizedEmail = email.toLowerCase().trim();
     const normalizedPhone = phone.trim().replace(/\s+/g, '');
+    const cleanDigits = normalizedPhone.replace(/\D/g, '');
+    const last10Digits = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : cleanDigits;
+    const phoneConditions = [{ phone: normalizedPhone }];
+    if (last10Digits) {
+      phoneConditions.push({ phone: last10Digits });
+      phoneConditions.push({ phone: `+91${last10Digits}` });
+      phoneConditions.push({ phone: `91${last10Digits}` });
+      phoneConditions.push({ phone: `0${last10Digits}` });
+    }
+
+    let cleanAdhaar = undefined;
+    if (adhaar && typeof adhaar === 'string' && adhaar.trim()) {
+      cleanAdhaar = adhaar.trim().replace(/\s+/g, '');
+      if (cleanAdhaar.length !== 12 || !/^\d{12}$/.test(cleanAdhaar)) {
+        return res.status(400).json({
+          success: false,
+          message: 'If provided, Aadhaar number must be a valid 12-digit number.'
+        });
+      }
+    }
+
+    let calculatedAge = null;
+    let parsedDob = null;
+    if (dob) {
+      const d = new Date(dob);
+      if (!isNaN(d.getTime())) {
+        parsedDob = d;
+        const diffMs = Date.now() - d.getTime();
+        const a = Math.floor(diffMs / (365.25 * 24 * 60 * 60 * 1000));
+        if (!isNaN(a) && a >= 0) calculatedAge = a;
+      }
+    }
+
+    const cleanRegNo = (registrationNumber && typeof registrationNumber === 'string') ? registrationNumber.trim() : '';
+
+    // If user is trying to create an account in MEMBER, STUDENT, or ALUMNI role and an account with this phone already exists:
+    // Allow them to claim that account and log them into that same conflicting account,
+    // updating ONLY missing values from the submitted details without overriding existing details.
+    if (role && ['MEMBER', 'STUDENT', 'ALUMNI'].includes(role.toUpperCase())) {
+      const existingMember = await User.findOne({
+        $or: phoneConditions
+      });
+
+      if (existingMember) {
+        // Security check: Prevent public takeover of administrative or staff accounts
+        if (['ADMIN', 'WARDEN', 'CHAIRPERSON', 'STAFF'].includes(existingMember.role)) {
+          return res.status(403).json({
+            success: false,
+            message: 'This account cannot be registered publicly. Please contact administration.'
+          });
+        }
+
+        if (existingMember.isDropped) {
+          return res.status(403).json({
+            success: false,
+            message: 'This account has been deactivated. Please contact administration.'
+          });
+        }
+
+        // Validate email format
+        const emailFormatCheck = validateEmailSyntaxAndDomain(normalizedEmail);
+        if (!emailFormatCheck.valid) {
+          return res.status(400).json({
+            success: false,
+            message: emailFormatCheck.message || 'Please enter a valid email address.'
+          });
+        }
+
+        // Check if another account (different user) already uses this email
+        const emailConflict = await User.findOne({
+          email: normalizedEmail,
+          _id: { $ne: existingMember._id }
+        });
+        if (emailConflict) {
+          return res.status(400).json({
+            success: false,
+            message: 'This email is already registered to another account.'
+          });
+        }
+
+        // Update password so user can log in with their newly chosen password
+        existingMember.passwordHash = password;
+
+        // Update ONLY missing values from created account details, DO NOT override existing details
+        if ((!existingMember.name || !existingMember.name.trim()) && name && name.trim()) {
+          existingMember.name = name.trim();
+        }
+
+        if ((!existingMember.email || !existingMember.email.trim()) && normalizedEmail) {
+          existingMember.email = normalizedEmail;
+        }
+
+        if (!existingMember.phone || !existingMember.phone.trim()) {
+          existingMember.phone = normalizedPhone;
+        }
+
+        if (!existingMember.gender && gender) {
+          existingMember.gender = gender.toUpperCase();
+        }
+
+        if (!existingMember.dob && !existingMember.dateOfBirth && parsedDob) {
+          existingMember.dob = parsedDob;
+          existingMember.dateOfBirth = parsedDob;
+          if (calculatedAge !== null) existingMember.age = calculatedAge;
+        }
+
+        if ((!existingMember.adhaar || !existingMember.adhaar.trim()) && cleanAdhaar) {
+          existingMember.adhaar = cleanAdhaar;
+        }
+
+        if ((!existingMember.registrationNumber || !existingMember.registrationNumber.trim()) && cleanRegNo) {
+          existingMember.registrationNumber = cleanRegNo;
+        }
+
+        if (cleanRegNo) {
+          if (!existingMember.memberInfo) existingMember.memberInfo = {};
+          if (!existingMember.memberInfo.registrationNo) {
+            existingMember.memberInfo.registrationNo = cleanRegNo;
+          }
+        }
+
+        if (req.body.address && typeof req.body.address === 'object') {
+          if (!existingMember.address) existingMember.address = {};
+          const addrKeys = ['street', 'area', 'landmark', 'location', 'city', 'district', 'taluk', 'pincode'];
+          for (const k of addrKeys) {
+            if ((existingMember.address[k] === undefined || existingMember.address[k] === null || existingMember.address[k] === '') && req.body.address[k]) {
+              existingMember.address[k] = req.body.address[k];
+            }
+          }
+        }
+
+        if (req.body.education && typeof req.body.education === 'object') {
+          if (!existingMember.education) existingMember.education = {};
+          for (const [k, v] of Object.entries(req.body.education)) {
+            if ((existingMember.education[k] === undefined || existingMember.education[k] === null || existingMember.education[k] === '') && v) {
+              existingMember.education[k] = v;
+            }
+          }
+        }
+
+        if (req.body.employment && typeof req.body.employment === 'object') {
+          if (!existingMember.employment) existingMember.employment = {};
+          for (const [k, v] of Object.entries(req.body.employment)) {
+            if ((existingMember.employment[k] === undefined || existingMember.employment[k] === null || existingMember.employment[k] === '') && v) {
+              existingMember.employment[k] = v;
+            }
+          }
+        }
+
+        if (privacySettings) {
+          if (!existingMember.privacySettings) existingMember.privacySettings = {};
+          if (existingMember.privacySettings.maskPhone === undefined && privacySettings.maskPhone !== undefined) {
+            existingMember.privacySettings.maskPhone = Boolean(privacySettings.maskPhone);
+          }
+          if (existingMember.privacySettings.maskEmail === undefined && privacySettings.maskEmail !== undefined) {
+            existingMember.privacySettings.maskEmail = Boolean(privacySettings.maskEmail);
+          }
+          if (existingMember.privacySettings.maskAdhaar === undefined && privacySettings.maskAdhaar !== undefined) {
+            existingMember.privacySettings.maskAdhaar = Boolean(privacySettings.maskAdhaar);
+          }
+        }
+
+        if (!existingMember.profilePhoto) {
+          const defaultPhoto = await getDefaultProfilePhoto();
+          existingMember.profilePhoto = defaultPhoto;
+        }
+
+        if (!existingMember.role) {
+          existingMember.role = 'MEMBER';
+        }
+
+        existingMember.accountStatus = 'ACTIVE';
+
+        const client = extractClientInfo(req);
+        const sessionId = crypto.randomUUID();
+
+        existingMember.lastLoginAt = Date.now();
+        existingMember.lastLoginDetails = {
+          ip: client.ip,
+          browser: client.browser,
+          os: client.os,
+          device: client.deviceType,
+          userAgent: client.userAgent,
+          sessionId,
+          timestamp: new Date()
+        };
+
+        await existingMember.save();
+
+        logAuditEvent({
+          req,
+          user: existingMember,
+          action: 'REGISTER',
+          sessionId,
+          details: { role: existingMember.role, email: existingMember.email, phone: existingMember.phone, mergedFromExisting: true }
+        });
+
+        return createSendToken(existingMember, 200, res);
+      }
+    }
 
     // Validate email format and check if already registered in database
     const emailCheck = await verifyEmailDeliverability(normalizedEmail);
@@ -104,18 +304,6 @@ exports.register = async (req, res, next) => {
         status: 'INVALID_FORMAT',
         message: 'Please enter a valid email address.'
       });
-    }
-
-    let cleanAdhaar = undefined;
-
-    if (adhaar && typeof adhaar === 'string' && adhaar.trim()) {
-      cleanAdhaar = adhaar.trim().replace(/\s+/g, '');
-      if (cleanAdhaar.length !== 12 || !/^\d{12}$/.test(cleanAdhaar)) {
-        return res.status(400).json({
-          success: false,
-          message: 'If provided, Aadhaar number must be a valid 12-digit number.'
-        });
-      }
     }
 
     // Determine final role & education fields
@@ -176,7 +364,6 @@ exports.register = async (req, res, next) => {
       searchConditions.push({ adhaar: cleanAdhaar });
       searchConditions.push({ adhaar: `${cleanAdhaar.slice(0, 4)} ${cleanAdhaar.slice(4, 8)} ${cleanAdhaar.slice(8, 12)}` });
     }
-    const cleanRegNo = (registrationNumber && typeof registrationNumber === 'string') ? registrationNumber.trim() : '';
     if (cleanRegNo) {
       searchConditions.push({ registrationNumber: cleanRegNo });
     }
@@ -196,19 +383,6 @@ exports.register = async (req, res, next) => {
         success: false,
         message: `An account with this ${duplicateField} already exists.`
       });
-    }
-
-    // Calculate age from DOB if provided
-    let calculatedAge = null;
-    let parsedDob = null;
-    if (dob) {
-      const d = new Date(dob);
-      if (!isNaN(d.getTime())) {
-        parsedDob = d;
-        const diffMs = Date.now() - d.getTime();
-        const a = Math.floor(diffMs / (365.25 * 24 * 60 * 60 * 1000));
-        if (!isNaN(a) && a >= 0) calculatedAge = a;
-      }
     }
 
     const client = extractClientInfo(req);

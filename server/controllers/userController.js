@@ -299,6 +299,38 @@ exports.getUsers = async (req, res, next) => {
       return sanitized;
     });
 
+    // Deduplicate records by _id and unique identity (phone/email/name) to prevent repeating users
+    const seenIds = new Set();
+    const seenPhones = new Set();
+    const seenEmails = new Set();
+    const seenMaskedIdentities = new Set();
+    const uniqueUsers = [];
+
+    for (const u of sanitizedUsers) {
+      if (!u) continue;
+      const idStr = String(u._id || u.id);
+      if (seenIds.has(idStr)) continue;
+      seenIds.add(idStr);
+
+      const rawPhone = u.phone ? String(u.phone).trim().replace(/\D/g, '').slice(-10) : '';
+      const rawEmail = u.email ? String(u.email).trim().toLowerCase() : '';
+      const normName = u.name ? String(u.name).trim().toLowerCase() : '';
+
+      if (rawPhone && seenPhones.has(rawPhone)) continue;
+      if (rawEmail && seenEmails.has(rawEmail)) continue;
+
+      // If user has hidden/masked phone or email in their profile, prevent repeating the same individual
+      const isMasked = u.isPhoneMasked || u.isEmailMasked || u.privacySettings?.maskPhone || u.privacySettings?.maskEmail;
+      const maskedKey = isMasked && normName ? `${normName}_${u.role || ''}` : null;
+      if (maskedKey && seenMaskedIdentities.has(maskedKey)) continue;
+
+      if (rawPhone) seenPhones.add(rawPhone);
+      if (rawEmail) seenEmails.add(rawEmail);
+      if (maskedKey) seenMaskedIdentities.add(maskedKey);
+
+      uniqueUsers.push(u);
+    }
+
     // Compute status group counts dynamically based on search/date filters
     const groups = await StatusGroup.find({});
     const statusGroupsCount = {};
@@ -341,8 +373,8 @@ exports.getUsers = async (req, res, next) => {
         total,
         totalPages: Math.ceil(total / limit)
       },
-      data: sanitizedUsers,
-      leads: sanitizedUsers,
+      data: uniqueUsers,
+      leads: uniqueUsers,
       totalLeads: total,
       totalAllLeads,
       totalPages: Math.ceil(total / limit),
@@ -741,7 +773,53 @@ exports.adminCreateUser = async (req, res, next) => {
       }
     }
 
-    const normalizedPhone = (phone && typeof phone === 'string') ? phone.trim() : '';
+    const normalizedPhone = (phone && typeof phone === 'string') ? phone.trim().replace(/\s+/g, '') : '';
+    if (['MEMBER', 'STUDENT', 'ALUMNI'].includes(assignedRole) && normalizedPhone) {
+      const cleanDigits = normalizedPhone.replace(/\D/g, '');
+      const last10Digits = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : cleanDigits;
+      const phoneConditions = [{ phone: normalizedPhone }];
+      if (last10Digits) {
+        phoneConditions.push({ phone: last10Digits }, { phone: `+91${last10Digits}` }, { phone: `91${last10Digits}` }, { phone: `0${last10Digits}` });
+      }
+      const existingMember = await User.findOne({ $or: phoneConditions });
+      if (existingMember) {
+        // Update ONLY missing details from created account details, DO NOT override existing details
+        if ((!existingMember.name || !existingMember.name.trim()) && name && name.trim()) existingMember.name = name.trim();
+        if ((!existingMember.email || !existingMember.email.trim()) && normalizedEmail) existingMember.email = normalizedEmail;
+        if (!existingMember.phone && normalizedPhone) existingMember.phone = normalizedPhone;
+        if (!existingMember.gender && gender) existingMember.gender = gender;
+        const cleanAdhaarVal = (adhaar || aadhaarNumber || '').trim();
+        if (cleanAdhaarVal && (!existingMember.adhaar || !existingMember.adhaar.trim())) existingMember.adhaar = cleanAdhaarVal;
+        if (registrationNumber && (!existingMember.registrationNumber || !existingMember.registrationNumber.trim())) existingMember.registrationNumber = registrationNumber.trim();
+        if (localLanguageDetails && (!existingMember.localLanguageDetails || !existingMember.localLanguageDetails.trim())) existingMember.localLanguageDetails = localLanguageDetails.trim();
+        if (req.body.dob && !existingMember.dob && !existingMember.dateOfBirth) {
+          const d = new Date(req.body.dob);
+          if (!isNaN(d.getTime())) {
+            existingMember.dob = d;
+            existingMember.dateOfBirth = d;
+          }
+        }
+        if (password) {
+          existingMember.passwordHash = password;
+        }
+        if (address && typeof address === 'object') {
+          if (!existingMember.address) existingMember.address = {};
+          ['street', 'area', 'landmark', 'location', 'city', 'district', 'taluk', 'pincode'].forEach(k => {
+            if ((existingMember.address[k] === undefined || existingMember.address[k] === null || existingMember.address[k] === '') && address[k]) {
+              existingMember.address[k] = address[k];
+            }
+          });
+        }
+        existingMember.updatedBy = req.user._id;
+        await existingMember.save();
+
+        return res.status(200).json({
+          success: true,
+          message: 'Existing member record found and updated with missing details.',
+          data: { user: existingMember }
+        });
+      }
+    }
     const initialPassword = password || normalizedPhone || 'Member@123';
 
     // Resolve accountStatus
@@ -932,8 +1010,8 @@ exports.adminUpdateUser = async (req, res, next) => {
     }
 
     // Handle DOB / Date of Birth sanitization
-    if (updates.dob !== undefined || updates.dateOfBirth !== undefined) {
-      const rawDob = updates.dob || updates.dateOfBirth;
+    if (updates.dob !== undefined || updates.dateOfBirth !== undefined || updates.age !== undefined) {
+      const rawDob = updates.dob !== undefined ? updates.dob : (updates.dateOfBirth !== undefined ? updates.dateOfBirth : updates.age);
       if (rawDob && !isNaN(new Date(rawDob).getTime())) {
         user.dob = new Date(rawDob);
         user.dateOfBirth = new Date(rawDob);
@@ -944,6 +1022,7 @@ exports.adminUpdateUser = async (req, res, next) => {
       }
       delete updates.dob;
       delete updates.dateOfBirth;
+      delete updates.age;
     }
 
     // Handle Relation object sanitization

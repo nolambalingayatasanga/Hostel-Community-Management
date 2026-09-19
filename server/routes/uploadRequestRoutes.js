@@ -3,13 +3,22 @@ const uploadRequestController = require('../controllers/uploadRequestController'
 const { protect } = require('../middleware/authMiddleware');
 const upload = require('../middleware/uploadMiddleware');
 
+const s3UploadMiddleware = require('../middleware/s3UploadMiddleware');
+
 const router = express.Router();
 
 // All routes require user authentication
 router.use(protect);
 
-// Upload a single media asset directly
-router.post('/upload-media', upload.single('file'), uploadRequestController.uploadMediaAsset);
+// Upload a single media asset directly using MinIO / S3 middleware
+router.post(
+  '/upload-media',
+  s3UploadMiddleware([
+    { name: 'media', maxCount: 1 },
+    { name: 'file', maxCount: 1 }
+  ]),
+  uploadRequestController.uploadMediaAsset
+);
 
 // Submit new upload request
 router.post('/', uploadRequestController.createRequest);

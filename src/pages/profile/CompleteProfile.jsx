@@ -282,6 +282,7 @@ const CompleteProfile = () => {
                            <FormControl fullWidth>
                              <InputLabel>Employment</InputLabel>
                              <Select value={employmentStatus} label="Employment" onChange={(e) => setEmploymentStatus(e.target.value)}>
+                               <MenuItem value="Student">Student</MenuItem>
                                <MenuItem value="Intern">Intern</MenuItem>
                                <MenuItem value="Employed">Employed</MenuItem>
                                <MenuItem value="Business Owner">Business Owner</MenuItem>

@@ -47,16 +47,27 @@ const months = [
   { value: 12, label: 'December' }
 ];
 
+const TAB_NAMES = ['wardens', 'staff', 'admins'];
+
 const UserManagement = () => {
   const { user: currentUser } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const action = searchParams.get('action'); // new, edit, or null
   const userId = searchParams.get('id');
 
-  const [tabValue, setTabValue] = useState(0);
+  const getInitialAdminTab = () => {
+    const t = searchParams.get('tab');
+    if (!t) return 0;
+    const lower = t.toLowerCase();
+    if (lower === 'staff' || lower === '1') return 1;
+    if (lower === 'admins' || lower === 'admin' || lower === '2') return 2;
+    return 0;
+  };
+
+  const [tabValue, setTabValue] = useState(getInitialAdminTab);
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
@@ -182,7 +193,34 @@ const UserManagement = () => {
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
+    if (!action) {
+      const next = new URLSearchParams(searchParams);
+      next.set('tab', TAB_NAMES[newValue] || 'wardens');
+      if (searchParams.toString() !== next.toString()) {
+        setSearchParams(next, { replace: true });
+      }
+    }
   };
+
+  useEffect(() => {
+    if (action) return;
+    const t = searchParams.get('tab');
+    if (t) {
+      const lower = t.toLowerCase();
+      let target = 0;
+      if (lower === 'staff' || lower === '1') target = 1;
+      else if (lower === 'admins' || lower === 'admin' || lower === '2') target = 2;
+      if (target !== tabValue) {
+        setTabValue(target);
+      }
+    } else {
+      const next = new URLSearchParams(searchParams);
+      next.set('tab', TAB_NAMES[tabValue] || 'wardens');
+      if (searchParams.toString() !== next.toString()) {
+        setSearchParams(next, { replace: true });
+      }
+    }
+  }, [searchParams, action, tabValue, setSearchParams]);
 
   const handleFormSubmit = async (e) => {
     e.preventDefault();
@@ -530,6 +568,7 @@ const UserManagement = () => {
                           <FormControl fullWidth>
                             <InputLabel>Employment Status</InputLabel>
                             <Select value={employmentStatus} label="Employment Status" onChange={(e) => setEmploymentStatus(e.target.value)}>
+                              <MenuItem value="Student">Student</MenuItem>
                               <MenuItem value="Intern">Intern</MenuItem>
                               <MenuItem value="Employed">Employed</MenuItem>
                               <MenuItem value="Business Owner">Business Owner</MenuItem>

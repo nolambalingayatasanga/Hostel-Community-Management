@@ -1627,6 +1627,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                                 onChange={(e) => handleEmploymentChange('employmentStatus', e.target.value)}
                                 MenuProps={{ disableScrollLock: true }}
                               >
+                                <MenuItem value="Student">Student</MenuItem>
                                 <MenuItem value="Intern">Intern</MenuItem>
                                 <MenuItem value="Employed">Employed</MenuItem>
                                 <MenuItem value="Business Owner">Business Owner</MenuItem>
@@ -2219,6 +2220,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                   onChange={(e) => setTransEmpStatus(e.target.value)}
                   MenuProps={{ disableScrollLock: true }}
                 >
+                  <MenuItem value="Student">Student</MenuItem>
                   <MenuItem value="Intern">Intern</MenuItem>
                   <MenuItem value="Employed">Employed</MenuItem>
                   <MenuItem value="Business Owner">Business Owner</MenuItem>

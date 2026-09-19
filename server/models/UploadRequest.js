@@ -26,7 +26,7 @@ const UploadRequestSchema = new mongoose.Schema({
     {
       url: { type: String, required: true },
       publicId: { type: String, default: '' },
-      storageProvider: { type: String, enum: ['cloudinary', 'cloudflare'], default: 'cloudflare' },
+      storageProvider: { type: String, enum: ['cloudinary', 'cloudflare', 's3', 'minio'], default: 's3' },
       resourceType: { type: String, enum: ['image', 'video'], default: 'image' },
       caption: { type: String, default: '' },
       originalName: { type: String, default: '' },

@@ -25,8 +25,8 @@ export function useLeads(params, options = {}) {
     const response = await API.get("/users", { params });
     return response.data;
   }, {
-    keepPreviousData: false,
-    staleTime: 0,
+    keepPreviousData: true,
+    staleTime: 10000,
     ...options
   });
 }

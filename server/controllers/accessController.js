@@ -3,7 +3,7 @@ const StatusGroup = require('../models/StatusGroup');
 
 const ALL_PAGES = [
   { id: 'overview', text: 'Overview', path: '/dashboard', icon: 'DashboardIcon' },
-  { id: 'users', text: 'Users', path: '/members', icon: 'PeopleIcon' },
+  { id: 'users', text: 'Users', path: '/users', icon: 'PeopleIcon' },
   { id: 'events', text: 'Events', path: '/events', icon: 'EventIcon' },
   { id: 'gallery', text: 'Gallery', path: '/gallery', icon: 'GalleryIcon' },
   { id: 'drive_links', text: 'Drive Links', path: '/drive-links', icon: 'CloudQueueIcon' },
@@ -154,6 +154,8 @@ exports.getMyPermissions = async (req, res) => {
         def = { fullAccess: false, view: true, create: false, update: true, delete: false, noAccess: false };
       } else if (p.id === 'events' || p.id === 'users' || p.id === 'drive_links') {
         def = { fullAccess: false, view: true, create: false, update: false, delete: false, noAccess: false };
+      } else if (p.id === 'request_upload') {
+        def = { fullAccess: false, view: true, create: true, update: false, delete: false, noAccess: false };
       }
       permsMap[p.id] = def;
     });

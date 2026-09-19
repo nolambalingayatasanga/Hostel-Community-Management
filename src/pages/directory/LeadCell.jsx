@@ -220,7 +220,16 @@ export default function LeadCell({
   const isPhone = field.slug === INTERNAL_SLUGS.PHONE || (field.slug || "").toLowerCase() === "phone";
   const isRole = field.slug === INTERNAL_SLUGS.ROLE || (field.slug || "").toLowerCase() === "role";
   const isGender = field.slug === INTERNAL_SLUGS.GENDER || (field.slug || "").toLowerCase() === "gender";
-  const isAge = field.slug === INTERNAL_SLUGS.AGE || (field.slug || "").toLowerCase() === "age";
+  const isDob =
+    field.slug === INTERNAL_SLUGS.DOB ||
+    field.slug === INTERNAL_SLUGS.DATE_OF_BIRTH ||
+    field.slug === INTERNAL_SLUGS.AGE ||
+    (field.slug || "").toLowerCase() === "dob" ||
+    (field.slug || "").toLowerCase() === "dateofbirth" ||
+    (field.slug || "").toLowerCase() === "age" ||
+    (field.name || "").toLowerCase() === "dob" ||
+    (field.name || "").toLowerCase() === "age" ||
+    (field.name || "").toLowerCase() === "date of birth";
   const isJoiningDate = (field.slug || "").toLowerCase().includes("joiningdate") || (field.slug || "").toLowerCase().includes("registereddate");
   const isChannels = field.slug === INTERNAL_SLUGS.CHANNELS || (field.slug || "").toLowerCase() === "channels";
   const isRelativeName = field.slug === INTERNAL_SLUGS.RELATIVE_NAME || (field.slug || "").toLowerCase() === "relativename" || (field.slug || "").toLowerCase() === "relation";
@@ -262,15 +271,20 @@ export default function LeadCell({
     }
     if (isRole) return row.role || "";
     if (isGender) return row.gender || "";
-    if (isAge) {
-      if (row.age != null && row.age !== "") return String(row.age);
-      const dobVal = row.dob || row.dateOfBirth || row.raw?.dob || row.raw?.dateOfBirth;
-      if (dobVal) {
-        const diff = Date.now() - new Date(dobVal).getTime();
-        const a = Math.floor(diff / (365.25 * 24 * 60 * 60 * 1000));
-        if (!isNaN(a) && a >= 0) return String(a);
+    if (isDob) {
+      const rawDob = row.dobRaw || row.raw?.dob || row.raw?.dateOfBirth || row.dob || row.dateOfBirth;
+      if (!rawDob) return "";
+      const d = new Date(rawDob);
+      if (!isNaN(d.getTime())) {
+        if (forEdit) {
+          const year = d.getFullYear();
+          const month = String(d.getMonth() + 1).padStart(2, "0");
+          const day = String(d.getDate()).padStart(2, "0");
+          return `${year}-${month}-${day}`;
+        }
+        return formatLeadDate(d);
       }
-      return "";
+      return forEdit ? "" : String(rawDob);
     }
     if (isJoiningDate) return formatLeadDate(row.joiningDate) || "";
     if (isRelativeName) return row.relativeName || row.relativename || row.raw?.relation?.relatedPersonName || "";
@@ -295,6 +309,9 @@ export default function LeadCell({
       }
       if ((field.slug === "dateOfBirth" || field.slug === "dob") && val) {
         return formatLeadDate(val);
+      }
+      if ((field.slug || "").toLowerCase().includes("employment") && (!val || val === "-") && row.role === "STUDENT") {
+        return "Student";
       }
       if (val != null && val !== "") return String(val);
     }
@@ -703,9 +720,17 @@ export default function LeadCell({
     const isSlugField = Boolean(field.slug);
     const rawVal = isSlugField ? row[field.slug] : leadFieldValue(row.raw, field._id);
     const isEmployment = (field.slug || "").toLowerCase().includes("employment");
-    const filteredOptions = isEmployment
+    let filteredOptions = isEmployment
       ? field.options.filter(opt => !["Self-Employed", "Other", "—", "-", ""].includes(opt))
       : field.options;
+
+    if (isEmployment) {
+      const defaultEmpList = ["Student", "Intern", "Employed", "Business Owner", "Entrepreneur", "Higher Studies", "Government Service", "Retired", "Unemployed"];
+      const optSet = new Set([...filteredOptions, ...defaultEmpList]);
+      filteredOptions = defaultEmpList.filter(opt => optSet.has(opt));
+    }
+
+    const currentVal = rawVal || (isEmployment ? (row.role === "STUDENT" ? "Student" : (filteredOptions[0] || "Employed")) : "");
 
     return wrap(
       <Select
@@ -713,7 +738,7 @@ export default function LeadCell({
         size="small"
         autoFocus
         defaultOpen
-        value={rawVal || (isEmployment ? (filteredOptions[0] || "Employed") : "")}
+        value={currentVal}
         onChange={(e) => {
           if (isSlugField) {
             onChangeRef(row.id, field.slug, e.target.value);
@@ -742,8 +767,11 @@ export default function LeadCell({
   return wrap(
     <InlineTextEditor
       initialValue={stored}
-      type={field.type === "number" || isAge ? "number" : "text"}
+      type={isDob ? "date" : field.type === "number" ? "number" : "text"}
       onSave={(newVal) => {
+        if (isDob) {
+          return onChangeRef(row.id, "dob", newVal || null);
+        }
         if (hasSlug) {
           return onChangeRef(row.id, field.slug, newVal);
         } else {

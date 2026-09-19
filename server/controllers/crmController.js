@@ -11,10 +11,52 @@ exports.getMetadata = async (req, res, next) => {
   try {
     let customFields = await CustomField.find({}).sort({ order: 1 });
 
-    // Auto-ensure Relative Name and Channels exist
+    // Auto-migrate any legacy age field in customFields to DOB
+    for (const f of customFields) {
+      if ((f.slug || '').toLowerCase() === 'age' || (f.name || '').toLowerCase() === 'age') {
+        f.name = 'DOB';
+        f.slug = 'dob';
+        f.type = 'date';
+        f.isInternal = true;
+        await CustomField.findByIdAndUpdate(f._id, {
+          name: 'DOB',
+          slug: 'dob',
+          type: 'date',
+          isInternal: true
+        });
+      }
+    }
+
+    // Auto-ensure Employment options contain Student and Intern
+    for (const f of customFields) {
+      if ((f.slug || '').toLowerCase().includes('employment') || (f.name || '').toLowerCase() === 'employment') {
+        const requiredOptions = ['Student', 'Intern', 'Employed', 'Business Owner', 'Entrepreneur', 'Higher Studies', 'Government Service', 'Retired', 'Unemployed'];
+        const current = f.options || [];
+        if (!current.includes('Student') || !current.includes('Intern')) {
+          f.options = requiredOptions;
+          await CustomField.findByIdAndUpdate(f._id, { options: requiredOptions });
+        }
+      }
+    }
+
+    // Auto-ensure Relative Name, Channels, Role, Login Details, and DOB exist
     const slugs = customFields.map(f => (f.slug || '').toLowerCase());
     let added = false;
     let maxOrder = customFields.reduce((max, f) => Math.max(max, f.order || 0), 7);
+
+    if (!slugs.includes('dob')) {
+      maxOrder += 1;
+      const f = await CustomField.create({
+        name: 'DOB',
+        slug: 'dob',
+        type: 'date',
+        isInternal: true,
+        order: maxOrder,
+        isVisible: true
+      });
+      customFields.push(f);
+      added = true;
+    }
 
     if (!slugs.includes('relativename')) {
       maxOrder += 1;
@@ -157,9 +199,7 @@ exports.saveLayout = async (req, res, next) => {
   }
 };
 
-/**
- * Delete custom field
- */
+
 exports.deleteCustomField = async (req, res, next) => {
   try {
     await CustomField.findByIdAndDelete(req.params.id);

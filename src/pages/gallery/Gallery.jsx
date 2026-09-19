@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import JSZip from 'jszip';
 import {
   Box,
   Typography,
@@ -120,9 +121,14 @@ const Gallery = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Tab State: 'all' | 'folders'
-  const [activeTab, setActiveTab] = useState('all');
+  const [activeTab, setActiveTab] = useState(() => {
+    const folderParam = searchParams.get('folder') || searchParams.get('folderId');
+    const tabParam = searchParams.get('tab');
+    return folderParam || tabParam === 'folders' ? 'folders' : 'all';
+  });
 
   // Active Folder State (null if viewing root folders list)
   const [currentFolder, setCurrentFolder] = useState(null);
@@ -170,6 +176,7 @@ const Gallery = () => {
   const [deleteTarget, setDeleteTarget] = useState(null); // { type: 'photo'|'bulk-photos'|'folder', id: string, name?: string }
   const [deleting, setDeleting] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [downloadProgressText, setDownloadProgressText] = useState('');
 
   // Lightbox Modal State
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -204,7 +211,18 @@ const Gallery = () => {
       setFoldersLoading(true);
       const res = await API.get('/gallery/folders');
       if (res.data?.success) {
-        setFolders(res.data.data.folders || []);
+        const fetchedFolders = res.data.data.folders || [];
+        setFolders(fetchedFolders);
+
+        // Synchronize currentFolder on initial load/refresh if folder param exists in URL
+        const targetFolderId = searchParams.get('folder') || searchParams.get('folderId');
+        if (targetFolderId) {
+          const matched = fetchedFolders.find((f) => String(f._id) === String(targetFolderId));
+          if (matched) {
+            setCurrentFolder(matched);
+            setActiveTab('folders');
+          }
+        }
       }
     } catch (err) {
       enqueueSnackbar('Failed to fetch folders.', { variant: 'error' });
@@ -271,7 +289,11 @@ const Gallery = () => {
       if (currentFolder) {
         fetchPhotos(1, currentFolder._id, false);
       } else {
-        fetchFolders();
+        // If there's a folder in the URL waiting to be matched, don't overwrite with root folders
+        const targetFolderId = searchParams.get('folder') || searchParams.get('folderId');
+        if (!targetFolderId) {
+          fetchFolders();
+        }
       }
     }
   }, [activeTab, currentFolder, fetchPhotos]);
@@ -300,6 +322,36 @@ const Gallery = () => {
     window.addEventListener('app:media-uploaded', handleMediaUploaded);
     return () => window.removeEventListener('app:media-uploaded', handleMediaUploaded);
   }, [activeTab, currentFolder, fetchFolders]);
+
+  // Synchronize folder and tab from URL search params on browser back/forward
+  useEffect(() => {
+    const targetFolderId = searchParams.get('folder') || searchParams.get('folderId');
+    const tabParam = searchParams.get('tab');
+
+    if (targetFolderId && folders.length > 0) {
+      const matched = folders.find((f) => String(f._id) === String(targetFolderId));
+      if (matched && (!currentFolder || String(currentFolder._id) !== String(matched._id))) {
+        setCurrentFolder(matched);
+        if (activeTab !== 'folders') {
+          setActiveTab('folders');
+        }
+      }
+    } else if (tabParam === 'folders' && !targetFolderId) {
+      if (activeTab !== 'folders') {
+        setActiveTab('folders');
+      }
+      if (currentFolder !== null) {
+        setCurrentFolder(null);
+      }
+    } else if (tabParam === 'all' && !targetFolderId) {
+      if (activeTab !== 'all') {
+        setActiveTab('all');
+      }
+      if (currentFolder !== null) {
+        setCurrentFolder(null);
+      }
+    }
+  }, [searchParams, folders]);
 
   // -------------------------------------------------------------
   // 3. Infinite Scroll Intersection Observer
@@ -333,26 +385,38 @@ const Gallery = () => {
   // -------------------------------------------------------------
   // 4. Folder Navigation Handlers
   // -------------------------------------------------------------
-  const handleOpenFolder = (folder) => {
+  const navigateToFolder = (folder) => {
     setCurrentFolder(folder);
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', 'folders');
+    if (folder && folder._id) {
+      next.set('folder', String(folder._id));
+    } else {
+      next.delete('folder');
+    }
+    next.delete('folderId');
+    setSearchParams(next, { replace: true });
+  };
+
+  const handleOpenFolder = (folder) => {
+    navigateToFolder(folder);
   };
 
   const handleBackToFolders = () => {
     if (!currentFolder) return;
     const parentId = getParentId(currentFolder);
-    if (parentId) {
-      const parent = folders.find((f) => f._id === parentId);
-      setCurrentFolder(parent || null);
-    } else {
-      setCurrentFolder(null);
-    }
+    const parent = parentId ? folders.find((f) => f._id === parentId) : null;
+    navigateToFolder(parent || null);
   };
 
   const handleTabChange = (event, newTab) => {
     setActiveTab(newTab);
-    if (newTab === 'folders') {
-      setCurrentFolder(null);
-    }
+    setCurrentFolder(null);
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', newTab);
+    next.delete('folder');
+    next.delete('folderId');
+    setSearchParams(next, { replace: true });
   };
 
   // -------------------------------------------------------------
@@ -474,9 +538,6 @@ const Gallery = () => {
     const rawFiles = Array.from(e.target.files);
     if (!rawFiles || rawFiles.length === 0) return;
 
-    const MAX_IMAGE_SIZE = 50 * 1024 * 1024;  // 50 MB
-    const MAX_VIDEO_SIZE = 500 * 1024 * 1024; // 500 MB
-
     const validFiles = [];
     for (const file of rawFiles) {
       const isVideo = file.type.startsWith('video/') || file.name.match(/\.(mp4|webm|mov|ogg)$/i);
@@ -484,20 +545,6 @@ const Gallery = () => {
 
       if (!isImage && !isVideo) {
         enqueueSnackbar(`"${file.name}" is not a valid image or video.`, { variant: 'error' });
-        continue;
-      }
-      if (isImage && file.size > MAX_IMAGE_SIZE) {
-        enqueueSnackbar(
-          `Image "${file.name}" exceeds 50 MB limit. Selected size: ${(file.size / (1024 * 1024)).toFixed(2)} MB.`,
-          { variant: 'error' }
-        );
-        continue;
-      }
-      if (isVideo && file.size > MAX_VIDEO_SIZE) {
-        enqueueSnackbar(
-          `Video "${file.name}" exceeds 500 MB limit. Selected size: ${(file.size / (1024 * 1024)).toFixed(2)} MB.`,
-          { variant: 'error' }
-        );
         continue;
       }
       validFiles.push(file);
@@ -575,7 +622,7 @@ const Gallery = () => {
           if (currentFolder && deletedIds.includes(currentFolder._id)) {
             const parentId = getParentId(currentFolder);
             const parent = parentId && !deletedIds.includes(parentId) ? folders.find((f) => f._id === parentId) : null;
-            setCurrentFolder(parent || null);
+            navigateToFolder(parent || null);
           }
           fetchFolders();
         }
@@ -651,27 +698,37 @@ const Gallery = () => {
   const handleDownloadSelected = async () => {
     if (selectedIds.length === 0 || downloading) return;
     setDownloading(true);
-    try {
-      let index = 1;
-      for (const id of selectedIds) {
-        const photo = photos.find(p => p._id === id);
-        if (!photo) continue;
+    setDownloadProgressText('Preparing...');
 
+    try {
+      const selectedPhotos = selectedIds
+        .map(id => photos.find(p => p._id === id))
+        .filter(Boolean);
+
+      if (selectedPhotos.length === 0) {
+        setDownloading(false);
+        return;
+      }
+
+      // If only 1 file is selected, download directly as a single media file
+      if (selectedPhotos.length === 1) {
+        const photo = selectedPhotos[0];
         const extension = photo.resourceType === 'video' ? 'mp4' : 'jpg';
-        const filename = selectedIds.length > 1 ? `KSH_Gallery_${index}.${extension}` : `KSH_Gallery.${extension}`;
-        index++;
+        const rawTitle = (photo.title || photo.caption || '').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+        const filename = rawTitle ? `${rawTitle}.${extension}` : `KSH_Gallery_1.${extension}`;
 
         try {
           const response = await fetch(photo.url, { mode: 'cors' });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
+          const blobUrl = window.URL.createObjectURL(blob);
           const a = document.createElement('a');
-          a.href = url;
+          a.href = blobUrl;
           a.download = filename;
           document.body.appendChild(a);
           a.click();
-          window.URL.revokeObjectURL(url);
           document.body.removeChild(a);
+          setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60000);
         } catch (corsErr) {
           const a = document.createElement('a');
           a.href = photo.url;
@@ -681,13 +738,81 @@ const Gallery = () => {
           a.click();
           document.body.removeChild(a);
         }
+
+        enqueueSnackbar('Downloaded 1 item.', { variant: 'success' });
+        setSelectedIds([]);
+        return;
       }
-      enqueueSnackbar(`Downloaded ${selectedIds.length} item(s).`, { variant: 'success' });
+
+      // Multiple files: bundle into a ZIP archive to prevent browser throttling/dropping downloads
+      const zip = new JSZip();
+      let completed = 0;
+      const total = selectedPhotos.length;
+      const BATCH_SIZE = 4;
+
+      for (let i = 0; i < total; i += BATCH_SIZE) {
+        const batch = selectedPhotos.slice(i, i + BATCH_SIZE);
+        await Promise.all(
+          batch.map(async (photo, batchIdx) => {
+            const index = i + batchIdx + 1;
+            const extension = photo.resourceType === 'video' ? 'mp4' : 'jpg';
+            const rawTitle = (photo.title || photo.caption || '').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+            const filename = rawTitle
+              ? `${String(index).padStart(2, '0')}_${rawTitle}.${extension}`
+              : `KSH_Gallery_${String(index).padStart(2, '0')}.${extension}`;
+
+            try {
+              const res = await fetch(photo.url, { mode: 'cors' });
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              const blob = await res.blob();
+              zip.file(filename, blob);
+            } catch (fetchErr) {
+              console.warn(`Direct fetch failed for ${photo.url}, trying fallback:`, fetchErr);
+              try {
+                const res = await fetch(photo.url);
+                const blob = await res.blob();
+                zip.file(filename, blob);
+              } catch (fallbackErr) {
+                console.error(`Failed to download ${filename}:`, fallbackErr);
+              }
+            } finally {
+              completed++;
+              setDownloadProgressText(`${completed}/${total}`);
+            }
+          })
+        );
+      }
+
+      setDownloadProgressText('Zipping...');
+      const zipBlob = await zip.generateAsync(
+        { type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } },
+        (meta) => {
+          if (meta.percent) {
+            setDownloadProgressText(`${Math.round(meta.percent)}%`);
+          }
+        }
+      );
+
+      const folderPart = currentFolder?.name ? currentFolder.name.trim().replace(/[^a-zA-Z0-9_-]/g, '_') : 'Media';
+      const zipFilename = `KSH_Gallery_${folderPart}_${total}_items.zip`;
+
+      const zipUrl = window.URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = zipUrl;
+      a.download = zipFilename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => window.URL.revokeObjectURL(zipUrl), 60000);
+
+      enqueueSnackbar(`Successfully downloaded all ${completed} items in ${zipFilename}`, { variant: 'success' });
       setSelectedIds([]);
     } catch (err) {
+      console.error('Bulk download error:', err);
       enqueueSnackbar('An error occurred during download.', { variant: 'error' });
     } finally {
       setDownloading(false);
+      setDownloadProgressText('');
     }
   };
 
@@ -818,7 +943,7 @@ const Gallery = () => {
                 <Link
                   component="button"
                   variant="body2"
-                  onClick={() => setCurrentFolder(null)}
+                  onClick={() => navigateToFolder(null)}
                   underline="hover"
                   sx={{
                     color: '#64748B',
@@ -879,7 +1004,7 @@ const Gallery = () => {
                       key={folderCrumb._id}
                       component="button"
                       variant="body2"
-                      onClick={() => setCurrentFolder(folderCrumb)}
+                      onClick={() => navigateToFolder(folderCrumb)}
                       underline="hover"
                       sx={{
                         color: '#64748B',
@@ -1192,7 +1317,7 @@ const Gallery = () => {
                 '&:hover': { borderColor: '#D0D5DD', backgroundColor: '#F9FAFB' }
               }}
             >
-              {downloading ? 'Downloading...' : `Download (${selectedIds.length})`}
+              {downloading ? (downloadProgressText ? `Downloading (${downloadProgressText})` : 'Downloading...') : `Download (${selectedIds.length})`}
             </Button>
 
             {/* Delete on the opposite end (right) */}
@@ -1816,7 +1941,7 @@ const Gallery = () => {
                     Click to select multiple files
                   </Typography>
                   <Typography variant="caption" sx={{ color: '#64748B', display: 'block' }}>
-                    Images (up to 9.8 MB) & Videos (up to 99 MB) • Any number of files
+                    Images & Videos • Unlimited file size • Any number of files
                   </Typography>
                 </Box>
               )}

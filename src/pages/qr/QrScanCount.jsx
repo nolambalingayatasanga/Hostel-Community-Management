@@ -157,6 +157,8 @@ export default function QrScanCount() {
   // Delete log state
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [batchDeleteDialogOpen, setBatchDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const fetchLoginQr = useCallback(
@@ -291,6 +293,7 @@ export default function QrScanCount() {
       if (res.data?.success) {
         setData(res.data.data || null);
         if (!res.data.data) fetchLoginQr(page);
+        setSelectedIds((prev) => prev.filter((id) => id !== deleteTarget._id));
         enqueueSnackbar("Scan record deleted", { variant: "success" });
         setDeleteDialogOpen(false);
         setDeleteTarget(null);
@@ -298,6 +301,40 @@ export default function QrScanCount() {
     } catch (err) {
       enqueueSnackbar(err.response?.data?.message || "Failed to delete record", { variant: "error" });
     } finally { setDeleting(false); }
+  };
+
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedIds(filteredDevices.map((d) => d._id).filter(Boolean));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectRow = (id) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const confirmDeleteBatch = async () => {
+    if (!selectedIds.length) return;
+    try {
+      setDeleting(true);
+      const res = await API.delete("/qr-scans/login-qr/devices", {
+        data: { ids: selectedIds },
+        params: { page, limit: 30 }
+      });
+      if (res.data?.success) {
+        setData(res.data.data || null);
+        if (!res.data.data) fetchLoginQr(page);
+        enqueueSnackbar(`${selectedIds.length} records deleted successfully`, { variant: "success" });
+        setSelectedIds([]);
+        setBatchDeleteDialogOpen(false);
+      }
+    } catch (err) {
+      enqueueSnackbar(err.response?.data?.message || "Failed to delete selected records", { variant: "error" });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   // Filtered devices list for Tab 4 (Activity Logs)
@@ -517,7 +554,7 @@ export default function QrScanCount() {
                           {Number(data?.scanCount || 0).toLocaleString()}
                         </Typography>
                         <Typography variant="body2" sx={{ color: "#64748B", fontWeight: 500, mt: 0.75, fontSize: "0.85rem" }}>
-                          Camera scans
+                          QR scans
                         </Typography>
                       </Box>
                     </CardContent>
@@ -1139,7 +1176,26 @@ export default function QrScanCount() {
                       </Button>
                     )}
 
-                    <Box sx={{ ml: { sm: "auto !important" } }}>
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ ml: { sm: "auto !important" } }}>
+                      {selectedIds.length > 0 && (
+                        <Button
+                          variant="contained"
+                          color="error"
+                          size="small"
+                          startIcon={<DeleteIcon sx={{ fontSize: 17 }} />}
+                          onClick={() => setBatchDeleteDialogOpen(true)}
+                          sx={{
+                            borderRadius: "10px",
+                            textTransform: "none",
+                            fontWeight: 700,
+                            fontSize: "0.8rem",
+                            px: 1.75,
+                            boxShadow: "0 2px 8px rgba(239, 68, 68, 0.25)"
+                          }}
+                        >
+                          Delete Selected ({selectedIds.length})
+                        </Button>
+                      )}
                       <Button
                         variant="outlined"
                         size="small"
@@ -1156,7 +1212,7 @@ export default function QrScanCount() {
                       >
                         Export CSV
                       </Button>
-                    </Box>
+                    </Stack>
                   </Stack>
                 </Box>
 
@@ -1165,6 +1221,14 @@ export default function QrScanCount() {
                   <Table size="medium">
                     <TableHead sx={{ bgcolor: "#F8FAFC" }}>
                       <TableRow>
+                        <TableCell padding="checkbox" sx={{ pl: 2 }}>
+                          <Checkbox
+                            size="small"
+                            indeterminate={selectedIds.length > 0 && selectedIds.length < filteredDevices.length}
+                            checked={filteredDevices.length > 0 && selectedIds.length === filteredDevices.length}
+                            onChange={handleSelectAll}
+                          />
+                        </TableCell>
                         <TableCell sx={{ fontWeight: 700, color: "#64748B", fontSize: "0.78rem" }}>Device / OS / Browser</TableCell>
                         <TableCell sx={{ fontWeight: 700, color: "#64748B", fontSize: "0.78rem" }}>IP Address</TableCell>
                         <TableCell sx={{ fontWeight: 700, color: "#64748B", fontSize: "0.78rem" }}>Access Method</TableCell>
@@ -1175,15 +1239,32 @@ export default function QrScanCount() {
                     <TableBody>
                       {filteredDevices.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={5} align="center" sx={{ py: 6, color: "#94A3B8" }}>
+                          <TableCell colSpan={6} align="center" sx={{ py: 6, color: "#94A3B8" }}>
                             No activity records found matching filters.
                           </TableCell>
                         </TableRow>
                       ) : (
                         filteredDevices.map((item) => {
                           const isQr = item.accessType === "qr";
+                          const isSelected = selectedIds.includes(item._id);
                           return (
-                            <TableRow key={item._id} hover sx={{ "&:last-child td, &:last-child th": { border: 0 } }}>
+                            <TableRow
+                              key={item._id}
+                              hover
+                              selected={isSelected}
+                              sx={{
+                                "&:last-child td, &:last-child th": { border: 0 },
+                                "&.Mui-selected": { bgcolor: "#EFF8FF" },
+                                "&.Mui-selected:hover": { bgcolor: "#E0F2FE" }
+                              }}
+                            >
+                              <TableCell padding="checkbox" sx={{ pl: 2 }}>
+                                <Checkbox
+                                  size="small"
+                                  checked={isSelected}
+                                  onChange={() => handleSelectRow(item._id)}
+                                />
+                              </TableCell>
                               <TableCell>
                                 <Stack direction="row" spacing={1.5} alignItems="center">
                                   <DeviceIcon type={item.type} />
@@ -1340,6 +1421,22 @@ export default function QrScanCount() {
           <Button onClick={() => setDeleteDialogOpen(false)} sx={{ textTransform: "none", fontWeight: 600 }}>Cancel</Button>
           <Button variant="contained" color="error" onClick={confirmDeleteSingle} disabled={deleting} sx={{ textTransform: "none", fontWeight: 700 }}>
             {deleting ? <CircularProgress size={20} sx={{ color: "#fff" }} /> : "Delete"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── BATCH DELETE MULTIPLE RECORDS DIALOG ── */}
+      <Dialog open={batchDeleteDialogOpen} onClose={() => setBatchDeleteDialogOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: "16px" } }}>
+        <DialogTitle sx={{ fontWeight: 800, color: "#0F172A" }}>Delete Selected Records?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            Are you sure you want to delete {selectedIds.length} selected activity {selectedIds.length === 1 ? "record" : "records"}? The overall scan and click counts will adjust accordingly.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setBatchDeleteDialogOpen(false)} sx={{ textTransform: "none", fontWeight: 600 }}>Cancel</Button>
+          <Button variant="contained" color="error" onClick={confirmDeleteBatch} disabled={deleting} sx={{ textTransform: "none", fontWeight: 700 }}>
+            {deleting ? <CircularProgress size={20} sx={{ color: "#fff" }} /> : `Delete (${selectedIds.length})`}
           </Button>
         </DialogActions>
       </Dialog>
