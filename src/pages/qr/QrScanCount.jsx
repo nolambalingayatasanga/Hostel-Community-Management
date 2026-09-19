@@ -536,8 +536,8 @@ export default function QrScanCount() {
                 <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                   <Card sx={{ borderRadius: "18px", border: "1px solid #EBF0F5", boxShadow: "0 2px 10px rgba(0,0,0,0.02)", bgcolor: "#FFFFFF", position: "relative", overflow: "hidden", minHeight: 180, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                     <CardContent sx={{ p: 2.5, position: "relative", zIndex: 1 }}>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center">
-                        <Stack direction="row" spacing={1.25} alignItems="center">
+                      <Stack direction="row" sx={{justifyContent:"space-between", alignItems:"center" }}>
+                        <Stack direction="row" spacing={1.25} sx={{alignItems:"center"}}>
                           <Box sx={{ width: 42, height: 42, borderRadius: "12px", bgcolor: "#EFF8FF", color: "#0284C7", display: "flex", alignItems: "center", justifyContent: "center" }}>
                             <QrCodeIcon sx={{ fontSize: 24 }} />
                           </Box>
@@ -566,8 +566,8 @@ export default function QrScanCount() {
                 <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                   <Card sx={{ borderRadius: "18px", border: "1px solid #EBF0F5", boxShadow: "0 2px 10px rgba(0,0,0,0.02)", bgcolor: "#FFFFFF", position: "relative", overflow: "hidden", minHeight: 180, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                     <CardContent sx={{ p: 2.5, position: "relative", zIndex: 1 }}>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center">
-                        <Stack direction="row" spacing={1.25} alignItems="center">
+                      <Stack direction="row"  sx={{justifyContent:"space-between", alignItems:"center" }}>
+                        <Stack direction="row" spacing={1.25}  sx={{alignItems:"center" }}>
                           <Box sx={{ width: 42, height: 42, borderRadius: "12px", bgcolor: "#F0FDF4", color: "#16A34A", display: "flex", alignItems: "center", justifyContent: "center" }}>
                             <ClickIcon sx={{ fontSize: 22 }} />
                           </Box>
@@ -596,8 +596,8 @@ export default function QrScanCount() {
                 <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                   <Card sx={{ borderRadius: "18px", border: "1px solid #EBF0F5", boxShadow: "0 2px 10px rgba(0,0,0,0.02)", bgcolor: "#FFFFFF", position: "relative", overflow: "hidden", minHeight: 180, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                     <CardContent sx={{ p: 2.5, position: "relative", zIndex: 1 }}>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center">
-                        <Stack direction="row" spacing={1.25} alignItems="center">
+                      <Stack direction="row"  sx={{justifyContent:"space-between", alignItems:"center" }}>
+                        <Stack direction="row" spacing={1.25}  sx={{alignItems:"center" }}>
                           <Box sx={{ width: 42, height: 42, borderRadius: "12px", bgcolor: "#FEF9C3", color: "#CA8A04", display: "flex", alignItems: "center", justifyContent: "center" }}>
                             <TodayIcon sx={{ fontSize: 22 }} />
                           </Box>
@@ -626,8 +626,8 @@ export default function QrScanCount() {
                 <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                   <Card sx={{ borderRadius: "18px", border: "1px solid #EBF0F5", boxShadow: "0 2px 10px rgba(0,0,0,0.02)", bgcolor: "#FFFFFF", position: "relative", overflow: "hidden", minHeight: 180, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                     <CardContent sx={{ p: 2.5, position: "relative", zIndex: 1 }}>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center">
-                        <Stack direction="row" spacing={1.25} alignItems="center">
+                      <Stack direction="row"  sx={{justifyContent:"space-between", alignItems:"center" }}>
+                        <Stack direction="row" spacing={1.25}  sx={{alignItems:"center" }}>
                           <Box sx={{ width: 42, height: 42, borderRadius: "12px", bgcolor: "#F3E8FF", color: "#7C3AED", display: "flex", alignItems: "center", justifyContent: "center" }}>
                             <DevicesIcon sx={{ fontSize: 22 }} />
                           </Box>
@@ -656,8 +656,8 @@ export default function QrScanCount() {
                 <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                   <Card sx={{ borderRadius: "18px", border: "1px solid #EBF0F5", boxShadow: "0 2px 10px rgba(0,0,0,0.02)", bgcolor: "#FFFFFF", position: "relative", overflow: "hidden", minHeight: 180, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                     <CardContent sx={{ p: 2.5, position: "relative", zIndex: 1 }}>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center">
-                        <Stack direction="row" spacing={1.25} alignItems="center">
+                      <Stack direction="row"  sx={{justifyContent:"space-between", alignItems:"center" }}>
+                        <Stack direction="row" spacing={1.25}  sx={{alignItems:"center" }}>
                           <Box sx={{ width: 42, height: 42, borderRadius: "12px", bgcolor: "#FFE4E6", color: "#E11D48", display: "flex", alignItems: "center", justifyContent: "center" }}>
                             <TrendingUpIcon sx={{ fontSize: 22 }} />
                           </Box>

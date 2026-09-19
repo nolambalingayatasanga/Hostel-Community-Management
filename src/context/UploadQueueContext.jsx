@@ -117,55 +117,6 @@ export function UploadQueueProvider({ children }) {
         return null;
       };
 
-      // Helper to attempt direct-to-Cloudinary upload (used for Events)
-      const tryDirectCloudinaryUpload = async (folderName) => {
-        try {
-          const sigRes = await API.get('/gallery/upload-signature', {
-            params: { folder: folderName },
-            signal: abortController.signal
-          });
-          if (sigRes.data?.success && sigRes.data?.data) {
-            const { signature, timestamp, cloudName, apiKey, folder } = sigRes.data.data;
-            const cldFormData = new FormData();
-            cldFormData.append('file', pendingItem.file);
-            cldFormData.append('api_key', apiKey);
-            cldFormData.append('timestamp', timestamp);
-            cldFormData.append('signature', signature);
-            cldFormData.append('folder', folder);
-
-            const isVideo = pendingItem.file.type.startsWith('video/') ||
-              /\.(mp4|mov|avi|webm|mkv)$/i.test(pendingItem.file.name);
-            const resourceType = isVideo ? 'video' : 'image';
-
-            const cldRes = await axios.post(
-              `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
-              cldFormData,
-              {
-                signal: abortController.signal,
-                onUploadProgress: (progressEvent) => {
-                  if (progressEvent.total) {
-                    const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-                    setQueue((prev) =>
-                      prev.map((item) => (item.id === currentId ? { ...item, progress: percent } : item))
-                    );
-                  }
-                }
-              }
-            );
-
-            return {
-              url: cldRes.data.secure_url || cldRes.data.url,
-              publicId: cldRes.data.public_id,
-              resourceType: cldRes.data.resource_type || resourceType,
-              storageProvider: 'cloudinary'
-            };
-          }
-        } catch (cldErr) {
-          console.warn('Direct Cloudinary upload could not be used, falling back to server route:', cldErr);
-        }
-        return null;
-      };
-
       let res;
       if (pendingItem.destinationType === 'gallery') {
         // 1. Try MinIO direct client-side upload first (bypasses Vercel 4.5MB payload limit completely)
@@ -208,8 +159,8 @@ export function UploadQueueProvider({ children }) {
           });
         }
       } else if (pendingItem.destinationType === 'event') {
-        // Keep Cloudinary direct upload exclusively for Events
-        const directResult = await tryDirectCloudinaryUpload(`hostel-community/events/${pendingItem.destinationId}/gallery`);
+        // Direct MinIO upload for Events (presigned URL + S3)
+        const directResult = await tryDirectMinioUpload('uploads');
         if (directResult) {
           res = await API.post(`/events/${pendingItem.destinationId}/gallery`, {
             images: [directResult]

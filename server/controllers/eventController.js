@@ -1,6 +1,8 @@
 const Event = require('../models/Event');
 const Access = require('../models/Access');
-const { uploadImage, deleteImage, deleteMultipleMedia } = require('../config/cloudinary');
+const { deleteFromS3, uploadBufferToS3, getS3Client } = require('../middleware/s3UploadMiddleware');
+const { PutObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { logAuditEvent } = require('../utils/auditLogger');
 
 /**
@@ -353,13 +355,20 @@ exports.createEvent = async (req, res, next) => {
 
     let coverImage = { url: '', publicId: '' };
 
-    // Upload cover image to Cloudinary if file exists
+    // Upload cover image to MinIO if file exists
     if (req.file) {
-      const uploadResult = await uploadImage(req.file.buffer, 'hostel-community/events', req.file.mimetype);
-      coverImage = {
-        url: uploadResult.url,
-        publicId: uploadResult.publicId
-      };
+      if (req.file.location && req.file.key) {
+        coverImage = {
+          url: req.file.location,
+          publicId: req.file.key
+        };
+      } else if (req.file.buffer) {
+        const uploadResult = await uploadBufferToS3(req.file.buffer, req.file.originalname, req.file.mimetype, 'uploads');
+        coverImage = {
+          url: uploadResult.url,
+          publicId: uploadResult.publicId
+        };
+      }
     }
 
     const newEvent = await Event.create({
@@ -376,7 +385,7 @@ exports.createEvent = async (req, res, next) => {
       createdBy: req.user._id
     });
 
-    res.status(217).json({
+    res.status(201).json({
       success: true,
       message: 'Event created successfully',
       data: { event: newEvent }
@@ -401,17 +410,24 @@ exports.updateEvent = async (req, res, next) => {
 
     // Check if cover image file needs to be replaced
     if (req.file) {
-      // Delete old image from Cloudinary first
+      // Delete old image from MinIO first
       if (event.coverImage && (event.coverImage.publicId || event.coverImage.url)) {
-        await deleteImage(event.coverImage.publicId || event.coverImage.url);
+        await deleteFromS3(event.coverImage.publicId || event.coverImage.url);
       }
       
-      // Upload new image
-      const uploadResult = await uploadImage(req.file.buffer, 'hostel-community/events', req.file.mimetype);
-      event.coverImage = {
-        url: uploadResult.url,
-        publicId: uploadResult.publicId
-      };
+      // Upload new image to MinIO
+      if (req.file.location && req.file.key) {
+        event.coverImage = {
+          url: req.file.location,
+          publicId: req.file.key
+        };
+      } else if (req.file.buffer) {
+        const uploadResult = await uploadBufferToS3(req.file.buffer, req.file.originalname, req.file.mimetype, 'uploads');
+        event.coverImage = {
+          url: uploadResult.url,
+          publicId: uploadResult.publicId
+        };
+      }
     }
 
     // Apply other updates
@@ -447,7 +463,7 @@ exports.updateEvent = async (req, res, next) => {
 };
 
 /**
- * Delete event (restricted to Admin) - deletes all Cloudinary media first
+ * Delete event (restricted to Admin) - deletes all MinIO media first
  */
 exports.deleteEvent = async (req, res, next) => {
   try {
@@ -458,14 +474,16 @@ exports.deleteEvent = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Event not found.' });
     }
 
-    // 1. Delete cover image from Cloudinary first
+    // 1. Delete cover image from MinIO first
     if (event.coverImage && (event.coverImage.publicId || event.coverImage.url)) {
-      await deleteImage(event.coverImage.publicId || event.coverImage.url);
+      await deleteFromS3(event.coverImage.publicId || event.coverImage.url);
     }
 
-    // 2. Delete supplementary gallery images from Cloudinary first
+    // 2. Delete supplementary gallery images from MinIO first
     if (event.additionalImages && event.additionalImages.length > 0) {
-      await deleteMultipleMedia(event.additionalImages);
+      for (const img of event.additionalImages) {
+        await deleteFromS3(img.publicId || img.url);
+      }
     }
 
     // 3. Delete event record from Database
@@ -481,10 +499,49 @@ exports.deleteEvent = async (req, res, next) => {
 };
 
 /**
- * Upload additional images for event gallery
+ * GET /api/events/presigned-url
+ * Generate presigned PUT URL for direct-to-MinIO uploads with NO size limits
  */
+exports.getPresignedEventUploadUrl = async (req, res, next) => {
+  try {
+    const { filename, contentType } = req.query;
+    if (!filename) {
+      return res.status(400).json({ success: false, message: 'filename is required' });
+    }
+
+    const s3 = getS3Client();
+    const bucket = 'madhan';
+    const cleanName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const key = `uploads/${Date.now().toString()}_${cleanName}`;
+
+    const command = new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      ContentType: contentType || 'application/octet-stream',
+      ACL: 'public-read',
+      ContentDisposition: 'inline',
+    });
+
+    const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
+    const endpoint = (process.env.MINIO_ENDPOINT || 'https://staging-storage-api.emovur.com').replace(/\/+$/, '');
+    const publicUrl = `${endpoint}/${bucket}/${key}`;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        uploadUrl,
+        publicUrl,
+        key,
+        bucket,
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 /**
- * Upload additional images & videos for event gallery
+ * Upload additional images & videos for event gallery (MinIO with NO size limits)
  */
 exports.uploadEventGalleryImages = async (req, res, next) => {
   try {
@@ -504,12 +561,13 @@ exports.uploadEventGalleryImages = async (req, res, next) => {
       }
     }
 
-    // If images were already directly uploaded to Cloudinary via frontend
+    // If images were already directly uploaded to MinIO via frontend
     if (req.body.images && Array.isArray(req.body.images) && req.body.images.length > 0) {
       const directImages = req.body.images.map(img => ({
         url: img.url,
-        publicId: img.publicId,
-        resourceType: img.resourceType || (img.url.includes('/video/') ? 'video' : 'image'),
+        publicId: img.publicId || img.key,
+        resourceType: img.resourceType || (img.url.includes('/video/') || /\.(mp4|mov|webm|mkv|ogg)$/i.test(img.url) ? 'video' : 'image'),
+        storageProvider: 's3',
         uploadedBy: req.user._id,
         createdAt: new Date()
       }));
@@ -526,59 +584,35 @@ exports.uploadEventGalleryImages = async (req, res, next) => {
       });
     }
 
-    if (!req.files || req.files.length === 0) {
+    const files = req.files || (req.file ? [req.file] : []);
+    if (files.length === 0) {
       return res.status(400).json({ success: false, message: 'Please select one or more image or video files to upload.' });
     }
 
-    const MAX_IMAGE_SIZE = 9.8 * 1024 * 1024; // 9.8 MB
-    const MAX_VIDEO_SIZE = 99 * 1024 * 1024;  // 99 MB
-
-    // Validate size and file type for each uploaded file
-    for (const file of req.files) {
-      const isVideo = file.mimetype.startsWith('video/');
-      const isImage = file.mimetype.startsWith('image/');
-
-      if (!isImage && !isVideo) {
-        return res.status(400).json({
-          success: false,
-          message: `Unsupported file format for "${file.originalname}". Only image and video files are supported.`
-        });
-      }
-
-      if (isImage && file.size > MAX_IMAGE_SIZE) {
-        return res.status(400).json({
-          success: false,
-          message: `Image "${file.originalname}" exceeds 9.8 MB limit (kept 0.2 MB below Cloudinary's 10 MB limit). Selected size: ${(file.size / (1024 * 1024)).toFixed(2)} MB.`
-        });
-      }
-
-      if (isVideo && file.size > MAX_VIDEO_SIZE) {
-        return res.status(400).json({
-          success: false,
-          message: `Video "${file.originalname}" exceeds 99 MB limit. Selected size: ${(file.size / (1024 * 1024)).toFixed(2)} MB.`
-        });
-      }
-    }
-
     const uploadedImages = [];
-    for (const file of req.files) {
-      const isVideo = file.mimetype.startsWith('video/');
+    for (const file of files) {
+      const isVideo = (file.mimetype || '').startsWith('video/');
       const resourceType = isVideo ? 'video' : 'image';
 
-      const uploadResult = await uploadImage(
-        file.buffer,
-        `hostel-community/events/${id}/gallery`,
-        file.mimetype,
-        resourceType
-      );
+      let fileUrl = file.location;
+      let fileKey = file.key;
 
-      uploadedImages.push({
-        url: uploadResult.url,
-        publicId: uploadResult.publicId,
-        resourceType,
-        uploadedBy: req.user._id,
-        createdAt: new Date()
-      });
+      if (!fileUrl && file.buffer) {
+        const uploadResult = await uploadBufferToS3(file.buffer, file.originalname, file.mimetype, 'uploads');
+        fileUrl = uploadResult.url;
+        fileKey = uploadResult.publicId;
+      }
+
+      if (fileUrl) {
+        uploadedImages.push({
+          url: fileUrl,
+          publicId: fileKey,
+          resourceType,
+          storageProvider: 's3',
+          uploadedBy: req.user._id,
+          createdAt: new Date()
+        });
+      }
     }
 
     event.additionalImages.push(...uploadedImages);
@@ -600,7 +634,7 @@ exports.uploadEventGalleryImages = async (req, res, next) => {
 };
 
 /**
- * Delete a specific gallery image or video from event
+ * Delete a specific gallery image or video from event (MinIO)
  */
 exports.deleteGalleryImage = async (req, res, next) => {
   try {
@@ -634,7 +668,7 @@ exports.deleteGalleryImage = async (req, res, next) => {
     }
 
     if (imageToDelete.publicId || imageToDelete.url) {
-      await deleteImage(imageToDelete.publicId || imageToDelete.url, imageToDelete.resourceType || 'image');
+      await deleteFromS3(imageToDelete.publicId || imageToDelete.url);
     }
 
     event.additionalImages.splice(imageIndex, 1);

@@ -188,7 +188,7 @@ exports.trackLoginQr = async (req, res) => {
           }
         }
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     const redirectTarget = link?.redirectUrl || LOGIN_REDIRECT_URL;
@@ -219,7 +219,7 @@ exports.trackDirectClick = async (req, res) => {
           }
         }
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     return res.status(200).json({

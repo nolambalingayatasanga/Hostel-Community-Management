@@ -1,42 +1,47 @@
 import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import API from '../../api';
+import { recordPageView, flushVisitedPages } from '../../utils/routeTracker';
 
 /**
- * Covert background route navigation tracker.
- * Silently records authenticated user page visits to background security telemetry.
+ * Route Navigation Tracker.
+ * Records authenticated page views silently in sessionStorage.
+ * Dispatches to backend telemetry ONLY on tab close, page refresh, or logout.
  */
 export default function RouteTracker() {
   const location = useLocation();
   const lastPathRef = useRef('');
 
+  // Record route visits in session storage (Zero network requests per navigation)
   useEffect(() => {
     const currentPath = location.pathname;
-    // Prevent duplicate triggers for the same path
     if (currentPath === lastPathRef.current) return;
     lastPathRef.current = currentPath;
 
-    // Only track if user is authenticated (token exists in localStorage)
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    // Ignore public auth pages
-    if (['/login', '/register', '/forgot-password'].includes(currentPath) || currentPath.startsWith('/reset-password')) {
-      return;
-    }
-
-    // Covert background log
-    const timer = setTimeout(() => {
-      API.post('/users/track-page-view', {
-        path: currentPath,
-        pageTitle: document.title || currentPath
-      }).catch(() => {
-        // Fail silently - telemetry should never impact UX
-      });
-    }, 300);
-
-    return () => clearTimeout(timer);
+    recordPageView(currentPath, document.title || currentPath);
   }, [location.pathname]);
+
+  // Flush to server API on page refresh, tab close, or window hide
+  useEffect(() => {
+    const handleUnload = () => {
+      flushVisitedPages(false);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        flushVisitedPages(false);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleUnload);
+    window.addEventListener('pagehide', handleUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleUnload);
+      window.removeEventListener('pagehide', handleUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   return null;
 }

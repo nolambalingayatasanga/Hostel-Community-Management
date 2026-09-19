@@ -1,8 +1,6 @@
 const express = require('express');
 const uploadRequestController = require('../controllers/uploadRequestController');
 const { protect } = require('../middleware/authMiddleware');
-const upload = require('../middleware/uploadMiddleware');
-
 const s3UploadMiddleware = require('../middleware/s3UploadMiddleware');
 
 const router = express.Router();

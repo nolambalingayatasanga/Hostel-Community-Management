@@ -1,17 +1,6 @@
 const GalleryPhoto = require('../models/GalleryPhoto');
 const GalleryFolder = require('../models/GalleryFolder');
 const Access = require('../models/Access');
-const { uploadImage, deleteImage, deleteMultipleMedia } = require('../config/cloudinary');
-const {
-  isR2Configured,
-  uploadToR2,
-  deleteFromR2,
-  getPresignedUploadUrl
-} = require('../config/cloudflareR2');
-const {
-  startMigrationQueue,
-  getMigrationStatus: getQueueStatus
-} = require('../services/galleryMigrationService');
 const { PutObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { getS3Client, deleteFromS3 } = require('../middleware/s3UploadMiddleware');
@@ -105,42 +94,6 @@ exports.getPresignedMinioUrl = async (req, res, next) => {
   }
 };
 exports.getPresignedR2Url = exports.getPresignedMinioUrl; // Backwards compatible alias
-
-/**
- * Get Cloudinary upload signature for client-side direct uploads (kept for Events and fallback)
- */
-exports.getUploadSignature = async (req, res, next) => {
-  try {
-    const cloudinary = require('cloudinary').v2;
-    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cloudinary is not configured in environment variables.'
-      });
-    }
-
-    const timestamp = Math.round(new Date().getTime() / 1000);
-    const folder = req.query.folder || 'hostel-community/gallery';
-    const signature = cloudinary.utils.api_sign_request(
-      { folder, timestamp },
-      process.env.CLOUDINARY_API_SECRET
-    );
-
-    res.status(200).json({
-      success: true,
-      data: {
-        signature,
-        timestamp,
-        cloudName: process.env.CLOUDINARY_CLOUD_NAME,
-        apiKey: process.env.CLOUDINARY_API_KEY,
-        folder,
-        r2Configured: isR2Configured()
-      }
-    });
-  } catch (err) {
-    next(err);
-  }
-};
 
 /**
  * Upload a photo/video to the community gallery (streams to MinIO / S3 with no size limits)
@@ -262,14 +215,8 @@ exports.deleteGalleryPhoto = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'You can only delete media you uploaded.' });
     }
 
-    // 1. Delete asset from MinIO / S3, Cloudflare R2, or Cloudinary
-    if (photo.storageProvider === 's3' || (photo.url && photo.url.includes('staging-storage-api.emovur.com'))) {
-      await deleteFromS3(photo.publicId || photo.url);
-    } else if (photo.storageProvider === 'cloudflare') {
-      await deleteFromR2(photo.publicId || photo.url);
-    } else {
-      await deleteImage(photo.publicId || photo.url, photo.resourceType || 'image');
-    }
+    // 1. Delete asset from MinIO / S3
+    await deleteFromS3(photo.publicId || photo.url);
 
     // 2. Delete record from Database
     await photo.deleteOne();
@@ -466,13 +413,7 @@ exports.deleteGalleryFolder = async (req, res, next) => {
     const photos = await GalleryPhoto.find({ folder: { $in: allFolderIds } });
     if (photos.length > 0) {
       for (const p of photos) {
-        if (p.storageProvider === 's3' || (p.url && p.url.includes('staging-storage-api.emovur.com'))) {
-          await deleteFromS3(p.publicId || p.url);
-        } else if (p.storageProvider === 'cloudflare') {
-          await deleteFromR2(p.publicId || p.url);
-        } else {
-          await deleteImage(p.publicId || p.url, p.resourceType || 'image');
-        }
+        await deleteFromS3(p.publicId || p.url);
       }
     }
 
@@ -506,40 +447,6 @@ exports.getPublicGalleryPreviews = async (req, res, next) => {
     });
   } catch (error) {
     next(error);
-  }
-};
-
-/**
- * Start Cloudinary -> Cloudflare R2 migration queue (Admin only)
- */
-exports.startCloudflareMigration = async (req, res, next) => {
-  try {
-    const status = await startMigrationQueue();
-    res.status(200).json({
-      success: true,
-      message: 'Migration queue started successfully.',
-      data: status
-    });
-  } catch (err) {
-    res.status(400).json({
-      success: false,
-      message: err.message
-    });
-  }
-};
-
-/**
- * Get current migration queue status (Admin only)
- */
-exports.getCloudflareMigrationStatus = async (req, res, next) => {
-  try {
-    const status = getQueueStatus();
-    res.status(200).json({
-      success: true,
-      data: status
-    });
-  } catch (err) {
-    next(err);
   }
 };
 

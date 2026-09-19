@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import debounce from 'lodash/debounce';
 import {
   Box,
   Container,
@@ -45,6 +46,11 @@ import {
   PhotoCamera as PhotoCameraIcon,
   PlayCircle as PlayIcon
 } from '@mui/icons-material';
+import UploadRequestsTable, {
+  getCategoryDisplay,
+  getMediaPreview,
+  formatSubmissionDateTime
+} from './UploadRequestsTable';
 import { useSnackbar } from 'notistack';
 import { LocalizationProvider, DatePicker, TimePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -106,13 +112,13 @@ export default function RequestUpload() {
     !pagePerms?.noAccess
   );
 
-  const adminTabs = ['request_queue', 'request_accepted', 'request_rejected'];
+  const adminTabs = ['all_requests', 'request_queue', 'request_accepted', 'request_rejected'];
   const userTabs = canCreate ? ['submit', 'my_requests'] : ['my_requests'];
 
   // Active top-level tab
   const urlTab = searchParams.get('tab');
   const initialTab = isAdminOrReviewer
-    ? (adminTabs.includes(urlTab) ? urlTab : 'request_queue')
+    ? (adminTabs.includes(urlTab) ? urlTab : 'all_requests')
     : (userTabs.includes(urlTab) ? urlTab : (canCreate ? 'submit' : 'my_requests'));
 
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -121,7 +127,7 @@ export default function RequestUpload() {
   useEffect(() => {
     if (isAdminOrReviewer) {
       if (!adminTabs.includes(activeTab)) {
-        setActiveTab('request_queue');
+        setActiveTab('all_requests');
       }
     } else {
       if (!userTabs.includes(activeTab)) {
@@ -192,6 +198,15 @@ export default function RequestUpload() {
   // Media Preview Dialog
   const [previewMedia, setPreviewMedia] = useState(null);
 
+  // Request Details Dialog & Feedback Dialog
+  const [selectedRequestForDetails, setSelectedRequestForDetails] = useState(null);
+  const [selectedFeedbackRequest, setSelectedFeedbackRequest] = useState(null);
+  const [activeMediaIndex, setActiveMediaIndex] = useState(0);
+
+  useEffect(() => {
+    setActiveMediaIndex(0);
+  }, [selectedRequestForDetails]);
+
   // Delete Request Dialog
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [requestToDelete, setRequestToDelete] = useState(null);
@@ -215,12 +230,49 @@ export default function RequestUpload() {
     fetchFolders();
   }, []);
 
-  const fetchMyRequests = async () => {
+  // Server-side pagination states for Admin
+  const [adminPage, setAdminPage] = useState(1);
+  const [adminRowsPerPage, setAdminRowsPerPage] = useState(10);
+  const [adminTotal, setAdminTotal] = useState(0);
+  const [adminTotalPages, setAdminTotalPages] = useState(1);
+  const [adminSearch, setAdminSearch] = useState('');
+  const [adminCategory, setAdminCategory] = useState('ALL');
+
+  // Server-side pagination states for User (my_requests)
+  const [myPage, setMyPage] = useState(1);
+  const [myRowsPerPage, setMyRowsPerPage] = useState(10);
+  const [myTotal, setMyTotal] = useState(0);
+  const [myTotalPages, setMyTotalPages] = useState(1);
+  const [mySearch, setMySearch] = useState('');
+  const [myCategory, setMyCategory] = useState('ALL');
+
+  const fetchMyRequests = async (statusOverride = null, pageOverride = null, limitOverride = null, searchOverride = null, categoryOverride = null) => {
     try {
       setLoadingMyRequests(true);
-      const res = await API.get('/upload-requests/my-requests');
+      const statusToUse = statusOverride !== null ? statusOverride : myStatusFilter;
+      const pageToUse = pageOverride !== null ? pageOverride : myPage;
+      const limitToUse = limitOverride !== null ? limitOverride : myRowsPerPage;
+      const searchToUse = searchOverride !== null ? searchOverride : mySearch;
+      const categoryToUse = categoryOverride !== null ? categoryOverride : myCategory;
+
+      const res = await API.get('/upload-requests/my-requests', {
+        params: {
+          status: statusToUse !== 'ALL' ? statusToUse : undefined,
+          page: pageToUse,
+          limit: limitToUse,
+          search: searchToUse || undefined,
+          category: categoryToUse !== 'ALL' ? categoryToUse : undefined
+        }
+      });
       if (res.data?.success) {
         setMyRequests(res.data.data || []);
+        if (res.data.pagination) {
+          setMyTotal(res.data.pagination.total || 0);
+          setMyTotalPages(res.data.pagination.totalPages || 1);
+        } else {
+          setMyTotal(res.data.data?.length || 0);
+          setMyTotalPages(1);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch user upload requests:', err);
@@ -229,24 +281,39 @@ export default function RequestUpload() {
     }
   };
 
-  const fetchModerationRequests = async (statusOverride = null) => {
+  const fetchModerationRequests = async (statusOverride = null, pageOverride = null, limitOverride = null, searchOverride = null, categoryOverride = null) => {
     if (!isAdminOrReviewer) return;
     try {
       setLoadingModeration(true);
-      let statusToFetch = statusOverride;
-      if (!statusToFetch) {
-        if (activeTab === 'request_accepted') statusToFetch = 'APPROVED';
-        else if (activeTab === 'request_rejected') statusToFetch = 'REJECTED';
-        else statusToFetch = 'PENDING';
-      }
+      let statusToFetch = statusOverride !== null ? statusOverride : activeTab;
+      if (statusToFetch === 'all_requests') statusToFetch = 'ALL';
+      else if (statusToFetch === 'request_accepted') statusToFetch = 'APPROVED';
+      else if (statusToFetch === 'request_rejected') statusToFetch = 'REJECTED';
+      else if (statusToFetch === 'request_queue') statusToFetch = 'PENDING';
+
+      const pageToUse = pageOverride !== null ? pageOverride : adminPage;
+      const limitToUse = limitOverride !== null ? limitOverride : adminRowsPerPage;
+      const searchToUse = searchOverride !== null ? searchOverride : adminSearch;
+      const categoryToUse = categoryOverride !== null ? categoryOverride : adminCategory;
+
       const res = await API.get('/upload-requests', {
         params: {
           status: statusToFetch,
-          category: modCategoryFilter
+          page: pageToUse,
+          limit: limitToUse,
+          search: searchToUse || undefined,
+          category: categoryToUse !== 'ALL' ? categoryToUse : undefined
         }
       });
       if (res.data?.success) {
         setModerationList(res.data.data || []);
+        if (res.data.pagination) {
+          setAdminTotal(res.data.pagination.total || 0);
+          setAdminTotalPages(res.data.pagination.totalPages || 1);
+        } else {
+          setAdminTotal(res.data.data?.length || 0);
+          setAdminTotalPages(1);
+        }
         if (res.data.counts) {
           setCounts(res.data.counts);
         }
@@ -258,21 +325,47 @@ export default function RequestUpload() {
     }
   };
 
+  const debouncedFetchAdminSearch = useRef(
+    debounce((query, cat, tab, limit) => {
+      let st = tab;
+      if (st === 'all_requests') st = 'ALL';
+      else if (st === 'request_accepted') st = 'APPROVED';
+      else if (st === 'request_rejected') st = 'REJECTED';
+      else if (st === 'request_queue') st = 'PENDING';
+      fetchModerationRequests(st, 1, limit, query, cat);
+    }, 400)
+  ).current;
+
+  const debouncedFetchMySearch = useRef(
+    debounce((query, cat, st, limit) => {
+      fetchMyRequests(st, 1, limit, query, cat);
+    }, 400)
+  ).current;
+
+  useEffect(() => {
+    return () => {
+      debouncedFetchAdminSearch?.cancel?.();
+      debouncedFetchMySearch?.cancel?.();
+    };
+  }, [debouncedFetchAdminSearch, debouncedFetchMySearch]);
+
   useEffect(() => {
     if (!isAdminOrReviewer) {
       if (activeTab === 'my_requests') {
-        fetchMyRequests();
+        setMyPage(1);
+        fetchMyRequests(myStatusFilter, 1);
       }
     } else {
-      if (activeTab === 'request_queue') {
-        fetchModerationRequests('PENDING');
-      } else if (activeTab === 'request_accepted') {
-        fetchModerationRequests('APPROVED');
-      } else if (activeTab === 'request_rejected') {
-        fetchModerationRequests('REJECTED');
+      if (adminTabs.includes(activeTab)) {
+        let st = 'ALL';
+        if (activeTab === 'request_queue') st = 'PENDING';
+        else if (activeTab === 'request_accepted') st = 'APPROVED';
+        else if (activeTab === 'request_rejected') st = 'REJECTED';
+        setAdminPage(1);
+        fetchModerationRequests(st, 1);
       }
     }
-  }, [activeTab, modCategoryFilter, isAdminOrReviewer]);
+  }, [activeTab, isAdminOrReviewer]);
 
   // Handle URL changes
   useEffect(() => {
@@ -293,48 +386,10 @@ export default function RequestUpload() {
   }, [searchParams, isAdminOrReviewer]);
 
   // ----------------------------------------------------
-  // Storage & Upload Handlers
+  // Storage & Upload Handlers (MinIO / S3 Unlimited)
   // ----------------------------------------------------
-  const MAX_CLOUDINARY_IMAGE_SIZE = 9.8 * 1024 * 1024; // Below 10MB (Cloudinary standard)
-  const MAX_CLOUDINARY_VIDEO_SIZE = 99 * 1024 * 1024;  // Below 100MB (Cloudinary standard)
 
-  // Direct Cloudinary upload (for Events and Google Drive album covers)
-  const uploadToCloudinary = async (file, folder = 'hostel-community/requests') => {
-    const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|avi|webm|mkv)$/i.test(file.name);
-    const resourceType = isVideo ? 'video' : 'image';
-
-    const sigRes = await API.get('/gallery/upload-signature', {
-      params: { folder }
-    });
-
-    if (!sigRes.data?.success || !sigRes.data?.data) {
-      throw new Error('Could not obtain Cloudinary upload credentials from server.');
-    }
-
-    const { signature, timestamp, cloudName, apiKey, folder: resolvedFolder } = sigRes.data.data;
-    const cldFormData = new FormData();
-    cldFormData.append('file', file);
-    cldFormData.append('api_key', apiKey);
-    cldFormData.append('timestamp', timestamp);
-    cldFormData.append('signature', signature);
-    cldFormData.append('folder', resolvedFolder);
-
-    const cldRes = await axios.post(
-      `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
-      cldFormData
-    );
-
-    return {
-      url: cldRes.data.secure_url || cldRes.data.url,
-      publicId: cldRes.data.public_id,
-      storageProvider: 'cloudinary',
-      resourceType: cldRes.data.resource_type || resourceType,
-      originalName: file.name,
-      size: file.size
-    };
-  };
-
-  // MinIO / S3 direct upload (for Community Gallery with unlimited size and uploading)
+  // MinIO / S3 direct upload (unlimited size and uploading)
   const uploadToMinio = async (file, folder = 'uploads') => {
     try {
       const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|avi|webm|mkv)$/i.test(file.name);
@@ -396,67 +451,29 @@ export default function RequestUpload() {
           continue;
         }
 
-        // If Event details and media: enforce limits (<10MB image, <100MB video) & upload to Cloudinary
-        if (targetCategory === 'events') {
-          if (isImage && file.size > MAX_CLOUDINARY_IMAGE_SIZE) {
-            enqueueSnackbar(
-              `Image "${file.name}" exceeds 10MB limit for Events. Selected: ${(file.size / (1024 * 1024)).toFixed(2)} MB.`,
-              { variant: 'error' }
-            );
-            continue;
-          }
-          if (isVideo && file.size > MAX_CLOUDINARY_VIDEO_SIZE) {
-            enqueueSnackbar(
-              `Video "${file.name}" exceeds 100MB limit for Events. Selected: ${(file.size / (1024 * 1024)).toFixed(2)} MB.`,
-              { variant: 'error' }
-            );
-            continue;
-          }
-
-          try {
-            const uploaded = await uploadToCloudinary(file, 'hostel-community/requests/events');
-            if (uploaded) {
-              newItems.push({
-                url: uploaded.url,
-                publicId: uploaded.publicId,
-                storageProvider: 'cloudinary',
-                resourceType: uploaded.resourceType,
-                originalName: uploaded.originalName,
-                size: uploaded.size,
-                caption: ''
-              });
-            }
-          } catch (uploadErr) {
-            enqueueSnackbar(`Failed to upload ${file.name} to Cloudinary: ${uploadErr.response?.data?.message || uploadErr.message}`, {
-              variant: 'error'
+        try {
+          const uploaded = await uploadToMinio(file, 'uploads');
+          if (uploaded) {
+            newItems.push({
+              url: uploaded.url,
+              publicId: uploaded.publicId,
+              storageProvider: 's3',
+              resourceType: uploaded.resourceType || (isVideo ? 'video' : 'image'),
+              originalName: uploaded.originalName || file.name,
+              size: uploaded.size || file.size,
+              caption: ''
             });
           }
-        } else {
-          // Community Gallery: MinIO with unlimited size and uploading
-          try {
-            const uploaded = await uploadToMinio(file, 'uploads');
-            if (uploaded) {
-              newItems.push({
-                url: uploaded.url,
-                publicId: uploaded.publicId,
-                storageProvider: 's3',
-                resourceType: uploaded.resourceType,
-                originalName: uploaded.originalName,
-                size: uploaded.size,
-                caption: ''
-              });
-            }
-          } catch (uploadErr) {
-            enqueueSnackbar(`Failed to upload ${file.name} to MinIO: ${uploadErr.response?.data?.message || uploadErr.message}`, {
-              variant: 'error'
-            });
-          }
+        } catch (uploadErr) {
+          enqueueSnackbar(`Failed to upload ${file.name}: ${uploadErr.response?.data?.message || uploadErr.message}`, {
+            variant: 'error'
+          });
         }
       }
 
       if (newItems.length > 0) {
         setUploadedMedia((prev) => [...prev, ...newItems]);
-        enqueueSnackbar(`Successfully uploaded ${newItems.length} file(s)!`, { variant: 'success' });
+        enqueueSnackbar(`Successfully uploaded ${newItems.length} file(s) to MinIO!`, { variant: 'success' });
       }
     } catch (err) {
       enqueueSnackbar('Upload failed', { variant: 'error' });
@@ -477,22 +494,12 @@ export default function RequestUpload() {
       return;
     }
 
-    // Google Drive Album: Up to 10 MB only
-    if (file.size > MAX_CLOUDINARY_IMAGE_SIZE) {
-      enqueueSnackbar(
-        `Cover image exceeds 10MB limit. Selected size: ${(file.size / (1024 * 1024)).toFixed(2)} MB.`,
-        { variant: 'error' }
-      );
-      if (thumbInputRef.current) thumbInputRef.current.value = '';
-      return;
-    }
-
     try {
       setUploadingThumb(true);
-      const uploaded = await uploadToCloudinary(file, 'hostel-community/requests/drive');
+      const uploaded = await uploadToMinio(file, 'uploads');
       if (uploaded) {
         setDriveThumbnail(uploaded.url);
-        enqueueSnackbar('Thumbnail uploaded to Cloudinary successfully!', { variant: 'success' });
+        enqueueSnackbar('Thumbnail uploaded to MinIO successfully!', { variant: 'success' });
       }
     } catch (err) {
       enqueueSnackbar(`Thumbnail upload failed: ${err.response?.data?.message || err.message}`, { variant: 'error' });
@@ -513,22 +520,12 @@ export default function RequestUpload() {
       return;
     }
 
-    // Event Banner Cover: Below 10MB only
-    if (file.size > MAX_CLOUDINARY_IMAGE_SIZE) {
-      enqueueSnackbar(
-        `Event banner exceeds 10MB limit. Selected size: ${(file.size / (1024 * 1024)).toFixed(2)} MB.`,
-        { variant: 'error' }
-      );
-      if (coverInputRef.current) coverInputRef.current.value = '';
-      return;
-    }
-
     try {
       setUploadingCover(true);
-      const uploaded = await uploadToCloudinary(file, 'hostel-community/requests/events');
+      const uploaded = await uploadToMinio(file, 'uploads');
       if (uploaded) {
         setEventCover({ url: uploaded.url, publicId: uploaded.publicId });
-        enqueueSnackbar('Event cover uploaded to Cloudinary successfully!', { variant: 'success' });
+        enqueueSnackbar('Event cover uploaded to MinIO successfully!', { variant: 'success' });
       }
     } catch (err) {
       enqueueSnackbar(`Cover upload failed: ${err.response?.data?.message || err.message}`, { variant: 'error' });
@@ -783,218 +780,316 @@ export default function RequestUpload() {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <Box sx={{ minHeight: '100vh', bgcolor: '#F8FAFC', pb: 8 }}>
+      <Box
+        sx={{
+          height: activeTab === 'submit' ? 'auto' : '86vh',
+          bgcolor: '#F8FAFC',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: activeTab === 'submit' ? 'auto' : 'hidden',
+          pb: activeTab === 'submit' ? 8 : 0
+        }}
+      >
       {/* ── Page Header ── */}
-      <Box sx={{ bgcolor: '#FFFFFF', borderBottom: '1px solid #E2E8F0', pt: 3, pb: 2 }}>
-        <Container maxWidth="lg">
-          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, gap: 2 }}>
-            <Box>
+      <Box sx={{ pt: 2.5, pb: 1.5, flexShrink: 0,  }}>
+        <Container maxWidth={activeTab === 'submit' ? 'lg' : false} sx={{ px: { xs: 2, sm: 3 } }}>
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: { xs: 'column', lg: 'row' },
+              justifyContent: 'space-between',
+              alignItems: { xs: 'flex-start', lg: 'center' },
+              gap: 2
+            }}
+          >
+            <Box sx={{ flexShrink: 0 }}>
               <Typography variant="h5" sx={{ fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 1.5 }}>
                 <CloudUploadIcon sx={{ color: '#0088ff', fontSize: 32 }} />
                 {isAdminOrReviewer ? 'Media Upload Moderation' : 'Memory Upload Hub'}
               </Typography>
-              <Typography variant="body2" sx={{ color: '#64748B', mt: 0.5 }}>
-                {isAdminOrReviewer
-                  ? 'Review incoming member memories and accept them to automatically publish into the community archive.'
-                  : 'Share your campus memories, Google Drive collections, and event media with our community.'}
-              </Typography>
             </Box>
 
-            {/* Top Level Tabs: Request Queue, Request Accepted, Request Rejected for Admin/Reviewer */}
+            {/* Top Level Tabs: All Requests, Request Queue, Request Accepted, Request Rejected for Admin/Reviewer */}
             {isAdminOrReviewer ? (
-              <Tabs
-                value={adminTabs.includes(activeTab) ? activeTab : 'request_queue'}
-                onChange={(_, val) => {
-                  setActiveTab(val);
-                  setSearchParams({ tab: val });
-                }}
-                sx={{
-                  bgcolor: '#F1F5F9',
-                  p: '4px',
-                  borderRadius: '12px',
-                  minHeight: '38px',
-                  '& .MuiTabs-indicator': { display: 'none' }
-                }}
-              >
-                <Tab
-                  value="request_queue"
-                  label={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                      <span>Request Queue</span>
-                      {counts.pending > 0 && (
-                        <Chip
-                          size="small"
-                          label={counts.pending}
-                          sx={{
-                            height: 18,
-                            fontSize: '10px',
-                            fontWeight: 700,
-                            bgcolor: activeTab === 'request_queue' ? '#f59e0b' : '#E2E8F0',
-                            color: activeTab === 'request_queue' ? '#fff' : '#64748B'
-                          }}
-                        />
-                      )}
-                    </Box>
-                  }
-                  icon={<PendingIcon sx={{ fontSize: 18 }} />}
-                  iconPosition="start"
-                  sx={{
-                    minHeight: '32px',
-                    borderRadius: '9px',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                    py: 0.5,
-                    px: 2,
-                    textTransform: 'none',
-                    color: '#64748B',
-                    '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#f59e0b', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }
+              <Box sx={{ minWidth: 0, maxWidth: '100%', width: { xs: '100%', lg: 'auto' }, overflow: 'hidden' }}>
+                <Tabs
+                  value={adminTabs.includes(activeTab) ? activeTab : 'all_requests'}
+                  onChange={(_, val) => {
+                    setActiveTab(val);
+                    setSearchParams({ tab: val });
                   }}
-                />
-                <Tab
-                  value="request_accepted"
-                  label={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                      <span>Request Accepted</span>
-                      {counts.approved > 0 && (
-                        <Chip
-                          size="small"
-                          label={counts.approved}
-                          sx={{
-                            height: 18,
-                            fontSize: '10px',
-                            fontWeight: 700,
-                            bgcolor: activeTab === 'request_accepted' ? '#10b981' : '#E2E8F0',
-                            color: activeTab === 'request_accepted' ? '#fff' : '#64748B'
-                          }}
-                        />
-                      )}
-                    </Box>
-                  }
-                  icon={<ApprovedIcon sx={{ fontSize: 18 }} />}
-                  iconPosition="start"
+                  variant="scrollable"
+                  scrollButtons="auto"
+                  allowScrollButtonsMobile
                   sx={{
-                    minHeight: '32px',
-                    borderRadius: '9px',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                    py: 0.5,
-                    px: 2,
-                    textTransform: 'none',
-                    color: '#64748B',
-                    '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#10b981', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }
+                    bgcolor: '#F1F5F9',
+                    p: '4px',
+                    borderRadius: '12px',
+                    minHeight: '40px',
+                    maxWidth: '100%',
+                    '& .MuiTabs-indicator': { display: 'none' },
+                    '& .MuiTabs-scroller': {
+                      overflowX: 'auto !important',
+                      scrollbarWidth: 'none',
+                      '&::-webkit-scrollbar': { display: 'none' }
+                    },
+                    '& .MuiTabs-flexContainer': {
+                      gap: 0.5,
+                      flexWrap: 'nowrap'
+                    },
+                    '& .MuiTabs-scrollButtons': {
+                      color: '#64748B',
+                      width: 28,
+                      '&.Mui-disabled': { opacity: 0.25 }
+                    }
                   }}
-                />
-                <Tab
-                  value="request_rejected"
-                  label={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                      <span>Request Rejected</span>
-                      {counts.rejected > 0 && (
-                        <Chip
-                          size="small"
-                          label={counts.rejected}
-                          sx={{
-                            height: 18,
-                            fontSize: '10px',
-                            fontWeight: 700,
-                            bgcolor: activeTab === 'request_rejected' ? '#ef4444' : '#E2E8F0',
-                            color: activeTab === 'request_rejected' ? '#fff' : '#64748B'
-                          }}
-                        />
-                      )}
-                    </Box>
-                  }
-                  icon={<RejectedIcon sx={{ fontSize: 18 }} />}
-                  iconPosition="start"
-                  sx={{
-                    minHeight: '32px',
-                    borderRadius: '9px',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                    py: 0.5,
-                    px: 2,
-                    textTransform: 'none',
-                    color: '#64748B',
-                    '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#ef4444', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }
-                  }}
-                />
-              </Tabs>
+                >
+                  <Tab
+                    value="all_requests"
+                    label={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                        <span>All Requests</span>
+                        {counts.total > 0 && (
+                          <Chip
+                            size="small"
+                            label={counts.total}
+                            sx={{
+                              height: 18,
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              bgcolor: activeTab === 'all_requests' ? '#2563EB' : '#E2E8F0',
+                              color: activeTab === 'all_requests' ? '#fff' : '#64748B'
+                            }}
+                          />
+                        )}
+                      </Box>
+                    }
+                    icon={<GalleryIcon sx={{ fontSize: 18 }} />}
+                    iconPosition="start"
+                    sx={{
+                      minHeight: '32px',
+                      borderRadius: '9px',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      py: 0.5,
+                      px: 2,
+                      textTransform: 'none',
+                      color: '#64748B',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#2563EB', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }
+                    }}
+                  />
+                  <Tab
+                    value="request_queue"
+                    label={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                        <span>Request Queue</span>
+                        {counts.pending > 0 && (
+                          <Chip
+                            size="small"
+                            label={counts.pending}
+                            sx={{
+                              height: 18,
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              bgcolor: activeTab === 'request_queue' ? '#f59e0b' : '#E2E8F0',
+                              color: activeTab === 'request_queue' ? '#fff' : '#64748B'
+                            }}
+                          />
+                        )}
+                      </Box>
+                    }
+                    icon={<PendingIcon sx={{ fontSize: 18 }} />}
+                    iconPosition="start"
+                    sx={{
+                      minHeight: '32px',
+                      borderRadius: '9px',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      py: 0.5,
+                      px: 2,
+                      textTransform: 'none',
+                      color: '#64748B',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#f59e0b', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }
+                    }}
+                  />
+                  <Tab
+                    value="request_accepted"
+                    label={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                        <span>Request Accepted</span>
+                        {counts.approved > 0 && (
+                          <Chip
+                            size="small"
+                            label={counts.approved}
+                            sx={{
+                              height: 18,
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              bgcolor: activeTab === 'request_accepted' ? '#10b981' : '#E2E8F0',
+                              color: activeTab === 'request_accepted' ? '#fff' : '#64748B'
+                            }}
+                          />
+                        )}
+                      </Box>
+                    }
+                    icon={<ApprovedIcon sx={{ fontSize: 18 }} />}
+                    iconPosition="start"
+                    sx={{
+                      minHeight: '32px',
+                      borderRadius: '9px',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      py: 0.5,
+                      px: 2,
+                      textTransform: 'none',
+                      color: '#64748B',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#10b981', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }
+                    }}
+                  />
+                  <Tab
+                    value="request_rejected"
+                    label={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                        <span>Request Rejected</span>
+                        {counts.rejected > 0 && (
+                          <Chip
+                            size="small"
+                            label={counts.rejected}
+                            sx={{
+                              height: 18,
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              bgcolor: activeTab === 'request_rejected' ? '#ef4444' : '#E2E8F0',
+                              color: activeTab === 'request_rejected' ? '#fff' : '#64748B'
+                            }}
+                          />
+                        )}
+                      </Box>
+                    }
+                    icon={<RejectedIcon sx={{ fontSize: 18 }} />}
+                    iconPosition="start"
+                    sx={{
+                      minHeight: '32px',
+                      borderRadius: '9px',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      py: 0.5,
+                      px: 2,
+                      textTransform: 'none',
+                      color: '#64748B',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#ef4444', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }
+                    }}
+                  />
+                </Tabs>
+              </Box>
             ) : (
-              <Tabs
-                value={activeTab === 'my_requests' ? 'my_requests' : 'submit'}
-                onChange={(_, val) => {
-                  setActiveTab(val);
-                  setSearchParams({ tab: val });
-                }}
-                sx={{
-                  bgcolor: '#F1F5F9',
-                  p: '4px',
-                  borderRadius: '12px',
-                  minHeight: '38px',
-                  '& .MuiTabs-indicator': { display: 'none' }
-                }}
-              >
-                <Tab
-                  value="submit"
-                  label="Submit Memory"
-                  icon={<CloudUploadIcon sx={{ fontSize: 18 }} />}
-                  iconPosition="start"
-                  sx={{
-                    minHeight: '32px',
-                    borderRadius: '9px',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                    py: 0.5,
-                    px: 2,
-                    textTransform: 'none',
-                    color: '#64748B',
-                    '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#0088ff', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }
+              <Box sx={{ minWidth: 0, maxWidth: '100%', width: { xs: '100%', lg: 'auto' }, overflow: 'hidden' }}>
+                <Tabs
+                  value={activeTab === 'my_requests' ? 'my_requests' : 'submit'}
+                  onChange={(_, val) => {
+                    setActiveTab(val);
+                    setSearchParams({ tab: val });
                   }}
-                />
-                <Tab
-                  value="my_requests"
-                  label={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                      <span>My Submissions</span>
-                      {myRequests.length > 0 && (
-                        <Chip
-                          size="small"
-                          label={myRequests.length}
-                          sx={{
-                            height: 18,
-                            fontSize: '10px',
-                            fontWeight: 700,
-                            bgcolor: activeTab === 'my_requests' ? 'rgba(0,136,255,0.15)' : '#E2E8F0',
-                            color: activeTab === 'my_requests' ? '#0088ff' : '#64748B'
-                          }}
-                        />
-                      )}
-                    </Box>
-                  }
+                  variant="scrollable"
+                  scrollButtons="auto"
+                  allowScrollButtonsMobile
                   sx={{
-                    minHeight: '32px',
-                    borderRadius: '9px',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                    py: 0.5,
-                    px: 2,
-                    textTransform: 'none',
-                    color: '#64748B',
-                    '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#0088ff', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }
+                    bgcolor: '#F1F5F9',
+                    p: '4px',
+                    borderRadius: '12px',
+                    minHeight: '40px',
+                    maxWidth: '100%',
+                    '& .MuiTabs-indicator': { display: 'none' },
+                    '& .MuiTabs-scroller': {
+                      overflowX: 'auto !important',
+                      scrollbarWidth: 'none',
+                      '&::-webkit-scrollbar': { display: 'none' }
+                    },
+                    '& .MuiTabs-flexContainer': {
+                      gap: 0.5,
+                      flexWrap: 'nowrap'
+                    },
+                    '& .MuiTabs-scrollButtons': {
+                      color: '#64748B',
+                      width: 28,
+                      '&.Mui-disabled': { opacity: 0.25 }
+                    }
                   }}
-                />
-              </Tabs>
+                >
+                  <Tab
+                    value="submit"
+                    label="Submit Memory"
+                    icon={<CloudUploadIcon sx={{ fontSize: 18 }} />}
+                    iconPosition="start"
+                    sx={{
+                      minHeight: '32px',
+                      borderRadius: '9px',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      py: 0.5,
+                      px: 2,
+                      textTransform: 'none',
+                      color: '#64748B',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#0088ff', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }
+                    }}
+                  />
+                  <Tab
+                    value="my_requests"
+                    label={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                        <span>My Submissions</span>
+                        {myRequests.length > 0 && (
+                          <Chip
+                            size="small"
+                            label={myRequests.length}
+                            sx={{
+                              height: 18,
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              bgcolor: activeTab === 'my_requests' ? 'rgba(0,136,255,0.15)' : '#E2E8F0',
+                              color: activeTab === 'my_requests' ? '#0088ff' : '#64748B'
+                            }}
+                          />
+                        )}
+                      </Box>
+                    }
+                    sx={{
+                      minHeight: '32px',
+                      borderRadius: '9px',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      py: 0.5,
+                      px: 2,
+                      textTransform: 'none',
+                      color: '#64748B',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#0088ff', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }
+                    }}
+                  />
+                </Tabs>
+              </Box>
             )}
           </Box>
         </Container>
       </Box>
 
       {/* ── Main Tab Contents ── */}
-      <Container maxWidth="lg" sx={{ mt: 3 }}>
-        {/* ========================================================= */}
-        {/* NORMAL USER: TAB 1 - SUBMIT MEMORY FORM                   */}
-        {/* ========================================================= */}
-        {!isAdminOrReviewer && activeTab === 'submit' && (
+      {/* ========================================================= */}
+      {/* NORMAL USER: TAB 1 - SUBMIT MEMORY FORM                   */}
+      {/* ========================================================= */}
+      {!isAdminOrReviewer && activeTab === 'submit' && (
+        <Container maxWidth="lg" sx={{ mt: 3, pb: 6 }}>
           <Box component="form" onSubmit={handleSubmitRequest}>
             <Grid container spacing={3} alignItems="flex-start">
               {/* Left Column: Form Details (Scrollable Cards) */}
@@ -1336,9 +1431,7 @@ export default function RequestUpload() {
                           {uploadingFiles ? 'Uploading assets...' : 'Click to select or drag and drop photos & videos'}
                         </Typography>
                         <Typography variant="caption" sx={{ color: '#64748B', display: 'block', mt: 0.5 }}>
-                          {targetCategory === 'gallery'
-                            ? 'Photos & Videos • Unlimited file size • MinIO Storage'
-                            : 'Images below 10MB • Videos below 100MB • Cloudinary Storage'}
+                          Photos & Videos • Unlimited file size • MinIO Storage
                         </Typography>
                       </Box>
 
@@ -1430,7 +1523,7 @@ export default function RequestUpload() {
                         Drive Album Cover Thumbnail
                       </Typography>
                       <Typography variant="caption" sx={{ color: '#64748B', display: 'block', mb: 2 }}>
-                        Set a custom thumbnail photo to represent this album (Images below 10MB • Cloudinary Storage).
+                        Set a custom thumbnail photo to represent this album (Images • MinIO Storage • Unlimited size).
                       </Typography>
 
                       {driveThumbnail ? (
@@ -1504,7 +1597,7 @@ export default function RequestUpload() {
                         Event Banner / Cover Image
                       </Typography>
                        <Typography variant="caption" sx={{ color: '#64748B', display: 'block', mb: 2 }}>
-                        Set a custom banner photo to represent this Event (Images below 10MB • Cloudinary Storage).
+                        Set a custom banner photo to represent this Event (Images • MinIO Storage • Unlimited size).
                       </Typography>
                       {eventCover.url ? (
                         <Box sx={{ position: 'relative', borderRadius: '12px', overflow: 'hidden', height: 160, mb: 1 }}>
@@ -1598,939 +1691,162 @@ export default function RequestUpload() {
               </Grid>
             </Grid>
           </Box>
-        )}
+        </Container>
+      )}
 
-        {/* ========================================================= */}
-        {/* NORMAL USER: TAB 2 - MY SUBMISSIONS                       */}
-        {/* ========================================================= */}
-        {!isAdminOrReviewer && activeTab === 'my_requests' && (
-          <Box>
-            {/* Filter Bar */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-              <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', py: 0.5 }}>
+      {/* ========================================================= */}
+      {/* NORMAL USER: TAB 2 - MY SUBMISSIONS TABLE                */}
+      {/* ========================================================= */}
+      {!isAdminOrReviewer && activeTab === 'my_requests' && (
+        <Container
+          maxWidth={false}
+          sx={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 0,
+            px: { xs: 1.5, sm: 2.5, md: 3 },
+            py: { xs: 1.5, sm: 2 },
+            overflow: 'hidden'
+          }}
+        >
+          <UploadRequestsTable
+            requests={myRequests}
+            loading={loadingMyRequests}
+            isAdmin={false}
+            currentUser={user}
+            onRefresh={() => fetchMyRequests(myStatusFilter, myPage, myRowsPerPage, mySearch, myCategory)}
+            extraFilters={
+              <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', py: 0.5, flexWrap: 'nowrap' }}>
                 {['ALL', 'PENDING', 'APPROVED', 'REJECTED'].map((st) => (
                   <Chip
                     key={st}
                     label={st === 'ALL' ? 'All Submissions' : st.charAt(0) + st.slice(1).toLowerCase()}
                     clickable
-                    onClick={() => setMyStatusFilter(st)}
+                    onClick={() => {
+                      setMyStatusFilter(st);
+                      setMyPage(1);
+                      fetchMyRequests(st, 1, myRowsPerPage, mySearch, myCategory);
+                    }}
                     variant={myStatusFilter === st ? 'filled' : 'outlined'}
                     color={myStatusFilter === st ? 'primary' : 'default'}
-                    sx={{ fontWeight: 600, fontSize: '12.5px' }}
+                    sx={{
+                      fontWeight: 600,
+                      fontSize: '12.5px',
+                      borderRadius: '20px',
+                      height: '36px',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      bgcolor: myStatusFilter === st ? '#0088ff' : '#FFFFFF',
+                      borderColor: myStatusFilter === st ? '#0088ff' : '#E2E8F0',
+                      color: myStatusFilter === st ? '#FFFFFF' : '#64748B',
+                      '&:hover': {
+                        bgcolor: myStatusFilter === st ? '#0077ee' : '#F8FAFC'
+                      }
+                    }}
                   />
                 ))}
               </Stack>
-              <IconButton onClick={fetchMyRequests} size="small">
-                <RefreshIcon />
-              </IconButton>
-            </Box>
+            }
+            onViewDetails={(req) => setSelectedRequestForDetails(req)}
+            onDelete={(req) => handleOpenDelete(req)}
+            onViewPublished={(req) => {
+              if (req.targetCategory === 'gallery') navigate('/gallery');
+              else if (req.targetCategory === 'drive_links') navigate('/drive-links');
+              else if (req.targetCategory === 'events') navigate('/events');
+            }}
+            onViewFeedback={(req) => setSelectedFeedbackRequest(req)}
+            serverPagination={true}
+            page={myPage}
+            rowsPerPage={myRowsPerPage}
+            totalItems={myTotal}
+            totalPages={myTotalPages}
+            onPageChange={(newPage) => {
+              setMyPage(newPage);
+              fetchMyRequests(myStatusFilter, newPage, myRowsPerPage, mySearch, myCategory);
+            }}
+            onRowsPerPageChange={(newLimit) => {
+              setMyRowsPerPage(newLimit);
+              setMyPage(1);
+              fetchMyRequests(myStatusFilter, 1, newLimit, mySearch, myCategory);
+            }}
+            searchQuery={mySearch}
+            onSearchQueryChange={(query) => {
+              setMySearch(query);
+              setMyPage(1);
+              debouncedFetchMySearch(query, myCategory, myStatusFilter, myRowsPerPage);
+            }}
+            categoryFilter={myCategory}
+            onCategoryFilterChange={(cat) => {
+              setMyCategory(cat);
+              setMyPage(1);
+              fetchMyRequests(myStatusFilter, 1, myRowsPerPage, mySearch, cat);
+            }}
+          />
+        </Container>
+      )}
 
-            {loadingMyRequests ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-                <CircularProgress />
-              </Box>
-            ) : filteredMyRequests.length === 0 ? (
-              <Card sx={{ borderRadius: '16px', p: 6, textAlign: 'center', border: '1px dashed #CBD5E1' }}>
-                <CloudUploadIcon sx={{ fontSize: 48, color: '#94A3B8', mb: 1.5 }} />
-                <Typography variant="h6" sx={{ fontWeight: 700, color: '#334155' }}>
-                  No submissions found
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#64748B', mb: 3, maxWidth: 400, mx: 'auto' }}>
-                  {myStatusFilter === 'ALL'
-                    ? "You haven't submitted any memory upload requests yet."
-                    : `No ${myStatusFilter.toLowerCase()} submissions.`}
-                </Typography>
-                <Button
-                  variant="contained"
-                  onClick={() => {
-                    setActiveTab('submit');
-                    setSearchParams({ tab: 'submit' });
-                  }}
-                  startIcon={<CloudUploadIcon />}
-                  sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 600 }}
-                >
-                  Submit a Memory Now
-                </Button>
-              </Card>
-            ) : (
-              <Grid container spacing={2.5}>
-                {filteredMyRequests.map((req) => {
-                  const meta = getCategoryMeta(req.targetCategory);
-                  return (
-                    <Grid size={{ xs: 12, md: 6 }} key={req._id}>
-                      <Card
-                        sx={{
-                          borderRadius: '16px',
-                          boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
-                          border: '1px solid #E2E8F0',
-                          transition: 'all 0.2s ease',
-                          '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 6px 18px rgba(0,0,0,0.06)' }
-                        }}
-                      >
-                        <CardContent sx={{ p: 2.5 }}>
-                          {/* Top row: Category Pill + Status */}
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                            <Chip
-                              size="small"
-                              icon={meta.icon}
-                              label={meta.label}
-                              sx={{ bgcolor: meta.bg, color: meta.color, fontWeight: 700, fontSize: '11.5px' }}
-                            />
-                            {getStatusChip(req.status)}
-                          </Box>
-
-                          {/* Title & Description */}
-                          <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0F172A', mb: 0.5 }}>
-                            {req.title}
-                          </Typography>
-                          {req.description && (
-                            <Typography variant="body2" sx={{ color: '#64748B', mb: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                              {req.description}
-                            </Typography>
-                          )}
-
-                          {/* Media preview thumbnails */}
-                          {req.media && req.media.length > 0 && (
-                            <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto', py: 1, mb: 1.5 }}>
-                              {req.media.slice(0, 4).map((m, i) => (
-                                <Box
-                                  key={i}
-                                  onClick={() => setPreviewMedia(m)}
-                                  sx={{
-                                    width: 60,
-                                    height: 60,
-                                    borderRadius: '8px',
-                                    overflow: 'hidden',
-                                    cursor: 'pointer',
-                                    flexShrink: 0,
-                                    border: '1px solid #E2E8F0',
-                                    position: 'relative'
-                                  }}
-                                >
-                                  {m.resourceType === 'video' ? (
-                                    <Box sx={{ width: '100%', height: '100%', bgcolor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-                                      <PlayIcon sx={{ fontSize: 20 }} />
-                                    </Box>
-                                  ) : (
-                                    <Box component="img" src={m.url} alt="media" sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                  )}
-                                </Box>
-                              ))}
-                              {req.media.length > 4 && (
-                                <Box sx={{ width: 60, height: 60, borderRadius: '8px', bgcolor: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748B', fontWeight: 700, fontSize: '12px' }}>
-                                  +{req.media.length - 4}
-                                </Box>
-                              )}
-                            </Box>
-                          )}
-
-                          {/* Drive URL info if drive link */}
-                          {req.driveUrl && (
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, p: 1, bgcolor: '#F1F5F9', borderRadius: '8px' }}>
-                              <DriveIcon sx={{ fontSize: 18, color: '#10b981' }} />
-                              <Typography variant="caption" sx={{ color: '#0F172A', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {req.driveUrl}
-                              </Typography>
-                              <IconButton size="small" component="a" href={req.driveUrl} target="_blank" sx={{ ml: 'auto', p: 0.25 }}>
-                                <OpenInNewIcon fontSize="small" />
-                              </IconButton>
-                            </Box>
-                          )}
-
-                          {/* Admin Feedback if rejected */}
-                          {req.status === 'REJECTED' && req.adminFeedback && (
-                            <Alert severity="error" sx={{ mb: 1.5, py: 0.25, '& .MuiAlert-message': { fontSize: '12px' } }}>
-                              <strong>Admin Feedback:</strong> {req.adminFeedback}
-                            </Alert>
-                          )}
-
-                          <Divider sx={{ my: 1.5 }} />
-
-                          {/* Footer Info & Actions */}
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Typography variant="caption" sx={{ color: '#94A3B8' }}>
-                              Submitted {new Date(req.createdAt).toLocaleDateString()}
-                            </Typography>
-
-                            <Stack direction="row" spacing={1}>
-                              {req.status === 'APPROVED' && (
-                                <Button
-                                  size="small"
-                                  variant="outlined"
-                                  endIcon={<ArrowForwardIcon />}
-                                  onClick={() => {
-                                    if (req.targetCategory === 'gallery') navigate('/gallery');
-                                    else if (req.targetCategory === 'drive_links') navigate('/drive-links');
-                                    else if (req.targetCategory === 'events') navigate('/events');
-                                  }}
-                                  sx={{ textTransform: 'none', fontSize: '12px', fontWeight: 600 }}
-                                >
-                                  View Published
-                                </Button>
-                              )}
-
-                              {req.status === 'PENDING' && (
-                                <Button
-                                  size="small"
-                                  color="error"
-                                  startIcon={<DeleteIcon />}
-                                  onClick={() => handleOpenDelete(req)}
-                                  sx={{ textTransform: 'none', fontSize: '12px', fontWeight: 600 }}
-                                >
-                                  Cancel Request
-                                </Button>
-                              )}
-                            </Stack>
-                          </Box>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  );
-                })}
-              </Grid>
-            )}
-          </Box>
-        )}
-
-        {/* ========================================================= */}
-        {/* ADMIN / REVIEWER: TAB 1 - REQUEST QUEUE (PENDING)         */}
-        {/* ========================================================= */}
-        {isAdminOrReviewer && activeTab === 'request_queue' && (
-          <Box>
-            {/* Header / Category Filter Toolbar */}
-            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { sm: 'center' }, gap: 2, mb: 3 }}>
-              <Box>
-                <Typography variant="h6" sx={{ fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <PendingIcon sx={{ color: '#f59e0b' }} />
-                  Request Queue ({counts.pending})
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#64748B' }}>
-                  Submissions awaiting review. Accept to automatically publish them into the community archive.
-                </Typography>
-              </Box>
-
-              <Stack direction="row" spacing={1} alignItems="center">
-                <TextField
-                  select
-                  size="small"
-                  value={modCategoryFilter}
-                  onChange={(e) => setModCategoryFilter(e.target.value)}
-                  sx={{ width: 160, bgcolor: '#FFFFFF' }}
-                >
-                  <MenuItem value="ALL">All Categories</MenuItem>
-                  <MenuItem value="gallery">Gallery</MenuItem>
-                  <MenuItem value="drive_links">Drive Links</MenuItem>
-                  <MenuItem value="events">Events</MenuItem>
-                </TextField>
-                <IconButton onClick={() => fetchModerationRequests('PENDING')} size="small">
-                  <RefreshIcon />
-                </IconButton>
-              </Stack>
-            </Box>
-
-            {loadingModeration ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-                <CircularProgress />
-              </Box>
-            ) : moderationList.length === 0 ? (
-              <Card sx={{ borderRadius: '16px', p: 6, textAlign: 'center', border: '1px dashed #CBD5E1' }}>
-                <ApprovedIcon sx={{ fontSize: 52, color: '#10b981', mb: 1.5 }} />
-                <Typography variant="h6" sx={{ fontWeight: 700, color: '#334155' }}>
-                  Request Queue is Empty!
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#64748B', mt: 0.5 }}>
-                  No pending memory requests waiting for review.
-                </Typography>
-              </Card>
-            ) : (
-              <Stack spacing={2.5}>
-                {moderationList.map((req) => {
-                  const meta = getCategoryMeta(req.targetCategory);
-                  return (
-                    <Card
-                      key={req._id}
-                      sx={{
-                        borderRadius: '16px',
-                        boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
-                        border: '1px solid #E2E8F0',
-                        overflow: 'hidden'
-                      }}
-                    >
-                      <CardContent sx={{ p: 3 }}>
-                        {/* Header: Submitter User Info + Category Pill */}
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                            <Box
-                              component="img"
-                              src={req.user?.profilePhoto || `https://ui-avatars.com/api/?name=${encodeURIComponent(req.user?.name || 'User')}&background=0088ff&color=fff`}
-                              alt="Avatar"
-                              sx={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }}
-                            />
-                            <Box>
-                              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0F172A' }}>
-                                {req.user?.name || 'Member'}
-                              </Typography>
-                              <Typography variant="caption" sx={{ color: '#64748B' }}>
-                                {req.user?.role} • Submitted on {new Date(req.createdAt).toLocaleString()}
-                              </Typography>
-                            </Box>
-                          </Box>
-
-                          <Stack direction="row" spacing={1} alignItems="center">
-                            <Chip
-                              size="small"
-                              icon={meta.icon}
-                              label={meta.label}
-                              sx={{ bgcolor: meta.bg, color: meta.color, fontWeight: 700, fontSize: '11.5px' }}
-                            />
-                            {getStatusChip(req.status)}
-                          </Stack>
-                        </Box>
-
-                        <Divider sx={{ my: 1.5 }} />
-
-                        {/* Submission Content */}
-                        <Box sx={{ mb: 2 }}>
-                          <Typography variant="h6" sx={{ fontWeight: 800, color: '#0F172A', mb: 0.5 }}>
-                            {req.title}
-                          </Typography>
-                          {req.description && (
-                            <Typography variant="body2" sx={{ color: '#475467', mb: 1.5 }}>
-                              {req.description}
-                            </Typography>
-                          )}
-
-                          {/* Specific Category Badges */}
-                          {req.targetCategory === 'drive_links' && (
-                            <Box sx={{ p: 1.5, bgcolor: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0', mb: 2 }}>
-                              <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748B', display: 'block', mb: 0.5 }}>
-                                GOOGLE DRIVE EVENT ALBUM
-                              </Typography>
-                              <Typography variant="body2" sx={{ fontWeight: 600, color: '#0F172A', mb: 0.5 }}>
-                                Category: {req.driveCategory} • Event Date: {req.driveEventDate ? new Date(req.driveEventDate).toLocaleDateString() : 'N/A'}
-                              </Typography>
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                component="a"
-                                href={req.driveUrl}
-                                target="_blank"
-                                startIcon={<DriveIcon />}
-                                endIcon={<OpenInNewIcon />}
-                                sx={{ textTransform: 'none', fontWeight: 600, mt: 0.5 }}
-                              >
-                                Open Google Drive Folder
-                              </Button>
-                            </Box>
-                          )}
-
-                          {req.targetCategory === 'events' && req.eventDetails && (
-                            <Box sx={{ p: 1.5, bgcolor: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0', mb: 2 }}>
-                              <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748B', display: 'block', mb: 0.5 }}>
-                                EVENT SPECIFICATIONS
-                              </Typography>
-                              <Typography variant="body2" sx={{ fontWeight: 600, color: '#0F172A' }}>
-                                Date: {req.eventDetails.eventDate ? new Date(req.eventDetails.eventDate).toLocaleDateString() : 'N/A'} • {req.eventDetails.startTime} - {req.eventDetails.endTime}
-                              </Typography>
-                              <Typography variant="body2" sx={{ color: '#475467' }}>
-                                Location: {req.eventDetails.location}
-                              </Typography>
-                            </Box>
-                          )}
-
-                          {/* Media Assets Grid */}
-                          {req.media && req.media.length > 0 && (
-                            <Box sx={{ mt: 1.5 }}>
-                              <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                Submitted Media Assets ({req.media.length})
-                              </Typography>
-                              <Grid container spacing={1.5} sx={{ mt: 0.5 }}>
-                                {req.media.map((m, i) => (
-                                  <Grid size={{ xs: 6, sm: 3, md: 2 }} key={i}>
-                                    <Box
-                                      onClick={() => setPreviewMedia(m)}
-                                      sx={{
-                                        position: 'relative',
-                                        height: 100,
-                                        borderRadius: '10px',
-                                        overflow: 'hidden',
-                                        cursor: 'pointer',
-                                        border: '1px solid #E2E8F0',
-                                        '&:hover img': { transform: 'scale(1.05)' }
-                                      }}
-                                    >
-                                      {m.resourceType === 'video' ? (
-                                        <Box sx={{ width: '100%', height: '100%', bgcolor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-                                          <PlayIcon fontSize="medium" />
-                                        </Box>
-                                      ) : (
-                                        <Box
-                                          component="img"
-                                          src={m.url}
-                                          alt="Preview"
-                                          sx={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'all 0.2s ease' }}
-                                        />
-                                      )}
-                                      {m.caption && (
-                                        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, bgcolor: 'rgba(0,0,0,0.6)', p: 0.5 }}>
-                                          <Typography variant="caption" sx={{ color: '#fff', fontSize: '10px', display: 'block' }} noWrap>
-                                            {m.caption}
-                                          </Typography>
-                                        </Box>
-                                      )}
-                                    </Box>
-                                  </Grid>
-                                ))}
-                              </Grid>
-                            </Box>
-                          )}
-                        </Box>
-
-                        <Divider sx={{ my: 2 }} />
-
-                        {/* Reviewer Actions */}
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Button
-                            size="small"
-                            color="error"
-                            startIcon={<DeleteIcon />}
-                            onClick={() => handleOpenDelete(req)}
-                            sx={{ textTransform: 'none', fontWeight: 600, fontSize: '12px' }}
-                          >
-                            Delete
-                          </Button>
-
-                          <Stack direction="row" spacing={1.5}>
-                            <Button
-                              variant="outlined"
-                              color="error"
-                              onClick={() => handleOpenRejectDialog(req)}
-                              disabled={reviewingId === req._id}
-                              sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 700 }}
-                            >
-                              Reject with Feedback
-                            </Button>
-                            <Button
-                              variant="contained"
-                              color="success"
-                              startIcon={<ApprovedIcon />}
-                              onClick={() => handleApprove(req)}
-                              disabled={reviewingId === req._id}
-                              sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 700, bgcolor: '#10b981', '&:hover': { bgcolor: '#059669' } }}
-                            >
-                              {reviewingId === req._id ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : 'Approve & Publish'}
-                            </Button>
-                          </Stack>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </Stack>
-            )}
-          </Box>
-        )}
-
-        {/* ========================================================= */}
-        {/* ADMIN / REVIEWER: TAB 2 - REQUEST ACCEPTED                */}
-        {/* ========================================================= */}
-        {isAdminOrReviewer && activeTab === 'request_accepted' && (
-          <Box>
-            {/* Header / Category Filter Toolbar */}
-            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { sm: 'center' }, gap: 2, mb: 3 }}>
-              <Box>
-                <Typography variant="h6" sx={{ fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <ApprovedIcon sx={{ color: '#10b981' }} />
-                  Request Accepted ({counts.approved})
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#64748B' }}>
-                  Approved and accepted memories that are now live in the community gallery, drive links, or events.
-                </Typography>
-              </Box>
-
-              <Stack direction="row" spacing={1} alignItems="center">
-                <TextField
-                  select
-                  size="small"
-                  value={modCategoryFilter}
-                  onChange={(e) => setModCategoryFilter(e.target.value)}
-                  sx={{ width: 160, bgcolor: '#FFFFFF' }}
-                >
-                  <MenuItem value="ALL">All Categories</MenuItem>
-                  <MenuItem value="gallery">Gallery</MenuItem>
-                  <MenuItem value="drive_links">Drive Links</MenuItem>
-                  <MenuItem value="events">Events</MenuItem>
-                </TextField>
-                <IconButton onClick={() => fetchModerationRequests('APPROVED')} size="small">
-                  <RefreshIcon />
-                </IconButton>
-              </Stack>
-            </Box>
-
-            {loadingModeration ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-                <CircularProgress />
-              </Box>
-            ) : moderationList.length === 0 ? (
-              <Card sx={{ borderRadius: '16px', p: 6, textAlign: 'center', border: '1px dashed #CBD5E1' }}>
-                <CloudUploadIcon sx={{ fontSize: 52, color: '#94A3B8', mb: 1.5 }} />
-                <Typography variant="h6" sx={{ fontWeight: 700, color: '#334155' }}>
-                  No Accepted Requests Yet
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#64748B', mt: 0.5 }}>
-                  Accepted media requests will be displayed here once approved.
-                </Typography>
-              </Card>
-            ) : (
-              <Stack spacing={2.5}>
-                {moderationList.map((req) => {
-                  const meta = getCategoryMeta(req.targetCategory);
-                  return (
-                    <Card
-                      key={req._id}
-                      sx={{
-                        borderRadius: '16px',
-                        boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
-                        border: '1px solid #E2E8F0',
-                        overflow: 'hidden'
-                      }}
-                    >
-                      <CardContent sx={{ p: 3 }}>
-                        {/* Header: Submitter User Info + Category Pill + Status */}
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                            <Box
-                              component="img"
-                              src={req.user?.profilePhoto || `https://ui-avatars.com/api/?name=${encodeURIComponent(req.user?.name || 'User')}&background=0088ff&color=fff`}
-                              alt="Avatar"
-                              sx={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }}
-                            />
-                            <Box>
-                              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0F172A' }}>
-                                {req.user?.name || 'Member'}
-                              </Typography>
-                              <Typography variant="caption" sx={{ color: '#64748B' }}>
-                                {req.user?.role} • Submitted on {new Date(req.createdAt).toLocaleString()}
-                              </Typography>
-                            </Box>
-                          </Box>
-
-                          <Stack direction="row" spacing={1} alignItems="center">
-                            <Chip
-                              size="small"
-                              icon={meta.icon}
-                              label={meta.label}
-                              sx={{ bgcolor: meta.bg, color: meta.color, fontWeight: 700, fontSize: '11.5px' }}
-                            />
-                            {getStatusChip(req.status)}
-                          </Stack>
-                        </Box>
-
-                        <Divider sx={{ my: 1.5 }} />
-
-                        {/* Submission Content */}
-                        <Box sx={{ mb: 2 }}>
-                          <Typography variant="h6" sx={{ fontWeight: 800, color: '#0F172A', mb: 0.5 }}>
-                            {req.title}
-                          </Typography>
-                          {req.description && (
-                            <Typography variant="body2" sx={{ color: '#475467', mb: 1.5 }}>
-                              {req.description}
-                            </Typography>
-                          )}
-
-                          {/* Specific Category Badges */}
-                          {req.targetCategory === 'drive_links' && (
-                            <Box sx={{ p: 1.5, bgcolor: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0', mb: 2 }}>
-                              <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748B', display: 'block', mb: 0.5 }}>
-                                GOOGLE DRIVE EVENT ALBUM
-                              </Typography>
-                              <Typography variant="body2" sx={{ fontWeight: 600, color: '#0F172A', mb: 0.5 }}>
-                                Category: {req.driveCategory} • Event Date: {req.driveEventDate ? new Date(req.driveEventDate).toLocaleDateString() : 'N/A'}
-                              </Typography>
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                component="a"
-                                href={req.driveUrl}
-                                target="_blank"
-                                startIcon={<DriveIcon />}
-                                endIcon={<OpenInNewIcon />}
-                                sx={{ textTransform: 'none', fontWeight: 600, mt: 0.5 }}
-                              >
-                                Open Google Drive Folder
-                              </Button>
-                            </Box>
-                          )}
-
-                          {req.targetCategory === 'events' && req.eventDetails && (
-                            <Box sx={{ p: 1.5, bgcolor: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0', mb: 2 }}>
-                              <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748B', display: 'block', mb: 0.5 }}>
-                                EVENT SPECIFICATIONS
-                              </Typography>
-                              <Typography variant="body2" sx={{ fontWeight: 600, color: '#0F172A' }}>
-                                Date: {req.eventDetails.eventDate ? new Date(req.eventDetails.eventDate).toLocaleDateString() : 'N/A'} • {req.eventDetails.startTime} - {req.eventDetails.endTime}
-                              </Typography>
-                              <Typography variant="body2" sx={{ color: '#475467' }}>
-                                Location: {req.eventDetails.location}
-                              </Typography>
-                            </Box>
-                          )}
-
-                          {/* Media Assets Grid */}
-                          {req.media && req.media.length > 0 && (
-                            <Box sx={{ mt: 1.5 }}>
-                              <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                Accepted Media Assets ({req.media.length})
-                              </Typography>
-                              <Grid container spacing={1.5} sx={{ mt: 0.5 }}>
-                                {req.media.map((m, i) => (
-                                  <Grid size={{ xs: 6, sm: 3, md: 2 }} key={i}>
-                                    <Box
-                                      onClick={() => setPreviewMedia(m)}
-                                      sx={{
-                                        position: 'relative',
-                                        height: 100,
-                                        borderRadius: '10px',
-                                        overflow: 'hidden',
-                                        cursor: 'pointer',
-                                        border: '1px solid #E2E8F0',
-                                        '&:hover img': { transform: 'scale(1.05)' }
-                                      }}
-                                    >
-                                      {m.resourceType === 'video' ? (
-                                        <Box sx={{ width: '100%', height: '100%', bgcolor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-                                          <PlayIcon fontSize="medium" />
-                                        </Box>
-                                      ) : (
-                                        <Box
-                                          component="img"
-                                          src={m.url}
-                                          alt="Preview"
-                                          sx={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'all 0.2s ease' }}
-                                        />
-                                      )}
-                                      {m.caption && (
-                                        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, bgcolor: 'rgba(0,0,0,0.6)', p: 0.5 }}>
-                                          <Typography variant="caption" sx={{ color: '#fff', fontSize: '10px', display: 'block' }} noWrap>
-                                            {m.caption}
-                                          </Typography>
-                                        </Box>
-                                      )}
-                                    </Box>
-                                  </Grid>
-                                ))}
-                              </Grid>
-                            </Box>
-                          )}
-                        </Box>
-
-                        {/* Reviewer Note */}
-                        {req.reviewedBy && (
-                          <Box sx={{ p: 1.5, bgcolor: '#F0FDF4', border: '1px solid #DCFCE7', borderRadius: '8px', mb: 2 }}>
-                            <Typography variant="caption" sx={{ color: '#166534', display: 'block', fontWeight: 600 }}>
-                              ✓ Accepted & Published by {req.reviewedBy.name} on {new Date(req.reviewedAt).toLocaleString()}
-                            </Typography>
-                          </Box>
-                        )}
-
-                        <Divider sx={{ my: 2 }} />
-
-                        {/* Footer Shortcut to View Published */}
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Button
-                            size="small"
-                            color="error"
-                            startIcon={<DeleteIcon />}
-                            onClick={() => handleOpenDelete(req)}
-                            sx={{ textTransform: 'none', fontWeight: 600, fontSize: '12px' }}
-                          >
-                            Delete Record
-                          </Button>
-
-                          <Button
-                            variant="contained"
-                            endIcon={<ArrowForwardIcon />}
-                            onClick={() => {
-                              if (req.targetCategory === 'gallery') navigate('/gallery');
-                              else if (req.targetCategory === 'drive_links') navigate('/drive-links');
-                              else if (req.targetCategory === 'events') navigate('/events');
-                            }}
-                            sx={{
-                              borderRadius: '10px',
-                              textTransform: 'none',
-                              fontWeight: 700,
-                              bgcolor: '#0088ff',
-                              '&:hover': { bgcolor: '#0077ee' }
-                            }}
-                          >
-                            View in {req.targetCategory === 'drive_links' ? 'Drive Links' : req.targetCategory.charAt(0).toUpperCase() + req.targetCategory.slice(1)}
-                          </Button>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </Stack>
-            )}
-          </Box>
-        )}
-
-        {/* ========================================================= */}
-        {/* ADMIN / REVIEWER: TAB 3 - REQUEST REJECTED                */}
-        {/* ========================================================= */}
-        {isAdminOrReviewer && activeTab === 'request_rejected' && (
-          <Box>
-            {/* Header / Category Filter Toolbar */}
-            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { sm: 'center' }, gap: 2, mb: 3 }}>
-              <Box>
-                <Typography variant="h6" sx={{ fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <RejectedIcon sx={{ color: '#ef4444' }} />
-                  Request Rejected ({counts.rejected})
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#64748B' }}>
-                  Submissions that were rejected with feedback. You can re-review or approve them if revised.
-                </Typography>
-              </Box>
-
-              <Stack direction="row" spacing={1} alignItems="center">
-                <TextField
-                  select
-                  size="small"
-                  value={modCategoryFilter}
-                  onChange={(e) => setModCategoryFilter(e.target.value)}
-                  sx={{ width: 160, bgcolor: '#FFFFFF' }}
-                >
-                  <MenuItem value="ALL">All Categories</MenuItem>
-                  <MenuItem value="gallery">Gallery</MenuItem>
-                  <MenuItem value="drive_links">Drive Links</MenuItem>
-                  <MenuItem value="events">Events</MenuItem>
-                </TextField>
-                <IconButton onClick={() => fetchModerationRequests('REJECTED')} size="small">
-                  <RefreshIcon />
-                </IconButton>
-              </Stack>
-            </Box>
-
-            {loadingModeration ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-                <CircularProgress />
-              </Box>
-            ) : moderationList.length === 0 ? (
-              <Card sx={{ borderRadius: '16px', p: 6, textAlign: 'center', border: '1px dashed #CBD5E1' }}>
-                <RejectedIcon sx={{ fontSize: 52, color: '#94A3B8', mb: 1.5 }} />
-                <Typography variant="h6" sx={{ fontWeight: 700, color: '#334155' }}>
-                  No Rejected Requests
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#64748B', mt: 0.5 }}>
-                  Submissions rejected during review will be listed here.
-                </Typography>
-              </Card>
-            ) : (
-              <Stack spacing={2.5}>
-                {moderationList.map((req) => {
-                  const meta = getCategoryMeta(req.targetCategory);
-                  return (
-                    <Card
-                      key={req._id}
-                      sx={{
-                        borderRadius: '16px',
-                        boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
-                        border: '1px solid #E2E8F0',
-                        overflow: 'hidden'
-                      }}
-                    >
-                      <CardContent sx={{ p: 3 }}>
-                        {/* Header: Submitter User Info + Category Pill + Status */}
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                            <Box
-                              component="img"
-                              src={req.user?.profilePhoto || `https://ui-avatars.com/api/?name=${encodeURIComponent(req.user?.name || 'User')}&background=0088ff&color=fff`}
-                              alt="Avatar"
-                              sx={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }}
-                            />
-                            <Box>
-                              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0F172A' }}>
-                                {req.user?.name || 'Member'}
-                              </Typography>
-                              <Typography variant="caption" sx={{ color: '#64748B' }}>
-                                {req.user?.role} • Submitted on {new Date(req.createdAt).toLocaleString()}
-                              </Typography>
-                            </Box>
-                          </Box>
-
-                          <Stack direction="row" spacing={1} alignItems="center">
-                            <Chip
-                              size="small"
-                              icon={meta.icon}
-                              label={meta.label}
-                              sx={{ bgcolor: meta.bg, color: meta.color, fontWeight: 700, fontSize: '11.5px' }}
-                            />
-                            {getStatusChip(req.status)}
-                          </Stack>
-                        </Box>
-
-                        <Divider sx={{ my: 1.5 }} />
-
-                        {/* Submission Content */}
-                        <Box sx={{ mb: 2 }}>
-                          <Typography variant="h6" sx={{ fontWeight: 800, color: '#0F172A', mb: 0.5 }}>
-                            {req.title}
-                          </Typography>
-                          {req.description && (
-                            <Typography variant="body2" sx={{ color: '#475467', mb: 1.5 }}>
-                              {req.description}
-                            </Typography>
-                          )}
-
-                          {/* Rejection Feedback Note */}
-                          {req.adminFeedback && (
-                            <Alert severity="error" sx={{ mb: 2, borderRadius: '10px' }}>
-                              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                                Reason for Rejection:
-                              </Typography>
-                              <Typography variant="body2" sx={{ mt: 0.25 }}>
-                                {req.adminFeedback}
-                              </Typography>
-                            </Alert>
-                          )}
-
-                          {/* Specific Category Badges */}
-                          {req.targetCategory === 'drive_links' && (
-                            <Box sx={{ p: 1.5, bgcolor: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0', mb: 2 }}>
-                              <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748B', display: 'block', mb: 0.5 }}>
-                                GOOGLE DRIVE EVENT ALBUM
-                              </Typography>
-                              <Typography variant="body2" sx={{ fontWeight: 600, color: '#0F172A', mb: 0.5 }}>
-                                Category: {req.driveCategory} • Event Date: {req.driveEventDate ? new Date(req.driveEventDate).toLocaleDateString() : 'N/A'}
-                              </Typography>
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                component="a"
-                                href={req.driveUrl}
-                                target="_blank"
-                                startIcon={<DriveIcon />}
-                                endIcon={<OpenInNewIcon />}
-                                sx={{ textTransform: 'none', fontWeight: 600, mt: 0.5 }}
-                              >
-                                Open Google Drive Folder
-                              </Button>
-                            </Box>
-                          )}
-
-                          {req.targetCategory === 'events' && req.eventDetails && (
-                            <Box sx={{ p: 1.5, bgcolor: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0', mb: 2 }}>
-                              <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748B', display: 'block', mb: 0.5 }}>
-                                EVENT SPECIFICATIONS
-                              </Typography>
-                              <Typography variant="body2" sx={{ fontWeight: 600, color: '#0F172A' }}>
-                                Date: {req.eventDetails.eventDate ? new Date(req.eventDetails.eventDate).toLocaleDateString() : 'N/A'} • {req.eventDetails.startTime} - {req.eventDetails.endTime}
-                              </Typography>
-                              <Typography variant="body2" sx={{ color: '#475467' }}>
-                                Location: {req.eventDetails.location}
-                              </Typography>
-                            </Box>
-                          )}
-
-                          {/* Media Assets Grid */}
-                          {req.media && req.media.length > 0 && (
-                            <Box sx={{ mt: 1.5 }}>
-                              <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                Submitted Media Assets ({req.media.length})
-                              </Typography>
-                              <Grid container spacing={1.5} sx={{ mt: 0.5 }}>
-                                {req.media.map((m, i) => (
-                                  <Grid size={{ xs: 6, sm: 3, md: 2 }} key={i}>
-                                    <Box
-                                      onClick={() => setPreviewMedia(m)}
-                                      sx={{
-                                        position: 'relative',
-                                        height: 100,
-                                        borderRadius: '10px',
-                                        overflow: 'hidden',
-                                        cursor: 'pointer',
-                                        border: '1px solid #E2E8F0',
-                                        '&:hover img': { transform: 'scale(1.05)' }
-                                      }}
-                                    >
-                                      {m.resourceType === 'video' ? (
-                                        <Box sx={{ width: '100%', height: '100%', bgcolor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-                                          <PlayIcon fontSize="medium" />
-                                        </Box>
-                                      ) : (
-                                        <Box
-                                          component="img"
-                                          src={m.url}
-                                          alt="Preview"
-                                          sx={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'all 0.2s ease' }}
-                                        />
-                                      )}
-                                      {m.caption && (
-                                        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, bgcolor: 'rgba(0,0,0,0.6)', p: 0.5 }}>
-                                          <Typography variant="caption" sx={{ color: '#fff', fontSize: '10px', display: 'block' }} noWrap>
-                                            {m.caption}
-                                          </Typography>
-                                        </Box>
-                                      )}
-                                    </Box>
-                                  </Grid>
-                                ))}
-                              </Grid>
-                            </Box>
-                          )}
-                        </Box>
-
-                        {/* Reviewer Note */}
-                        {req.reviewedBy && (
-                          <Box sx={{ p: 1.5, bgcolor: '#FEF2F2', border: '1px solid #FEE2E2', borderRadius: '8px', mb: 2 }}>
-                            <Typography variant="caption" sx={{ color: '#991B1B', display: 'block', fontWeight: 600 }}>
-                              Rejected by {req.reviewedBy.name} on {new Date(req.reviewedAt).toLocaleString()}
-                            </Typography>
-                          </Box>
-                        )}
-
-                        <Divider sx={{ my: 2 }} />
-
-                        {/* Reviewer Actions */}
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Button
-                            size="small"
-                            color="error"
-                            startIcon={<DeleteIcon />}
-                            onClick={() => handleOpenDelete(req)}
-                            sx={{ textTransform: 'none', fontWeight: 600, fontSize: '12px' }}
-                          >
-                            Delete Record
-                          </Button>
-
-                          <Button
-                            variant="contained"
-                            color="success"
-                            startIcon={<ApprovedIcon />}
-                            onClick={() => handleApprove(req)}
-                            disabled={reviewingId === req._id}
-                            sx={{
-                              borderRadius: '10px',
-                              textTransform: 'none',
-                              fontWeight: 700,
-                              bgcolor: '#10b981',
-                              '&:hover': { bgcolor: '#059669' }
-                            }}
-                          >
-                            {reviewingId === req._id ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : 'Re-Approve & Publish'}
-                          </Button>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </Stack>
-            )}
-          </Box>
-        )}
-      </Container>
+      {/* ========================================================= */}
+      {/* ADMIN / REVIEWER: MODERATION TABLE                        */}
+      {/* ========================================================= */}
+      {isAdminOrReviewer && adminTabs.includes(activeTab) && (
+        <Container
+          maxWidth={false}
+          sx={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 0,
+            px: { xs: 1.5, sm: 2.5, md: 3 },
+            py: { xs: 1.5, sm: 2 },
+            overflow: 'hidden'
+          }}
+        >
+          <UploadRequestsTable
+            requests={moderationList}
+            loading={loadingModeration}
+            isAdmin={true}
+            currentUser={user}
+            onRefresh={() => fetchModerationRequests(undefined, adminPage, adminRowsPerPage, adminSearch, adminCategory)}
+            onViewDetails={(req) => setSelectedRequestForDetails(req)}
+            onApprove={(req) => handleApprove(req)}
+            onReject={(req) => handleOpenRejectDialog(req)}
+            onDelete={(req) => handleOpenDelete(req)}
+            onViewPublished={(req) => {
+              if (req.targetCategory === 'gallery') navigate('/gallery');
+              else if (req.targetCategory === 'drive_links') navigate('/drive-links');
+              else if (req.targetCategory === 'events') navigate('/events');
+            }}
+            reviewingId={reviewingId}
+            serverPagination={true}
+            page={adminPage}
+            rowsPerPage={adminRowsPerPage}
+            totalItems={adminTotal}
+            totalPages={adminTotalPages}
+            onPageChange={(newPage) => {
+              setAdminPage(newPage);
+              fetchModerationRequests(undefined, newPage, adminRowsPerPage, adminSearch, adminCategory);
+            }}
+            onRowsPerPageChange={(newLimit) => {
+              setAdminRowsPerPage(newLimit);
+              setAdminPage(1);
+              fetchModerationRequests(undefined, 1, newLimit, adminSearch, adminCategory);
+            }}
+            searchQuery={adminSearch}
+            onSearchQueryChange={(query) => {
+              setAdminSearch(query);
+              setAdminPage(1);
+              debouncedFetchAdminSearch(query, adminCategory, activeTab, adminRowsPerPage);
+            }}
+            categoryFilter={adminCategory}
+            onCategoryFilterChange={(cat) => {
+              setAdminCategory(cat);
+              setAdminPage(1);
+              fetchModerationRequests(undefined, 1, adminRowsPerPage, adminSearch, cat);
+            }}
+          />
+        </Container>
+      )}
 
       {/* ── Dialog: Reject with Feedback ── */}
       <Dialog open={rejectDialogOpen} onClose={() => setRejectDialogOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: '16px' } }}>
@@ -2539,14 +1855,14 @@ export default function RequestUpload() {
         </DialogTitle>
         <DialogContent dividers>
           <Typography variant="body2" sx={{ color: '#64748B', mb: 2 }}>
-            Please provide constructive feedback or a reason to the user for why this submission was rejected.
+            You can optionally provide feedback or guidance to the member explaining why this submission was rejected.
           </Typography>
           <TextField
             fullWidth
             multiline
             rows={4}
-            label="Rejection Reason / Guidance"
-            placeholder="e.g., Please provide higher quality photos, or the Google Drive link does not have public access."
+            label="Rejection Reason / Feedback (Optional)"
+            placeholder="e.g., Please provide higher quality photos, or leave blank to reject without feedback."
             value={rejectionFeedback}
             onChange={(e) => setRejectionFeedback(e.target.value)}
           />
@@ -2630,6 +1946,246 @@ export default function RequestUpload() {
             <Typography variant="body2">{previewMedia.caption}</Typography>
           </Box>
         )}
+      </Dialog>
+
+      {/* ── Dialog: Request Media Preview & Actions ── */}
+      <Dialog
+        open={Boolean(selectedRequestForDetails)}
+        onClose={() => setSelectedRequestForDetails(null)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: '20px',
+            overflow: 'hidden',
+            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+            bgcolor: '#FFFFFF',
+            p: 2.5
+          }
+        }}
+      >
+        {selectedRequestForDetails && (() => {
+          const req = selectedRequestForDetails;
+          const mediaItems = req.media || [];
+          const activeMedia = mediaItems[activeMediaIndex] || mediaItems[0];
+
+          return (
+            <Box>
+              {/* Media Preview Box */}
+              <Box
+                sx={{
+                  position: 'relative',
+                  width: '100%',
+                  minHeight: 340,
+                  maxHeight: 520,
+                  bgcolor: '#000000',
+                  borderRadius: '14px',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                {/* Floating Close X button */}
+                <IconButton
+                  onClick={() => setSelectedRequestForDetails(null)}
+                  size="small"
+                  sx={{
+                    position: 'absolute',
+                    top: 12,
+                    right: 12,
+                    bgcolor: 'rgba(0,0,0,0.5)',
+                    color: '#ffffff',
+                    zIndex: 2,
+                    '&:hover': { bgcolor: 'rgba(0,0,0,0.75)' }
+                  }}
+                >
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+
+                {activeMedia ? (
+                  activeMedia.resourceType === 'video' || /\.(mp4|mov|avi|webm|mkv)$/i.test(activeMedia.url) ? (
+                    <Box
+                      component="video"
+                      controls
+                      autoPlay={false}
+                      src={activeMedia.url}
+                      sx={{ width: '100%', maxHeight: 520, objectFit: 'contain' }}
+                    />
+                  ) : (
+                    <Box
+                      component="img"
+                      src={activeMedia.url}
+                      alt="Media Preview"
+                      sx={{ maxWidth: '100%', maxHeight: 520, objectFit: 'contain' }}
+                    />
+                  )
+                ) : req.driveThumbnail ? (
+                  <Box
+                    component="img"
+                    src={req.driveThumbnail}
+                    alt="Drive Thumbnail"
+                    sx={{ maxWidth: '100%', maxHeight: 520, objectFit: 'contain' }}
+                  />
+                ) : req.eventDetails?.coverImage?.url ? (
+                  <Box
+                    component="img"
+                    src={req.eventDetails.coverImage.url}
+                    alt="Event Cover"
+                    sx={{ maxWidth: '100%', maxHeight: 520, objectFit: 'contain' }}
+                  />
+                ) : (
+                  <Typography sx={{ color: '#94A3B8', py: 8 }}>No preview available</Typography>
+                )}
+              </Box>
+
+              {/* Multiple Media Thumbnails if any */}
+              {mediaItems.length > 1 && (
+                <Stack direction="row" spacing={1} sx={{ mt: 1.5, overflowX: 'auto', py: 0.5 }}>
+                  {mediaItems.map((m, idx) => (
+                    <Box
+                      key={idx}
+                      onClick={() => setActiveMediaIndex(idx)}
+                      sx={{
+                        width: 60,
+                        height: 60,
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                        cursor: 'pointer',
+                        border: activeMediaIndex === idx ? '2px solid #2563EB' : '1px solid #CBD5E1',
+                        opacity: activeMediaIndex === idx ? 1 : 0.65,
+                        transition: 'all 0.15s ease',
+                        flexShrink: 0
+                      }}
+                    >
+                      <Box
+                        component="img"
+                        src={m.url}
+                        alt={`Thumb ${idx + 1}`}
+                        sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    </Box>
+                  ))}
+                </Stack>
+              )}
+
+              {/* Action Buttons Below the Preview */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  alignItems: 'center',
+                  gap: 1.5,
+                  mt: 2.5
+                }}
+              >
+                <Button
+                  onClick={() => setSelectedRequestForDetails(null)}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    color: '#64748B',
+                    px: 2.5
+                  }}
+                >
+                  Close
+                </Button>
+
+                {isAdminOrReviewer ? (
+                  <>
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      onClick={() => handleOpenRejectDialog(req)}
+                      disabled={reviewingId === req._id}
+                      sx={{
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        borderRadius: '8px',
+                        px: 2.5
+                      }}
+                    >
+                      Reject with Feedback
+                    </Button>
+
+                    <Button
+                      variant="contained"
+                      color="success"
+                      startIcon={<ApprovedIcon />}
+                      onClick={() => handleApprove(req)}
+                      disabled={reviewingId === req._id}
+                      sx={{
+                        textTransform: 'none',
+                        fontWeight: 700,
+                        borderRadius: '8px',
+                        bgcolor: '#10b981',
+                        px: 2.5,
+                        '&:hover': { bgcolor: '#059669' }
+                      }}
+                    >
+                      {reviewingId === req._id ? (
+                        <CircularProgress size={18} sx={{ color: '#fff' }} />
+                      ) : (
+                        'Approve & Publish'
+                      )}
+                    </Button>
+                  </>
+                ) : (
+                  req.status === 'PENDING' && (
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      onClick={() => {
+                        setSelectedRequestForDetails(null);
+                        handleOpenDelete(req);
+                      }}
+                      sx={{
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        borderRadius: '8px',
+                        px: 2.5
+                      }}
+                    >
+                      Cancel Request
+                    </Button>
+                  )
+                )}
+              </Box>
+            </Box>
+          );
+        })()}
+      </Dialog>
+
+      {/* ── Dialog: User View Admin Feedback ── */}
+      <Dialog
+        open={Boolean(selectedFeedbackRequest)}
+        onClose={() => setSelectedFeedbackRequest(null)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: '16px' } }}
+      >
+        <DialogTitle sx={{ fontWeight: 800, color: '#0F172A' }}>
+          Admin Feedback
+        </DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700, textTransform: 'uppercase', display: 'block', mb: 0.5 }}>
+            Submission: {selectedFeedbackRequest?.title}
+          </Typography>
+          <Alert severity="error" sx={{ borderRadius: '10px', mt: 1 }}>
+            <Typography variant="body2">
+              {selectedFeedbackRequest?.adminFeedback || 'No specific feedback was provided.'}
+            </Typography>
+          </Alert>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button
+            onClick={() => setSelectedFeedbackRequest(null)}
+            variant="contained"
+            sx={{ textTransform: 'none', fontWeight: 700, borderRadius: '8px' }}
+          >
+            Got it
+          </Button>
+        </DialogActions>
       </Dialog>
     </Box>
     </LocalizationProvider>

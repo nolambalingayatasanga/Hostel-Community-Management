@@ -1432,12 +1432,12 @@ function EventMediaHero({
           </span>
         </Box>
 
-        {/* Uploader Name above Date on Hero Media */}
+        {/* Uploader Name above Date on Hero Media (Top-Left to avoid covering video controls) */}
         {(currentMedia.uploadedBy?.name || currentMedia.createdAt) && (
           <Box
             sx={{
               position: "absolute",
-              bottom: 14,
+              top: 14,
               left: 14,
               bgcolor: "rgba(15, 23, 42, 0.75)",
               backdropFilter: "blur(6px)",
@@ -1838,7 +1838,7 @@ function ViewAllMediaDialog({
 
     if (
       !window.confirm(
-        `Are you sure you want to delete ${deletableList.length} selected photo(s) from Cloudinary & this event?`
+        `Are you sure you want to delete ${deletableList.length} selected photo(s) from storage & this event?`
       )
     ) {
       return;
@@ -2455,7 +2455,7 @@ function ImageLightbox({ open, onClose, imageUrl, canDeleteImage = () => false, 
       enqueueSnackbar("Cover photo cannot be deleted here. Change it in Edit Event.", { variant: "warning" });
       return;
     }
-    if (!window.confirm(`Are you sure you want to permanently delete this ${isVideo ? "video" : "photo"} from Cloudinary & this event?`)) return;
+    if (!window.confirm(`Are you sure you want to permanently delete this ${isVideo ? "video" : "photo"} from storage & this event?`)) return;
     setDeleteLoading(true);
     try {
       const imgId = currentImage._id || currentImage.id;
@@ -2717,7 +2717,7 @@ function ManageMediaDialog({
   };
 
   const handleDeleteImage = async (imageId, isVideo = false) => {
-    if (!window.confirm(`Delete this ${isVideo ? "video" : "photo"} permanently from Cloudinary & Event?`)) return;
+    if (!window.confirm(`Delete this ${isVideo ? "video" : "photo"} permanently from storage & Event?`)) return;
     try {
       const res = await API.delete(`/events/${eventId}/gallery/${imageId}`);
       if (res.data?.success) {
@@ -2803,7 +2803,7 @@ function ManageMediaDialog({
                 Click to Select and Upload Photos & Videos
               </Typography>
               <Typography variant="caption" sx={{ color: "#64748B", display: "block" }}>
-                Images up to 9.8 MB, Videos up to 99 MB • Any number of files
+                Images & Videos • Unlimited file size • Any number of files
               </Typography>
             </Box>
 

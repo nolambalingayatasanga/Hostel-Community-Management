@@ -3,6 +3,8 @@ const GalleryPhoto = require('../models/GalleryPhoto');
 const DriveLink = require('../models/DriveLink');
 const Event = require('../models/Event');
 const Access = require('../models/Access');
+const User = require('../models/User');
+const { deleteFromS3 } = require('../middleware/s3UploadMiddleware');
 
 /**
  * Check if user has moderation/review rights for request_upload
@@ -117,19 +119,67 @@ exports.createRequest = async (req, res, next) => {
 
 /**
  * GET /api/upload-requests/my-requests
- * Get all memory upload requests submitted by the logged in user
+ * Get all memory upload requests submitted by the logged in user with pagination & filters
  */
 exports.getMyRequests = async (req, res, next) => {
   try {
-    const requests = await UploadRequest.find({ user: req.user._id })
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = req.query.limit === 'all' ? null : Math.max(1, Math.min(100, parseInt(req.query.limit, 10) || 10));
+    const skip = limit ? (page - 1) * limit : 0;
+
+    const { status, category, search } = req.query;
+    const filter = { user: req.user._id };
+
+    if (status && status !== 'ALL') {
+      filter.status = status;
+    }
+    if (category && category !== 'ALL') {
+      if (category === 'video') {
+        filter.targetCategory = 'gallery';
+        filter['media.resourceType'] = 'video';
+      } else if (category === 'image') {
+        filter.targetCategory = 'gallery';
+        filter['media.resourceType'] = { $ne: 'video' };
+      } else if (category === 'drive') {
+        filter.targetCategory = 'drive_links';
+      } else if (category === 'event') {
+        filter.targetCategory = 'events';
+      } else {
+        filter.targetCategory = category;
+      }
+    }
+
+    if (search && search.trim()) {
+      const searchRegex = new RegExp(search.trim(), 'i');
+      filter.$or = [
+        { title: searchRegex },
+        { description: searchRegex },
+        { 'media.originalName': searchRegex }
+      ];
+    }
+
+    const total = await UploadRequest.countDocuments(filter);
+    let query = UploadRequest.find(filter)
       .sort({ createdAt: -1 })
       .populate('reviewedBy', 'name role')
       .populate('galleryFolder', 'name')
       .lean();
 
+    if (limit) {
+      query = query.skip(skip).limit(limit);
+    }
+
+    const requests = await query;
+
     res.status(200).json({
       success: true,
-      data: requests
+      data: requests,
+      pagination: {
+        page,
+        limit: limit || total,
+        total,
+        totalPages: limit ? Math.max(1, Math.ceil(total / limit)) : 1
+      }
     });
   } catch (err) {
     next(err);
@@ -138,7 +188,7 @@ exports.getMyRequests = async (req, res, next) => {
 
 /**
  * GET /api/upload-requests
- * Get all requests (for Admin or authorized reviewers in Access Control)
+ * Get all requests (for Admin or authorized reviewers in Access Control) with pagination & filters
  */
 exports.getAllRequests = async (req, res, next) => {
   try {
@@ -150,21 +200,63 @@ exports.getAllRequests = async (req, res, next) => {
       });
     }
 
-    const { status, category } = req.query;
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = req.query.limit === 'all' ? null : Math.max(1, Math.min(100, parseInt(req.query.limit, 10) || 10));
+    const skip = limit ? (page - 1) * limit : 0;
+
+    const { status, category, search } = req.query;
     const filter = {};
     if (status && status !== 'ALL') {
       filter.status = status;
     }
     if (category && category !== 'ALL') {
-      filter.targetCategory = category;
+      if (category === 'video') {
+        filter.targetCategory = 'gallery';
+        filter['media.resourceType'] = 'video';
+      } else if (category === 'image') {
+        filter.targetCategory = 'gallery';
+        filter['media.resourceType'] = { $ne: 'video' };
+      } else if (category === 'drive') {
+        filter.targetCategory = 'drive_links';
+      } else if (category === 'event') {
+        filter.targetCategory = 'events';
+      } else {
+        filter.targetCategory = category;
+      }
     }
 
-    const requests = await UploadRequest.find(filter)
+    if (search && search.trim()) {
+      const searchRegex = new RegExp(search.trim(), 'i');
+      const matchingUsers = await User.find({
+        $or: [
+          { name: searchRegex },
+          { role: searchRegex },
+          { memberId: searchRegex }
+        ]
+      }).select('_id').lean();
+      const userIds = matchingUsers.map((u) => u._id);
+
+      filter.$or = [
+        { title: searchRegex },
+        { description: searchRegex },
+        { 'media.originalName': searchRegex },
+        { user: { $in: userIds } }
+      ];
+    }
+
+    const total = await UploadRequest.countDocuments(filter);
+    let query = UploadRequest.find(filter)
       .sort({ createdAt: -1 })
       .populate('user', 'name email profilePhoto role memberId')
       .populate('reviewedBy', 'name role')
       .populate('galleryFolder', 'name')
       .lean();
+
+    if (limit) {
+      query = query.skip(skip).limit(limit);
+    }
+
+    const requests = await query;
 
     const pendingCount = await UploadRequest.countDocuments({ status: 'PENDING' });
     const approvedCount = await UploadRequest.countDocuments({ status: 'APPROVED' });
@@ -173,6 +265,12 @@ exports.getAllRequests = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: requests,
+      pagination: {
+        page,
+        limit: limit || total,
+        total,
+        totalPages: limit ? Math.max(1, Math.ceil(total / limit)) : 1
+      },
       counts: {
         pending: pendingCount,
         approved: approvedCount,
@@ -363,6 +461,19 @@ exports.deleteRequest = async (req, res, next) => {
         success: false,
         message: 'You can only cancel pending requests.'
       });
+    }
+
+    // Clean up uploaded media assets from MinIO storage if the request wasn't approved/published
+    if (request.status !== 'APPROVED' && request.media && request.media.length > 0) {
+      for (const m of request.media) {
+        try {
+          if (m.publicId || m.url) {
+            await deleteFromS3(m.publicId || m.url);
+          }
+        } catch (storageErr) {
+          console.warn('[uploadRequestController] Could not delete file from storage:', storageErr.message);
+        }
+      }
     }
 
     await UploadRequest.findByIdAndDelete(id);

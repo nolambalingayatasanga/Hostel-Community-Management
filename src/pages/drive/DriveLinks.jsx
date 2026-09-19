@@ -149,10 +149,23 @@ export default function DriveLinks() {
   const [itemToDelete, setItemToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
-  const fetchDriveLinks = async () => {
+  const lastFetchRef = useRef({ time: 0, search: null });
+  const previousSearchRef = useRef(search);
+
+  const fetchDriveLinks = async (searchTerm = search, force = false) => {
+    const now = Date.now();
+    if (
+      !force &&
+      lastFetchRef.current.search === searchTerm &&
+      now - lastFetchRef.current.time < 1200
+    ) {
+      return;
+    }
+    lastFetchRef.current = { time: now, search: searchTerm };
+
     try {
       setLoading(true);
-      const res = await API.get('/drive-links', { params: { search: search || undefined } });
+      const res = await API.get('/drive-links', { params: { search: searchTerm || undefined } });
       if (res.data?.success) setLinks(res.data.data || []);
     } catch (err) {
       console.error('Failed to load drive links:', err);
@@ -162,9 +175,21 @@ export default function DriveLinks() {
     }
   };
 
-  useEffect(() => { fetchDriveLinks(); }, []);
+  // 1. Initial page load (runs once on mount, deduplicated against StrictMode double-mounting)
   useEffect(() => {
-    const timer = setTimeout(() => fetchDriveLinks(), 350);
+    fetchDriveLinks(search);
+  }, []);
+
+  // 2. Search effect (strictly triggers only when the search query value actually changes)
+  useEffect(() => {
+    if (previousSearchRef.current === search) {
+      return;
+    }
+    previousSearchRef.current = search;
+
+    const timer = setTimeout(() => {
+      fetchDriveLinks(search);
+    }, 350);
     return () => clearTimeout(timer);
   }, [search]);
 
@@ -248,10 +273,10 @@ export default function DriveLinks() {
       const headers = { 'Content-Type': 'multipart/form-data' };
       if (editingLink) {
         const res = await API.put(`/drive-links/${editingLink._id}`, formData, { headers });
-        if (res.data?.success) { enqueueSnackbar('Google Drive link updated successfully', { variant: 'success' }); setDialogOpen(false); fetchDriveLinks(); }
+        if (res.data?.success) { enqueueSnackbar('Google Drive link updated successfully', { variant: 'success' }); setDialogOpen(false); fetchDriveLinks(search, true); }
       } else {
         const res = await API.post('/drive-links', formData, { headers });
-        if (res.data?.success) { enqueueSnackbar('Google Drive link added successfully', { variant: 'success' }); setDialogOpen(false); fetchDriveLinks(); }
+        if (res.data?.success) { enqueueSnackbar('Google Drive link added successfully', { variant: 'success' }); setDialogOpen(false); fetchDriveLinks(search, true); }
       }
     } catch (err) {
       enqueueSnackbar(err.response?.data?.message || 'Failed to save Google Drive link', { variant: 'error' });
@@ -267,7 +292,7 @@ export default function DriveLinks() {
       if (quickThumbFile) formData.append('thumbnail', quickThumbFile);
       else formData.append('thumbnail', quickThumbUrl.trim());
       const res = await API.put(`/drive-links/${quickThumbItem._id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      if (res.data?.success) { enqueueSnackbar('Thumbnail updated successfully', { variant: 'success' }); setQuickThumbDialogOpen(false); setQuickThumbItem(null); fetchDriveLinks(); }
+      if (res.data?.success) { enqueueSnackbar('Thumbnail updated successfully', { variant: 'success' }); setQuickThumbDialogOpen(false); setQuickThumbItem(null); fetchDriveLinks(search, true); }
     } catch (err) {
       enqueueSnackbar(err.response?.data?.message || 'Failed to update thumbnail', { variant: 'error' });
     } finally { setSavingQuickThumb(false); }
@@ -278,7 +303,7 @@ export default function DriveLinks() {
     try {
       setDeleting(true);
       const res = await API.delete(`/drive-links/${itemToDelete._id}`);
-      if (res.data?.success) { enqueueSnackbar('Drive link deleted successfully', { variant: 'info' }); setDeleteDialogOpen(false); setItemToDelete(null); fetchDriveLinks(); }
+      if (res.data?.success) { enqueueSnackbar('Drive link deleted successfully', { variant: 'info' }); setDeleteDialogOpen(false); setItemToDelete(null); fetchDriveLinks(search, true); }
     } catch (err) {
       enqueueSnackbar('Failed to delete drive link', { variant: 'error' });
     } finally { setDeleting(false); }

@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import API from '../api';
 
+import { flushVisitedPages } from '../utils/routeTracker';
+
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
@@ -74,8 +76,14 @@ export const AuthProvider = ({ children }) => {
 
   // Logout handler
   const handleLogout = () => {
+    try {
+      flushVisitedPages(true);
+    } catch {
+      // ignore
+    }
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    sessionStorage.removeItem('session_tracked_pages');
     setUser(null);
     setToken('');
   };

@@ -90,11 +90,11 @@ const UserSchema = new mongoose.Schema({
   profilePhoto: {
     url: {
       type: String,
-      default: 'https://res.cloudinary.com/mkifnpvk/image/upload/v1789187464/hostel-community/profiles/vzsuddpebsujc0ayuku3.jpg'
+      default: 'https://staging-storage-api.emovur.com/madhan/uploads/1789848439497_default_ProfileIcon.jpeg'
     },
     publicId: {
       type: String,
-      default: 'hostel-community/profiles/vzsuddpebsujc0ayuku3'
+      default: 'uploads/1789848439497_default_ProfileIcon.jpeg'
     }
   },
   registrationNumber: {

@@ -18,6 +18,7 @@ import {
   Tooltip,
   Modal,
   Checkbox,
+  FormControlLabel,
   Tabs,
   Tab,
   Menu,
@@ -174,6 +175,7 @@ const Gallery = () => {
   // Delete Confirmation State
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null); // { type: 'photo'|'bulk-photos'|'folder', id: string, name?: string }
+  const [dontShowAgain, setDontShowAgain] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadProgressText, setDownloadProgressText] = useState('');
@@ -598,26 +600,42 @@ const Gallery = () => {
   // 7. Media Deletion & Bulk Deletion
   // -------------------------------------------------------------
   const handleDeletePhotoClick = (id) => {
+    if (deleting) return;
+    if (sessionStorage.getItem('gallery_skip_delete_confirm') === 'true') {
+      executeDelete({ type: 'photo', id });
+      return;
+    }
+    setDontShowAgain(false);
     setDeleteTarget({ type: 'photo', id });
     setDeleteConfirmOpen(true);
   };
 
   const handleDeleteSelectedPhotosClick = () => {
-    if (selectedIds.length === 0) return;
+    if (deleting || selectedIds.length === 0) return;
+    if (sessionStorage.getItem('gallery_skip_delete_confirm') === 'true') {
+      executeDelete({ type: 'bulk-photos', ids: selectedIds });
+      return;
+    }
+    setDontShowAgain(false);
     setDeleteTarget({ type: 'bulk-photos', ids: selectedIds });
     setDeleteConfirmOpen(true);
   };
 
-  const executeDelete = async () => {
-    if (!deleteTarget) return;
+  const executeDelete = async (explicitTarget = null) => {
+    const target = explicitTarget || deleteTarget;
+    if (!target) return;
+
+    if (dontShowAgain) {
+      sessionStorage.setItem('gallery_skip_delete_confirm', 'true');
+    }
 
     try {
       setDeleting(true);
-      if (deleteTarget.type === 'folder') {
-        const res = await API.delete(`/gallery/folders/${deleteTarget.id}`);
+      if (target.type === 'folder') {
+        const res = await API.delete(`/gallery/folders/${target.id}`);
         if (res.data?.success) {
           enqueueSnackbar('Folder, subfolders, and media deleted successfully.', { variant: 'success' });
-          const deletedIds = res.data?.data?.deletedFolderIds || [deleteTarget.id];
+          const deletedIds = res.data?.data?.deletedFolderIds || [target.id];
           setFolders((prev) => prev.filter((f) => !deletedIds.includes(f._id)));
           if (currentFolder && deletedIds.includes(currentFolder._id)) {
             const parentId = getParentId(currentFolder);
@@ -626,17 +644,21 @@ const Gallery = () => {
           }
           fetchFolders();
         }
-      } else if (deleteTarget.type === 'photo') {
-        const res = await API.delete(`/gallery/${deleteTarget.id}`);
+      } else if (target.type === 'photo') {
+        const res = await API.delete(`/gallery/${target.id}`);
         if (res.data?.success) {
           enqueueSnackbar('Media item deleted successfully.', { variant: 'success' });
-          setPhotos(prev => prev.filter(p => p._id !== deleteTarget.id));
-          setSelectedIds(prev => prev.filter(id => id !== deleteTarget.id));
+          setPhotos(prev => prev.filter(p => p._id !== target.id));
+          setSelectedIds(prev => prev.filter(id => id !== target.id));
           setTotalPhotos(prev => Math.max(0, prev - 1));
           fetchFolders();
+          if (activePhoto && activePhoto._id === target.id) {
+            setLightboxOpen(false);
+            setActivePhoto(null);
+          }
         }
-      } else if (deleteTarget.type === 'bulk-photos') {
-        const idsToDelete = deleteTarget.ids || [];
+      } else if (target.type === 'bulk-photos') {
+        const idsToDelete = target.ids || [];
         const deletePromises = idsToDelete.map(id =>
           API.delete(`/gallery/${id}`)
             .then(() => ({ id, success: true }))
@@ -965,6 +987,7 @@ const Gallery = () => {
                     return (
                       <Box key={folderCrumb._id} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, whiteSpace: 'nowrap' }}>
                         <Typography
+                          component="span"
                           variant="body2"
                           sx={{
                             fontWeight: 700,
@@ -976,11 +999,14 @@ const Gallery = () => {
                           }}
                         >
                           <Box
+                            component="span"
                             sx={{
                               width: 10,
                               height: 10,
                               borderRadius: '3px',
-                              bgcolor: folderCrumb.color || '#0F9D58'
+                              bgcolor: folderCrumb.color || '#0F9D58',
+                              display: 'inline-block',
+                              flexShrink: 0
                             }}
                           />
                           {folderCrumb.name}
@@ -1018,11 +1044,14 @@ const Gallery = () => {
                       }}
                     >
                       <Box
+                        component="span"
                         sx={{
                           width: 8,
                           height: 8,
                           borderRadius: '2px',
-                          bgcolor: folderCrumb.color || '#0F9D58'
+                          bgcolor: folderCrumb.color || '#0F9D58',
+                          display: 'inline-block',
+                          flexShrink: 0
                         }}
                       />
                       {folderCrumb.name}
@@ -1562,11 +1591,13 @@ const Gallery = () => {
         anchorEl={folderMenuAnchor}
         open={Boolean(folderMenuAnchor)}
         onClose={() => setFolderMenuAnchor(null)}
-        PaperProps={{
-          sx: {
-            borderRadius: '12px',
-            boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
-            minWidth: 170
+        slotProps={{
+          paper: {
+            sx: {
+              borderRadius: '12px',
+              boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+              minWidth: 170
+            }
           }
         }}
       >
@@ -1986,6 +2017,7 @@ const Gallery = () => {
         onClose={() => !deleting && setDeleteConfirmOpen(false)}
         maxWidth="xs"
         fullWidth
+        sx={{ zIndex: 1700 }}
         PaperProps={{
           sx: {
             borderRadius: '20px',
@@ -1997,7 +2029,7 @@ const Gallery = () => {
         <DialogTitle sx={{ fontWeight: 800, color: '#1E293B', letterSpacing: '-0.02em', pt: 3 }}>
           {deleteTarget?.type === 'folder' ? 'Delete Folder?' : 'Confirm Delete'}
         </DialogTitle>
-        <DialogContent sx={{ pb: 1 }}>
+        <DialogContent sx={{ pb: 1.5 }}>
           <Typography variant="body1" sx={{ color: '#64748B', lineHeight: 1.5 }}>
             {deleteTarget?.type === 'folder'
               ? `Are you sure you want to delete folder "${deleteTarget.name}"? This folder${deleteTarget.subfolderCount ? `, all its ${deleteTarget.subfolderCount} subfolder(s),` : ''} and all ${deleteTarget.count || 0} media assets inside will be permanently deleted.`
@@ -2006,34 +2038,77 @@ const Gallery = () => {
                 : 'Are you sure you want to permanently delete this media item? This action cannot be undone.'}
           </Typography>
         </DialogContent>
-        <DialogActions sx={{ p: 3, display: 'flex', gap: 1.5 }}>
-          <Button
-            onClick={() => setDeleteConfirmOpen(false)}
-            color="inherit"
-            disabled={deleting}
-            sx={{ textTransform: 'none', fontWeight: 600, borderRadius: '10px' }}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={executeDelete}
-            variant="contained"
-            color="error"
-            disabled={deleting}
-            sx={{
-              fontWeight: 600,
-              textTransform: 'none',
-              borderRadius: '10px',
-              px: 3,
-              minWidth: 80
-            }}
-          >
-            {deleting ? (
-              <CircularProgress size={20} sx={{ color: '#fff' }} />
-            ) : (
-              'Delete'
-            )}
-          </Button>
+        <DialogActions
+          sx={{
+            px: 3,
+            pb: 3,
+            pt: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 1
+          }}
+        >
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={dontShowAgain}
+                onChange={(e) => setDontShowAgain(e.target.checked)}
+                size="small"
+                sx={{
+                  color: '#94A3B8',
+                  p: 0.5,
+                  mr: 0.5,
+                  '&.Mui-checked': { color: '#EF4444' }
+                }}
+              />
+            }
+            label={
+              <Typography
+                variant="body2"
+                sx={{
+                  color: '#64748B',
+                  fontSize: '0.82rem',
+                  fontWeight: 500,
+                  userSelect: 'none',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                Don't Show again
+              </Typography>
+            }
+            sx={{ m: 0 }}
+          />
+          <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+            <Button
+              onClick={() => setDeleteConfirmOpen(false)}
+              color="inherit"
+              disabled={deleting}
+              sx={{ textTransform: 'none', fontWeight: 600, borderRadius: '10px' }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={executeDelete}
+              variant="contained"
+              color="error"
+              disabled={deleting}
+              sx={{
+                fontWeight: 600,
+                textTransform: 'none',
+                borderRadius: '10px',
+                px: 3,
+                minWidth: 80
+              }}
+            >
+              {deleting ? (
+                <CircularProgress size={20} sx={{ color: '#fff' }} />
+              ) : (
+                'Delete'
+              )}
+            </Button>
+          </Box>
         </DialogActions>
       </Dialog>
 
@@ -2053,30 +2128,70 @@ const Gallery = () => {
         }}
       >
         <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', outline: 'none' }}>
-          {/* Always Fixed in Top Right of Screen */}
-          <IconButton
-            onClick={() => setLightboxOpen(false)}
+          {/* Fixed Top Right Action Buttons: Delete (if permitted) just left of Close */}
+          <Box
             sx={{
               position: 'fixed',
               top: { xs: 14, sm: 24 },
               right: { xs: 14, sm: 24 },
               zIndex: 1600,
-              color: '#FFFFFF',
-              backgroundColor: 'rgba(255, 255, 255, 0.15)',
-              backdropFilter: 'blur(10px)',
-              border: '1px solid rgba(255, 255, 255, 0.25)',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-              width: { xs: 38, sm: 44 },
-              height: { xs: 38, sm: 44 },
-              transition: 'all 0.2s ease',
-              '&:hover': {
-                backgroundColor: 'rgba(255, 255, 255, 0.3)',
-                transform: 'scale(1.08)'
-              }
+              display: 'flex',
+              alignItems: 'center',
+              gap: { xs: 1, sm: 1.5 }
             }}
           >
-            <CloseIcon sx={{ fontSize: { xs: 20, sm: 24 } }} />
-          </IconButton>
+            {activePhoto && canDeletePhoto(activePhoto) && (
+              <Tooltip title="Delete Media" arrow>
+                <IconButton
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeletePhotoClick(activePhoto._id);
+                  }}
+                  disabled={deleting}
+                  aria-label="Delete media"
+                  sx={{
+                    color: '#FFFFFF',
+                    backgroundColor: 'rgba(239, 68, 68, 0.65)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(239, 68, 68, 0.8)',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+                    width: { xs: 38, sm: 44 },
+                    height: { xs: 38, sm: 44 },
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      backgroundColor: 'rgba(220, 38, 38, 0.95)',
+                      transform: 'scale(1.08)'
+                    }
+                  }}
+                >
+                  <DeleteIcon sx={{ fontSize: { xs: 19, sm: 22 } }} />
+                </IconButton>
+              </Tooltip>
+            )}
+
+            <Tooltip title="Close (Esc)" arrow>
+              <IconButton
+                onClick={() => setLightboxOpen(false)}
+                aria-label="Close media preview"
+                sx={{
+                  color: '#FFFFFF',
+                  backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid rgba(255, 255, 255, 0.25)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+                  width: { xs: 38, sm: 44 },
+                  height: { xs: 38, sm: 44 },
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                    transform: 'scale(1.08)'
+                  }
+                }}
+              >
+                <CloseIcon sx={{ fontSize: { xs: 20, sm: 24 } }} />
+              </IconButton>
+            </Tooltip>
+          </Box>
 
           {/* Navigation Button - Left End */}
           {photos.length > 1 && (

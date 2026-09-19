@@ -1,7 +1,7 @@
 const express = require('express');
 const userController = require('../controllers/userController');
 const { protect, restrictTo } = require('../middleware/authMiddleware');
-const upload = require('../middleware/uploadMiddleware');
+const s3UploadMiddleware = require('../middleware/s3UploadMiddleware');
 
 const router = express.Router();
 
@@ -10,7 +10,7 @@ router.use(protect);
 
 // Self endpoints
 router.patch('/profile', userController.updateOwnProfile);
-router.post('/profile/photo', upload.single('profilePhoto'), userController.uploadProfilePhoto);
+router.post('/profile/photo', s3UploadMiddleware('profilePhoto'), userController.uploadProfilePhoto);
 router.post('/profile/transition', restrictTo('STUDENT'), userController.transitionToAlumni);
 router.post('/translate-kannada', userController.translateToKannada);
 router.post('/translate-english', userController.translateToEnglish);
@@ -34,7 +34,7 @@ const allowSelfOrRoles = (...roles) => (req, res, next) => {
 
 // Admin & Warden management endpoints
 router.post('/bulk-drop', restrictTo('ADMIN', 'WARDEN'), userController.bulkDropUsers);
-router.post('/:id/photo', allowSelfOrRoles('ADMIN', 'WARDEN'), upload.single('profilePhoto'), userController.uploadProfilePhoto);
+router.post('/:id/photo', allowSelfOrRoles('ADMIN', 'WARDEN'), s3UploadMiddleware('profilePhoto'), userController.uploadProfilePhoto);
 router.post('/', restrictTo('ADMIN', 'WARDEN'), userController.adminCreateUser);
 router.patch('/:id/status', restrictTo('ADMIN', 'WARDEN'), userController.adminUpdateUserStatus);
 router.post('/:id/transition', restrictTo('ADMIN', 'WARDEN'), userController.adminTransitionStudent);

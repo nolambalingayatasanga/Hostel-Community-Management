@@ -12,7 +12,7 @@ const GalleryPhotoSchema = new mongoose.Schema({
   storageProvider: {
     type: String,
     enum: ['cloudinary', 'cloudflare', 's3', 'minio'],
-    default: 'cloudinary'
+    default: 's3'
   },
   caption: {
     type: String,

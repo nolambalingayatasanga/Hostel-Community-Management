@@ -1,5 +1,5 @@
 const DriveLink = require('../models/DriveLink');
-const { uploadImage } = require('../config/cloudinary');
+const { uploadBufferToS3, deleteFromS3 } = require('../middleware/s3UploadMiddleware');
 
 /**
  * GET /api/drive-links
@@ -112,14 +112,14 @@ exports.createDriveLink = async (req, res) => {
       });
     }
 
-    // Process file upload if provided
+    // Process file upload if provided via MinIO
     if (req.file) {
       try {
-        const uploadRes = await uploadImage(
+        const uploadRes = await uploadBufferToS3(
           req.file.buffer,
-          'hostel-community/drive-links',
+          req.file.originalname,
           req.file.mimetype,
-          'image'
+          'uploads'
         );
         if (uploadRes?.url) {
           thumbnail = uploadRes.url;
@@ -196,11 +196,14 @@ exports.updateDriveLink = async (req, res) => {
     // Process file upload if provided
     if (req.file) {
       try {
-        const uploadRes = await uploadImage(
+        if (driveLink.thumbnail && driveLink.thumbnail.includes('staging-storage-api.emovur.com')) {
+          await deleteFromS3(driveLink.thumbnail);
+        }
+        const uploadRes = await uploadBufferToS3(
           req.file.buffer,
-          'hostel-community/drive-links',
+          req.file.originalname,
           req.file.mimetype,
-          'image'
+          'uploads'
         );
         if (uploadRes?.url) {
           driveLink.thumbnail = uploadRes.url;
@@ -247,13 +250,19 @@ exports.updateDriveLink = async (req, res) => {
  */
 exports.deleteDriveLink = async (req, res) => {
   try {
-    const driveLink = await DriveLink.findByIdAndDelete(req.params.id);
+    const driveLink = await DriveLink.findById(req.params.id);
     if (!driveLink) {
       return res.status(404).json({
         success: false,
         message: 'Drive link not found'
       });
     }
+
+    if (driveLink.thumbnail && driveLink.thumbnail.includes('staging-storage-api.emovur.com')) {
+      await deleteFromS3(driveLink.thumbnail);
+    }
+
+    await driveLink.deleteOne();
 
     return res.status(200).json({
       success: true,

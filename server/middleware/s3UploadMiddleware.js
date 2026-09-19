@@ -1,4 +1,4 @@
-const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, DeleteObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
 const multer = require('multer');
 
 let multerS3 = null;
@@ -18,6 +18,32 @@ const getS3Client = () => {
     },
     forcePathStyle: true,
   });
+};
+
+/**
+ * Upload an in-memory buffer directly to MinIO / S3 bucket 'madhan'
+ */
+const uploadBufferToS3 = async (buffer, originalname = 'media.jpg', mimetype = 'image/jpeg', folder = 'uploads', bucket = 'madhan') => {
+  const s3 = getS3Client();
+  const cleanName = (originalname || 'media').replace(/[^a-zA-Z0-9._-]/g, '_');
+  const key = `${folder}/${Date.now().toString()}_${cleanName}`;
+  const command = new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    Body: buffer,
+    ContentType: mimetype || 'application/octet-stream',
+    ACL: 'public-read',
+    ContentDisposition: 'inline',
+  });
+  await s3.send(command);
+  const endpoint = (process.env.MINIO_ENDPOINT || 'https://staging-storage-api.emovur.com').replace(/\/+$/, '');
+  const url = `${endpoint}/${bucket}/${key}`;
+  return {
+    url,
+    publicId: key,
+    key,
+    bucket,
+  };
 };
 
 /**
@@ -88,5 +114,7 @@ const deleteFromS3 = async (keyOrUrl, bucket = 'madhan') => {
 
 s3UploadMiddleware.getS3Client = getS3Client;
 s3UploadMiddleware.deleteFromS3 = deleteFromS3;
+s3UploadMiddleware.uploadBufferToS3 = uploadBufferToS3;
 
 module.exports = s3UploadMiddleware;
+

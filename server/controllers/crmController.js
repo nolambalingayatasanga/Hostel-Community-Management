@@ -413,7 +413,7 @@ exports.saveTabLayout = async (req, res, next) => {
         columnOrder: columnOrder || [],
         hiddenColumns: hiddenColumns || []
       },
-      { new: true, upsert: true }
+      { returnDocument: 'after', upsert: true }
     );
 
     res.status(200).json({ success: true, data: updated });

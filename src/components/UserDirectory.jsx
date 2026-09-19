@@ -564,7 +564,7 @@ const UserDirectory = ({ directoryRole, title }) => {
           <DialogContentText sx={{ mb: 2 }}>
             Are you absolutely sure you want to permanently delete the profile of{' '}
             <strong style={{ color: '#111827' }}>{userToDelete?.name}</strong>? This action is irreversible
-            and will remove their account, address, and images from Cloudinary.
+            and will remove their account, address, and images from storage.
           </DialogContentText>
           <DialogContentText>
             To confirm deletion, type <strong style={{ color: '#ff4d4d' }}>DELETE</strong> in the box below:

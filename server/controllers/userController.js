@@ -7,9 +7,9 @@ const GalleryPhoto = require('../models/GalleryPhoto');
 const GalleryFolder = require('../models/GalleryFolder');
 const Event = require('../models/Event');
 const PasswordResetActivity = require('../models/PasswordResetActivity');
-const { uploadImage, deleteImage } = require('../config/cloudinary');
+const { deleteFromS3, uploadBufferToS3 } = require('../middleware/s3UploadMiddleware');
 const { sanitizeUser } = require('../middleware/authMiddleware');
-const { logAuditEvent } = require('../utils/auditLogger');
+const { logAuditEvent, extractClientInfo } = require('../utils/auditLogger');
 const { getDefaultProfilePhoto } = require('../utils/defaultProfilePhoto');
 
 const splitNameAndRelation = (rawName, existingRelation = {}) => {
@@ -612,28 +612,31 @@ exports.uploadProfilePhoto = async (req, res, next) => {
     // Store reference to previous image identifier if it exists
     const oldMedia = user.profilePhoto?.publicId || user.profilePhoto?.url;
 
-    // Upload new image first
-    const uploadResult = await uploadImage(req.file.buffer, 'hostel-community/profiles', req.file.mimetype);
+    // Upload new image to MinIO
+    let finalUrl = req.file.location;
+    let finalPublicId = req.file.key;
+
+    if (!finalUrl && req.file.buffer) {
+      const uploadResult = await uploadBufferToS3(req.file.buffer, req.file.originalname, req.file.mimetype, 'profiles');
+      finalUrl = uploadResult.url;
+      finalPublicId = uploadResult.publicId;
+    }
 
     user.profilePhoto = {
-      url: uploadResult.url,
-      publicId: uploadResult.publicId
+      url: finalUrl,
+      publicId: finalPublicId
     };
 
     user.updatedBy = req.user._id;
     await user.save();
 
-    // Delete previous image from Cloudinary ONLY after new image is successfully added and saved
-    // Protect the master default ProfileIcon from deletion if shared
-    const isMasterDefault = oldMedia && (
-      oldMedia === 'hostel-community/profiles/vzsuddpebsujc0ayuku3' ||
-      oldMedia.includes('vzsuddpebsujc0ayuku3')
-    );
+    // Delete previous image from MinIO ONLY after new image is successfully added and saved
+    const isMasterDefault = oldMedia && oldMedia.includes('default_ProfileIcon');
     if (oldMedia && !isMasterDefault) {
       try {
-        await deleteImage(oldMedia);
+        await deleteFromS3(oldMedia);
       } catch (deleteError) {
-        console.error(`Failed to delete old profile photo (${oldMedia}) from Cloudinary:`, deleteError);
+        console.error(`Failed to delete old profile photo (${oldMedia}) from MinIO:`, deleteError);
       }
     }
 
@@ -1205,9 +1208,9 @@ exports.adminDeleteUser = async (req, res, next) => {
       });
     }
 
-    // Delete photo from Cloudinary first if it exists
+    // Delete photo from MinIO first if it exists
     if (user.profilePhoto && (user.profilePhoto.publicId || user.profilePhoto.url)) {
-      await deleteImage(user.profilePhoto.publicId || user.profilePhoto.url);
+      await deleteFromS3(user.profilePhoto.publicId || user.profilePhoto.url);
     }
 
     // Remove from database
@@ -1886,7 +1889,7 @@ exports.getUserAuditLogs = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    const logs = await AuditLog.find({
+    const rawLogs = await AuditLog.find({
       $or: [
         { user: user._id },
         { userId: String(user._id) },
@@ -1895,7 +1898,21 @@ exports.getUserAuditLogs = async (req, res, next) => {
       ]
     })
       .sort({ createdAt: -1 })
-      .limit(100);
+      .limit(150);
+
+    // Ensure only 1 record per unique visited path is returned for PAGE_VIEW
+    const seenPaths = new Set();
+    const logs = [];
+    for (const log of rawLogs) {
+      if (log.action === 'PAGE_VIEW' || log.action === 'PATH_VISIT') {
+        const p = log.details?.path || '';
+        if (p) {
+          if (seenPaths.has(p)) continue;
+          seenPaths.add(p);
+        }
+      }
+      logs.push(log);
+    }
 
     res.status(200).json({
       success: true,
@@ -1910,28 +1927,89 @@ exports.getUserAuditLogs = async (req, res, next) => {
 };
 
 /**
- * Track user route navigation / page visit covertly in background telemetry
+ * Track user route navigation / page visits in background telemetry.
+ * Batches visited pages and updates/overwrites a single row per path per user.
  */
 exports.trackPageView = async (req, res, next) => {
   try {
-    const { path, pageTitle } = req.body;
-    if (!path) {
-      return res.status(400).json({ success: false, message: 'Path is required.' });
+    const rawPages = Array.isArray(req.body.pages)
+      ? req.body.pages
+      : req.body.path
+        ? [{ path: req.body.path, pageTitle: req.body.pageTitle, lastVisitedAt: req.body.lastVisitedAt || new Date(), count: 1 }]
+        : [];
+
+    if (rawPages.length === 0) {
+      return res.status(200).json({ success: true, message: 'No pages to track.' });
     }
 
-    logAuditEvent({
-      req,
-      user: req.user,
-      action: 'PAGE_VIEW',
-      status: 'SUCCESS',
-      details: {
-        path: String(path).trim(),
-        pageTitle: String(pageTitle || '').trim()
-      }
-    }).catch(err => console.error('[Telemetry] Failed to log page view:', err));
+    const client = extractClientInfo(req);
+    const user = req.user;
+    const userIdStr = user?._id ? String(user._id) : (user?.id || '');
 
-    return res.status(200).json({ success: true });
+    for (const page of rawPages) {
+      const pathStr = String(page.path || '').trim();
+      if (!pathStr) continue;
+
+      const normalizedPath = pathStr.startsWith('/') ? pathStr : `/${pathStr}`;
+      const pageTitle = String(page.pageTitle || '').trim() || normalizedPath;
+      const visitDate = page.lastVisitedAt ? new Date(page.lastVisitedAt) : new Date();
+      const visitCount = typeof page.count === 'number' && page.count > 0 ? page.count : 1;
+
+      // Upsert: Overwrite the single existing row for this user & path, or create if absent
+      const updatedDoc = await AuditLog.findOneAndUpdate(
+        {
+          $or: [
+            { user: user._id, action: 'PAGE_VIEW', 'details.path': normalizedPath },
+            { userId: userIdStr, action: 'PAGE_VIEW', 'details.path': normalizedPath }
+          ]
+        },
+        {
+          $set: {
+            user: user._id,
+            userId: userIdStr,
+            userName: user.name || '',
+            email: user.email || '',
+            phone: user.phone || '',
+            role: user.role || '',
+            action: 'PAGE_VIEW',
+            status: 'SUCCESS',
+            ipAddress: client.ip || '',
+            browser: client.browser || '',
+            os: client.os || '',
+            deviceType: client.deviceType || 'Desktop',
+            userAgent: client.userAgent || '',
+            'details.path': normalizedPath,
+            'details.pageTitle': pageTitle,
+            'details.lastVisitedAt': visitDate,
+            createdAt: visitDate,
+            updatedAt: visitDate
+          },
+          $inc: {
+            'details.visitCount': visitCount
+          }
+        },
+        {
+          upsert: true,
+          returnDocument: 'after',
+          setDefaultsOnInsert: true
+        }
+      );
+
+      // Clean up any historical duplicate rows for this user and path so only ONE row remains
+      if (updatedDoc && updatedDoc._id) {
+        await AuditLog.deleteMany({
+          $or: [
+            { user: user._id, action: 'PAGE_VIEW', 'details.path': normalizedPath },
+            { userId: userIdStr, action: 'PAGE_VIEW', 'details.path': normalizedPath }
+          ],
+          _id: { $ne: updatedDoc._id }
+        });
+      }
+    }
+
+    return res.status(200).json({ success: true, count: rawPages.length });
   } catch (error) {
-    next(error);
+    console.error('[Telemetry] Failed to track page view:', error);
+    return res.status(200).json({ success: false, error: error.message });
   }
 };
