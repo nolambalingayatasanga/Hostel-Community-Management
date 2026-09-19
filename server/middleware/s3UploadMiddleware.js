@@ -1,6 +1,12 @@
 const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const multer = require('multer');
-const multerS3 = require('multer-s3');
+
+let multerS3 = null;
+try {
+  multerS3 = require('multer-s3');
+} catch (err) {
+  console.warn('[s3UploadMiddleware] multer-s3 module not found, falling back to memoryStorage:', err.message);
+}
 
 const getS3Client = () => {
   return new S3Client({
@@ -19,10 +25,10 @@ const getS3Client = () => {
  * Accepts array of field configs, single field name string, or any field
  */
 const s3UploadMiddleware = (fields) => {
-  const s3 = getS3Client();
-
-  const upload = multer({
-    storage: multerS3({
+  let storage;
+  if (multerS3) {
+    const s3 = getS3Client();
+    storage = multerS3({
       s3: s3,
       bucket: "madhan",
       acl: "public-read",
@@ -35,7 +41,13 @@ const s3UploadMiddleware = (fields) => {
         const fileName = `${Date.now().toString()}_${cleanName}`;
         cb(null, `uploads/${fileName}`);
       },
-    }),
+    });
+  } else {
+    storage = multer.memoryStorage();
+  }
+
+  const upload = multer({
+    storage: storage,
     // Explicitly NO file size limits
   });
 

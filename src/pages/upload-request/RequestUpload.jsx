@@ -293,16 +293,58 @@ export default function RequestUpload() {
   }, [searchParams, isAdminOrReviewer]);
 
   // ----------------------------------------------------
-  // File Upload Handlers
+  // Storage & Upload Handlers
   // ----------------------------------------------------
-  const handleDirectUploadFile = async (file) => {
+  const MAX_CLOUDINARY_IMAGE_SIZE = 9.8 * 1024 * 1024; // Below 10MB (Cloudinary standard)
+  const MAX_CLOUDINARY_VIDEO_SIZE = 99 * 1024 * 1024;  // Below 100MB (Cloudinary standard)
+
+  // Direct Cloudinary upload (for Events and Google Drive album covers)
+  const uploadToCloudinary = async (file, folder = 'hostel-community/requests') => {
+    const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|avi|webm|mkv)$/i.test(file.name);
+    const resourceType = isVideo ? 'video' : 'image';
+
+    const sigRes = await API.get('/gallery/upload-signature', {
+      params: { folder }
+    });
+
+    if (!sigRes.data?.success || !sigRes.data?.data) {
+      throw new Error('Could not obtain Cloudinary upload credentials from server.');
+    }
+
+    const { signature, timestamp, cloudName, apiKey, folder: resolvedFolder } = sigRes.data.data;
+    const cldFormData = new FormData();
+    cldFormData.append('file', file);
+    cldFormData.append('api_key', apiKey);
+    cldFormData.append('timestamp', timestamp);
+    cldFormData.append('signature', signature);
+    cldFormData.append('folder', resolvedFolder);
+
+    const cldRes = await axios.post(
+      `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
+      cldFormData
+    );
+
+    return {
+      url: cldRes.data.secure_url || cldRes.data.url,
+      publicId: cldRes.data.public_id,
+      storageProvider: 'cloudinary',
+      resourceType: cldRes.data.resource_type || resourceType,
+      originalName: file.name,
+      size: file.size
+    };
+  };
+
+  // MinIO / S3 direct upload (for Community Gallery with unlimited size and uploading)
+  const uploadToMinio = async (file, folder = 'uploads') => {
     try {
-      // 1. Try MinIO client-side direct upload via presigned URL (bypasses Vercel 4.5MB limit)
+      const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|avi|webm|mkv)$/i.test(file.name);
+      const resourceType = isVideo ? 'video' : 'image';
+
       const presignedRes = await API.get('/gallery/presigned-url', {
         params: {
           filename: file.name,
-          fileType: file.type || 'application/octet-stream',
-          folder: 'uploads'
+          fileType: file.type || (isVideo ? 'video/mp4' : 'image/jpeg'),
+          folder
         }
       });
 
@@ -310,16 +352,15 @@ export default function RequestUpload() {
         const { uploadUrl, publicUrl, key } = presignedRes.data.data;
         await axios.put(uploadUrl, file, {
           headers: {
-            'Content-Type': file.type || 'application/octet-stream'
+            'Content-Type': file.type || (isVideo ? 'video/mp4' : 'image/jpeg')
           }
         });
 
-        const isVideo = (file.type || '').startsWith('video/');
         return {
           url: publicUrl,
           publicId: key,
           storageProvider: 's3',
-          resourceType: isVideo ? 'video' : 'image',
+          resourceType,
           originalName: file.name,
           size: file.size
         };
@@ -328,7 +369,7 @@ export default function RequestUpload() {
       console.warn('Direct MinIO upload fallback to server route:', directErr.message);
     }
 
-    // 2. Fallback to multipart stream to backend
+    // Fallback to server route
     const formData = new FormData();
     formData.append('media', file);
     formData.append('file', file);
@@ -339,34 +380,84 @@ export default function RequestUpload() {
   };
 
   const handleMediaFilesSelected = async (e) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
+    const rawFiles = Array.from(e.target.files || []);
+    if (rawFiles.length === 0) return;
 
     try {
       setUploadingFiles(true);
       const newItems = [];
-      for (const file of files) {
-        try {
-          const uploaded = await handleDirectUploadFile(file);
-          if (uploaded) {
-            newItems.push({
-              url: uploaded.url,
-              publicId: uploaded.publicId,
-              storageProvider: uploaded.storageProvider,
-              resourceType: uploaded.resourceType,
-              originalName: uploaded.originalName,
-              size: uploaded.size,
-              caption: ''
+
+      for (const file of rawFiles) {
+        const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|avi|webm|mkv)$/i.test(file.name);
+        const isImage = file.type.startsWith('image/');
+
+        if (!isImage && !isVideo) {
+          enqueueSnackbar(`"${file.name}" is not a valid image or video format.`, { variant: 'error' });
+          continue;
+        }
+
+        // If Event details and media: enforce limits (<10MB image, <100MB video) & upload to Cloudinary
+        if (targetCategory === 'events') {
+          if (isImage && file.size > MAX_CLOUDINARY_IMAGE_SIZE) {
+            enqueueSnackbar(
+              `Image "${file.name}" exceeds 10MB limit for Events. Selected: ${(file.size / (1024 * 1024)).toFixed(2)} MB.`,
+              { variant: 'error' }
+            );
+            continue;
+          }
+          if (isVideo && file.size > MAX_CLOUDINARY_VIDEO_SIZE) {
+            enqueueSnackbar(
+              `Video "${file.name}" exceeds 100MB limit for Events. Selected: ${(file.size / (1024 * 1024)).toFixed(2)} MB.`,
+              { variant: 'error' }
+            );
+            continue;
+          }
+
+          try {
+            const uploaded = await uploadToCloudinary(file, 'hostel-community/requests/events');
+            if (uploaded) {
+              newItems.push({
+                url: uploaded.url,
+                publicId: uploaded.publicId,
+                storageProvider: 'cloudinary',
+                resourceType: uploaded.resourceType,
+                originalName: uploaded.originalName,
+                size: uploaded.size,
+                caption: ''
+              });
+            }
+          } catch (uploadErr) {
+            enqueueSnackbar(`Failed to upload ${file.name} to Cloudinary: ${uploadErr.response?.data?.message || uploadErr.message}`, {
+              variant: 'error'
             });
           }
-        } catch (uploadErr) {
-          enqueueSnackbar(`Failed to upload ${file.name}: ${uploadErr.response?.data?.message || uploadErr.message}`, {
-            variant: 'error'
-          });
+        } else {
+          // Community Gallery: MinIO with unlimited size and uploading
+          try {
+            const uploaded = await uploadToMinio(file, 'uploads');
+            if (uploaded) {
+              newItems.push({
+                url: uploaded.url,
+                publicId: uploaded.publicId,
+                storageProvider: 's3',
+                resourceType: uploaded.resourceType,
+                originalName: uploaded.originalName,
+                size: uploaded.size,
+                caption: ''
+              });
+            }
+          } catch (uploadErr) {
+            enqueueSnackbar(`Failed to upload ${file.name} to MinIO: ${uploadErr.response?.data?.message || uploadErr.message}`, {
+              variant: 'error'
+            });
+          }
         }
       }
-      setUploadedMedia((prev) => [...prev, ...newItems]);
-      enqueueSnackbar(`Successfully uploaded ${newItems.length} file(s)!`, { variant: 'success' });
+
+      if (newItems.length > 0) {
+        setUploadedMedia((prev) => [...prev, ...newItems]);
+        enqueueSnackbar(`Successfully uploaded ${newItems.length} file(s)!`, { variant: 'success' });
+      }
     } catch (err) {
       enqueueSnackbar('Upload failed', { variant: 'error' });
     } finally {
@@ -379,12 +470,29 @@ export default function RequestUpload() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Google Drive Album: ONLY allow image upload
+    if (!file.type.startsWith('image/')) {
+      enqueueSnackbar('Only image files (PNG, JPG, WEBP) are allowed for Google Drive album cover.', { variant: 'error' });
+      if (thumbInputRef.current) thumbInputRef.current.value = '';
+      return;
+    }
+
+    // Google Drive Album: Up to 10 MB only
+    if (file.size > MAX_CLOUDINARY_IMAGE_SIZE) {
+      enqueueSnackbar(
+        `Cover image exceeds 10MB limit. Selected size: ${(file.size / (1024 * 1024)).toFixed(2)} MB.`,
+        { variant: 'error' }
+      );
+      if (thumbInputRef.current) thumbInputRef.current.value = '';
+      return;
+    }
+
     try {
       setUploadingThumb(true);
-      const uploaded = await handleDirectUploadFile(file);
+      const uploaded = await uploadToCloudinary(file, 'hostel-community/requests/drive');
       if (uploaded) {
         setDriveThumbnail(uploaded.url);
-        enqueueSnackbar('Thumbnail uploaded successfully!', { variant: 'success' });
+        enqueueSnackbar('Thumbnail uploaded to Cloudinary successfully!', { variant: 'success' });
       }
     } catch (err) {
       enqueueSnackbar(`Thumbnail upload failed: ${err.response?.data?.message || err.message}`, { variant: 'error' });
@@ -398,12 +506,29 @@ export default function RequestUpload() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Event Banner Cover: ONLY allow image upload
+    if (!file.type.startsWith('image/')) {
+      enqueueSnackbar('Only image files (PNG, JPG, WEBP) are allowed for Event banner cover.', { variant: 'error' });
+      if (coverInputRef.current) coverInputRef.current.value = '';
+      return;
+    }
+
+    // Event Banner Cover: Below 10MB only
+    if (file.size > MAX_CLOUDINARY_IMAGE_SIZE) {
+      enqueueSnackbar(
+        `Event banner exceeds 10MB limit. Selected size: ${(file.size / (1024 * 1024)).toFixed(2)} MB.`,
+        { variant: 'error' }
+      );
+      if (coverInputRef.current) coverInputRef.current.value = '';
+      return;
+    }
+
     try {
       setUploadingCover(true);
-      const uploaded = await handleDirectUploadFile(file);
+      const uploaded = await uploadToCloudinary(file, 'hostel-community/requests/events');
       if (uploaded) {
         setEventCover({ url: uploaded.url, publicId: uploaded.publicId });
-        enqueueSnackbar('Event cover uploaded successfully!', { variant: 'success' });
+        enqueueSnackbar('Event cover uploaded to Cloudinary successfully!', { variant: 'success' });
       }
     } catch (err) {
       enqueueSnackbar(`Cover upload failed: ${err.response?.data?.message || err.message}`, { variant: 'error' });
@@ -1211,7 +1336,9 @@ export default function RequestUpload() {
                           {uploadingFiles ? 'Uploading assets...' : 'Click to select or drag and drop photos & videos'}
                         </Typography>
                         <Typography variant="caption" sx={{ color: '#64748B', display: 'block', mt: 0.5 }}>
-                          Photos & Videos • Unlimited file size • Any number of files
+                          {targetCategory === 'gallery'
+                            ? 'Photos & Videos • Unlimited file size • MinIO Storage'
+                            : 'Images below 10MB • Videos below 100MB • Cloudinary Storage'}
                         </Typography>
                       </Box>
 
@@ -1303,7 +1430,7 @@ export default function RequestUpload() {
                         Drive Album Cover Thumbnail
                       </Typography>
                       <Typography variant="caption" sx={{ color: '#64748B', display: 'block', mb: 2 }}>
-                        Set a custom thumbnail photo to represent this album in Drive Links.
+                        Set a custom thumbnail photo to represent this album (Images below 10MB • Cloudinary Storage).
                       </Typography>
 
                       {driveThumbnail ? (
@@ -1377,7 +1504,7 @@ export default function RequestUpload() {
                         Event Banner / Cover Image
                       </Typography>
                        <Typography variant="caption" sx={{ color: '#64748B', display: 'block', mb: 2 }}>
-                        Set a custom thumbnail photo to represent this Event related detail.
+                        Set a custom banner photo to represent this Event (Images below 10MB • Cloudinary Storage).
                       </Typography>
                       {eventCover.url ? (
                         <Box sx={{ position: 'relative', borderRadius: '12px', overflow: 'hidden', height: 160, mb: 1 }}>

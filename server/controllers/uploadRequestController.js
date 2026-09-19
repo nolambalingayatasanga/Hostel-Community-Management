@@ -236,7 +236,7 @@ exports.reviewRequest = async (req, res, next) => {
               GalleryPhoto.create({
                 url: item.url,
                 publicId: item.publicId || `req_${request._id}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-                storageProvider: item.storageProvider || 'cloudflare',
+                storageProvider: item.storageProvider || 's3',
                 caption: item.caption || request.title,
                 resourceType: item.resourceType || 'image',
                 folder: request.galleryFolder || null,

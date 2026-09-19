@@ -41,6 +41,7 @@
     "lodash": "^4.18.1",
     "mongoose": "^9.9.5",
     "multer": "^2.3.0",
+    "multer-s3": "^3.0.1",
     "nodemailer": "^10.0.1",
     "notistack": "^3.0.2",
     "qrcode": "^1.5.4",
