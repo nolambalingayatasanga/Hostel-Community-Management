@@ -437,7 +437,7 @@ export default function QrScanCount() {
                 <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#0F172A", lineHeight: 1.15, fontSize: "0.95rem" }}>
                   QR Scanner
                 </Typography>
-                <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mt: 0.25 }}>
+                <Stack direction="row" spacing={0.5} sx={{ mt: 0.25 ,alignItems:"center" }}>
                   <DotIcon sx={{ fontSize: 9, color: "#16A34A" }} />
                   <Typography variant="caption" sx={{ color: "#16A34A", fontWeight: 700, fontSize: "0.7rem" }}>
                     Live Tracking
@@ -662,7 +662,7 @@ export default function QrScanCount() {
                             <TrendingUpIcon sx={{ fontSize: 22 }} />
                           </Box>
                           <Typography variant="caption" sx={{ fontWeight: 800, color: "#475569", letterSpacing: "0.06em", textTransform: "uppercase", fontSize: "0.75rem" }}>
-                            TOTAL LINKS
+                            TOTAL Drive LINKS
                           </Typography>
                         </Stack>
                         <Box sx={{ width: 28, height: 28, borderRadius: "8px", bgcolor: "#FFE4E6", color: "#E11D48", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -671,7 +671,7 @@ export default function QrScanCount() {
                       </Stack>
                       <Box sx={{ mt: 2 }}>
                         <Typography variant="h3" sx={{ fontWeight: 900, color: "#0F172A", lineHeight: 1 }}>
-                          {Number(data?.totalDriveLinks || 3).toLocaleString()}
+                          {Number(data?.totalDriveLinks || 0).toLocaleString()}
                         </Typography>
                         <Typography variant="body2" sx={{ color: "#64748B", fontWeight: 500, mt: 0.75, fontSize: "0.85rem" }}>
                           Active drive links
@@ -806,7 +806,7 @@ export default function QrScanCount() {
                           <LinkIcon sx={{ fontSize: 24 }} />
                         </Box>
                         <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#1E293B", letterSpacing: "0.04em" }}>
-                          DIRECT PORTAL LINK (TRACKS CLICKS)
+                         TRACKS  DIRECT PORTAL LINK CLICKS
                         </Typography>
                       </Stack>
 

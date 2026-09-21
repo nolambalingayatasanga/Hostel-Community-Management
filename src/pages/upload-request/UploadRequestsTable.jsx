@@ -107,26 +107,35 @@ export const getCategoryDisplay = (req) => {
  * Helper to get preview thumbnail and whether it's video
  */
 export const getMediaPreview = (req) => {
+  if (req.status === 'REJECTED') {
+    return {
+      url: null,
+      isVideo: false,
+      totalCount: 0,
+      isRejected: true
+    };
+  }
   if (req.media && req.media.length > 0) {
     const first = req.media[0];
     const isVid = first.resourceType === 'video' || /\.(mp4|mov|avi|webm|mkv)$/i.test(first.url);
     return {
       url: first.url,
       isVideo: isVid,
-      totalCount: req.media.length
+      totalCount: req.media.length,
+      isRejected: false
     };
   }
   if (req.driveThumbnail) {
-    return { url: req.driveThumbnail, isVideo: false, totalCount: 1 };
+    return { url: req.driveThumbnail, isVideo: false, totalCount: 1, isRejected: false };
   }
   if (req.eventDetails?.coverImage?.url) {
-    return { url: req.eventDetails.coverImage.url, isVideo: false, totalCount: 1 };
+    return { url: req.eventDetails.coverImage.url, isVideo: false, totalCount: 1, isRejected: false };
   }
-  // Default fallback image
   return {
-    url: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=300&auto=format&fit=crop&q=60',
+    url: null,
     isVideo: false,
-    totalCount: 0
+    totalCount: 0,
+    isRejected: false
   };
 };
 
@@ -635,8 +644,8 @@ export default function UploadRequestsTable({
                   color: '#64748B',
                   bgcolor: '#F8FAFC',
                   borderBottom: '1px solid #EEF2F6',
-                  width: '135px',
-                  minWidth: '135px',
+                  width: '165px',
+                  minWidth: '165px',
                   whiteSpace: 'nowrap'
                 }}
               >
@@ -775,71 +784,100 @@ export default function UploadRequestsTable({
 
                     {/* 3. Media Preview */}
                     <TableCell sx={{ py: 2, px: 2, borderBottom: '1px solid #F1F5F9' }}>
-                      <Box
-                        onClick={() => onViewDetails && onViewDetails(req)}
-                        sx={{
-                          position: 'relative',
-                          width: 84,
-                          height: 48,
-                          borderRadius: '8px',
-                          overflow: 'hidden',
-                          cursor: 'pointer',
-                          bgcolor: '#F1F5F9',
-                          border: '1px solid #E2E8F0',
-                          flexShrink: 0,
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                          transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-                          '&:hover': {
-                            transform: 'scale(1.03)',
-                            boxShadow: '0 3px 8px rgba(0,0,0,0.08)'
-                          }
-                        }}
-                      >
+                      {preview.url && req.status !== 'REJECTED' ? (
                         <Box
-                          component="img"
-                          src={preview.url}
-                          alt="Thumbnail"
-                          onError={(e) => {
-                            e.target.src =
-                              'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=300&auto=format&fit=crop&q=60';
-                          }}
+                          onClick={() => onViewDetails && onViewDetails(req)}
                           sx={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover',
-                            display: 'block'
+                            position: 'relative',
+                            width: 84,
+                            height: 48,
+                            borderRadius: '8px',
+                            overflow: 'hidden',
+                            cursor: 'pointer',
+                            bgcolor: '#F1F5F9',
+                            border: '1px solid #E2E8F0',
+                            flexShrink: 0,
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                            '&:hover': {
+                              transform: 'scale(1.03)',
+                              boxShadow: '0 3px 8px rgba(0,0,0,0.08)'
+                            }
                           }}
-                        />
-
-                        {/* Video Play Overlay (matching reference rows 1 & 5) */}
-                        {preview.isVideo && (
+                        >
                           <Box
+                            component="img"
+                            src={preview.url}
+                            alt="Thumbnail"
                             sx={{
-                              position: 'absolute',
-                              inset: 0,
-                              bgcolor: 'rgba(0, 0, 0, 0.35)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover',
+                              display: 'block'
                             }}
-                          >
+                          />
+
+                          {/* Video Play Overlay */}
+                          {preview.isVideo && (
                             <Box
                               sx={{
-                                width: 22,
-                                height: 22,
-                                borderRadius: '50%',
-                                bgcolor: 'rgba(255, 255, 255, 0.9)',
+                                position: 'absolute',
+                                inset: 0,
+                                bgcolor: 'rgba(0, 0, 0, 0.35)',
                                 display: 'flex',
                                 alignItems: 'center',
-                                justifyContent: 'center',
-                                boxShadow: '0 1px 4px rgba(0,0,0,0.3)'
+                                justifyContent: 'center'
                               }}
                             >
-                              <PlayArrowIcon sx={{ fontSize: 15, color: '#0F172A', ml: 0.2 }} />
+                              <Box
+                                sx={{
+                                  width: 22,
+                                  height: 22,
+                                  borderRadius: '50%',
+                                  bgcolor: 'rgba(255, 255, 255, 0.9)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  boxShadow: '0 1px 4px rgba(0,0,0,0.3)'
+                                }}
+                              >
+                                <PlayArrowIcon sx={{ fontSize: 15, color: '#0F172A', ml: 0.2 }} />
+                              </Box>
                             </Box>
-                          </Box>
-                        )}
-                      </Box>
+                          )}
+                        </Box>
+                      ) : (
+                        <Box
+                          onClick={() => onViewDetails && onViewDetails(req)}
+                          sx={{
+                            width: 84,
+                            height: 48,
+                            borderRadius: '8px',
+                            bgcolor: req.status === 'REJECTED' ? '#FEF2F2' : '#F8FAFC',
+                            border: req.status === 'REJECTED' ? '1px dashed #FECACA' : '1px dashed #CBD5E1',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            flexShrink: 0,
+                            transition: 'all 0.15s ease',
+                            '&:hover': {
+                              bgcolor: req.status === 'REJECTED' ? '#FEE2E2' : '#F1F5F9'
+                            }
+                          }}
+                        >
+                          <Typography
+                            sx={{
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              color: req.status === 'REJECTED' ? '#DC2626' : '#94A3B8',
+                              letterSpacing: 0.3
+                            }}
+                          >
+                            {req.status === 'REJECTED' ? 'Deleted' : 'No Media'}
+                          </Typography>
+                        </Box>
+                      )}
                     </TableCell>
 
                     {/* 4. Category */}
@@ -877,15 +915,7 @@ export default function UploadRequestsTable({
                       >
                         {date}
                       </Typography>
-                      <Typography
-                        sx={{
-                          fontSize: '12px',
-                          color: '#94A3B8',
-                          lineHeight: 1.3
-                        }}
-                      >
-                        {time}
-                      </Typography>
+          
                     </TableCell>
 
                     {/* 6. Status */}
@@ -958,7 +988,7 @@ export default function UploadRequestsTable({
                     </TableCell>
 
                     {/* 7. Actions (Clean rounded square buttons matching reference) */}
-                    <TableCell align="center" sx={{ py: 2, px: 1.5, borderBottom: '1px solid #F1F5F9', minWidth: '135px' }}>
+                    <TableCell align="center" sx={{ py: 2, px: 1.5, borderBottom: '1px solid #F1F5F9', width: '165px', minWidth: '165px' }}>
                       <Stack direction="row" spacing={0.75} justifyContent="center" alignItems="center" flexWrap="nowrap">
                         {/* Action 1: Eye icon (View details & preview modal) */}
                         <Tooltip title="View Details">
@@ -1172,6 +1202,33 @@ export default function UploadRequestsTable({
                             </Tooltip>
                           )
                         )}
+
+                        {/* Extra Admin Action: Delete full request from DB */}
+                        {isAdmin && onDelete && (
+                          <Tooltip title="Delete Request from Database">
+                            <IconButton
+                              size="small"
+                              onClick={() => onDelete(req)}
+                              sx={{
+                                width: 34,
+                                height: 34,
+                                borderRadius: '8px',
+                                border: '1px solid #FEE2E2',
+                                bgcolor: '#FFFFFF',
+                                color: '#DC2626',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                                transition: 'all 0.15s ease',
+                                '&:hover': {
+                                  bgcolor: '#FEF2F2',
+                                  borderColor: '#FECACA',
+                                  color: '#B91C1C'
+                                }
+                              }}
+                            >
+                              <DeleteIcon sx={{ fontSize: 17 }} />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                       </Stack>
                     </TableCell>
                   </TableRow>
@@ -1197,12 +1254,7 @@ export default function UploadRequestsTable({
           gap: 1.5
         }}
       >
-        {/* Left: Showing entries info */}
-        <Typography sx={{ fontSize: '13px', color: '#64748B', fontWeight: 500 }}>
-          {totalItems === 0
-            ? 'Showing 0 requests'
-            : `Showing ${startIdx}-${endIdx} of ${totalItems} requests`}
-        </Typography>
+ 
 
         {/* Right: Rows per page selector + Pagination Controls */}
         <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">

@@ -127,7 +127,8 @@ const UserSchema = new mongoose.Schema({
   privacySettings: {
     maskPhone: { type: Boolean, default: false },
     maskEmail: { type: Boolean, default: false },
-    maskAdhaar: { type: Boolean, default: false }
+    maskAdhaar: { type: Boolean, default: false },
+    maskDob: { type: Boolean, default: false }
   },
   address: { type: AddressSchema },
 
@@ -174,11 +175,20 @@ const UserSchema = new mongoose.Schema({
       location: { type: String, trim: true }
     }
   },
-  // Social & communication channels (Instagram, LinkedIn, WhatsApp)
+  // Social & communication channels (Instagram, LinkedIn, WhatsApp, Portfolio, GitHub, Behance, Resume)
   channels: {
     instagram: { type: String, trim: true, default: '' },
     linkedin: { type: String, trim: true, default: '' },
-    whatsapp: { type: String, trim: true, default: '' }
+    whatsapp: { type: String, trim: true, default: '' },
+    portfolio: { type: String, trim: true, default: '' },
+    github: { type: String, trim: true, default: '' },
+    behance: { type: String, trim: true, default: '' },
+    resume: {
+      url: { type: String, trim: true, default: '' },
+      publicId: { type: String, trim: true, default: '' },
+      filename: { type: String, trim: true, default: '' },
+      uploadedAt: { type: Date }
+    }
   },
   joiningDate: {
     type: Date,

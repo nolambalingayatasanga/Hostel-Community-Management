@@ -69,29 +69,171 @@ export function UploadQueueProvider({ children }) {
     activeAbortControllerRef.current = abortController;
 
     try {
-      // Helper to attempt direct-to-MinIO S3 upload using presigned PUT URL (bypasses Vercel 4.5MB limit)
-      const tryDirectMinioUpload = async (folderName = 'uploads') => {
+      // S3 / MinIO Multipart Chunked Upload (10MB chunks) to completely bypass Cloudflare 100MB body limits
+      const tryMultipartMinioUpload = async (folderName = 'uploads') => {
+        const file = pendingItem.file;
+        const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks (< 100MB Cloudflare limit)
+        const totalParts = Math.ceil(file.size / CHUNK_SIZE);
+        const isVideo =
+          file.type.startsWith('video/') ||
+          /\.(mp4|mov|avi|webm|mkv)$/i.test(file.name);
+        const resourceType = isVideo ? 'video' : 'image';
+
+        let uploadId = null;
+        let fileKey = null;
+
         try {
-          const isVideo = pendingItem.file.type.startsWith('video/') ||
-            /\.(mp4|mov|avi|webm|mkv)$/i.test(pendingItem.file.name);
+          // 1. Initiate multipart upload with MinIO
+          const initRes = await API.post(
+            '/gallery/multipart/initiate',
+            {
+              filename: file.name,
+              fileType: file.type || (isVideo ? 'video/mp4' : 'application/octet-stream'),
+              folder: folderName,
+            },
+            { signal: abortController.signal }
+          );
+
+          if (!initRes.data?.success || !initRes.data?.data) {
+            throw new Error('Failed to initiate multipart upload');
+          }
+
+          uploadId = initRes.data.data.uploadId;
+          fileKey = initRes.data.data.key;
+
+          // 2. Request presigned URLs for all parts
+          const partsRes = await API.post(
+            '/gallery/multipart/presigned-parts',
+            {
+              uploadId,
+              key: fileKey,
+              totalParts,
+            },
+            { signal: abortController.signal }
+          );
+
+          if (!partsRes.data?.success || !partsRes.data?.data?.parts) {
+            throw new Error('Failed to get presigned part URLs');
+          }
+
+          const presignedParts = partsRes.data.data.parts;
+          const completedParts = [];
+          const partProgress = new Array(totalParts).fill(0);
+
+          // 3. Upload parts concurrently (3 parallel streams for max performance)
+          const concurrency = 3;
+          let currentPartIndex = 0;
+
+          const uploadNextPart = async () => {
+            while (currentPartIndex < presignedParts.length) {
+              const partIdx = currentPartIndex++;
+              const partInfo = presignedParts[partIdx];
+              const start = (partInfo.partNumber - 1) * CHUNK_SIZE;
+              const end = Math.min(start + CHUNK_SIZE, file.size);
+              const chunkBlob = file.slice(start, end);
+
+              const partPutRes = await axios.put(partInfo.presignedUrl, chunkBlob, {
+                headers: {
+                  'Content-Type': 'application/octet-stream',
+                },
+                signal: abortController.signal,
+                onUploadProgress: (progressEvent) => {
+                  partProgress[partIdx] = progressEvent.loaded;
+                  const totalLoaded = partProgress.reduce((acc, bytes) => acc + bytes, 0);
+                  const percent = Math.min(99, Math.round((totalLoaded * 100) / file.size));
+                  setQueue((prev) =>
+                    prev.map((item) => (item.id === currentId ? { ...item, progress: percent } : item))
+                  );
+                },
+              });
+
+              let rawEtag =
+                partPutRes.headers?.etag ||
+                partPutRes.headers?.['ETag'] ||
+                partPutRes.headers?.ETag;
+              if (rawEtag) {
+                rawEtag = rawEtag.replace(/^"|"$/g, '');
+              }
+              if (!rawEtag) {
+                throw new Error(`Part ${partInfo.partNumber} missing ETag`);
+              }
+
+              completedParts.push({
+                PartNumber: partInfo.partNumber,
+                ETag: `"${rawEtag}"`,
+              });
+            }
+          };
+
+          const workers = [];
+          for (let i = 0; i < Math.min(concurrency, totalParts); i++) {
+            workers.push(uploadNextPart());
+          }
+          await Promise.all(workers);
+
+          // 4. Complete multipart upload
+          const completeRes = await API.post(
+            '/gallery/multipart/complete',
+            {
+              uploadId,
+              key: fileKey,
+              parts: completedParts,
+            },
+            { signal: abortController.signal }
+          );
+
+          if (!completeRes.data?.success || !completeRes.data?.data) {
+            throw new Error('Failed to complete multipart upload');
+          }
+
+          return {
+            url: completeRes.data.data.url,
+            publicId: completeRes.data.data.key,
+            resourceType,
+            storageProvider: 's3',
+          };
+        } catch (multipartErr) {
+          if (uploadId && fileKey) {
+            API.post('/gallery/multipart/abort', { uploadId, key: fileKey }).catch(() => {});
+          }
+          console.warn('Multipart MinIO upload error:', multipartErr.message);
+          return null;
+        }
+      };
+
+      // Helper to attempt direct-to-MinIO S3 upload (single PUT for <= 70MB, multipart for > 70MB)
+      const tryDirectMinioUpload = async (folderName = 'uploads') => {
+        const file = pendingItem.file;
+
+        // If file is > 70MB, directly use S3 Multipart Chunking (10MB chunks, bypasses Cloudflare 100MB limit)
+        if (file.size > 70 * 1024 * 1024) {
+          const multipartRes = await tryMultipartMinioUpload(folderName);
+          if (multipartRes) return multipartRes;
+        }
+
+        // For files <= 70MB, try single presigned PUT
+        try {
+          const isVideo =
+            file.type.startsWith('video/') ||
+            /\.(mp4|mov|avi|webm|mkv)$/i.test(file.name);
           const resourceType = isVideo ? 'video' : 'image';
 
           const presignedRes = await API.get('/gallery/presigned-url', {
             params: {
-              filename: pendingItem.file.name,
-              fileType: pendingItem.file.type || (isVideo ? 'video/mp4' : 'image/jpeg'),
-              folder: folderName
+              filename: file.name,
+              fileType: file.type || (isVideo ? 'video/mp4' : 'image/jpeg'),
+              folder: folderName,
             },
-            signal: abortController.signal
+            signal: abortController.signal,
           });
 
           if (presignedRes.data?.success && presignedRes.data?.data) {
             const { uploadUrl, publicUrl, key } = presignedRes.data.data;
 
-            // Direct PUT to MinIO presigned URL with progress tracking (zero Vercel load)
-            await axios.put(uploadUrl, pendingItem.file, {
+            // Direct PUT to MinIO presigned URL with progress tracking
+            await axios.put(uploadUrl, file, {
               headers: {
-                'Content-Type': pendingItem.file.type || (isVideo ? 'video/mp4' : 'image/jpeg')
+                'Content-Type': file.type || (isVideo ? 'video/mp4' : 'image/jpeg'),
               },
               signal: abortController.signal,
               onUploadProgress: (progressEvent) => {
@@ -101,18 +243,21 @@ export function UploadQueueProvider({ children }) {
                     prev.map((item) => (item.id === currentId ? { ...item, progress: percent } : item))
                   );
                 }
-              }
+              },
             });
 
             return {
               url: publicUrl,
               publicId: key,
               resourceType,
-              storageProvider: 's3'
+              storageProvider: 's3',
             };
           }
         } catch (minioErr) {
-          console.warn('Direct MinIO upload not used or failed, falling back to server route:', minioErr.message);
+          console.warn('Direct single PUT failed, attempting multipart chunking:', minioErr.message);
+          // If single PUT failed (e.g. 413 or network drop), try multipart chunking before falling back to server
+          const multipartRes = await tryMultipartMinioUpload(folderName);
+          if (multipartRes) return multipartRes;
         }
         return null;
       };

@@ -1,7 +1,15 @@
+const mongoose = require('mongoose');
 const GalleryPhoto = require('../models/GalleryPhoto');
 const GalleryFolder = require('../models/GalleryFolder');
+const Event = require('../models/Event');
 const Access = require('../models/Access');
-const { PutObjectCommand } = require('@aws-sdk/client-s3');
+const {
+  PutObjectCommand,
+  CreateMultipartUploadCommand,
+  UploadPartCommand,
+  CompleteMultipartUploadCommand,
+  AbortMultipartUploadCommand
+} = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { getS3Client, deleteFromS3 } = require('../middleware/s3UploadMiddleware');
 
@@ -96,6 +104,140 @@ exports.getPresignedMinioUrl = async (req, res, next) => {
 exports.getPresignedR2Url = exports.getPresignedMinioUrl; // Backwards compatible alias
 
 /**
+ * Initiate S3/MinIO multipart upload for large files (>50MB/100MB)
+ * Bypasses Cloudflare 100MB body limits by uploading in 10MB parts
+ */
+exports.initiateMultipartUpload = async (req, res, next) => {
+  try {
+    const { filename, fileType, folder = 'uploads' } = req.body;
+    const cleanFilename = (filename || 'media').replace(/[^a-zA-Z0-9._-]/g, '_');
+    const key = `${folder}/${Date.now()}_${cleanFilename}`;
+
+    const s3 = getS3Client();
+    const command = new CreateMultipartUploadCommand({
+      Bucket: 'madhan',
+      Key: key,
+      ContentType: fileType || 'application/octet-stream',
+      ACL: 'public-read'
+    });
+
+    const result = await s3.send(command);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        uploadId: result.UploadId,
+        key
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Generate presigned PUT URLs for all parts of a multipart upload in one batch
+ */
+exports.getPresignedPartUrls = async (req, res, next) => {
+  try {
+    const { uploadId, key, totalParts } = req.body;
+    if (!uploadId || !key || !totalParts) {
+      return res.status(400).json({ success: false, message: 'uploadId, key, and totalParts are required' });
+    }
+
+    const s3 = getS3Client();
+    const parts = [];
+
+    for (let partNumber = 1; partNumber <= totalParts; partNumber++) {
+      const command = new UploadPartCommand({
+        Bucket: 'madhan',
+        Key: key,
+        UploadId: uploadId,
+        PartNumber: partNumber
+      });
+      const presignedUrl = await getSignedUrl(s3, command, { expiresIn: 7200 });
+      parts.push({ partNumber, presignedUrl });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: { parts }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Complete S3/MinIO multipart upload
+ */
+exports.completeMultipartUpload = async (req, res, next) => {
+  try {
+    const { uploadId, key, parts } = req.body;
+    if (!uploadId || !key || !Array.isArray(parts) || parts.length === 0) {
+      return res.status(400).json({ success: false, message: 'uploadId, key, and parts array are required' });
+    }
+
+    const s3 = getS3Client();
+    const sortedParts = [...parts].sort((a, b) => a.PartNumber - b.PartNumber);
+
+    const command = new CompleteMultipartUploadCommand({
+      Bucket: 'madhan',
+      Key: key,
+      UploadId: uploadId,
+      MultipartUpload: {
+        Parts: sortedParts
+      }
+    });
+
+    await s3.send(command);
+
+    const endpoint = (process.env.MINIO_ENDPOINT || 'https://staging-storage-api.emovur.com').replace(/\/+$/, '');
+    const publicUrl = `${endpoint}/madhan/${key}`;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        url: publicUrl,
+        publicId: key,
+        key,
+        storageProvider: 's3'
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Abort S3/MinIO multipart upload if cancelled or failed
+ */
+exports.abortMultipartUpload = async (req, res, next) => {
+  try {
+    const { uploadId, key } = req.body;
+    if (!uploadId || !key) {
+      return res.status(400).json({ success: false, message: 'uploadId and key are required' });
+    }
+
+    const s3 = getS3Client();
+    const command = new AbortMultipartUploadCommand({
+      Bucket: 'madhan',
+      Key: key,
+      UploadId: uploadId
+    });
+
+    await s3.send(command);
+
+    res.status(200).json({
+      success: true,
+      message: 'Multipart upload aborted successfully'
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * Upload a photo/video to the community gallery (streams to MinIO / S3 with no size limits)
  */
 exports.uploadGalleryPhoto = async (req, res, next) => {
@@ -176,6 +318,26 @@ exports.uploadGalleryPhoto = async (req, res, next) => {
     if (targetFolderId) {
       await newPhoto.populate('folder', 'name color');
       await GalleryFolder.findByIdAndUpdate(targetFolderId, { coverUrl: newPhoto.url });
+
+      // Automatically sync with matching event to eliminate duplicates and keep event updated
+      const matchingEvent = await Event.findOne({ galleryFolder: targetFolderId });
+      if (matchingEvent) {
+        const alreadyInEvent = matchingEvent.additionalImages.some(
+          img => img.url === newPhoto.url || (img.publicId && img.publicId === newPhoto.publicId)
+        );
+        if (!alreadyInEvent) {
+          matchingEvent.additionalImages.unshift({
+            _id: newPhoto._id,
+            url: newPhoto.url,
+            publicId: newPhoto.publicId,
+            resourceType: newPhoto.resourceType,
+            uploadedBy: req.user._id,
+            caption: newPhoto.caption,
+            createdAt: newPhoto.createdAt
+          });
+          await matchingEvent.save();
+        }
+      }
     }
 
     res.status(201).json({
@@ -216,9 +378,28 @@ exports.deleteGalleryPhoto = async (req, res, next) => {
     }
 
     // 1. Delete asset from MinIO / S3
-    await deleteFromS3(photo.publicId || photo.url);
+    try {
+      if (photo.publicId || photo.url) {
+        await deleteFromS3(photo.publicId || photo.url);
+      }
+    } catch (s3Err) {
+      console.error('Error deleting photo from S3:', s3Err.message);
+    }
 
-    // 2. Delete record from Database
+    // 2. If photo belongs to an event folder, also remove from Event.additionalImages
+    if (photo.folder) {
+      const pullFilter = [];
+      if (photo.publicId) pullFilter.push({ publicId: photo.publicId });
+      if (photo.url) pullFilter.push({ url: photo.url });
+      if (pullFilter.length > 0) {
+        await Event.updateMany(
+          { galleryFolder: photo.folder },
+          { $pull: { additionalImages: pullFilter.length === 1 ? pullFilter[0] : { $or: pullFilter } } }
+        ).catch((err) => console.error('Error removing from Event.additionalImages:', err.message));
+      }
+    }
+
+    // 3. Delete record from Database
     await photo.deleteOne();
 
     res.status(200).json({
@@ -281,7 +462,52 @@ exports.getGalleryFolders = async (req, res, next) => {
       if (s._id) subfolderCountMap[s._id.toString()] = s.count;
     });
 
-    const enrichedFolders = folders.map(f => ({
+    // Automatically detect and prune duplicate root folders with matching names
+    const rootNameMap = new Map();
+    const duplicateFolderIdsToDelete = [];
+
+    for (const f of folders) {
+      if (!f.parentFolder) {
+        const normName = (f.name || '').trim().toLowerCase();
+        const itemCount = countMap[f._id.toString()]?.count || 0;
+        const subCount = subfolderCountMap[f._id.toString()] || 0;
+
+        if (rootNameMap.has(normName)) {
+          const existing = rootNameMap.get(normName);
+          // If current is empty and existing has items (or both empty), prune current
+          if (itemCount === 0 && subCount === 0) {
+            duplicateFolderIdsToDelete.push(f._id);
+            continue;
+          } else if (existing.itemCount === 0 && existing.subCount === 0) {
+            // If existing was empty and current has items, prune existing and keep current
+            duplicateFolderIdsToDelete.push(existing._id);
+            rootNameMap.set(normName, { _id: f._id, itemCount, subCount });
+            continue;
+          } else if (subCount === 0) {
+            // Both have items: merge photos into existing and prune current
+            await GalleryPhoto.updateMany({ folder: f._id }, { folder: existing._id });
+            duplicateFolderIdsToDelete.push(f._id);
+            existing.itemCount += itemCount;
+            if (countMap[existing._id.toString()]) {
+              countMap[existing._id.toString()].count = existing.itemCount;
+            }
+            continue;
+          }
+        } else {
+          rootNameMap.set(normName, { _id: f._id, itemCount, subCount });
+        }
+      }
+    }
+
+    if (duplicateFolderIdsToDelete.length > 0) {
+      await GalleryFolder.deleteMany({ _id: { $in: duplicateFolderIdsToDelete } });
+    }
+
+    const validFolders = folders.filter(
+      f => !duplicateFolderIdsToDelete.some(delId => String(delId) === String(f._id))
+    );
+
+    const enrichedFolders = validFolders.map(f => ({
       ...f,
       itemCount: countMap[f._id.toString()]?.count || 0,
       subfolderCount: subfolderCountMap[f._id.toString()] || 0,
@@ -400,31 +626,67 @@ exports.updateGalleryFolder = async (req, res, next) => {
 exports.deleteGalleryFolder = async (req, res, next) => {
   try {
     const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid folder ID.' });
+    }
 
     const folder = await GalleryFolder.findById(id);
     if (!folder) {
       return res.status(404).json({ success: false, message: 'Folder not found.' });
     }
 
+    // Check delete permissions: Admin, Warden, folder creator, or role with delete permission in Access model
+    const isAdminOrWarden = ['ADMIN', 'WARDEN'].includes(req.user?.role);
+    const isOwner = folder.createdBy && String(folder.createdBy) === String(req.user?._id);
+    if (!isAdminOrWarden && !isOwner) {
+      const accessRec = await Access.findOne({ page: 'gallery', role: req.user?.role });
+      if (accessRec && (accessRec.permissions?.noAccess || (!accessRec.permissions?.fullAccess && !accessRec.permissions?.delete))) {
+        return res.status(403).json({ success: false, message: 'You do not have permission to delete this folder.' });
+      }
+    }
+
     // 1. Recursively find all descendant folder IDs
     const allFolderIds = await getAllDescendantFolderIds(id);
 
+    const objectIds = allFolderIds
+      .filter((fid) => mongoose.Types.ObjectId.isValid(fid))
+      .map((fid) => new mongoose.Types.ObjectId(fid));
+
     // 2. Find and delete all photos in this folder and descendant subfolders
-    const photos = await GalleryPhoto.find({ folder: { $in: allFolderIds } });
+    const photos = await GalleryPhoto.find({ folder: { $in: [...objectIds, id] } });
     if (photos.length > 0) {
       for (const p of photos) {
-        await deleteFromS3(p.publicId || p.url);
+        if (p.publicId || p.url) {
+          try {
+            await deleteFromS3(p.publicId || p.url);
+          } catch (s3Err) {
+            console.error('Error deleting photo from S3:', s3Err.message);
+          }
+        }
       }
     }
 
     // 3. Delete database records for photos and all folders
-    await GalleryPhoto.deleteMany({ folder: { $in: allFolderIds } });
-    await GalleryFolder.deleteMany({ _id: { $in: allFolderIds } });
+    await GalleryPhoto.deleteMany({ folder: { $in: [...objectIds, id] } });
+    await GalleryFolder.deleteMany({ _id: { $in: [...objectIds, id] } });
+    await GalleryFolder.findByIdAndDelete(id);
+
+    // 4. Detach folder from any events and clear their event media
+    const eventFilter = [
+      { galleryFolder: { $in: [...objectIds, id] } }
+    ];
+    if (folder.name) {
+      eventFilter.push({ title: folder.name });
+    }
+    await Event.updateMany(
+      { $or: eventFilter },
+      { $set: { galleryFolder: null, additionalImages: [] } }
+    );
 
     res.status(200).json({
       success: true,
       message: 'Folder, subfolders, and all media contents deleted successfully.',
-      data: { deletedFolderIds: allFolderIds }
+      data: { deletedFolderIds: allFolderIds.map(String) }
     });
   } catch (error) {
     next(error);

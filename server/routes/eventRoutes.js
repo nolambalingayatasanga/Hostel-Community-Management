@@ -29,6 +29,7 @@ router.delete('/:id/comments/:commentId/replies/:replyId', eventController.delet
 router.post('/', restrictTo('ADMIN', 'WARDEN'), s3UploadMiddleware('coverImage'), eventController.createEvent);
 router.patch('/:id', restrictTo('ADMIN', 'WARDEN'), s3UploadMiddleware('coverImage'), eventController.updateEvent);
 // Gallery upload & delete: any authenticated user (controller enforces ownership for delete)
+router.post('/:id/ensure-folder', eventController.ensureEventFolder);
 router.post('/:id/gallery', s3UploadMiddleware('galleryImages'), eventController.uploadEventGalleryImages);
 router.delete('/:id/gallery/:imageId', eventController.deleteGalleryImage);
 router.patch('/:id/gallery/reorder', restrictTo('ADMIN', 'WARDEN'), eventController.reorderGalleryImages);

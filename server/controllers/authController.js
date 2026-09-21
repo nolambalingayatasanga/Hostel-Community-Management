@@ -248,6 +248,9 @@ exports.register = async (req, res, next) => {
           if (existingMember.privacySettings.maskAdhaar === undefined && privacySettings.maskAdhaar !== undefined) {
             existingMember.privacySettings.maskAdhaar = Boolean(privacySettings.maskAdhaar);
           }
+          if (existingMember.privacySettings.maskDob === undefined && privacySettings.maskDob !== undefined) {
+            existingMember.privacySettings.maskDob = Boolean(privacySettings.maskDob);
+          }
         }
 
         if (!existingMember.profilePhoto) {
@@ -400,7 +403,8 @@ exports.register = async (req, res, next) => {
       privacySettings: {
         maskPhone: Boolean(privacySettings?.maskPhone),
         maskEmail: Boolean(privacySettings?.maskEmail),
-        maskAdhaar: Boolean(privacySettings?.maskAdhaar)
+        maskAdhaar: Boolean(privacySettings?.maskAdhaar),
+        maskDob: Boolean(privacySettings?.maskDob)
       },
       ...(memberInfoData && { memberInfo: memberInfoData }),
       ...(parsedDob && { dob: parsedDob, dateOfBirth: parsedDob }),

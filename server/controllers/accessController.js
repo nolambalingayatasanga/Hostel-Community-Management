@@ -2,13 +2,13 @@ const Access = require('../models/Access');
 const StatusGroup = require('../models/StatusGroup');
 
 const ALL_PAGES = [
+  { id: 'profile', text: 'Profile', path: '/profile', icon: 'ProfileIcon' },
   { id: 'overview', text: 'Overview', path: '/dashboard', icon: 'DashboardIcon' },
   { id: 'users', text: 'Users', path: '/users', icon: 'PeopleIcon' },
   { id: 'events', text: 'Events', path: '/events', icon: 'EventIcon' },
   { id: 'gallery', text: 'Gallery', path: '/gallery', icon: 'GalleryIcon' },
   { id: 'drive_links', text: 'Drive Links', path: '/drive-links', icon: 'CloudQueueIcon' },
-  { id: 'profile', text: 'Profile', path: '/profile', icon: 'ProfileIcon' },
-  { id: 'request_upload', text: 'Request Upload', path: '/request-upload', icon: 'CloudUploadIcon' },
+  { id: 'request_upload', text: 'Share Media', path: '/request-upload', icon: 'CloudUploadIcon' },
   { id: 'qr_scan_count', text: 'QR Scan Count', path: '/qr-scan-count', icon: 'QrCodeIcon' },
   { id: 'access_control', text: 'Access Control', path: '/access-control', icon: 'AdminIcon' }
 ];

@@ -1,9 +1,167 @@
 const Event = require('../models/Event');
 const Access = require('../models/Access');
+const GalleryFolder = require('../models/GalleryFolder');
+const GalleryPhoto = require('../models/GalleryPhoto');
 const { deleteFromS3, uploadBufferToS3, getS3Client } = require('../middleware/s3UploadMiddleware');
 const { PutObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { logAuditEvent } = require('../utils/auditLogger');
+
+// In-flight promise locks to prevent concurrent race conditions when ensuring event gallery folders
+const ensureFolderLocks = new Map();
+
+/**
+ * Helper to ensure a GalleryFolder exists for an event and sync existing additionalImages
+ */
+const ensureEventFolderHelper = async (event, user) => {
+  if (!event) return null;
+  const eventId = String(event._id || event);
+
+  // If a folder creation or ensurance is already in-flight for this event, await the same promise
+  if (ensureFolderLocks.has(eventId)) {
+    return ensureFolderLocks.get(eventId);
+  }
+
+  const promise = (async () => {
+    try {
+      // Reload event to ensure we are operating on the freshest DB document
+      const currentEvent = await Event.findById(eventId);
+      if (!currentEvent) return null;
+
+      let folder = null;
+
+      // 1. Check if event has a valid galleryFolder reference
+      if (currentEvent.galleryFolder) {
+        const existingId = currentEvent.galleryFolder._id || currentEvent.galleryFolder;
+        folder = await GalleryFolder.findById(existingId);
+      }
+
+      // 2. If not found by ID, look up existing root folder with matching name
+      if (!folder && currentEvent.title) {
+        const titleRegex = new RegExp(`^${currentEvent.title.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+        folder = await GalleryFolder.findOne({ name: { $regex: titleRegex }, parentFolder: null }).sort({ createdAt: 1 });
+      }
+
+      // 3. If still not found, create new folder in Gallery
+      if (!folder && currentEvent.title) {
+        folder = await GalleryFolder.create({
+          name: currentEvent.title.trim(),
+          description: `Media for event: ${currentEvent.title.trim()}`,
+          color: currentEvent.color || '#0088ff',
+          coverUrl: currentEvent.coverImage?.url || '',
+          createdBy: user?._id || currentEvent.createdBy,
+          parentFolder: null
+        });
+      }
+
+      // 4. Link folder to event if not linked
+      if (folder && (!currentEvent.galleryFolder || String(currentEvent.galleryFolder._id || currentEvent.galleryFolder) !== String(folder._id))) {
+        currentEvent.galleryFolder = folder._id;
+        await Event.findByIdAndUpdate(currentEvent._id, { galleryFolder: folder._id });
+        if (typeof event === 'object' && event !== null) {
+          event.galleryFolder = folder._id;
+        }
+      }
+
+      // 5. Clean up any duplicate empty root folders for this event title
+      if (folder && currentEvent.title) {
+        const titleRegex = new RegExp(`^${currentEvent.title.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+        const duplicateFolders = await GalleryFolder.find({
+          name: { $regex: titleRegex },
+          parentFolder: null,
+          _id: { $ne: folder._id }
+        });
+
+        for (const dup of duplicateFolders) {
+          const dupPhotosCount = await GalleryPhoto.countDocuments({ folder: dup._id });
+          const dupSubfolderCount = await GalleryFolder.countDocuments({ parentFolder: dup._id });
+
+          if (dupPhotosCount === 0 && dupSubfolderCount === 0) {
+            await GalleryFolder.findByIdAndDelete(dup._id);
+          } else if (dupSubfolderCount === 0) {
+            // Move any photos from duplicate into the primary folder, then delete duplicate folder
+            await GalleryPhoto.updateMany({ folder: dup._id }, { folder: folder._id });
+            await GalleryFolder.findByIdAndDelete(dup._id);
+          }
+        }
+      }
+
+      // 6. Sync any existing additionalImages into GalleryPhoto under this folder to prevent duplicates & ensure visibility in Gallery
+      if (folder && currentEvent.additionalImages && currentEvent.additionalImages.length > 0) {
+        const existingPhotos = await GalleryPhoto.find({ folder: folder._id }).select('url publicId');
+        const existingUrlSet = new Set(existingPhotos.map(p => p.url));
+        const existingKeySet = new Set(existingPhotos.map(p => p.publicId).filter(Boolean));
+
+        const photosToInsert = [];
+        for (const img of currentEvent.additionalImages) {
+          if (img.url && !existingUrlSet.has(img.url) && (!img.publicId || !existingKeySet.has(img.publicId))) {
+            photosToInsert.push({
+              url: img.url,
+              publicId: img.publicId || img.url,
+              storageProvider: img.storageProvider || 's3',
+              resourceType: img.resourceType || (img.url.includes('/video/') || /\.(mp4|mov|webm|mkv|ogg)$/i.test(img.url) ? 'video' : 'image'),
+              caption: currentEvent.title,
+              folder: folder._id,
+              uploadedBy: img.uploadedBy || user?._id || currentEvent.createdBy,
+              createdAt: img.createdAt || new Date()
+            });
+            existingUrlSet.add(img.url);
+            if (img.publicId) existingKeySet.add(img.publicId);
+          }
+        }
+
+        if (photosToInsert.length > 0) {
+          await GalleryPhoto.insertMany(photosToInsert);
+          if (!folder.coverUrl && photosToInsert[0]?.url) {
+            folder.coverUrl = photosToInsert[0].url;
+            await folder.save();
+          }
+        }
+      }
+
+      return folder;
+    } finally {
+      ensureFolderLocks.delete(eventId);
+    }
+  })();
+
+  ensureFolderLocks.set(eventId, promise);
+  return promise;
+};
+
+/**
+ * Endpoint to ensure gallery folder exists for event (called on clicking Add Media)
+ */
+exports.ensureEventFolder = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const event = await Event.findById(id).populate('galleryFolder');
+    if (!event) {
+      return res.status(404).json({ success: false, message: 'Event not found.' });
+    }
+
+    // Do NOT create an empty folder here. Only return the existing folder if one already exists.
+    let folder = event.galleryFolder;
+    if (!folder && event.title) {
+      folder = await GalleryFolder.findOne({ name: event.title, parentFolder: null });
+      if (folder) {
+        event.galleryFolder = folder._id;
+        await Event.findByIdAndUpdate(event._id, { galleryFolder: folder._id });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: folder ? 'Gallery folder found' : 'No gallery folder yet (created on first upload)',
+      data: {
+        folder: folder || null,
+        eventId: event._id
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 /**
  * Get all events with filtering and sorting
@@ -13,24 +171,60 @@ exports.getEvents = async (req, res, next) => {
     const { filter, sortBy, dateFrom, dateTo } = req.query;
 
     const query = {};
+
+    // Filter by category or search term
+    if (req.query.search) {
+      query.$or = [
+        { title: { $regex: req.query.search, $options: 'i' } },
+        { description: { $regex: req.query.search, $options: 'i' } },
+        { location: { $regex: req.query.search, $options: 'i' } }
+      ];
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0); // start of today
 
     // Calendar date-range filter (takes priority over filter param)
     if (dateFrom || dateTo) {
-      query.eventDate = {};
-      if (dateFrom) query.eventDate.$gte = new Date(dateFrom);
+      const conditions = [];
       if (dateTo) {
         const endOfDay = new Date(dateTo);
         endOfDay.setHours(23, 59, 59, 999);
-        query.eventDate.$lte = endOfDay;
+        conditions.push({
+          $or: [
+            { startDate: { $lte: endOfDay } },
+            { eventDate: { $lte: endOfDay } }
+          ]
+        });
+      }
+      if (dateFrom) {
+        const startOfDay = new Date(dateFrom);
+        startOfDay.setHours(0, 0, 0, 0);
+        conditions.push({
+          $or: [
+            { endDate: { $gte: startOfDay } },
+            { $and: [{ endDate: { $exists: false } }, { eventDate: { $gte: startOfDay } }] },
+            { $and: [{ endDate: null }, { eventDate: { $gte: startOfDay } }] }
+          ]
+        });
+      }
+      if (conditions.length > 0) {
+        query.$and = conditions;
       }
     } else {
       // Apply Filter (upcoming vs past)
       if (filter === 'upcoming') {
-        query.eventDate = { $gte: today };
+        query.$or = [
+          { endDate: { $gte: today } },
+          { $and: [{ endDate: { $exists: false } }, { eventDate: { $gte: today } }] },
+          { $and: [{ endDate: null }, { eventDate: { $gte: today } }] }
+        ];
       } else if (filter === 'past') {
-        query.eventDate = { $lt: today };
+        query.$or = [
+          { endDate: { $lt: today } },
+          { $and: [{ endDate: { $exists: false } }, { eventDate: { $lt: today } }] },
+          { $and: [{ endDate: null }, { eventDate: { $lt: today } }] }
+        ];
       }
     }
 
@@ -71,10 +265,51 @@ exports.getEvent = async (req, res, next) => {
       .populate('reviews.user', 'name profilePhoto role')
       .populate('comments.user', 'name profilePhoto role')
       .populate('comments.replies.user', 'name profilePhoto role')
-      .populate('additionalImages.uploadedBy', 'name _id');
+      .populate('additionalImages.uploadedBy', 'name _id profilePhoto role')
+      .populate('galleryFolder', 'name color coverUrl');
 
     if (!event) {
       return res.status(404).json({ success: false, message: 'Event not found.' });
+    }
+
+    // Connect or fetch media from the event's gallery folder
+    let folder = event.galleryFolder;
+    if (folder) {
+      const existingId = folder._id || folder;
+      folder = await GalleryFolder.findById(existingId);
+    }
+    if (!folder && event.title) {
+      folder = await GalleryFolder.findOne({ name: event.title, parentFolder: null });
+      if (folder) {
+        event.galleryFolder = folder._id;
+        await Event.findByIdAndUpdate(event._id, { galleryFolder: folder._id });
+      }
+    }
+
+    if (folder) {
+      const folderId = folder._id || folder;
+      const folderPhotos = await GalleryPhoto.find({ folder: folderId })
+        .sort({ createdAt: -1 })
+        .populate('uploadedBy', 'name _id profilePhoto role');
+
+      if (folderPhotos && folderPhotos.length > 0) {
+        event.additionalImages = folderPhotos.map((p) => ({
+          _id: p._id,
+          url: p.url,
+          publicId: p.publicId,
+          resourceType: p.resourceType,
+          uploadedBy: p.uploadedBy,
+          caption: p.caption,
+          createdAt: p.createdAt,
+          galleryPhotoId: p._id,
+        }));
+      } else {
+        // Folder exists but has 0 photos - event media should be empty
+        event.additionalImages = [];
+      }
+    } else {
+      // Folder does not exist (e.g. deleted from gallery or never created) - event media should be empty
+      event.additionalImages = [];
     }
 
     res.status(200).json({
@@ -335,12 +570,24 @@ exports.deleteReply = async (req, res, next) => {
  */
 exports.createEvent = async (req, res, next) => {
   try {
-    const { title, description, eventDate, startTime, endTime, location, color, locationUrl, locationCoordinates } = req.body;
+    const { title, description, startDate, endDate, eventDate, startTime, endTime, location, color, locationUrl, locationCoordinates } = req.body;
 
-    if (!title || !description || !eventDate || !startTime || !endTime || !location) {
+    const actualStartDate = startDate || eventDate;
+    const actualEndDate = endDate || actualStartDate;
+
+    if (!title || !description || !actualStartDate || !startTime || !endTime || !location) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide title, description, eventDate, startTime, endTime, and location.'
+        message: 'Please provide title, description, date, start time, end time, and location.'
+      });
+    }
+
+    const startObj = new Date(actualStartDate);
+    const endObj = new Date(actualEndDate);
+    if (endObj < startObj) {
+      return res.status(400).json({
+        success: false,
+        message: 'End date cannot be earlier than start date.'
       });
     }
 
@@ -374,7 +621,9 @@ exports.createEvent = async (req, res, next) => {
     const newEvent = await Event.create({
       title,
       description,
-      eventDate: new Date(eventDate),
+      startDate: startObj,
+      endDate: endObj,
+      eventDate: startObj, // for backwards compatibility
       startTime,
       endTime,
       location,
@@ -385,6 +634,7 @@ exports.createEvent = async (req, res, next) => {
       createdBy: req.user._id
     });
 
+    // Note: Do NOT create an empty folder here. A gallery folder will be created only when the first media item is actually uploaded.
     res.status(201).json({
       success: true,
       message: 'Event created successfully',
@@ -433,8 +683,14 @@ exports.updateEvent = async (req, res, next) => {
     // Apply other updates
     Object.keys(updates).forEach((key) => {
       if (key !== 'coverImage' && key !== 'category') {
-        if (key === 'eventDate') {
+        if (key === 'startDate') {
+          event.startDate = new Date(updates.startDate);
+          event.eventDate = new Date(updates.startDate);
+        } else if (key === 'endDate') {
+          event.endDate = new Date(updates.endDate);
+        } else if (key === 'eventDate') {
           event.eventDate = new Date(updates.eventDate);
+          if (!updates.startDate) event.startDate = new Date(updates.eventDate);
         } else if (key === 'locationCoordinates') {
           try {
             event.locationCoordinates = typeof updates.locationCoordinates === 'string'
@@ -449,8 +705,25 @@ exports.updateEvent = async (req, res, next) => {
       }
     });
 
+    if (event.startDate && event.endDate && new Date(event.endDate) < new Date(event.startDate)) {
+      event.endDate = event.startDate;
+    }
+    if (event.startDate && !event.endDate) {
+      event.endDate = event.startDate;
+    }
+
     event.updatedBy = req.user._id;
     await event.save();
+
+    // Sync gallery folder name if title was updated
+    if (updates.title && event.galleryFolder) {
+      try {
+        const folderId = event.galleryFolder._id || event.galleryFolder;
+        await GalleryFolder.findByIdAndUpdate(folderId, { name: updates.title.trim() });
+      } catch (fErr) {
+        // ignore folder sync error
+      }
+    }
 
     res.status(200).json({
       success: true,
@@ -474,24 +747,26 @@ exports.deleteEvent = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Event not found.' });
     }
 
-    // 1. Delete cover image from MinIO first
+    // 1. Delete standalone cover image from MinIO if not used in gallery photos
     if (event.coverImage && (event.coverImage.publicId || event.coverImage.url)) {
-      await deleteFromS3(event.coverImage.publicId || event.coverImage.url);
-    }
-
-    // 2. Delete supplementary gallery images from MinIO first
-    if (event.additionalImages && event.additionalImages.length > 0) {
-      for (const img of event.additionalImages) {
-        await deleteFromS3(img.publicId || img.url);
+      const coverKeyOrUrl = event.coverImage.publicId || event.coverImage.url;
+      const usedInGallery = await GalleryPhoto.findOne({
+        $or: [{ publicId: coverKeyOrUrl }, { url: coverKeyOrUrl }]
+      });
+      if (!usedInGallery) {
+        await deleteFromS3(coverKeyOrUrl).catch((err) => console.error('Error deleting cover image:', err.message));
       }
     }
+
+    // 2. Note: Per requirements, do NOT delete related gallery folder or media in gallery.
+    // Gallery folder and all media are preserved in the Gallery.
 
     // 3. Delete event record from Database
     await Event.findByIdAndDelete(id);
 
     res.status(200).json({
       success: true,
-      message: 'Event permanently deleted.'
+      message: 'Event permanently deleted. Related gallery folder and media are preserved in Gallery.'
     });
   } catch (error) {
     next(error);
@@ -561,71 +836,112 @@ exports.uploadEventGalleryImages = async (req, res, next) => {
       }
     }
 
+    // Ensure gallery folder exists in Gallery for this event in the background
+    const folder = await ensureEventFolderHelper(event, req.user);
+    const targetFolderId = folder ? folder._id : null;
+
     // If images were already directly uploaded to MinIO via frontend
     if (req.body.images && Array.isArray(req.body.images) && req.body.images.length > 0) {
-      const directImages = req.body.images.map(img => ({
-        url: img.url,
-        publicId: img.publicId || img.key,
-        resourceType: img.resourceType || (img.url.includes('/video/') || /\.(mp4|mov|webm|mkv|ogg)$/i.test(img.url) ? 'video' : 'image'),
-        storageProvider: 's3',
-        uploadedBy: req.user._id,
-        createdAt: new Date()
-      }));
-      event.additionalImages.push(...directImages);
-      event.updatedBy = req.user._id;
-      await event.save();
-      await event.populate('additionalImages.uploadedBy', 'name _id');
-      return res.status(200).json({
-        success: true,
-        message: 'Media uploaded successfully',
-        data: {
-          additionalImages: event.additionalImages
-        }
-      });
-    }
+      for (const img of req.body.images) {
+        const resourceType = img.resourceType || (img.url.includes('/video/') || /\.(mp4|mov|webm|mkv|ogg)$/i.test(img.url) ? 'video' : 'image');
+        const fileUrl = img.url;
+        const fileKey = img.publicId || img.key;
 
-    const files = req.files || (req.file ? [req.file] : []);
-    if (files.length === 0) {
-      return res.status(400).json({ success: false, message: 'Please select one or more image or video files to upload.' });
-    }
-
-    const uploadedImages = [];
-    for (const file of files) {
-      const isVideo = (file.mimetype || '').startsWith('video/');
-      const resourceType = isVideo ? 'video' : 'image';
-
-      let fileUrl = file.location;
-      let fileKey = file.key;
-
-      if (!fileUrl && file.buffer) {
-        const uploadResult = await uploadBufferToS3(file.buffer, file.originalname, file.mimetype, 'uploads');
-        fileUrl = uploadResult.url;
-        fileKey = uploadResult.publicId;
-      }
-
-      if (fileUrl) {
-        uploadedImages.push({
-          url: fileUrl,
-          publicId: fileKey,
-          resourceType,
-          storageProvider: 's3',
-          uploadedBy: req.user._id,
-          createdAt: new Date()
+        // Check if photo already exists in this folder to prevent duplicates
+        const existing = await GalleryPhoto.findOne({
+          folder: targetFolderId,
+          $or: [{ url: fileUrl }, { publicId: fileKey }]
         });
+
+        if (!existing) {
+          await GalleryPhoto.create({
+            url: fileUrl,
+            publicId: fileKey,
+            storageProvider: 's3',
+            resourceType,
+            folder: targetFolderId,
+            caption: event.title,
+            uploadedBy: req.user._id,
+            createdAt: new Date()
+          });
+        }
+      }
+    } else {
+      const files = req.files || (req.file ? [req.file] : []);
+      if (files.length === 0) {
+        return res.status(400).json({ success: false, message: 'Please select one or more image or video files to upload.' });
+      }
+
+      for (const file of files) {
+        const isVideo = (file.mimetype || '').startsWith('video/');
+        const resourceType = isVideo ? 'video' : 'image';
+
+        let fileUrl = file.location;
+        let fileKey = file.key;
+
+        if (!fileUrl && file.buffer) {
+          const uploadResult = await uploadBufferToS3(file.buffer, file.originalname, file.mimetype, 'uploads');
+          fileUrl = uploadResult.url;
+          fileKey = uploadResult.publicId;
+        }
+
+        if (fileUrl) {
+          const existing = await GalleryPhoto.findOne({
+            folder: targetFolderId,
+            $or: [{ url: fileUrl }, { publicId: fileKey }]
+          });
+
+          if (!existing) {
+            await GalleryPhoto.create({
+              url: fileUrl,
+              publicId: fileKey,
+              storageProvider: 's3',
+              resourceType,
+              folder: targetFolderId,
+              caption: event.title,
+              uploadedBy: req.user._id,
+              createdAt: new Date()
+            });
+          }
+        }
       }
     }
 
-    event.additionalImages.push(...uploadedImages);
+    // Update folder cover if not set
+    if (folder) {
+      const latestPhoto = await GalleryPhoto.findOne({ folder: folder._id }).sort({ createdAt: -1 });
+      if (latestPhoto && (!folder.coverUrl || folder.coverUrl === '')) {
+        folder.coverUrl = latestPhoto.url;
+        await folder.save();
+      }
+    }
+
+    // Retrieve all photos from this gallery folder (single source of truth)
+    const allFolderPhotos = targetFolderId
+      ? await GalleryPhoto.find({ folder: targetFolderId }).sort({ createdAt: -1 }).populate('uploadedBy', 'name _id profilePhoto role')
+      : [];
+
+    const updatedMedia = allFolderPhotos.map(p => ({
+      _id: p._id,
+      url: p.url,
+      publicId: p.publicId,
+      resourceType: p.resourceType,
+      uploadedBy: p.uploadedBy,
+      caption: p.caption,
+      createdAt: p.createdAt,
+      galleryPhotoId: p._id
+    }));
+
+    event.additionalImages = updatedMedia;
     event.updatedBy = req.user._id;
     await event.save();
-
-    await event.populate('additionalImages.uploadedBy', 'name _id');
 
     res.status(200).json({
       success: true,
       message: 'Media uploaded successfully',
       data: {
-        additionalImages: event.additionalImages
+        additionalImages: updatedMedia,
+        folderId: targetFolderId
       }
     });
   } catch (error) {
@@ -634,7 +950,7 @@ exports.uploadEventGalleryImages = async (req, res, next) => {
 };
 
 /**
- * Delete a specific gallery image or video from event (MinIO)
+ * Delete a specific gallery image or video from event (MinIO & GalleryPhoto)
  */
 exports.deleteGalleryImage = async (req, res, next) => {
   try {
@@ -645,13 +961,6 @@ exports.deleteGalleryImage = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Event not found.' });
     }
 
-    const imageIndex = event.additionalImages.findIndex((img) => String(img._id) === String(imageId));
-    if (imageIndex === -1) {
-      return res.status(404).json({ success: false, message: 'Media item not found in gallery.' });
-    }
-
-    const imageToDelete = event.additionalImages[imageIndex];
-
     // Verify Access Control delete permission for events
     const isAdminOrWarden = ['ADMIN', 'WARDEN'].includes(req.user.role);
     if (!isAdminOrWarden) {
@@ -661,28 +970,80 @@ exports.deleteGalleryImage = async (req, res, next) => {
       }
     }
 
+    // Find photo in GalleryPhoto or in event.additionalImages
+    let photoToDelete = await GalleryPhoto.findById(imageId);
+    let imageToDelete = null;
+
+    if (!photoToDelete) {
+      imageToDelete = event.additionalImages.find((img) => String(img._id) === String(imageId));
+      if (imageToDelete) {
+        photoToDelete = await GalleryPhoto.findOne({
+          $or: [
+            { url: imageToDelete.url },
+            { publicId: imageToDelete.publicId }
+          ]
+        });
+      }
+    } else {
+      imageToDelete = {
+        url: photoToDelete.url,
+        publicId: photoToDelete.publicId,
+        uploadedBy: photoToDelete.uploadedBy
+      };
+    }
+
+    if (!photoToDelete && !imageToDelete) {
+      return res.status(404).json({ success: false, message: 'Media item not found in gallery.' });
+    }
+
     // Ownership check: only admin/warden or the uploader can delete
-    const isOwner = imageToDelete.uploadedBy && String(imageToDelete.uploadedBy) === String(req.user._id);
+    const uploaderId = photoToDelete?.uploadedBy || imageToDelete?.uploadedBy;
+    const isOwner = uploaderId && String(uploaderId) === String(req.user._id);
     if (!isAdminOrWarden && !isOwner) {
       return res.status(403).json({ success: false, message: 'You can only delete media you uploaded.' });
     }
 
-    if (imageToDelete.publicId || imageToDelete.url) {
-      await deleteFromS3(imageToDelete.publicId || imageToDelete.url);
+    const keyOrUrl = photoToDelete?.publicId || photoToDelete?.url || imageToDelete?.publicId || imageToDelete?.url;
+    if (keyOrUrl) {
+      await deleteFromS3(keyOrUrl);
     }
 
-    event.additionalImages.splice(imageIndex, 1);
+    if (photoToDelete) {
+      await GalleryPhoto.findByIdAndDelete(photoToDelete._id);
+    }
+
+    const delUrl = photoToDelete?.url || imageToDelete?.url;
+    event.additionalImages = event.additionalImages.filter(img =>
+      String(img._id) !== String(imageId) && img.url !== delUrl
+    );
     event.updatedBy = req.user._id;
     await event.save();
 
-    // Re-populate uploadedBy before returning
-    await event.populate('additionalImages.uploadedBy', 'name _id');
+    // Fetch remaining photos from gallery folder if exists
+    let remaining = [];
+    const targetFolderId = event.galleryFolder?._id || event.galleryFolder;
+    if (targetFolderId) {
+      const photos = await GalleryPhoto.find({ folder: targetFolderId })
+        .sort({ createdAt: -1 })
+        .populate('uploadedBy', 'name _id profilePhoto role');
+      remaining = photos.map(p => ({
+        _id: p._id,
+        url: p.url,
+        publicId: p.publicId,
+        resourceType: p.resourceType,
+        uploadedBy: p.uploadedBy,
+        caption: p.caption,
+        createdAt: p.createdAt
+      }));
+    } else {
+      remaining = event.additionalImages;
+    }
 
     res.status(200).json({
       success: true,
       message: 'Item removed from gallery.',
       data: {
-        additionalImages: event.additionalImages
+        additionalImages: remaining
       }
     });
   } catch (error) {

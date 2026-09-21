@@ -34,6 +34,14 @@ const EventSchema = new mongoose.Schema({
     type: Date,
     required: [true, 'Please provide an event date']
   },
+  startDate: {
+    type: Date,
+    default: function() { return this.eventDate; }
+  },
+  endDate: {
+    type: Date,
+    default: function() { return this.startDate || this.eventDate; }
+  },
   startTime: {
     type: String, // HH:MM format
     required: [true, 'Please provide a start time']
@@ -64,6 +72,11 @@ const EventSchema = new mongoose.Schema({
   coverImage: {
     url: { type: String, default: '' },
     publicId: { type: String, default: '' }
+  },
+  galleryFolder: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'GalleryFolder',
+    default: null
   },
   additionalImages: [
     {
@@ -99,8 +112,10 @@ const EventSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexing eventDate for sorting upcoming vs past events
+// Indexing eventDate, startDate, and endDate for sorting upcoming vs past events
 EventSchema.index({ eventDate: 1 });
+EventSchema.index({ startDate: 1 });
+EventSchema.index({ endDate: 1 });
 
 module.exports = mongoose.model('Event', EventSchema);
 

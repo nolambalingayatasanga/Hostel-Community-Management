@@ -39,6 +39,51 @@ export const INTERNAL_SLUGS = {
   CHANNELS: "channels"
 };
 
+export const DEFAULT_COLUMN_SLUGS = [
+  "name",
+  "email",
+  "phone",
+  "channels",
+  "education.college",
+  "education.course",
+  "dob",
+  "education.startYear",
+  "education.endYear"
+];
+
+export const isDefaultColumn = (field) => {
+  if (!field) return false;
+  const s = (field.slug || "").toLowerCase();
+  const n = (field.name || "").toLowerCase();
+  return (
+    s === "name" || n === "name" ||
+    s === "email" || n === "email" ||
+    s === "phone" || n === "phone" ||
+    s === "channels" || n === "channels" ||
+    s === "education.college" || s === "college" || n === "college" ||
+    s === "education.course" || s === "course" || s === "branch" || n === "branch" || n === "course" ||
+    s === "dob" || s === "dateofbirth" || s === "age" || n === "dob" || n === "date of birth" ||
+    s === "education.startyear" || s === "startyear" || s === "start_year" || n.includes("college joining") || n.includes("coolege joining") || n === "edu start year" || n.includes("start year") ||
+    s === "education.endyear" || s === "endyear" || s === "end_year" || n.includes("graduation year") || n === "edu end year" || n.includes("end year")
+  );
+};
+
+export const getDefaultColumnIndex = (field) => {
+  if (!field) return 999;
+  const s = (field.slug || "").toLowerCase();
+  const n = (field.name || "").toLowerCase();
+  if (s === "name" || n === "name") return 0;
+  if (s === "email" || n === "email") return 1;
+  if (s === "phone" || n === "phone") return 2;
+  if (s === "channels" || n === "channels") return 3;
+  if (s === "education.college" || s === "college" || n === "college") return 4;
+  if (s === "education.course" || s === "course" || s === "branch" || n === "branch" || n === "course") return 5;
+  if (s === "dob" || s === "dateofbirth" || s === "age" || n === "dob" || n === "date of birth") return 6;
+  if (s === "education.startyear" || s === "startyear" || s === "start_year" || n.includes("college joining") || n.includes("coolege joining") || n === "edu start year" || n.includes("start year")) return 7;
+  if (s === "education.endyear" || s === "endyear" || s === "end_year" || n.includes("graduation year") || n === "edu end year" || n.includes("end year")) return 8;
+  return 100 + (field.order ?? 0);
+};
+
 export const columnWidth = (field) => {
   if (!field) return 170;
   const slug = (field.slug || "").toLowerCase();
@@ -48,26 +93,26 @@ export const columnWidth = (field) => {
   if (slug === "name") return 220;
   if (slug === "email") return 260;
   if (slug === "phone") return 210;
+  if (slug === "channels") return 140;
+  if (slug.includes("college") || name.includes("college")) return 240;
+  if (slug.includes("course") || name.includes("course") || slug.includes("branch") || name.includes("branch")) return 190;
+  if (slug === "dob" || slug === "dateofbirth" || slug === "age" || name === "dob" || name === "age" || name === "date of birth") return 160;
+  if (slug.includes("startyear") || name.includes("start year") || name.includes("college joining") || name.includes("coolege joining")) return 180;
+  if (slug.includes("endyear") || name.includes("end year") || name.includes("graduation year")) return 180;
   if (slug === "role") return 170;
   if (slug === "gender") return 130;
-  if (slug === "dob" || slug === "dateofbirth" || slug === "age" || name === "dob" || name === "age" || name === "date of birth") return 160;
   if (slug === "joiningdate") return 160;
   if (slug === "adhaar") return 190;
   if (slug === "slno" || slug === "sl_no") return 130;
   if (slug === "registrationnumber" || slug === "registration_number") return 160;
   if (slug === "receiptno") return 150;
   if (slug === "relativename" || slug === "relation") return 180;
-  if (slug === "channels") return 140;
   if (slug === "logindetails") return 190;
   if (slug === "locallanguagedetails" || slug === "local_language_details") return 300;
 
   // Education Columns (proper width preventing header wrapping)
   if (slug.includes("startmonth") || name.includes("start month")) return 195;
-  if (slug.includes("startyear") || name.includes("start year")) return 195;
   if (slug.includes("endmonth") || name.includes("end month")) return 195;
-  if (slug.includes("endyear") || name.includes("end year")) return 195;
-  if (slug.includes("college") || name.includes("college")) return 240;
-  if (slug.includes("course") || name.includes("course")) return 190;
   if (slug.includes("higherstudies") || name.includes("higher studies")) return 240;
 
   // Employment Columns
@@ -97,7 +142,15 @@ export const getColumnDisplayName = (field) => {
   if (!field) return "";
   const slug = (field.slug || "").toLowerCase();
   const name = (field.name || "").toLowerCase();
+  if (slug === "name" || name === "name") return "Name";
+  if (slug === "email" || name === "email") return "Email";
+  if (slug === "phone" || name === "phone") return "Phone";
+  if (slug === "channels" || name === "channels") return "Channels";
+  if (slug === "education.college" || slug === "college" || name === "college") return "College";
+  if (slug === "education.course" || slug === "course" || name === "course" || name === "branch" || slug === "branch") return "Branch";
   if (slug === "age" || name === "age" || slug === "dob" || slug === "dateofbirth" || name === "date of birth") return "DOB";
+  if (slug === "education.startyear" || slug === "startyear" || slug === "start_year" || name === "edu start year" || name.includes("college joining") || name.includes("coolege joining") || name.includes("start year")) return "College Joining";
+  if (slug === "education.endyear" || slug === "endyear" || slug === "end_year" || name === "edu end year" || name.includes("graduation year") || name.includes("end year")) return "Graduation Year";
   if (slug === "locallanguagedetails" || slug === "local_language_details") return "Kanada Overview";
   if (slug === "slno" || slug === "sl_no") return "Slot No.";
   if (slug === "registrationnumber" || slug === "registration_number") return "Reg No.";
@@ -267,15 +320,24 @@ export const toRow = (lead) => {
     "address.taluk": lead.address?.taluk || "",
     "address.pincode": lead.address?.pincode || "",
     "education.college": lead.education?.college || "",
+    college: lead.education?.college || "",
     "education.course": lead.education?.course || "",
+    course: lead.education?.course || "",
+    branch: lead.education?.course || "",
     "education.startMonth": lead.education?.startMonth,
     "education.startmonth": lead.education?.startMonth,
     "education.startYear": lead.education?.startYear,
     "education.startyear": lead.education?.startYear,
+    startYear: lead.education?.startYear,
+    startyear: lead.education?.startYear,
+    collegeJoining: lead.education?.startYear,
     "education.endMonth": lead.education?.endMonth,
     "education.endmonth": lead.education?.endMonth,
     "education.endYear": lead.education?.endYear,
     "education.endyear": lead.education?.endYear,
+    endYear: lead.education?.endYear,
+    endyear: lead.education?.endYear,
+    graduationYear: lead.education?.endYear,
     "employment.occupation": lead.employment?.occupation || "",
     "employment.organization": lead.employment?.organization || "",
     "employment.industry": lead.employment?.industry || "",

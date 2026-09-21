@@ -96,7 +96,7 @@ const CustomDateRangePicker = ({
   incApply,
   disablePast = false,
   compact = false,
-  placeholder = "Filter by Joining Date",
+  placeholder = "Date Filter",
 }) => {
   const minDate = disablePast ? getTodayGMT() : undefined;
   const parsedStart = parsePickerDate(start);
@@ -196,18 +196,21 @@ const CustomDateRangePicker = ({
               onClick={handleCalenderOpen}
               variant="outlined"
               color="inherit"
-              startIcon={<CalendarIcon sx={{ color: hasSelectedRange ? "#0088ff" : "text.disabled" }} />}
+              startIcon={<CalendarIcon sx={{ color: hasSelectedRange ? "#0088ff" : "text.disabled", fontSize: { xs: 17, sm: 20 } }} />}
               sx={{
                 borderColor: hasSelectedRange ? "#0088ff" : "rgba(145, 158, 171, 0.32)",
                 color: hasSelectedRange ? "#0F172A" : "text.secondary",
                 textTransform: "none",
                 fontWeight: hasSelectedRange ? 600 : 500,
-                padding: "6px 16px",
-                pr: hasSelectedRange ? "34px" : "16px",
-                minWidth: "240px",
+                fontSize: { xs: "12px", sm: "13.5px" },
+                padding: { xs: "5px 10px", sm: "6px 16px" },
+                pr: hasSelectedRange ? { xs: "28px", sm: "34px" } : { xs: "10px", sm: "16px" },
+                minWidth: { xs: "125px", sm: "200px", md: "240px" },
+                height: { xs: "36px", sm: "40px" },
                 justifyContent: "flex-start",
                 borderRadius: "8px",
                 backgroundColor: hasSelectedRange ? "rgba(0, 136, 255, 0.04)" : "#fff",
+                whiteSpace: "nowrap",
                 "&:hover": {
                   borderColor: hasSelectedRange ? "#0077ee" : "rgba(145, 158, 171, 0.5)",
                   backgroundColor: hasSelectedRange ? "rgba(0, 136, 255, 0.08)" : "#fff",

@@ -160,8 +160,8 @@ export default function UploadManager() {
           {isUploading
             ? `Uploading (${stats.completed}/${stats.total}) • ${stats.overallPercent}%`
             : stats.error > 0
-            ? `${stats.error} failed • ${stats.completed}/${stats.total} uploaded`
-            : `All ${stats.completed} uploaded!`}
+              ? `${stats.error} failed • ${stats.completed}/${stats.total} uploaded`
+              : `All ${stats.completed} uploaded!`}
         </Typography>
 
         <IconButton
@@ -216,7 +216,7 @@ export default function UploadManager() {
           animation: 'modalSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
           '@keyframes modalSlideUp': {
             from: { opacity: 0, transform: 'translate(-50%, -46%) scale(0.97)' },
-            to:   { opacity: 1, transform: 'translate(-50%, -50%) scale(1)' },
+            to: { opacity: 1, transform: 'translate(-50%, -50%) scale(1)' },
           },
         }}
       >
@@ -542,30 +542,9 @@ export default function UploadManager() {
             </Box>
           </Stack>
 
-          {/* Sort Dropdown */}
-          <Box>
-            <Button
-              size="small"
-              onClick={(e) => setSortAnchorEl(e.currentTarget)}
-              startIcon={<TuneIcon sx={{ fontSize: '16px !important', color: '#475569' }} />}
-              endIcon={<ArrowDownIcon sx={{ fontSize: '18px !important', color: '#64748B' }} />}
-              sx={{
-                textTransform: 'none',
-                color: '#334155',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                border: '1px solid #E2E8F0',
-                borderRadius: '12px',
-                px: 1.4,
-                py: 0.5,
-                bgcolor: '#FFFFFF',
-                '&:hover': { bgcolor: '#F8FAFC', borderColor: '#CBD5E1' }
-              }}
-            >
-              {getSortLabel()}
-            </Button>
-      
-          </Box>
+
+
+
         </Box>
 
         {/* ── Scrollable Items List ── */}
@@ -590,9 +569,9 @@ export default function UploadManager() {
           ) : (
             displayQueue.map((item) => {
               const isCurrent = item.status === 'uploading';
-              const isDone    = item.status === 'completed';
-              const isFailed  = item.status === 'error';
-              const isQueued  = item.status === 'pending';
+              const isDone = item.status === 'completed';
+              const isFailed = item.status === 'error';
+              const isQueued = item.status === 'pending';
 
               return (
                 <Box
@@ -604,8 +583,8 @@ export default function UploadManager() {
                     border: isCurrent
                       ? '1.5px solid #BFDBFE'
                       : isFailed
-                      ? '1px solid #FEE2E2'
-                      : '1px solid #F1F5F9',
+                        ? '1px solid #FEE2E2'
+                        : '1px solid #F1F5F9',
                     boxShadow: isCurrent
                       ? '0 4px 12px rgba(37, 99, 235, 0.08)'
                       : '0 1px 3px rgba(0, 0, 0, 0.02)',

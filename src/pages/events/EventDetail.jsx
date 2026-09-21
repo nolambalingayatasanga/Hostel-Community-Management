@@ -56,6 +56,7 @@ import {
   SecurityRounded as AdminShieldIcon,
   LockRounded as LockIcon,
   AddPhotoAlternateRounded as AddPhotoIcon,
+  FolderRounded as FolderIcon,
   SwapVertRounded as ReorderIcon,
   GridViewRounded as GridViewIcon,
   MoreHorizRounded as MoreHorizIcon,
@@ -84,6 +85,7 @@ import { LocalizationProvider, DatePicker, TimePicker } from "@mui/x-date-picker
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { useSnackbar } from "notistack";
 import { useUploadQueue } from "../../context/UploadQueueContext";
+import { formatTime } from "./eventConstants";
 
 dayjs.extend(relativeTime);
 
@@ -139,7 +141,8 @@ const DEFAULT_PLACE_NAME = "Bengaluru, Karnataka, India";
 function EditEventDialog({ open, onClose, event, onSaved }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [eventDate, setEventDate] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [location, setLocation] = useState("");
@@ -189,7 +192,14 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
     if (open && event) {
       setTitle(event.title || "");
       setDescription(event.description || "");
-      setEventDate(event.eventDate ? dayjs(event.eventDate).format("YYYY-MM-DD") : "");
+      const initStart = event.startDate
+        ? dayjs(event.startDate).format("YYYY-MM-DD")
+        : (event.eventDate ? dayjs(event.eventDate).format("YYYY-MM-DD") : "");
+      const initEnd = event.endDate
+        ? dayjs(event.endDate).format("YYYY-MM-DD")
+        : initStart;
+      setStartDate(initStart);
+      setEndDate(initEnd);
       setStartTime(event.startTime || "");
       setEndTime(event.endTime || "");
       setLocation(event.location || "");
@@ -404,8 +414,13 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!title || !description || !eventDate || !startTime || !endTime || !location) {
+    if (!title || !description || !startDate || !startTime || !endTime || !location) {
       setFormError("Please fill in all required fields.");
+      return;
+    }
+    const actualEnd = endDate || startDate;
+    if (dayjs(actualEnd).isBefore(dayjs(startDate), "day")) {
+      setFormError("End date cannot be earlier than start date.");
       return;
     }
     setFormError("");
@@ -414,7 +429,9 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
     const payload = {
       title,
       description,
-      eventDate,
+      startDate,
+      endDate: actualEnd,
+      eventDate: startDate,
       startTime,
       endTime,
       location,
@@ -464,13 +481,36 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
         sx: {
           borderRadius: "20px",
           boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+          maxHeight: "calc(100vh - 48px)",
+          height: "auto",
+          display: "flex",
+          flexDirection: "column",
           overflow: "hidden",
         },
       }}
     >
-
-      <form onSubmit={handleSubmit}>
-        <DialogContent sx={{ px: 3.5, pt: 3.5, pb: 2.5, backgroundColor: "#FFF", overscrollBehavior: "contain" }}>
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          flex: 1,
+          minHeight: 0,
+          overflow: "hidden",
+        }}
+      >
+        <DialogContent
+          sx={{
+            px: 3.5,
+            pt: 3.5,
+            pb: 2.5,
+            backgroundColor: "#FFF",
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
+            WebkitOverflowScrolling: "touch",
+          }}
+        >
           {formError && (
             <Alert severity="error" sx={{ mb: 2.5, borderRadius: "10px", fontSize: "13px" }}>
               {formError}
@@ -610,24 +650,29 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
               />
             </Box>
 
-            {/* Date & Time Row */}
+            {/* Date & Time Section */}
             <LocalizationProvider dateAdapter={AdapterDayjs}>
               <Grid container spacing={1.5}>
-                <Grid size={{ xs: 12, sm: 5 }}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#344054", mb: 0.6 }}>
-                    Event Date <span style={{ color: "#D92D20" }}>*</span>
+                    Start Date <span style={{ color: "#D92D20" }}>*</span>
                   </Typography>
                   <DatePicker
                     format="DD/MM/YYYY"
-                    value={eventDate ? dayjs(eventDate) : null}
-                    onChange={(newValue) =>
-                      setEventDate(newValue ? newValue.format("YYYY-MM-DD") : "")
-                    }
+                    value={startDate ? dayjs(startDate) : null}
+                    onChange={(newValue) => {
+                      const val = newValue ? newValue.format("YYYY-MM-DD") : "";
+                      setStartDate(val);
+                      if (!endDate || (val && dayjs(endDate).isBefore(dayjs(val), "day"))) {
+                        setEndDate(val);
+                      }
+                    }}
                     slotProps={{
                       textField: {
                         fullWidth: true,
                         size: "small",
                         required: true,
+                        placeholder: "DD/MM/YYYY",
                         sx: {
                           "& .MuiOutlinedInput-root": {
                             height: "38px",
@@ -651,14 +696,25 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
                         },
                       },
                     }}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label=""
-                        fullWidth
-                        size="small"
-                        required
-                        sx={{
+                  />
+                </Grid>
+
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#344054", mb: 0.6 }}>
+                    End Date <span style={{ color: "#D92D20" }}>*</span>
+                  </Typography>
+                  <DatePicker
+                    format="DD/MM/YYYY"
+                    minDate={startDate ? dayjs(startDate) : undefined}
+                    value={endDate ? dayjs(endDate) : (startDate ? dayjs(startDate) : null)}
+                    onChange={(newValue) => setEndDate(newValue ? newValue.format("YYYY-MM-DD") : "")}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        size: "small",
+                        required: true,
+                        placeholder: "DD/MM/YYYY",
+                        sx: {
                           "& .MuiOutlinedInput-root": {
                             height: "38px",
                             borderRadius: "10px",
@@ -678,14 +734,15 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
                             p: "4px",
                             color: "#667085",
                           },
-                        }}
-                      />
-                    )}
+                        },
+                      },
+                    }}
                   />
                 </Grid>
-                <Grid size={{ xs: 6, sm: 3.5 }}>
+
+                <Grid size={{ xs: 6, sm: 6 }}>
                   <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#344054", mb: 0.6 }}>
-                    Start <span style={{ color: "#D92D20" }}>*</span>
+                    Start Time <span style={{ color: "#D92D20" }}>*</span>
                   </Typography>
                   <TimePicker
                     value={startTime ? dayjs(`2000-01-01T${startTime}`) : null}
@@ -720,41 +777,12 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
                         },
                       },
                     }}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label=""
-                        fullWidth
-                        size="small"
-                        required
-                        sx={{
-                          "& .MuiOutlinedInput-root": {
-                            height: "38px",
-                            borderRadius: "10px",
-                            backgroundColor: "#FFF",
-                            fontSize: "13px",
-                            "& fieldset": { borderColor: "#D0D5DD" },
-                            "&:hover fieldset": { borderColor: "#98A2B3" },
-                            "&.Mui-focused fieldset": { borderColor: "#0088ff" },
-                          },
-                          "& .MuiInputBase-input": {
-                            py: "7px",
-                            px: "10px",
-                            fontSize: "13px",
-                            height: "auto",
-                          },
-                          "& .MuiIconButton-root": {
-                            p: "4px",
-                            color: "#667085",
-                          },
-                        }}
-                      />
-                    )}
                   />
                 </Grid>
-                <Grid size={{ xs: 6, sm: 3.5 }}>
+
+                <Grid size={{ xs: 6, sm: 6 }}>
                   <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#344054", mb: 0.6 }}>
-                    End <span style={{ color: "#D92D20" }}>*</span>
+                    End Time <span style={{ color: "#D92D20" }}>*</span>
                   </Typography>
                   <TimePicker
                     value={endTime ? dayjs(`2000-01-01T${endTime}`) : null}
@@ -789,36 +817,6 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
                         },
                       },
                     }}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label=""
-                        fullWidth
-                        size="small"
-                        required
-                        sx={{
-                          "& .MuiOutlinedInput-root": {
-                            height: "38px",
-                            borderRadius: "10px",
-                            backgroundColor: "#FFF",
-                            fontSize: "13px",
-                            "& fieldset": { borderColor: "#D0D5DD" },
-                            "&:hover fieldset": { borderColor: "#98A2B3" },
-                            "&.Mui-focused fieldset": { borderColor: "#0088ff" },
-                          },
-                          "& .MuiInputBase-input": {
-                            py: "7px",
-                            px: "10px",
-                            fontSize: "13px",
-                            height: "auto",
-                          },
-                          "& .MuiIconButton-root": {
-                            p: "4px",
-                            color: "#667085",
-                          },
-                        }}
-                      />
-                    )}
                   />
                 </Grid>
               </Grid>
@@ -1136,7 +1134,15 @@ function EditEventDialog({ open, onClose, event, onSaved }) {
           </Stack>
         </DialogContent>
 
-        <DialogActions sx={{ px: 3.5, bgcolor: "#FFF" }}>
+        <DialogActions
+          sx={{
+            px: 3.5,
+            py: 2,
+            bgcolor: "#FFF",
+            borderTop: "1px solid #EAECF0",
+            flexShrink: 0,
+          }}
+        >
           <Button
             variant="outlined"
             onClick={onClose}
@@ -1187,8 +1193,44 @@ function EventMediaHero({
   onZoom,
   canManage = false,
   onManageMedia,
+  event = null,
   sx = {},
 }) {
+  const navigate = useNavigate();
+
+  const handleRequestUploadMedia = () => {
+    let url = '/request-upload?tab=submit&category=events';
+    if (event?.title) {
+      url += `&title=${encodeURIComponent(event.title)}`;
+    }
+    if (event?.eventDate) {
+      const d = new Date(event.eventDate);
+      const dateStr = !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : event.eventDate;
+      url += `&eventDate=${encodeURIComponent(dateStr)}`;
+    }
+    if (event?.location) {
+      url += `&location=${encodeURIComponent(event.location)}`;
+    }
+    if (event?.locationUrl) {
+      url += `&locationUrl=${encodeURIComponent(event.locationUrl)}`;
+    }
+    if (event?.startTime) {
+      url += `&startTime=${encodeURIComponent(event.startTime)}`;
+    }
+    if (event?.endTime) {
+      url += `&endTime=${encodeURIComponent(event.endTime)}`;
+    }
+    navigate(url);
+  };
+
+  const handleAddMedia = () => {
+    if (canManage && onManageMedia) {
+      onManageMedia();
+    } else {
+      handleRequestUploadMedia();
+    }
+  };
+
   const images = useMemo(() => {
     const list = [];
     if (coverImage?.url) {
@@ -1298,36 +1340,34 @@ function EventMediaHero({
               </Typography>
               <Typography variant="body2" sx={{ color: "#C7D2FE", fontSize: "12.5px" }}>
                 {canManage
-                  ? "Upload a cover photo or event highlights (photos & videos) to showcase this event."
+                  ? "Upload a  photo or event highlights (photos & videos) to showcase this event."
                   : "Photos and videos will appear here once uploaded by organizers."}
               </Typography>
             </Box>
           </Stack>
 
-          {canManage && (
-            <Button
-              variant="contained"
-              onClick={onManageMedia}
-              startIcon={<AddPhotoIcon sx={{ fontSize: 18 }} />}
-              sx={{
-                bgcolor: "#FFFFFF",
-                color: "#4338CA",
-                fontWeight: 800,
-                fontSize: "12.5px",
-                textTransform: "none",
-                borderRadius: "10px",
-                px: 2,
-                py: 0.85,
-                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                whiteSpace: "nowrap",
-                "&:hover": {
-                  bgcolor: "#EEF2FF",
-                },
-              }}
-            >
-              Add Media
-            </Button>
-          )}
+          <Button
+            variant="contained"
+            onClick={handleAddMedia}
+            startIcon={<AddPhotoIcon sx={{ fontSize: 18 }} />}
+            sx={{
+              bgcolor: "#FFFFFF",
+              color: "#4338CA",
+              fontWeight: 800,
+              fontSize: "12.5px",
+              textTransform: "none",
+              borderRadius: "10px",
+              px: 2,
+              py: 0.85,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              whiteSpace: "nowrap",
+              "&:hover": {
+                bgcolor: "#EEF2FF",
+              },
+            }}
+          >
+            Add Media
+          </Button>
         </Stack>
       </Card>
     );
@@ -1615,6 +1655,31 @@ function EventMediaHero({
         >
           View all ({images.length})
         </Button>
+
+        {/* Add Media Button just beside View All */}
+        <Button
+          variant="contained"
+          onClick={handleAddMedia}
+          startIcon={<AddPhotoIcon sx={{ fontSize: 16 }} />}
+          sx={{
+            flexShrink: 0,
+            borderRadius: "10px",
+            bgcolor: "#7C3AED",
+            color: "#FFFFFF",
+            textTransform: "none",
+            fontWeight: 700,
+            fontSize: "12px",
+            px: 1.5,
+            py: 0.75,
+            boxShadow: "0 2px 8px rgba(124, 58, 237, 0.25)",
+            "&:hover": {
+              bgcolor: "#6D28D9",
+              boxShadow: "0 4px 12px rgba(124, 58, 237, 0.35)",
+            },
+          }}
+        >
+          Add Media
+        </Button>
       </Stack>
     </Card>
   );
@@ -1822,8 +1887,14 @@ function ViewAllMediaDialog({
     }
   };
 
+  const [deleteConfirmDialog, setDeleteConfirmDialog] = useState({
+    open: false,
+    type: null, // 'single' | 'batch'
+    target: null,
+  });
+
   // Batch delete selected (Admin only)
-  const handleDeleteSelected = async () => {
+  const handleOpenBatchDeleteConfirm = () => {
     const deletableList = images.filter(
       (img) => selectedIds.includes(img._id || img.id) && !img.isCover
     );
@@ -1836,41 +1907,15 @@ function ViewAllMediaDialog({
       return;
     }
 
-    if (
-      !window.confirm(
-        `Are you sure you want to delete ${deletableList.length} selected photo(s) from storage & this event?`
-      )
-    ) {
-      return;
-    }
-
-    setDeleting(true);
-    try {
-      let latestList = eventAdditionalImages || [];
-      for (const img of deletableList) {
-        const imgId = img._id || img.id;
-        const res = await API.delete(`/events/${eventId}/gallery/${imgId}`);
-        if (res.data?.success) {
-          latestList = res.data.data.additionalImages || [];
-        }
-      }
-      onUpdated(latestList);
-      setSelectedIds([]);
-      enqueueSnackbar(`Successfully deleted ${deletableList.length} photo(s)`, {
-        variant: "success",
-      });
-    } catch (err) {
-      enqueueSnackbar(
-        err.response?.data?.message || "Failed to delete selected photos",
-        { variant: "error" }
-      );
-    } finally {
-      setDeleting(false);
-    }
+    setDeleteConfirmDialog({
+      open: true,
+      type: "batch",
+      target: deletableList,
+    });
   };
 
   // Single delete (Admin only)
-  const handleDeleteSingle = async (img, e) => {
+  const handleOpenSingleDeleteConfirm = (img, e) => {
     if (e) e.stopPropagation();
     if (img.isCover) {
       enqueueSnackbar(
@@ -1880,28 +1925,51 @@ function ViewAllMediaDialog({
       return;
     }
 
-    if (
-      !window.confirm(
-        ""
-      )
-    ) {
-      return;
-    }
+    setDeleteConfirmDialog({
+      open: true,
+      type: "single",
+      target: img,
+    });
+  };
 
+  const handleExecuteConfirmDelete = async () => {
+    if (!deleteConfirmDialog.target) return;
+    setDeleting(true);
     try {
-      const imgId = img._id || img.id;
-      const res = await API.delete(`/events/${eventId}/gallery/${imgId}`);
-      if (res.data?.success) {
-        const updatedList = res.data.data.additionalImages || [];
-        onUpdated(updatedList);
-        setSelectedIds((prev) => prev.filter((id) => id !== imgId));
-        enqueueSnackbar("Photo deleted successfully", { variant: "success" });
+      if (deleteConfirmDialog.type === "batch") {
+        const deletableList = deleteConfirmDialog.target;
+        let latestList = eventAdditionalImages || [];
+        for (const img of deletableList) {
+          const imgId = img._id || img.id;
+          const res = await API.delete(`/events/${eventId}/gallery/${imgId}`);
+          if (res.data?.success) {
+            latestList = res.data.data.additionalImages || [];
+          }
+        }
+        onUpdated(latestList);
+        setSelectedIds([]);
+        enqueueSnackbar(`Successfully deleted ${deletableList.length} photo(s)`, {
+          variant: "success",
+        });
+      } else if (deleteConfirmDialog.type === "single") {
+        const img = deleteConfirmDialog.target;
+        const imgId = img._id || img.id;
+        const res = await API.delete(`/events/${eventId}/gallery/${imgId}`);
+        if (res.data?.success) {
+          const updatedList = res.data.data.additionalImages || [];
+          onUpdated(updatedList);
+          setSelectedIds((prev) => prev.filter((id) => id !== imgId));
+          enqueueSnackbar("Photo deleted successfully", { variant: "success" });
+        }
       }
+      setDeleteConfirmDialog({ open: false, type: null, target: null });
     } catch (err) {
       enqueueSnackbar(
-        err.response?.data?.message || "Failed to delete photo",
+        err.response?.data?.message || "Failed to delete photo(s)",
         { variant: "error" }
       );
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -2014,7 +2082,7 @@ function ViewAllMediaDialog({
               variant="outlined"
               color="error"
               disabled={deletableSelectedCount === 0 || deleting}
-              onClick={handleDeleteSelected}
+              onClick={handleOpenBatchDeleteConfirm}
               startIcon={
                 deleting ? (
                   <CircularProgress size={16} color="inherit" />
@@ -2272,7 +2340,7 @@ function ViewAllMediaDialog({
                       ) : (
                         canDeleteImage(img) && (
                           <IconButton
-                            onClick={(e) => handleDeleteSingle(img, e)}
+                            onClick={(e) => handleOpenSingleDeleteConfirm(img, e)}
                             size="small"
                             sx={{
                               position: "absolute",
@@ -2354,7 +2422,7 @@ function ViewAllMediaDialog({
 
                         <Stack direction="row" spacing={1} alignItems="center">
                           {/* Zoom Action */}
-                          <Tooltip title="Preview / Fullscreen" arrow>
+                          <Tooltip title="Preview" arrow>
                             <IconButton
                               size="small"
                               onClick={(e) => {
@@ -2413,14 +2481,88 @@ function ViewAllMediaDialog({
           </Grid>
         )}
       </DialogContent>
+
+      <DeleteConfirmDialog
+        open={deleteConfirmDialog.open}
+        onClose={() => !deleting && setDeleteConfirmDialog({ open: false, type: null, target: null })}
+        onConfirm={handleExecuteConfirmDelete}
+        title={deleteConfirmDialog.type === "batch" ? "Delete Selected Photos?" : "Delete Photo?"}
+        message={
+          deleteConfirmDialog.type === "batch"
+            ? `Are you sure you want to permanently delete ${deleteConfirmDialog.target?.length || 0} selected photo(s) from storage & this event? This action cannot be undone.`
+            : "Are you sure you want to permanently delete this photo from storage & this event? This action cannot be undone."
+        }
+        confirmText="Delete"
+        loading={deleting}
+      />
     </Dialog>
   );
 }
 
 // ─── Image Lightbox Component ────────────────────────────────────────────────
-function ImageLightbox({ open, onClose, imageUrl, canDeleteImage = () => false, currentImage = null, eventId, onDeleted }) {
+function ImageLightbox({
+  open,
+  onClose,
+  imageUrl,
+  images = [],
+  onSelectImage,
+  canDeleteImage = () => false,
+  currentImage = null,
+  eventId,
+  onDeleted,
+}) {
   const { enqueueSnackbar } = useSnackbar();
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+
+  const currentIndex = useMemo(() => {
+    if (!images || images.length === 0) return -1;
+    return images.findIndex(
+      (img) =>
+        (img.url && img.url === imageUrl) ||
+        (currentImage &&
+          ((img._id && img._id === currentImage._id) ||
+            (img.url && img.url === currentImage.url)))
+    );
+  }, [images, imageUrl, currentImage]);
+
+  const hasPrev = currentIndex > 0;
+  const hasNext = currentIndex >= 0 && currentIndex < images.length - 1;
+
+  const handlePrev = useCallback(
+    (e) => {
+      if (e) e.stopPropagation();
+      if (hasPrev && onSelectImage) {
+        onSelectImage(images[currentIndex - 1]);
+      }
+    },
+    [hasPrev, currentIndex, images, onSelectImage]
+  );
+
+  const handleNext = useCallback(
+    (e) => {
+      if (e) e.stopPropagation();
+      if (hasNext && onSelectImage) {
+        onSelectImage(images[currentIndex + 1]);
+      }
+    },
+    [hasNext, currentIndex, images, onSelectImage]
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "ArrowLeft") {
+        handlePrev();
+      } else if (e.key === "ArrowRight") {
+        handleNext();
+      } else if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, handlePrev, handleNext, onClose]);
 
   const isVideo =
     currentImage?.resourceType === "video" ||
@@ -2452,10 +2594,12 @@ function ImageLightbox({ open, onClose, imageUrl, canDeleteImage = () => false, 
 
   const handleDeleteFromLightbox = async () => {
     if (!currentImage || currentImage.isCover) {
-      enqueueSnackbar("Cover photo cannot be deleted here. Change it in Edit Event.", { variant: "warning" });
+      enqueueSnackbar(
+        "Cover photo cannot be deleted here. Change it in Edit Event.",
+        { variant: "warning" }
+      );
       return;
     }
-    if (!window.confirm(`Are you sure you want to permanently delete this ${isVideo ? "video" : "photo"} from storage & this event?`)) return;
     setDeleteLoading(true);
     try {
       const imgId = currentImage._id || currentImage.id;
@@ -2463,11 +2607,29 @@ function ImageLightbox({ open, onClose, imageUrl, canDeleteImage = () => false, 
       if (res.data?.success) {
         const updatedList = res.data.data.additionalImages || [];
         if (onDeleted) onDeleted(updatedList);
-        enqueueSnackbar(`${isVideo ? "Video" : "Photo"} deleted successfully`, { variant: "success" });
-        onClose();
+        enqueueSnackbar(
+          `${isVideo ? "Video" : "Photo"} deleted successfully`,
+          { variant: "success" }
+        );
+        setConfirmDeleteOpen(false);
+        if (images && images.length > 1) {
+          const nextTarget =
+            images[currentIndex + 1] || images[currentIndex - 1];
+          if (nextTarget && onSelectImage) {
+            onSelectImage(nextTarget);
+          } else {
+            onClose();
+          }
+        } else {
+          onClose();
+        }
       }
     } catch (err) {
-      enqueueSnackbar(err.response?.data?.message || `Failed to delete ${isVideo ? "video" : "photo"}`, { variant: "error" });
+      enqueueSnackbar(
+        err.response?.data?.message ||
+          `Failed to delete ${isVideo ? "video" : "photo"}`,
+        { variant: "error" }
+      );
     } finally {
       setDeleteLoading(false);
     }
@@ -2475,7 +2637,8 @@ function ImageLightbox({ open, onClose, imageUrl, canDeleteImage = () => false, 
 
   if (!open) return null;
 
-  const isDeletable = currentImage && !currentImage.isCover && canDeleteImage(currentImage);
+  const isDeletable =
+    currentImage && !currentImage.isCover && canDeleteImage(currentImage);
 
   return (
     <Box
@@ -2487,7 +2650,7 @@ function ImageLightbox({ open, onClose, imageUrl, canDeleteImage = () => false, 
         right: 0,
         bottom: 0,
         zIndex: 1700,
-        bgcolor: "rgba(0, 0, 0, 0.85)",
+        bgcolor: "rgba(0, 0, 0, 0.88)",
         backdropFilter: "blur(14px)",
         display: "flex",
         alignItems: "center",
@@ -2495,6 +2658,33 @@ function ImageLightbox({ open, onClose, imageUrl, canDeleteImage = () => false, 
         cursor: "zoom-out",
       }}
     >
+      {/* Top-Left: Index Counter Pill */}
+      {images && images.length > 1 && currentIndex >= 0 && (
+        <Box
+          onClick={(e) => e.stopPropagation()}
+          sx={{
+            position: "fixed",
+            top: 20,
+            left: 24,
+            zIndex: 1800,
+            bgcolor: "rgba(15, 23, 42, 0.8)",
+            backdropFilter: "blur(8px)",
+            border: "1px solid rgba(255, 255, 255, 0.18)",
+            borderRadius: "12px",
+            px: 2,
+            py: 0.8,
+            color: "#FFFFFF",
+            fontSize: "13px",
+            fontWeight: 700,
+            letterSpacing: "0.03em",
+            userSelect: "none",
+            pointerEvents: "none",
+          }}
+        >
+          {currentIndex + 1} / {images.length}
+        </Box>
+      )}
+
       {/* Top-Right Action Icons — fixed to viewport corner */}
       <Box
         onClick={(e) => e.stopPropagation()}
@@ -2508,7 +2698,10 @@ function ImageLightbox({ open, onClose, imageUrl, canDeleteImage = () => false, 
           zIndex: 1800,
         }}
       >
-        <Tooltip title={`Download (${isVideo ? "MP4 Video" : "JPG Photo"})`} arrow>
+        <Tooltip
+          title={`Download (${isVideo ? "MP4 Video" : "JPG Photo"})`}
+          arrow
+        >
           <IconButton
             onClick={() => downloadCurrentImage(imageUrl)}
             sx={{
@@ -2533,7 +2726,7 @@ function ImageLightbox({ open, onClose, imageUrl, canDeleteImage = () => false, 
         {isDeletable && (
           <Tooltip title={`Delete ${isVideo ? "Video" : "Photo"}`} arrow>
             <IconButton
-              onClick={handleDeleteFromLightbox}
+              onClick={() => setConfirmDeleteOpen(true)}
               disabled={deleteLoading}
               sx={{
                 color: "#FFFFFF",
@@ -2550,7 +2743,11 @@ function ImageLightbox({ open, onClose, imageUrl, canDeleteImage = () => false, 
                 },
               }}
             >
-              {deleteLoading ? <CircularProgress size={18} sx={{ color: "#FFF" }} /> : <DeleteIcon sx={{ fontSize: 20 }} />}
+              {deleteLoading ? (
+                <CircularProgress size={18} sx={{ color: "#FFF" }} />
+              ) : (
+                <DeleteIcon sx={{ fontSize: 20 }} />
+              )}
             </IconButton>
           </Tooltip>
         )}
@@ -2578,6 +2775,68 @@ function ImageLightbox({ open, onClose, imageUrl, canDeleteImage = () => false, 
           </IconButton>
         </Tooltip>
       </Box>
+
+      {/* Left Navigation Chevron Button */}
+      {hasPrev && (
+        <Tooltip title="Previous (Left Arrow)" arrow>
+          <IconButton
+            onClick={handlePrev}
+            sx={{
+              position: "fixed",
+              left: { xs: 12, sm: 24 },
+              top: "50%",
+              transform: "translateY(-50%)",
+              zIndex: 1800,
+              color: "#FFFFFF",
+              bgcolor: "rgba(15, 23, 42, 0.75)",
+              border: "1px solid rgba(255, 255, 255, 0.2)",
+              backdropFilter: "blur(8px)",
+              width: { xs: 42, sm: 52 },
+              height: { xs: 42, sm: 52 },
+              boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+              transition: "all 0.2s ease",
+              "&:hover": {
+                bgcolor: "rgba(124, 58, 237, 0.9)",
+                borderColor: "#7C3AED",
+                transform: "translateY(-50%) scale(1.1)",
+              },
+            }}
+          >
+            <ChevronLeftIcon sx={{ fontSize: { xs: 28, sm: 36 } }} />
+          </IconButton>
+        </Tooltip>
+      )}
+
+      {/* Right Navigation Chevron Button */}
+      {hasNext && (
+        <Tooltip title="Next (Right Arrow)" arrow>
+          <IconButton
+            onClick={handleNext}
+            sx={{
+              position: "fixed",
+              right: { xs: 12, sm: 24 },
+              top: "50%",
+              transform: "translateY(-50%)",
+              zIndex: 1800,
+              color: "#FFFFFF",
+              bgcolor: "rgba(15, 23, 42, 0.75)",
+              border: "1px solid rgba(255, 255, 255, 0.2)",
+              backdropFilter: "blur(8px)",
+              width: { xs: 42, sm: 52 },
+              height: { xs: 42, sm: 52 },
+              boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+              transition: "all 0.2s ease",
+              "&:hover": {
+                bgcolor: "rgba(124, 58, 237, 0.9)",
+                borderColor: "#7C3AED",
+                transform: "translateY(-50%) scale(1.1)",
+              },
+            }}
+          >
+            <ChevronRightIcon sx={{ fontSize: { xs: 28, sm: 36 } }} />
+          </IconButton>
+        </Tooltip>
+      )}
 
       {/* Centered Image / Video */}
       <Box
@@ -2622,8 +2881,8 @@ function ImageLightbox({ open, onClose, imageUrl, canDeleteImage = () => false, 
         )}
       </Box>
 
-      {/* Bottom Center Info Pill: Uploader Name above Date */}
-      {(currentImage?.uploadedBy?.name || currentImage?.createdAt) && (
+      {/* Bottom Center Info Pill: Only Date (No uploader name) */}
+      {currentImage?.createdAt && (
         <Box
           onClick={(e) => e.stopPropagation()}
           sx={{
@@ -2637,29 +2896,35 @@ function ImageLightbox({ open, onClose, imageUrl, canDeleteImage = () => false, 
             border: "1px solid rgba(255, 255, 255, 0.18)",
             borderRadius: "16px",
             px: 2.5,
-            py: 0.9,
+            py: 0.8,
             textAlign: "center",
             color: "#FFFFFF",
             pointerEvents: "none",
             boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
           }}
         >
-          {currentImage.uploadedBy?.name && (
-            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: "0.85rem", color: "#FFFFFF", lineHeight: 1.2 }}>
-              {currentImage.uploadedBy.name}
-            </Typography>
-          )}
-          {currentImage.createdAt && (
-            <Typography variant="caption" sx={{ color: "#CBD5E1", fontSize: "0.72rem", display: "block", mt: 0.2 }}>
-              {new Date(currentImage.createdAt).toLocaleDateString(undefined, {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-              })}
-            </Typography>
-          )}
+          <Typography
+            variant="caption"
+            sx={{ color: "#E2E8F0", fontSize: "0.78rem", fontWeight: 600 }}
+          >
+            {new Date(currentImage.createdAt).toLocaleDateString(undefined, {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+            })}
+          </Typography>
         </Box>
       )}
+
+      <DeleteConfirmDialog
+        open={confirmDeleteOpen}
+        onClose={() => !deleteLoading && setConfirmDeleteOpen(false)}
+        onConfirm={handleDeleteFromLightbox}
+        title={`Delete ${isVideo ? "Video" : "Photo"}?`}
+        message={`Are you sure you want to permanently delete this ${isVideo ? "video" : "photo"} from storage & this event? This action cannot be undone.`}
+        confirmText="Delete"
+        loading={deleteLoading}
+      />
     </Box>
   );
 }
@@ -2669,6 +2934,7 @@ function ManageMediaDialog({
   open,
   onClose,
   eventId,
+  eventTitle = "",
   additionalImages = [],
   onUpdated,
   canDeleteImage = () => false,
@@ -2716,8 +2982,17 @@ function ManageMediaDialog({
     e.target.value = "";
   };
 
-  const handleDeleteImage = async (imageId, isVideo = false) => {
-    if (!window.confirm(`Delete this ${isVideo ? "video" : "photo"} permanently from storage & Event?`)) return;
+  const [deleteTarget, setDeleteTarget] = useState(null); // { id, isVideo }
+  const [deletingMedia, setDeletingMedia] = useState(false);
+
+  const handleOpenDeleteConfirm = (imageId, isVideo = false) => {
+    setDeleteTarget({ id: imageId, isVideo });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    const { id: imageId, isVideo } = deleteTarget;
+    setDeletingMedia(true);
     try {
       const res = await API.delete(`/events/${eventId}/gallery/${imageId}`);
       if (res.data?.success) {
@@ -2726,10 +3001,13 @@ function ManageMediaDialog({
         onUpdated(updatedList);
         enqueueSnackbar(`${isVideo ? "Video" : "Photo"} deleted`, { variant: "info" });
       }
+      setDeleteTarget(null);
     } catch (err) {
       const errMsg = err.response?.data?.message || `Failed to delete ${isVideo ? "video" : "photo"}.`;
       setError(errMsg);
       enqueueSnackbar(errMsg, { variant: "error" });
+    } finally {
+      setDeletingMedia(false);
     }
   };
 
@@ -2755,9 +3033,17 @@ function ManageMediaDialog({
       >
         <Stack direction="row" spacing={1.5} alignItems="center">
           <AddPhotoIcon sx={{ color: "#7C3AED" }} />
-          <Typography variant="h6" sx={{ fontWeight: 800, color: "#1E293B" }}>
-            Manage Media / Photos & Videos
-          </Typography>
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 800, color: "#1E293B", lineHeight: 1.2 }}>
+              Manage Media / Photos & Videos
+            </Typography>
+            {eventTitle && (
+              <Typography variant="caption" sx={{ color: "#7C3AED", fontWeight: 600, display: "flex", alignItems: "center", gap: 0.5, mt: 0.25 }}>
+                <FolderIcon sx={{ fontSize: 13 }} />
+                Folder in Gallery: {eventTitle}
+              </Typography>
+            )}
+          </Box>
         </Stack>
         <IconButton onClick={onClose} size="small" sx={{ color: "#94A3B8" }}>
           <CloseIcon />
@@ -2803,146 +3089,19 @@ function ManageMediaDialog({
                 Click to Select and Upload Photos & Videos
               </Typography>
               <Typography variant="caption" sx={{ color: "#64748B", display: "block" }}>
-                Images & Videos • Unlimited file size • Any number of files
+               Any number of  Images & Videos can be uploaded
               </Typography>
             </Box>
 
-            {/* Sequential Background Queue Info Banner */}
-            <Box
-              sx={{
-                p: 1.8,
-                bgcolor: "#F5F3FF",
-                borderRadius: "12px",
-                border: "1px solid #DDD6FE",
-                display: "flex",
-                alignItems: "center",
-                gap: 1.5,
-                mb: 3,
-              }}
-            >
-              <CloudUploadIcon sx={{ color: "#7C3AED", fontSize: 22 }} />
-              <Typography variant="caption" sx={{ color: "#5B21B6", fontWeight: 500, lineHeight: 1.4 }}>
-                Files upload 1-by-1 in a background queue. You can safely close this dialog anytime while uploads continue!
-              </Typography>
-            </Box>
+           
           </>
         )}
 
         {/* Existing Media List */}
-        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#1E293B", mb: 2 }}>
-          Gallery Media ({images.length})
+        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#1E293B", }}>
+          Current Media Files is  {images.length}
         </Typography>
 
-        {images.length === 0 ? (
-          <Typography variant="body2" sx={{ color: "#94A3B8", fontStyle: "italic", textAlign: "center", py: 3 }}>
-            {/* No additional gallery media yet. Upload photos and videos above. */}
-          </Typography>
-        ) : (
-          <Stack spacing={1.5} sx={{ maxHeight: 300, overflowY: "auto", pr: 1 }}>
-            {images.map((img, idx) => {
-              const isVideo =
-                img.resourceType === "video" ||
-                (img.url && img.url.match(/\.(mp4|webm|mov|ogg)($|\?)/i));
-              const label = isVideo ? `Video ${idx + 1}` : `Photo ${idx + 1}`;
-
-              return (
-                <Stack
-                  key={img._id || idx}
-                  direction="row"
-                  alignItems="center"
-                  spacing={2}
-                  sx={{
-                    p: 1.5,
-                    borderRadius: "12px",
-                    border: "1px solid #EAECF0",
-                    bgcolor: "#FFFFFF",
-                  }}
-                >
-                  <Typography variant="caption" sx={{ fontWeight: 700, color: "#94A3B8", width: 24 }}>
-                    #{idx + 1}
-                  </Typography>
-
-                  {isVideo ? (
-                    <Box
-                      sx={{
-                        position: "relative",
-                        width: 56,
-                        height: 44,
-                        borderRadius: "8px",
-                        overflow: "hidden",
-                        bgcolor: "#000",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <video
-                        src={img.url}
-                        preload="metadata"
-                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                      />
-                      <Box
-                        sx={{
-                          position: "absolute",
-                          top: "50%",
-                          left: "50%",
-                          transform: "translate(-50%, -50%)",
-                          width: 20,
-                          height: 20,
-                          borderRadius: "50%",
-                          bgcolor: "rgba(0,0,0,0.65)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "#fff",
-                          pointerEvents: "none",
-                        }}
-                      >
-                        <PlayArrowIcon sx={{ fontSize: 13 }} />
-                      </Box>
-                    </Box>
-                  ) : (
-                    <Box
-                      component="img"
-                      src={img.url}
-                      alt={label}
-                      sx={{ width: 56, height: 44, borderRadius: "8px", objectFit: "cover", flexShrink: 0 }}
-                    />
-                  )}
-
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Tooltip title={label} arrow placement="top">
-                      <Typography variant="body2" noWrap sx={{ fontWeight: 600, color: "#334155" }}>
-                        {label}
-                      </Typography>
-                    </Tooltip>
-                    {img.uploadedBy && (
-                      <Typography variant="caption" sx={{ color: "#475569", fontWeight: 600, fontSize: "11.5px", display: "block" }}>
-                        by {img.uploadedBy?.name || "Unknown"}
-                      </Typography>
-                    )}
-                    {img.createdAt && (
-                      <Typography variant="caption" sx={{ color: "#94A3B8", fontSize: "11px", display: "block" }}>
-                        {new Date(img.createdAt).toLocaleDateString(undefined, {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </Typography>
-                    )}
-                  </Box>
-                  {canDeleteImage(img) && (
-                    <IconButton
-                      size="small"
-                      onClick={() => handleDeleteImage(img._id, isVideo)}
-                      sx={{ color: "#EF4444", "&:hover": { bgcolor: "#FEE2E2" } }}
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  )}
-                </Stack>
-              );
-            })}
-          </Stack>
-        )}
       </DialogContent>
 
       <DialogActions sx={{ px: 3.5, pb: 2.5, pt: 2, borderTop: "1px solid #EAECF0", bgcolor: "#F8FAFC" }}>
@@ -2961,6 +3120,16 @@ function ManageMediaDialog({
           Done
         </Button>
       </DialogActions>
+
+      <DeleteConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => !deletingMedia && setDeleteTarget(null)}
+        onConfirm={handleConfirmDelete}
+        title={`Delete ${deleteTarget?.isVideo ? "Video" : "Photo"}?`}
+        message={`Delete this ${deleteTarget?.isVideo ? "video" : "photo"} permanently from storage & Event? This action cannot be undone.`}
+        confirmText="Delete"
+        loading={deletingMedia}
+      />
     </Dialog>
   );
 }
@@ -3873,28 +4042,10 @@ function AdminControlsCard({ onEdit, onDelete, onManageMedia, onReorderMedia, ph
             Admin Controls
           </Typography>
         </Stack>
-        <Chip
-          label="Admin only"
-          size="small"
-          sx={{
-            bgcolor: "#F3E8FF",
-            color: "#7C3AED",
-            fontWeight: 700,
-            fontSize: "10.5px",
-            borderRadius: "6px",
-            height: 22,
-            flexShrink: 0,
-          }}
-        />
+ 
       </Box>
 
-      {/* Subtitle */}
-      <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 2.5 }}>
-        <LockIcon sx={{ fontSize: 13, color: "#94A3B8" }} />
-        <Typography variant="caption" sx={{ color: "#64748B", fontSize: "11.5px", fontWeight: 500 }}>
-          Visible to event administrators only
-        </Typography>
-      </Stack>
+
 
       {/* Action Buttons List */}
       <Stack spacing={1.5}>
@@ -4077,19 +4228,26 @@ function AdminControlsCard({ onEdit, onDelete, onManageMedia, onReorderMedia, ph
 
 // ─── Event Quick Summary Card Component ───────────────────────────────────────
 function EventQuickSummaryCard({ event, allImagesList, avgRating, sx = {} }) {
-  const eventDay = event?.eventDate ? dayjs(event.eventDate) : null;
+  const startDay = dayjs(event?.startDate || event?.eventDate);
+  const endDay = event?.endDate ? dayjs(event.endDate) : startDay;
   const today = dayjs().startOf("day");
-  const daysDiff = eventDay ? eventDay.startOf("day").diff(today, "day") : 0;
+  const startDayStart = startDay.startOf("day");
+  const endDayStart = endDay.startOf("day");
 
   let statusLabel = "Upcoming";
   let statusBg = "#DCFCE7";
   let statusColor = "#15803D";
 
-  if (daysDiff === 0) {
+  if (today.isSame(startDayStart, "day") && today.isSame(endDayStart, "day")) {
     statusLabel = "Happening Today";
     statusBg = "#FEF3C7";
     statusColor = "#B45309";
-  } else if (daysDiff > 0) {
+  } else if (!today.isBefore(startDayStart) && !today.isAfter(endDayStart)) {
+    statusLabel = "Ongoing Event";
+    statusBg = "#EFF6FF";
+    statusColor = "#0088ff";
+  } else if (startDayStart.isAfter(today)) {
+    const daysDiff = startDayStart.diff(today, "day");
     statusLabel = `In ${daysDiff} ${daysDiff === 1 ? "day" : "days"}`;
     statusBg = "#DCFCE7";
     statusColor = "#15803D";
@@ -4609,6 +4767,10 @@ export default function EventDetail() {
   const [deleteEventOpen, setDeleteEventOpen] = useState(false);
   const [deletingEvent, setDeletingEvent] = useState(false);
 
+  const handleOpenManageMedia = () => {
+    setManageMediaOpen(true);
+  };
+
   // Quick Rating states (for visitors / non-staff only)
   const [myRating, setMyRating] = useState(0);
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
@@ -4642,21 +4804,27 @@ export default function EventDetail() {
     fetchEvent();
   }, [fetchEvent]);
 
-  // Real-time listener for background media uploads for this event
+  // Real-time listener for background media uploads for this event or its gallery folder
   useEffect(() => {
     const handleMediaUploaded = (e) => {
       const { destinationType, destinationId, result } = e.detail || {};
-      if (destinationType === 'event' && String(destinationId) === String(id)) {
+      const folderIdStr = String(event?.galleryFolder?._id || event?.galleryFolder || "");
+      if (
+        (destinationType === "event" && String(destinationId) === String(id)) ||
+        (destinationType === "gallery" && folderIdStr && String(destinationId) === folderIdStr)
+      ) {
         const updatedList = result?.data?.additionalImages;
         if (updatedList) {
           setEvent((prev) => (prev ? { ...prev, additionalImages: updatedList } : prev));
+        } else {
+          fetchEvent();
         }
       }
     };
 
-    window.addEventListener('app:media-uploaded', handleMediaUploaded);
-    return () => window.removeEventListener('app:media-uploaded', handleMediaUploaded);
-  }, [id]);
+    window.addEventListener("app:media-uploaded", handleMediaUploaded);
+    return () => window.removeEventListener("app:media-uploaded", handleMediaUploaded);
+  }, [id, event?.galleryFolder, fetchEvent]);
 
   // Quick Rate (instant submission on click, no comment requested)
   const handleQuickRate = async (starValue) => {
@@ -4695,15 +4863,6 @@ export default function EventDetail() {
     } finally {
       setDeletingEvent(false);
     }
-  };
-
-  // Format times nicely
-  const formatTime = (t) => {
-    if (!t) return "";
-    const [h, m] = t.split(":").map(Number);
-    const ampm = h >= 12 ? "PM" : "AM";
-    const h12 = h % 12 === 0 ? 12 : h % 12;
-    return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
   };
 
   const allImagesList = useMemo(() => {
@@ -4754,8 +4913,26 @@ export default function EventDetail() {
     return event.reviews.reduce((sum, r) => sum + r.rating, 0) / event.reviews.length;
   }, [event?.reviews]);
 
-  const formattedDate = event?.eventDate ? dayjs(event.eventDate).format("dddd, D MMMM YYYY") : "—";
-  const formattedTime = `${formatTime(event?.startTime)} – ${formatTime(event?.endTime)}`;
+  const formattedDate = useMemo(() => {
+    if (!event?.startDate && !event?.eventDate) return "—";
+    const start = dayjs(event.startDate || event.eventDate);
+    const end = event.endDate ? dayjs(event.endDate) : start;
+    if (!event.endDate || start.isSame(end, "day")) {
+      return start.format("dddd, D MMMM YYYY");
+    }
+    const daysCount = end.diff(start, "day") + 1;
+    if (start.format("YYYY") === end.format("YYYY")) {
+      if (start.format("MMMM") === end.format("MMMM")) {
+        return `${start.format("D")} – ${end.format("D MMMM YYYY")} (${daysCount} days)`;
+      }
+      return `${start.format("D MMMM")} – ${end.format("D MMMM YYYY")} (${daysCount} days)`;
+    }
+    return `${start.format("D MMMM YYYY")} – ${end.format("D MMMM YYYY")} (${daysCount} days)`;
+  }, [event?.startDate, event?.endDate, event?.eventDate]);
+
+  const formattedTime = event?.startTime
+    ? (event?.endTime ? `${formatTime(event.startTime)} – ${formatTime(event.endTime)}` : formatTime(event.startTime))
+    : "—";
   const organizerDisplay = `${event?.createdBy?.name || "Organizer"}`;
 
   if (loading) {
@@ -4802,7 +4979,8 @@ export default function EventDetail() {
               onOpenAllMedia={() => setViewAllMediaOpen(true)}
               onZoom={(url) => setActiveImageUrl(url)}
               canManage={canManage}
-              onManageMedia={() => setManageMediaOpen(true)}
+              onManageMedia={handleOpenManageMedia}
+              event={event}
               sx={{ mb: 2.5 }}
             />
 
@@ -4826,7 +5004,7 @@ export default function EventDetail() {
             <AdminControlsCard
               onEdit={() => setEditOpen(true)}
               onDelete={() => setDeleteEventOpen(true)}
-              onManageMedia={() => setManageMediaOpen(true)}
+              onManageMedia={handleOpenManageMedia}
               onReorderMedia={() => setReorderMediaOpen(true)}
               photoCount={allImagesList.length}
               sx={{ mb: 2.5 }}
@@ -4853,7 +5031,8 @@ export default function EventDetail() {
                   onOpenAllMedia={() => setViewAllMediaOpen(true)}
                   onZoom={(url) => setActiveImageUrl(url)}
                   canManage={canManage}
-                  onManageMedia={() => setManageMediaOpen(true)}
+                  onManageMedia={handleOpenManageMedia}
+                  event={event}
                   sx={{ mb: 3 }}
                 />
 
@@ -4899,7 +5078,7 @@ export default function EventDetail() {
                   <AdminControlsCard
                     onEdit={() => setEditOpen(true)}
                     onDelete={() => setDeleteEventOpen(true)}
-                    onManageMedia={() => setManageMediaOpen(true)}
+                    onManageMedia={handleOpenManageMedia}
                     onReorderMedia={() => setReorderMediaOpen(true)}
                     photoCount={allImagesList.length}
                     sx={{ mb: 0 }}
@@ -4920,7 +5099,8 @@ export default function EventDetail() {
               onOpenAllMedia={() => setViewAllMediaOpen(true)}
               onZoom={(url) => setActiveImageUrl(url)}
               canManage={canUploadMedia}
-              onManageMedia={() => setManageMediaOpen(true)}
+              onManageMedia={handleOpenManageMedia}
+              event={event}
               sx={{ mb: 2.5 }}
             />
 
@@ -4972,7 +5152,8 @@ export default function EventDetail() {
                   onOpenAllMedia={() => setViewAllMediaOpen(true)}
                   onZoom={(url) => setActiveImageUrl(url)}
                   canManage={canUploadMedia}
-                  onManageMedia={() => setManageMediaOpen(true)}
+                  onManageMedia={handleOpenManageMedia}
+                  event={event}
                   sx={{
                     flex: 1,
                     width: "100%",
@@ -5071,6 +5252,7 @@ export default function EventDetail() {
         open={manageMediaOpen}
         onClose={() => setManageMediaOpen(false)}
         eventId={event._id}
+        eventTitle={event.title}
         additionalImages={event.additionalImages || []}
         onUpdated={(newImages) =>
           setEvent((prev) => ({ ...prev, additionalImages: newImages }))
@@ -5107,6 +5289,8 @@ export default function EventDetail() {
         open={Boolean(activeImageUrl)}
         onClose={() => setActiveImageUrl(null)}
         imageUrl={activeImageUrl || ""}
+        images={allImagesList}
+        onSelectImage={(newImg) => setActiveImageUrl(newImg?.url || null)}
         canDeleteImage={canDeleteImage}
         currentImage={allImagesList.find((img) => img.url === activeImageUrl) || null}
         eventId={event._id}
@@ -5118,7 +5302,7 @@ export default function EventDetail() {
 
       <DeleteConfirmDialog
         open={deleteEventOpen}
-        onClose={() => setDeleteEventOpen(false)}
+        onClose={() => !deletingEvent && setDeleteEventOpen(false)}
         onConfirm={handleConfirmDeleteEvent}
         title="Delete Event"
         message=""

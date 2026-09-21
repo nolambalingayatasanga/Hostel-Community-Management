@@ -45,7 +45,7 @@ import AddLeadDialog from "./AddLeadDialog";
 import LeadDetailsDialog from "./LeadDetailsDialog";
 import ColumnSelectorPanel from "./ColumnSelectorPanel";
 import LoginDetailsModal from "./LoginDetailsModal";
-import { columnWidth, toRow, formatLeadDate, leadFieldValue, getColumnDisplayName } from "./leadHelpers";
+import { columnWidth, toRow, formatLeadDate, leadFieldValue, getColumnDisplayName, isDefaultColumn, getDefaultColumnIndex } from "./leadHelpers";
 import API from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import CustomDateRangePicker from "../../components/CustomDateRangePicker";
@@ -316,81 +316,111 @@ export default function DirectoryList() {
 
   const rows = useMemo(() => leads.map(toRow), [leads]);
 
-  const columns = useMemo(() => {
-    const allFields = (meta.data?.customFields || []).filter(
+  const allAvailableFields = useMemo(() => {
+    const rawFields = (meta.data?.customFields || []).filter(
       (f) => (f.slug || "").toLowerCase() !== "status" && (f.name || "").toLowerCase() !== "status"
     );
-    const activeOrder = tabColOrders[activeTabId] || getStoredTabColumnOrder(user?._id, activeTabId);
-    const activeHidden = tabHiddenCols[activeTabId] || getStoredTabHiddenCols(user?._id, activeTabId) || [];
 
-    const visibleFields = allFields.filter((f) => {
+    const defaultTemplates = [
+      { _id: "default_name", name: "Name", slug: "name", type: "text", isInternal: true },
+      { _id: "default_email", name: "Email", slug: "email", type: "email", isInternal: true },
+      { _id: "default_phone", name: "Phone", slug: "phone", type: "text", isInternal: true },
+      { _id: "default_channels", name: "Channels", slug: "channels", type: "text", isInternal: true },
+      { _id: "default_education_college", name: "College", slug: "education.college", type: "text", isInternal: true },
+      { _id: "default_education_course", name: "Branch", slug: "education.course", type: "text", isInternal: true },
+      { _id: "default_dob", name: "DOB", slug: "dob", type: "date", isInternal: true },
+      { _id: "default_education_startYear", name: "College Joining", slug: "education.startYear", type: "number", isInternal: true },
+      { _id: "default_education_endYear", name: "Graduation Year", slug: "education.endYear", type: "number", isInternal: true },
+    ];
+
+    const seenDefaultIndices = new Set();
+    const defaults = [];
+    const others = [];
+
+    // Prioritize actual DB customFields if present
+    rawFields.forEach((f) => {
+      if (isDefaultColumn(f)) {
+        const defIdx = getDefaultColumnIndex(f);
+        if (!seenDefaultIndices.has(defIdx)) {
+          seenDefaultIndices.add(defIdx);
+          defaults.push({ ...f, name: getColumnDisplayName(f) || f.name });
+        }
+      } else {
+        others.push(f);
+      }
+    });
+
+    // Add any missing default templates
+    defaultTemplates.forEach((tpl) => {
+      const defIdx = getDefaultColumnIndex(tpl);
+      if (!seenDefaultIndices.has(defIdx)) {
+        seenDefaultIndices.add(defIdx);
+        defaults.push(tpl);
+      }
+    });
+
+    // Sort defaults strictly from 0 to 8
+    defaults.sort((a, b) => getDefaultColumnIndex(a) - getDefaultColumnIndex(b));
+
+    if (user?.role === "ADMIN") {
+      const hasLogin = others.some((f) => (f.slug || "").toLowerCase() === "logindetails");
+      if (!hasLogin) {
+        others.push({
+          _id: "internal_logindetails",
+          name: "Login Details",
+          slug: "loginDetails",
+          type: "text",
+          isInternal: true,
+          order: 9999,
+          isVisible: false,
+        });
+      }
+    }
+
+    return [...defaults, ...others];
+  }, [meta.data?.customFields, user?.role]);
+
+  const columns = useMemo(() => {
+    const activeHidden = tabHiddenCols[activeTabId] || getStoredTabHiddenCols(user?._id, activeTabId) || [];
+    const activeOrder = tabColOrders[activeTabId] || getStoredTabColumnOrder(user?._id, activeTabId);
+
+    // 1. Fixed default columns in exact fixed order (Name, Email, Phone, Channels, College, Branch, DOB, College Joining, Graduation Year)
+    // They are always visible and permanently non-draggable
+    const fixedCols = allAvailableFields
+      .filter(isDefaultColumn)
+      .sort((a, b) => getDefaultColumnIndex(a) - getDefaultColumnIndex(b));
+
+    // 2. Other remaining columns (drag and drop reorderable, can be hidden/shown)
+    const otherCols = allAvailableFields.filter((f) => {
+      if (isDefaultColumn(f)) return false;
       if (activeHidden.includes(String(f._id))) return false;
       return f.isVisible !== false;
     });
 
-    let ordered;
     if (activeOrder && activeOrder.length > 0) {
       const orderMap = new Map(activeOrder.map((id, index) => [String(id), index]));
-      ordered = [...visibleFields].sort((a, b) => {
-        const isNameA = (a.slug || '').toLowerCase() === 'name' || (a.name || '').toLowerCase() === 'name';
-        const isNameB = (b.slug || '').toLowerCase() === 'name' || (b.name || '').toLowerCase() === 'name';
-        if (isNameA) return -1;
-        if (isNameB) return 1;
+      otherCols.sort((a, b) => {
         const idxA = orderMap.has(String(a._id)) ? orderMap.get(String(a._id)) : 9999 + (a.order ?? 0);
         const idxB = orderMap.has(String(b._id)) ? orderMap.get(String(b._id)) : 9999 + (b.order ?? 0);
         return idxA - idxB;
       });
     } else {
-      ordered = [...visibleFields].sort((a, b) => {
-        const isNameA = (a.slug || '').toLowerCase() === 'name' || (a.name || '').toLowerCase() === 'name';
-        const isNameB = (b.slug || '').toLowerCase() === 'name' || (b.name || '').toLowerCase() === 'name';
-        if (isNameA) return -1;
-        if (isNameB) return 1;
-        return (a.order ?? 0) - (b.order ?? 0);
-      });
+      otherCols.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     }
-
-    // Only show education fields in Students and Alumni status groups
-    const activeGroup = (meta.data?.statusGroups || []).find(
-      (g) => String(g._id) === activeTabId
-    );
-    const activeGroupName = activeGroup ? activeGroup.name.toLowerCase() : "";
-    const showEducation = activeGroupName === "students" || activeGroupName === "alumni";
-
-    const filtered = ordered.filter((field) => {
-      if (field.slug && field.slug.startsWith("education.")) {
-        return showEducation;
-      }
-      return true;
-    });
 
     const isUserAdmin = user?.role === "ADMIN";
-    let finalFiltered = filtered;
-    if (isUserAdmin) {
-      const hasLoginDetails = finalFiltered.some((f) => (f.slug || "").toLowerCase() === "logindetails");
-      if (!hasLoginDetails) {
-        finalFiltered = [
-          ...finalFiltered,
-          {
-            _id: "internal_logindetails",
-            name: "Login Details",
-            slug: "loginDetails",
-            type: "text",
-            isInternal: true,
-            order: 9999,
-            isVisible: true,
-          },
-        ];
-      }
-    } else {
-      finalFiltered = finalFiltered.filter((f) => (f.slug || "").toLowerCase() !== "logindetails");
+    let finalOther = otherCols;
+    if (!isUserAdmin) {
+      finalOther = finalOther.filter((f) => (f.slug || "").toLowerCase() !== "logindetails");
     }
 
-    return finalFiltered.map((field) => {
+    const ordered = [...fixedCols, ...finalOther];
+
+    return ordered.map((field) => {
       const colWidth = columnWidth(field);
       return { ...field, width: colWidth };
     });
-  }, [meta.data?.customFields, tabColOrders, tabHiddenCols, activeTabId, meta.data?.statusGroups, user?._id, user?.role]);
+  }, [allAvailableFields, tabColOrders, tabHiddenCols, activeTabId, user?._id, user?.role]);
 
   // Name column is strictly fixed to the first position on ALL tabs
   const nameCol = useMemo(() => {
@@ -418,6 +448,16 @@ export default function DirectoryList() {
         (c.slug || "").toLowerCase() !== "name"
     );
   }, [columns, nameCol]);
+
+  // Non-draggable fixed default columns (Email, Phone, Channels, College, Branch, DOB, College Joining, Graduation Year)
+  const fixedScrollableCols = useMemo(() => {
+    return scrollableColumns.filter(isDefaultColumn);
+  }, [scrollableColumns]);
+
+  // Draggable remaining columns
+  const reorderableCols = useMemo(() => {
+    return scrollableColumns.filter((c) => !isDefaultColumn(c));
+  }, [scrollableColumns]);
 
   useEffect(() => {
     setPage(1);
@@ -630,35 +670,34 @@ export default function DirectoryList() {
     result.splice(endIndex, 0, removed);
     return result;
   };
-
   const handleColumnDragEnd = (result) => {
     if (!result.destination) return;
 
-    const currentScrollableIds = scrollableColumns.map((c) => String(c._id));
-    const nextScrollableIds = reorder(
-      currentScrollableIds,
+    const currentOtherIds = reorderableCols.map((c) => String(c._id));
+    const nextOtherIds = reorder(
+      currentOtherIds,
       result.source.index,
       result.destination.index,
     );
 
-    // Name column is always pinned at the beginning (order 0)
-    const nextIds = [String(nameCol._id), ...nextScrollableIds];
+    // Keep locked default columns at front, followed by newly ordered other columns
+    const nextAllIds = [
+      ...columns.filter(isDefaultColumn).map((c) => String(c._id)),
+      ...nextOtherIds
+    ];
 
-    // Optimistic UI update
-    setTabColOrders((prev) => ({ ...prev, [activeTabId]: nextIds }));
+    setTabColOrders((prev) => ({ ...prev, [activeTabId]: nextAllIds }));
 
-    // Persist to MongoDB backend database
     saveTabLayout.mutate({
       tabId: activeTabId,
-      columnOrder: nextIds,
+      columnOrder: nextAllIds,
       hiddenColumns: tabHiddenCols[activeTabId] || []
     });
 
-    // Save local cache fallback
     try {
       localStorage.setItem(
         `tab_col_order_${user?._id || "default"}_${activeTabId}`,
-        JSON.stringify(nextIds),
+        JSON.stringify(nextAllIds),
       );
     } catch { /* ignore */ }
   };
@@ -977,7 +1016,7 @@ export default function DirectoryList() {
           {/* Static Date Range Input styling */}
           <CustomDateRangePicker
             incApply={true}
-            placeholder="Filter by Joining Date"
+            placeholder="Date Filter"
             start={joinDateMin}
             end={joinDateMax}
             onFilterRange={(range) => {
@@ -1005,26 +1044,38 @@ export default function DirectoryList() {
             onChange={handleSearchChange}
             slotProps={{
               input: {
-                startAdornment: <SearchIcon sx={{ color: "text.secondary", mr: 1, fontSize: 18 }} />
+                startAdornment: <SearchIcon sx={{ color: "text.secondary", mr: { xs: 0.5, sm: 1 }, fontSize: { xs: 16, sm: 18 } }} />,
+                sx: {
+                  height: { xs: "36px", sm: "40px" },
+                  fontSize: { xs: "12px", sm: "13.5px" },
+                  borderRadius: "8px",
+                }
               }
             }}
-            sx={{ width: { xs: 180, sm: 240, md: 300 }, flexShrink: 0, "& .MuiOutlinedInput-root": { borderRadius: "8px" } }}
+            sx={{
+              width: { xs: 125, sm: 220, md: 300 },
+              flexShrink: 0,
+              "& .MuiOutlinedInput-root": { borderRadius: "8px" }
+            }}
           />
 
           {/* Table Fields Settings Button */}
           <IconButton
             onClick={() => setColumnsOpen(true)}
+            size="small"
             sx={{
               borderRadius: "8px",
               borderColor: "#D0D5DD",
               color: "#344054",
               flexShrink: 0,
+              width: { xs: 36, sm: 40 },
+              height: { xs: 36, sm: 40 },
               textTransform: "none",
               fontWeight: 600,
               "&:hover": { borderColor: "#D0D5DD", backgroundColor: "#F9FAFB" }
             }}
           >
-            <SettingsIcon />
+            <SettingsIcon sx={{ fontSize: { xs: 18, sm: 20 } }} />
           </IconButton>
 
           {/* Action button when items are selected (admin or warden only) */}
@@ -1244,9 +1295,34 @@ export default function DirectoryList() {
                 </Typography>
               </Box>
 
-              {/* Remaining Draggable Columns */}
+              {/* Fixed Default Columns (Non-draggable: Email, Phone, Channels, College, Branch, DOB, College Joining, Graduation Year) */}
+              <Stack
+                direction="row"
+                sx={{ alignItems: "center" }}
+              >
+                {fixedScrollableCols.map((col) => (
+                  <Box
+                    key={String(col._id)}
+                    sx={{
+                      width: col.width,
+                      minWidth: col.width === "auto" ? "140px" : col.width,
+                      flexShrink: 0,
+                      px: 2,
+                      display: "flex",
+                      alignItems: "center",
+                      userSelect: "none",
+                    }}
+                  >
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#475467", whiteSpace: "nowrap" }}>
+                      {getColumnDisplayName(col)}
+                    </Typography>
+                  </Box>
+                ))}
+              </Stack>
+
+              {/* Other Remaining Columns (Draggable & Reorderable) */}
               <DragDropContext onDragEnd={handleColumnDragEnd}>
-                <Droppable droppableId="columns-droppable" direction="horizontal">
+                <Droppable droppableId="reorderable-columns-droppable" direction="horizontal">
                   {(provided) => (
                     <Stack
                       ref={provided.innerRef}
@@ -1254,7 +1330,7 @@ export default function DirectoryList() {
                       direction="row"
                       sx={{ alignItems: "center" }}
                     >
-                      {scrollableColumns.map((col, index) => (
+                      {reorderableCols.map((col, index) => (
                         <Draggable key={String(col._id)} draggableId={String(col._id)} index={index}>
                           {(dragProvided, snapshot) => (
                             <Box
@@ -1273,7 +1349,6 @@ export default function DirectoryList() {
                                 ...dragProvided.draggableProps.style,
                               }}
                             >
-                              {/* Drag handle dots symbol */}
                               <Box
                                 sx={{
                                   display: "inline-flex",
@@ -1668,7 +1743,7 @@ export default function DirectoryList() {
       <ColumnSelectorPanel
         open={columnsOpen}
         onClose={() => setColumnsOpen(false)}
-        customFields={meta.data?.customFields || []}
+        customFields={allAvailableFields}
         activeTabId={activeTabId}
         activeTabName={allStatusGroups.find(g => String(g._id) === activeTabId)?.name || "Members"}
         currentTabOrder={tabColOrders[activeTabId] || getStoredTabColumnOrder(user?._id, activeTabId)}

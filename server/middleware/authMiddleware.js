@@ -162,13 +162,21 @@ const sanitizeUser = (targetUser, currentUser, options = {}) => {
       delete target.adhaar;
       target.isAdhaarMasked = true;
     }
+    if (privacy.maskDob) {
+      delete target.dateOfBirth;
+      delete target.dob;
+      delete target.age;
+      target.isDobMasked = true;
+    }
 
     // Redact sensitive personal fields from non-admin/non-self in directory table
     if (!isSelf && !isAdminOrWarden) {
       delete target.address;
-      delete target.dateOfBirth;
-      delete target.dob;
-      delete target.age;
+      if (privacy.maskDob) {
+        delete target.dateOfBirth;
+        delete target.dob;
+        delete target.age;
+      }
     }
 
     return target;
@@ -193,12 +201,20 @@ const sanitizeUser = (targetUser, currentUser, options = {}) => {
     delete target.adhaar;
     target.isAdhaarMasked = true;
   }
+  if (privacy.maskDob) {
+    delete target.dateOfBirth;
+    delete target.dob;
+    delete target.age;
+    target.isDobMasked = true;
+  }
 
-  // Redact sensitive personal fields from other users
+  // Redact sensitive personal fields from other users (address is private, dob is visible unless masked)
   delete target.address;
-  delete target.dateOfBirth;
-  delete target.dob;
-  delete target.age;
+  if (privacy.maskDob) {
+    delete target.dateOfBirth;
+    delete target.dob;
+    delete target.age;
+  }
   
   return target;
 };

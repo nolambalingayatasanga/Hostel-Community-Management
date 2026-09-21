@@ -9,7 +9,8 @@ import {
   TableHead,
   TableRow,
   Paper,
-  Chip
+  Chip,
+  Typography
 } from '@mui/material';
 import { TuneRounded as TuneIcon, BlockRounded as BlockIcon, VisibilityOutlined as ViewIcon, EditRounded as EditIcon, CheckRounded as CheckIcon } from '@mui/icons-material';
 import { ACCESS_COLORS } from '../data/accessControlData';
@@ -33,14 +34,16 @@ const PermissionMatrix = ({
         boxShadow: 'none'
       }}
     >
-      <Box sx={{ px: 2.5, pt: 2.5, pb: 1.25 }}>
-        <TuneIcon sx={{ color: ACCESS_COLORS.primaryAlt, fontSize: 20 }} />
-        <Box component="span" sx={{ ml: 1, fontWeight: 800, color: ACCESS_COLORS.primary }}>
-          Permission Matrix Overview
+      <Box sx={{ px: { xs: 2, sm: 2.5 }, pt: 2, pb: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <TuneIcon sx={{ color: ACCESS_COLORS.primaryAlt, fontSize: 20 }} />
+          <Box component="span" sx={{ ml: 1, fontWeight: 800, color: ACCESS_COLORS.primary }}>
+            Permission Matrix Overview
+          </Box>
         </Box>
-        <Box component="small" sx={{ display: 'block', color: ACCESS_COLORS.muted, mt: 0.4 }}>
-          Click any cell to jump directly to that page-role combination.
-        </Box>
+        <Typography variant="caption" sx={{ color: '#94A3B8', fontSize: '11px', display: { xs: 'block', sm: 'none' }, fontWeight: 500 }}>
+          Swipe horizontally to view all roles →
+        </Typography>
       </Box>
 
       <TableContainer
@@ -48,6 +51,8 @@ const PermissionMatrix = ({
         elevation={0}
         sx={{
           backgroundColor: '#FFFFFF',
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch',
           '& .MuiTable-root': { minWidth: 780 }
         }}
       >

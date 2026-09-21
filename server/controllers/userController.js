@@ -518,18 +518,31 @@ exports.updateOwnProfile = async (req, res, next) => {
       user.privacySettings = {
         maskPhone: Boolean(profileData.privacySettings.maskPhone),
         maskEmail: Boolean(profileData.privacySettings.maskEmail),
-        maskAdhaar: Boolean(profileData.privacySettings.maskAdhaar)
+        maskAdhaar: Boolean(profileData.privacySettings.maskAdhaar),
+        maskDob: Boolean(profileData.privacySettings.maskDob)
       };
       delete profileData.privacySettings;
     }
 
     // Handle social & communication channels
     if (profileData.channels !== undefined) {
+      const incomingResume = profileData.channels?.resume;
+      const existingResume = user.channels?.resume;
+      const finalResume = (incomingResume && incomingResume.url)
+        ? incomingResume
+        : (existingResume && existingResume.url ? existingResume : (user.channels?.resume || { url: '', publicId: '', filename: '', uploadedAt: null }));
+
       user.channels = {
-        instagram: (profileData.channels?.instagram || '').trim(),
-        linkedin: (profileData.channels?.linkedin || '').trim(),
-        whatsapp: (profileData.channels?.whatsapp || '').trim()
+        ...(user.channels ? (user.channels.toObject ? user.channels.toObject() : user.channels) : {}),
+        instagram: (profileData.channels?.instagram ?? user.channels?.instagram ?? '').trim(),
+        linkedin: (profileData.channels?.linkedin ?? user.channels?.linkedin ?? '').trim(),
+        whatsapp: (profileData.channels?.whatsapp ?? user.channels?.whatsapp ?? '').trim(),
+        portfolio: (profileData.channels?.portfolio ?? user.channels?.portfolio ?? '').trim(),
+        github: (profileData.channels?.github ?? user.channels?.github ?? '').trim(),
+        behance: (profileData.channels?.behance ?? user.channels?.behance ?? '').trim(),
+        resume: finalResume
       };
+      user.markModified('channels');
       delete profileData.channels;
     }
 
@@ -645,6 +658,136 @@ exports.uploadProfilePhoto = async (req, res, next) => {
       message: 'Profile photo uploaded successfully',
       data: {
         profilePhoto: user.profilePhoto
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Upload or Update Resume
+ * Replaces previous resume in MinIO if one exists
+ */
+exports.uploadResume = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Please select a resume file to upload.' });
+    }
+
+    const targetUserId = (req.params.id && ['ADMIN', 'WARDEN'].includes(req.user.role))
+      ? req.params.id
+      : req.user._id;
+
+    const user = await User.findById(targetUserId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Store reference to previous resume identifier if it exists
+    const oldMedia = user.channels?.resume?.publicId || user.channels?.resume?.url;
+
+    // Upload new resume file to MinIO
+    let finalUrl = req.file.location;
+    let finalPublicId = req.file.key;
+
+    if (!finalUrl && req.file.buffer) {
+      const uploadResult = await uploadBufferToS3(req.file.buffer, req.file.originalname, req.file.mimetype, 'resumes');
+      finalUrl = uploadResult.url;
+      finalPublicId = uploadResult.publicId;
+    }
+
+    const resumeData = {
+      url: finalUrl,
+      publicId: finalPublicId,
+      filename: req.file.originalname || 'Resume.pdf',
+      uploadedAt: new Date()
+    };
+
+    // Direct atomic database update to ensure instant persistence in MongoDB
+    const updatedUser = await User.findByIdAndUpdate(
+      targetUserId,
+      {
+        $set: {
+          'channels.resume': resumeData,
+          updatedBy: req.user._id
+        }
+      },
+      { new: true, runValidators: false }
+    );
+
+    // Delete previous resume from MinIO ONLY after new resume is successfully saved
+    if (oldMedia && oldMedia !== finalPublicId && oldMedia !== finalUrl) {
+      try {
+        await deleteFromS3(oldMedia);
+      } catch (deleteError) {
+        console.error(`Failed to delete old resume (${oldMedia}) from MinIO:`, deleteError);
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Resume uploaded successfully',
+      data: {
+        resume: updatedUser.channels?.resume || resumeData,
+        user: updatedUser
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Delete Resume
+ * Removes resume file from MinIO and clears user record
+ */
+exports.deleteResume = async (req, res, next) => {
+  try {
+    const targetUserId = (req.params.id && ['ADMIN', 'WARDEN'].includes(req.user.role))
+      ? req.params.id
+      : req.user._id;
+
+    const user = await User.findById(targetUserId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const oldMedia = user.channels?.resume?.publicId || user.channels?.resume?.url;
+
+    const emptyResume = {
+      url: '',
+      publicId: '',
+      filename: '',
+      uploadedAt: null
+    };
+
+    const updatedUser = await User.findByIdAndUpdate(
+      targetUserId,
+      {
+        $set: {
+          'channels.resume': emptyResume,
+          updatedBy: req.user._id
+        }
+      },
+      { new: true }
+    );
+
+    // Delete previous resume from MinIO
+    if (oldMedia) {
+      try {
+        await deleteFromS3(oldMedia);
+      } catch (deleteError) {
+        console.error(`Failed to delete resume (${oldMedia}) from MinIO:`, deleteError);
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Resume removed successfully',
+      data: {
+        resume: updatedUser.channels?.resume || emptyResume,
+        user: updatedUser
       }
     });
   } catch (error) {
@@ -860,12 +1003,16 @@ exports.adminCreateUser = async (req, res, next) => {
       privacySettings: {
         maskPhone: Boolean(req.body.privacySettings?.maskPhone),
         maskEmail: Boolean(req.body.privacySettings?.maskEmail),
-        maskAdhaar: Boolean(req.body.privacySettings?.maskAdhaar)
+        maskAdhaar: Boolean(req.body.privacySettings?.maskAdhaar),
+        maskDob: Boolean(req.body.privacySettings?.maskDob)
       },
       channels: req.body.channels ? {
         instagram: (req.body.channels.instagram || '').trim(),
         linkedin: (req.body.channels.linkedin || '').trim(),
-        whatsapp: (req.body.channels.whatsapp || '').trim()
+        whatsapp: (req.body.channels.whatsapp || '').trim(),
+        portfolio: (req.body.channels.portfolio || '').trim(),
+        github: (req.body.channels.github || '').trim(),
+        behance: (req.body.channels.behance || '').trim()
       } : undefined,
       registrationNumber,
       localLanguageDetails,
@@ -1052,18 +1199,31 @@ exports.adminUpdateUser = async (req, res, next) => {
       user.privacySettings = {
         maskPhone: Boolean(updates.privacySettings.maskPhone),
         maskEmail: Boolean(updates.privacySettings.maskEmail),
-        maskAdhaar: Boolean(updates.privacySettings.maskAdhaar)
+        maskAdhaar: Boolean(updates.privacySettings.maskAdhaar),
+        maskDob: Boolean(updates.privacySettings.maskDob)
       };
       delete updates.privacySettings;
     }
 
     // Handle social & communication channels
     if (updates.channels !== undefined) {
+      const incomingResume = updates.channels?.resume;
+      const existingResume = user.channels?.resume;
+      const finalResume = (incomingResume && incomingResume.url)
+        ? incomingResume
+        : (existingResume && existingResume.url ? existingResume : (user.channels?.resume || { url: '', publicId: '', filename: '', uploadedAt: null }));
+
       user.channels = {
-        instagram: (updates.channels?.instagram || '').trim(),
-        linkedin: (updates.channels?.linkedin || '').trim(),
-        whatsapp: (updates.channels?.whatsapp || '').trim()
+        ...(user.channels ? (user.channels.toObject ? user.channels.toObject() : user.channels) : {}),
+        instagram: (updates.channels?.instagram ?? user.channels?.instagram ?? '').trim(),
+        linkedin: (updates.channels?.linkedin ?? user.channels?.linkedin ?? '').trim(),
+        whatsapp: (updates.channels?.whatsapp ?? user.channels?.whatsapp ?? '').trim(),
+        portfolio: (updates.channels?.portfolio ?? user.channels?.portfolio ?? '').trim(),
+        github: (updates.channels?.github ?? user.channels?.github ?? '').trim(),
+        behance: (updates.channels?.behance ?? user.channels?.behance ?? '').trim(),
+        resume: finalResume
       };
+      user.markModified('channels');
       delete updates.channels;
     }
 
@@ -1211,6 +1371,15 @@ exports.adminDeleteUser = async (req, res, next) => {
     // Delete photo from MinIO first if it exists
     if (user.profilePhoto && (user.profilePhoto.publicId || user.profilePhoto.url)) {
       await deleteFromS3(user.profilePhoto.publicId || user.profilePhoto.url);
+    }
+
+    // Delete resume from MinIO if it exists
+    if (user.channels?.resume && (user.channels.resume.publicId || user.channels.resume.url)) {
+      try {
+        await deleteFromS3(user.channels.resume.publicId || user.channels.resume.url);
+      } catch (deleteResumeErr) {
+        console.error(`Failed to delete resume for user ${id} from MinIO:`, deleteResumeErr);
+      }
     }
 
     // Remove from database
@@ -1512,7 +1681,11 @@ exports.getDashboardStats = async (req, res, next) => {
                   $or: [
                     { $ne: [{ $ifNull: ['$channels.instagram', ''] }, ''] },
                     { $ne: [{ $ifNull: ['$channels.linkedin', ''] }, ''] },
-                    { $ne: [{ $ifNull: ['$channels.whatsapp', ''] }, ''] }
+                    { $ne: [{ $ifNull: ['$channels.whatsapp', ''] }, ''] },
+                    { $ne: [{ $ifNull: ['$channels.portfolio', ''] }, ''] },
+                    { $ne: [{ $ifNull: ['$channels.github', ''] }, ''] },
+                    { $ne: [{ $ifNull: ['$channels.behance', ''] }, ''] },
+                    { $ne: [{ $ifNull: ['$channels.resume.url', ''] }, ''] }
                   ]
                 },
                 1,

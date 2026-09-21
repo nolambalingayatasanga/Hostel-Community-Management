@@ -4,6 +4,7 @@ const DriveLink = require('../models/DriveLink');
 const Event = require('../models/Event');
 const Access = require('../models/Access');
 const User = require('../models/User');
+const GalleryFolder = require('../models/GalleryFolder');
 const { deleteFromS3 } = require('../middleware/s3UploadMiddleware');
 
 /**
@@ -83,11 +84,14 @@ exports.createRequest = async (req, res, next) => {
         });
       }
     } else if (targetCategory === 'events') {
-      if (!eventDetails || !eventDetails.eventDate || !eventDetails.startTime || !eventDetails.endTime || !eventDetails.location) {
-        return res.status(400).json({
-          success: false,
-          message: 'Please provide all event details (date, start time, end time, and location).'
-        });
+      const isContributingToExisting = Boolean(eventDetails?.existingEvent);
+      if (!isContributingToExisting) {
+        if (!eventDetails || (!eventDetails.eventDate && !eventDetails.startDate) || !eventDetails.startTime || !eventDetails.endTime || !eventDetails.location) {
+          return res.status(400).json({
+            success: false,
+            message: 'Please provide all event details (date, start time, end time, and location).'
+          });
+        }
       }
     }
 
@@ -129,6 +133,12 @@ exports.getMyRequests = async (req, res, next) => {
 
     const { status, category, search } = req.query;
     const filter = { user: req.user._id };
+
+    // Ensure any rejected requests have media assets removed from DB
+    await UploadRequest.updateMany(
+      { status: 'REJECTED', user: req.user._id, $or: [{ 'media.0': { $exists: true } }, { driveThumbnail: { $ne: '' } }, { 'eventDetails.coverImage.url': { $ne: '' } }] },
+      { $set: { media: [], driveThumbnail: '', 'eventDetails.coverImage': { url: '', publicId: '' } } }
+    );
 
     if (status && status !== 'ALL') {
       filter.status = status;
@@ -206,6 +216,12 @@ exports.getAllRequests = async (req, res, next) => {
 
     const { status, category, search } = req.query;
     const filter = {};
+
+    // Ensure any rejected requests have media assets removed from DB
+    await UploadRequest.updateMany(
+      { status: 'REJECTED', $or: [{ 'media.0': { $exists: true } }, { driveThumbnail: { $ne: '' } }, { 'eventDetails.coverImage.url': { $ne: '' } }] },
+      { $set: { media: [], driveThumbnail: '', 'eventDetails.coverImage': { url: '', publicId: '' } } }
+    );
     if (status && status !== 'ALL') {
       filter.status = status;
     }
@@ -358,36 +374,183 @@ exports.reviewRequest = async (req, res, next) => {
         });
         publishedIds = [createdDriveLink._id];
       } else if (request.targetCategory === 'events') {
-        // Create Event entry
-        const coverImg = request.eventDetails?.coverImage?.url
-          ? request.eventDetails.coverImage
-          : request.media?.[0]
-            ? { url: request.media[0].url, publicId: request.media[0].publicId || '' }
-            : { url: '', publicId: '' };
-
         const additionalImgs = (request.media || []).map(m => ({
           url: m.url,
-          publicId: m.publicId || '',
+          publicId: m.publicId || m.url,
           resourceType: m.resourceType || 'image',
           uploadedBy: request.user,
           createdAt: new Date()
         }));
 
-        const createdEvent = await Event.create({
-          title: request.title,
-          description: request.description || request.title,
-          eventDate: request.eventDetails?.eventDate || new Date(),
-          startTime: request.eventDetails?.startTime || '09:00',
-          endTime: request.eventDetails?.endTime || '17:00',
-          location: request.eventDetails?.location || 'Hostel Campus',
-          locationUrl: request.eventDetails?.locationUrl || '',
-          color: request.eventDetails?.color || '#0088ff',
-          coverImage: coverImg,
-          additionalImages: additionalImgs,
-          createdBy: request.user
-        });
-        publishedIds = [createdEvent._id];
+        const existingEventId = request.eventDetails?.existingEvent;
+        if (existingEventId) {
+          // Contributing to existing event
+          const targetEvent = await Event.findById(existingEventId);
+          if (targetEvent) {
+            if (additionalImgs.length > 0) {
+              let folder = null;
+              if (targetEvent.galleryFolder) {
+                folder = await GalleryFolder.findById(targetEvent.galleryFolder);
+              }
+              if (!folder && targetEvent.title) {
+                folder = await GalleryFolder.findOne({ name: targetEvent.title, parentFolder: null });
+              }
+              if (!folder && targetEvent.title) {
+                folder = await GalleryFolder.create({
+                  name: targetEvent.title,
+                  description: `Media for event: ${targetEvent.title}`,
+                  color: targetEvent.color || '#0088ff',
+                  coverUrl: targetEvent.coverImage?.url || additionalImgs[0].url,
+                  createdBy: request.user,
+                  parentFolder: null
+                });
+              }
+
+              if (folder) {
+                targetEvent.galleryFolder = folder._id;
+
+                const photosToInsert = additionalImgs.map(img => ({
+                  url: img.url,
+                  publicId: img.publicId,
+                  storageProvider: 's3',
+                  resourceType: img.resourceType,
+                  caption: targetEvent.title,
+                  folder: folder._id,
+                  uploadedBy: request.user,
+                  createdAt: new Date()
+                }));
+                await GalleryPhoto.insertMany(photosToInsert);
+
+                if (!folder.coverUrl && additionalImgs[0]?.url) {
+                  folder.coverUrl = additionalImgs[0].url;
+                  await folder.save();
+                }
+
+                // Sync all photos into targetEvent.additionalImages
+                const allPhotos = await GalleryPhoto.find({ folder: folder._id }).sort({ createdAt: -1 });
+                targetEvent.additionalImages = allPhotos.map(p => ({
+                  _id: p._id,
+                  url: p.url,
+                  publicId: p.publicId,
+                  resourceType: p.resourceType,
+                  uploadedBy: p.uploadedBy,
+                  caption: p.caption,
+                  createdAt: p.createdAt,
+                  galleryPhotoId: p._id
+                }));
+                await targetEvent.save();
+              }
+            }
+            publishedIds = [targetEvent._id];
+          }
+        } else {
+          // Create New Event entry
+          const coverImg = request.eventDetails?.coverImage?.url
+            ? request.eventDetails.coverImage
+            : request.media?.[0]
+              ? { url: request.media[0].url, publicId: request.media[0].publicId || '' }
+              : { url: '', publicId: '' };
+
+          const sDate = request.eventDetails?.startDate || request.eventDetails?.eventDate || new Date();
+          const eDate = request.eventDetails?.endDate || sDate;
+
+          const createdEvent = await Event.create({
+            title: request.title,
+            description: request.description || request.title,
+            eventDate: sDate,
+            startDate: sDate,
+            endDate: eDate,
+            startTime: request.eventDetails?.startTime || '09:00',
+            endTime: request.eventDetails?.endTime || '17:00',
+            location: request.eventDetails?.location || 'Hostel Campus',
+            locationUrl: request.eventDetails?.locationUrl || '',
+            color: request.eventDetails?.color || '#0088ff',
+            coverImage: coverImg,
+            additionalImages: additionalImgs,
+            createdBy: request.user
+          });
+
+          // Only create gallery folder if media was actually uploaded
+          if (additionalImgs.length > 0) {
+            let folder = await GalleryFolder.findOne({ name: request.title, parentFolder: null });
+            if (!folder) {
+              folder = await GalleryFolder.create({
+                name: request.title,
+                description: `Media for event: ${request.title}`,
+                color: request.eventDetails?.color || '#0088ff',
+                coverUrl: additionalImgs[0]?.url || coverImg?.url || '',
+                createdBy: request.user,
+                parentFolder: null
+              });
+            }
+
+            createdEvent.galleryFolder = folder._id;
+
+            const photosToInsert = additionalImgs.map(img => ({
+              url: img.url,
+              publicId: img.publicId,
+              storageProvider: 's3',
+              resourceType: img.resourceType,
+              caption: request.title,
+              folder: folder._id,
+              uploadedBy: request.user,
+              createdAt: new Date()
+            }));
+            await GalleryPhoto.insertMany(photosToInsert);
+
+            const allPhotos = await GalleryPhoto.find({ folder: folder._id }).sort({ createdAt: -1 });
+            createdEvent.additionalImages = allPhotos.map(p => ({
+              _id: p._id,
+              url: p.url,
+              publicId: p.publicId,
+              resourceType: p.resourceType,
+              uploadedBy: p.uploadedBy,
+              caption: p.caption,
+              createdAt: p.createdAt,
+              galleryPhotoId: p._id
+            }));
+            await createdEvent.save();
+          }
+
+          publishedIds = [createdEvent._id];
+        }
       }
+    }
+
+    if (status === 'REJECTED') {
+      // Clean up uploaded media assets from MinIO storage upon rejection, while keeping the request record in DB
+      if (request.media && request.media.length > 0) {
+        for (const m of request.media) {
+          try {
+            if (m.publicId || m.url) {
+              await deleteFromS3(m.publicId || m.url);
+            }
+          } catch (storageErr) {
+            console.warn('[uploadRequestController] Could not delete file from storage on reject:', storageErr.message);
+          }
+        }
+      }
+      if (request.eventDetails?.coverImage?.publicId || request.eventDetails?.coverImage?.url) {
+        try {
+          await deleteFromS3(request.eventDetails.coverImage.publicId || request.eventDetails.coverImage.url);
+        } catch (storageErr) {
+          console.warn('[uploadRequestController] Could not delete event coverImage from storage on reject:', storageErr.message);
+        }
+      }
+      if (request.driveThumbnail) {
+        try {
+          await deleteFromS3(request.driveThumbnail);
+        } catch (storageErr) {
+          console.warn('[uploadRequestController] Could not delete drive thumbnail from storage on reject:', storageErr.message);
+        }
+      }
+
+      // Delete media assets from DB document record as well
+      request.media = [];
+      if (request.eventDetails?.coverImage) {
+        request.eventDetails.coverImage = { url: '', publicId: '' };
+      }
+      request.driveThumbnail = '';
     }
 
     request.status = status;
@@ -464,14 +627,30 @@ exports.deleteRequest = async (req, res, next) => {
     }
 
     // Clean up uploaded media assets from MinIO storage if the request wasn't approved/published
-    if (request.status !== 'APPROVED' && request.media && request.media.length > 0) {
-      for (const m of request.media) {
-        try {
-          if (m.publicId || m.url) {
-            await deleteFromS3(m.publicId || m.url);
+    if (request.status !== 'APPROVED') {
+      if (request.media && request.media.length > 0) {
+        for (const m of request.media) {
+          try {
+            if (m.publicId || m.url) {
+              await deleteFromS3(m.publicId || m.url);
+            }
+          } catch (storageErr) {
+            console.warn('[uploadRequestController] Could not delete file from storage:', storageErr.message);
           }
+        }
+      }
+      if (request.eventDetails?.coverImage?.publicId || request.eventDetails?.coverImage?.url) {
+        try {
+          await deleteFromS3(request.eventDetails.coverImage.publicId || request.eventDetails.coverImage.url);
         } catch (storageErr) {
-          console.warn('[uploadRequestController] Could not delete file from storage:', storageErr.message);
+          console.warn('[uploadRequestController] Could not delete event coverImage from storage:', storageErr.message);
+        }
+      }
+      if (request.driveThumbnail) {
+        try {
+          await deleteFromS3(request.driveThumbnail);
+        } catch (storageErr) {
+          console.warn('[uploadRequestController] Could not delete drive thumbnail from storage:', storageErr.message);
         }
       }
     }

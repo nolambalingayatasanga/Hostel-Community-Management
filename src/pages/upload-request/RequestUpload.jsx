@@ -12,6 +12,7 @@ import {
   CardContent,
   Grid,
   Button,
+  ButtonBase,
   TextField,
   MenuItem,
   Chip,
@@ -44,7 +45,9 @@ import {
   FilterList as FilterIcon,
   InfoOutlined as InfoIcon,
   PhotoCamera as PhotoCameraIcon,
-  PlayCircle as PlayIcon
+  PlayCircle as PlayIcon,
+  Videocam as VideoIcon,
+  Image as ImageIcon
 } from '@mui/icons-material';
 import UploadRequestsTable, {
   getCategoryDisplay,
@@ -117,9 +120,13 @@ export default function RequestUpload() {
 
   // Active top-level tab
   const urlTab = searchParams.get('tab');
+  const initialCategoryParam = searchParams.get('category');
+  let normalizedInitialCategory = initialCategoryParam === 'drive' ? 'drive_links' : initialCategoryParam;
+  if (normalizedInitialCategory === 'event') normalizedInitialCategory = 'events';
+
   const initialTab = isAdminOrReviewer
     ? (adminTabs.includes(urlTab) ? urlTab : 'all_requests')
-    : (userTabs.includes(urlTab) ? urlTab : (canCreate ? 'submit' : 'my_requests'));
+    : (userTabs.includes(urlTab) ? urlTab : (normalizedInitialCategory ? 'submit' : (canCreate ? 'submit' : 'my_requests')));
 
   const [activeTab, setActiveTab] = useState(initialTab);
 
@@ -140,9 +147,11 @@ export default function RequestUpload() {
   // Form State (Normal User submission)
   // ----------------------------------------------------
   const [targetCategory, setTargetCategory] = useState(
-    searchParams.get('category') || 'gallery'
+    (normalizedInitialCategory && ['gallery', 'drive_links', 'events'].includes(normalizedInitialCategory))
+      ? normalizedInitialCategory
+      : 'gallery'
   );
-  const [title, setTitle] = useState('');
+  const [title, setTitle] = useState(searchParams.get('title') || '');
   const [description, setDescription] = useState('');
 
   // Gallery specific
@@ -162,15 +171,18 @@ export default function RequestUpload() {
   const thumbInputRef = useRef(null);
 
   // Event specific
-  const [eventDate, setEventDate] = useState('');
-  const [startTime, setStartTime] = useState('09:00');
-  const [endTime, setEndTime] = useState('17:00');
-  const [eventLocation, setEventLocation] = useState('');
-  const [locationUrl, setLocationUrl] = useState('');
+  const [eventDate, setEventDate] = useState(searchParams.get('eventDate') || '');
+  const [startTime, setStartTime] = useState(searchParams.get('startTime') || '09:00');
+  const [endTime, setEndTime] = useState(searchParams.get('endTime') || '17:00');
+  const [eventLocation, setEventLocation] = useState(searchParams.get('location') || '');
+  const [locationUrl, setLocationUrl] = useState(searchParams.get('locationUrl') || '');
   const [eventColor, setEventColor] = useState('#0088ff');
   const [eventCover, setEventCover] = useState({ url: '', publicId: '' });
   const [uploadingCover, setUploadingCover] = useState(false);
   const coverInputRef = useRef(null);
+  const [eventsList, setEventsList] = useState([]);
+  const [eventContributionType, setEventContributionType] = useState('existing'); // 'existing' | 'new'
+  const [selectedEventId, setSelectedEventId] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -227,7 +239,18 @@ export default function RequestUpload() {
         console.error('Failed to load gallery folders:', err);
       }
     };
+    const fetchEvents = async () => {
+      try {
+        const res = await API.get('/events');
+        if (res.data?.success) {
+          setEventsList(res.data.data || []);
+        }
+      } catch (err) {
+        console.error('Failed to load events:', err);
+      }
+    };
     fetchFolders();
+    fetchEvents();
   }, []);
 
   // Server-side pagination states for Admin
@@ -370,6 +393,10 @@ export default function RequestUpload() {
   // Handle URL changes
   useEffect(() => {
     const tab = searchParams.get('tab');
+    const rawCat = searchParams.get('category');
+    let cat = rawCat === 'drive' ? 'drive_links' : rawCat;
+    if (cat === 'event') cat = 'events';
+
     if (isAdminOrReviewer) {
       if (tab && adminTabs.includes(tab)) {
         setActiveTab(tab);
@@ -377,13 +404,20 @@ export default function RequestUpload() {
     } else {
       if (tab && userTabs.includes(tab)) {
         setActiveTab(tab);
+      } else if (cat && userTabs.includes('submit')) {
+        setActiveTab('submit');
       }
     }
-    const cat = searchParams.get('category');
     if (cat && ['gallery', 'drive_links', 'events'].includes(cat)) {
       setTargetCategory(cat);
     }
-  }, [searchParams, isAdminOrReviewer]);
+    if (searchParams.get('title')) setTitle(searchParams.get('title'));
+    if (searchParams.get('eventDate')) setEventDate(searchParams.get('eventDate'));
+    if (searchParams.get('location')) setEventLocation(searchParams.get('location'));
+    if (searchParams.get('locationUrl')) setLocationUrl(searchParams.get('locationUrl'));
+    if (searchParams.get('startTime')) setStartTime(searchParams.get('startTime'));
+    if (searchParams.get('endTime')) setEndTime(searchParams.get('endTime'));
+  }, [searchParams, isAdminOrReviewer, userTabs]);
 
   // ----------------------------------------------------
   // Storage & Upload Handlers (MinIO / S3 Unlimited)
@@ -539,12 +573,6 @@ export default function RequestUpload() {
     setUploadedMedia((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleCaptionChange = (index, val) => {
-    setUploadedMedia((prev) =>
-      prev.map((item, i) => (i === index ? { ...item, caption: val } : item))
-    );
-  };
-
   // ----------------------------------------------------
   // Submit Form Handler (Normal User)
   // ----------------------------------------------------
@@ -571,11 +599,22 @@ export default function RequestUpload() {
         return;
       }
     } else if (targetCategory === 'events') {
-      if (!eventDate || !startTime || !endTime || !eventLocation.trim()) {
-        enqueueSnackbar('Please fill in date, start time, end time, and location for the event.', {
-          variant: 'warning'
-        });
-        return;
+      if (eventContributionType === 'existing') {
+        if (!selectedEventId) {
+          enqueueSnackbar('Please select an event to contribute media to.', { variant: 'warning' });
+          return;
+        }
+        if (uploadedMedia.length === 0) {
+          enqueueSnackbar('Please upload at least one photo or video for this event.', { variant: 'warning' });
+          return;
+        }
+      } else {
+        if (!eventDate || !startTime || !endTime || !eventLocation.trim()) {
+          enqueueSnackbar('Please fill in date, start time, end time, and location for the event.', {
+            variant: 'warning'
+          });
+          return;
+        }
       }
     }
 
@@ -593,6 +632,7 @@ export default function RequestUpload() {
         driveThumbnail,
         driveThumbnailFocus,
         eventDetails: targetCategory === 'events' ? {
+          existingEvent: eventContributionType === 'existing' ? selectedEventId : null,
           eventDate,
           startTime,
           endTime,
@@ -771,7 +811,7 @@ export default function RequestUpload() {
         <Alert severity="error" sx={{ borderRadius: '14px', p: 2 }}>
           <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>Access Denied</Typography>
           <Typography variant="body2" sx={{ mt: 0.5 }}>
-            Your account role does not have permission to access the Request Upload page. Please contact an administrator.
+            Your account role does not have permission to access the Share Media page. Please contact an administrator.
           </Typography>
         </Alert>
       </Box>
@@ -802,12 +842,15 @@ export default function RequestUpload() {
               gap: 2
             }}
           >
-            <Box sx={{ flexShrink: 0 }}>
-              <Typography variant="h5" sx={{ fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <CloudUploadIcon sx={{ color: '#0088ff', fontSize: 32 }} />
-                {isAdminOrReviewer ? 'Media Upload Moderation' : 'Memory Upload Hub'}
-              </Typography>
-            </Box>
+            {isAdminOrReviewer && (
+              <Box sx={{ flexShrink: 0 }}>
+                <Typography variant="h5" sx={{ fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <CloudUploadIcon sx={{ color: '#0088ff', fontSize: 32 }} />
+                    Media Request Management
+                </Typography>
+              </Box>
+            )}
+      
 
             {/* Top Level Tabs: All Requests, Request Queue, Request Accepted, Request Rejected for Admin/Reviewer */}
             {isAdminOrReviewer ? (
@@ -1026,7 +1069,7 @@ export default function RequestUpload() {
                 >
                   <Tab
                     value="submit"
-                    label="Submit Memory"
+                    label="Share Memories"
                     icon={<CloudUploadIcon sx={{ fontSize: 18 }} />}
                     iconPosition="start"
                     sx={{
@@ -1084,12 +1127,9 @@ export default function RequestUpload() {
         </Container>
       </Box>
 
-      {/* ── Main Tab Contents ── */}
-      {/* ========================================================= */}
-      {/* NORMAL USER: TAB 1 - SUBMIT MEMORY FORM                   */}
-      {/* ========================================================= */}
+      
       {!isAdminOrReviewer && activeTab === 'submit' && (
-        <Container maxWidth="lg" sx={{ mt: 3, pb: 6 }}>
+        <Container maxWidth="lg" sx={{ mt: 1, pb: 6 }}>
           <Box component="form" onSubmit={handleSubmitRequest}>
             <Grid container spacing={3} alignItems="flex-start">
               {/* Left Column: Form Details (Scrollable Cards) */}
@@ -1118,15 +1158,60 @@ export default function RequestUpload() {
               >
                 {/* Step 1: Destination Selection */}
                 <Card sx={{ borderRadius: '16px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', border: '1px solid #E2E8F0', mb: 3 }}>
-                  <CardContent sx={{ p: 3 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0F172A', mb: 0.5 }}>
-                      1. Choose Destination Category
+                  <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0F172A', mb:2 }}>
+                      1. Choose Destination Page
                     </Typography>
-                    <Typography variant="body2" sx={{ color: '#64748B', mb: 2.5 }}>
-                      Where should this memory or media asset be published upon approval?
-                    </Typography>
+            
 
-                    <Grid container spacing={2}>
+                    {/* Mobile View: 3 Tabs in same row */}
+                    <Box
+                      sx={{
+                        display: { xs: 'flex', sm: 'none' },
+                        bgcolor: '#F1F5F9',
+                        p: 0.5,
+                        borderRadius: '12px',
+                        gap: 0.75,
+                        width: '100%',
+                      }}
+                    >
+                      {[
+                        { id: 'gallery', label: 'Gallery', icon: <GalleryIcon sx={{ fontSize: 17 }} />, color: '#0088ff' },
+                        { id: 'drive_links', label: 'Drive', icon: <DriveIcon sx={{ fontSize: 17 }} />, color: '#10b981' },
+                        { id: 'events', label: 'Events', icon: <EventIcon sx={{ fontSize: 17 }} />, color: '#8b5cf6' },
+                      ].map((tab) => {
+                        const isSelected = targetCategory === tab.id;
+                        return (
+                          <ButtonBase
+                            key={tab.id}
+                            onClick={() => setTargetCategory(tab.id)}
+                            sx={{
+                              flex: 1,
+                              py: 1.1,
+                              px: 0.5,
+                              borderRadius: '9px',
+                              bgcolor: isSelected ? '#FFFFFF' : 'transparent',
+                              color: isSelected ? tab.color : '#64748B',
+                              fontWeight: isSelected ? 800 : 600,
+                              fontSize: '13px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 0.6,
+                              boxShadow: isSelected ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                              border: isSelected ? `1.5px solid ${tab.color}` : '1.5px solid transparent',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            {tab.icon}
+                            <span>{tab.label}</span>
+                          </ButtonBase>
+                        );
+                      })}
+                    </Box>
+
+                    {/* Desktop View: 3 Cards */}
+                    <Grid container spacing={2} sx={{ display: { xs: 'none', sm: 'flex' } }}>
                       {/* Gallery Card */}
                       <Grid size={{ xs: 12, sm: 4 }}>
                         <Paper
@@ -1150,44 +1235,15 @@ export default function RequestUpload() {
                             <GalleryIcon />
                           </Box>
                           <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0F172A' }}>
-                            Community Gallery
+                            Gallery
                           </Typography>
                           <Typography variant="caption" sx={{ color: '#64748B', mt: 0.5 }}>
-                            Photos & Videos with captions
+                            Share your Memories like photos & Videos for Gallery
                           </Typography>
                         </Paper>
                       </Grid>
 
-                      {/* Drive Links Card */}
-                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <Paper
-                          onClick={() => setTargetCategory('drive_links')}
-                          elevation={0}
-                          sx={{
-                            p: 2,
-                            borderRadius: '12px',
-                            cursor: 'pointer',
-                            border: targetCategory === 'drive_links' ? '2px solid #10b981' : '1px solid #E2E8F0',
-                            bgcolor: targetCategory === 'drive_links' ? 'rgba(16,185,129,0.04)' : '#FFFFFF',
-                            transition: 'all 0.2s ease',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            textAlign: 'center',
-                            '&:hover': { borderColor: '#10b981', transform: 'translateY(-2px)' }
-                          }}
-                        >
-                          <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: 'rgba(16,185,129,0.1)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
-                            <DriveIcon />
-                          </Box>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0F172A' }}>
-                            Google Drive Link
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: '#64748B', mt: 0.5 }}>
-                            Event albums & folder links
-                          </Typography>
-                        </Paper>
-                      </Grid>
+             
 
                       {/* Events Card */}
                       <Grid size={{ xs: 12, sm: 4 }}>
@@ -1212,10 +1268,41 @@ export default function RequestUpload() {
                             <EventIcon />
                           </Box>
                           <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0F172A' }}>
-                            Event Details & Media
+                            Events
                           </Typography>
                           <Typography variant="caption" sx={{ color: '#64748B', mt: 0.5 }}>
-                            New event or event gallery
+                            Share for New Events or Contribute to Existing Events
+                          </Typography>
+                        </Paper>
+                      </Grid>
+
+                               {/* Drive Links Card */}
+                      <Grid size={{ xs: 12, sm: 4 }}>
+                        <Paper
+                          onClick={() => setTargetCategory('drive_links')}
+                          elevation={0}
+                          sx={{
+                            p: 2,
+                            borderRadius: '12px',
+                            cursor: 'pointer',
+                            border: targetCategory === 'drive_links' ? '2px solid #10b981' : '1px solid #E2E8F0',
+                            bgcolor: targetCategory === 'drive_links' ? 'rgba(16,185,129,0.04)' : '#FFFFFF',
+                            transition: 'all 0.2s ease',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            textAlign: 'center',
+                            '&:hover': { borderColor: '#10b981', transform: 'translateY(-2px)' }
+                          }}
+                        >
+                          <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: 'rgba(16,185,129,0.1)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
+                            <DriveIcon />
+                          </Box>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0F172A' }}>
+                            Drive
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: '#64748B', mt: 0.5 }}>
+                            Share your Memories albums & folder in Google Drive links
                           </Typography>
                         </Paper>
                       </Grid>
@@ -1282,7 +1369,7 @@ export default function RequestUpload() {
                             value={driveUrl}
                             onChange={(e) => setDriveUrl(e.target.value)}
                             required
-                            helperText="Paste the public or shareable link to the Google Drive folder"
+                            helperText="Paste the public Google Drive folder link "
                             sx={{ mb: 1 }}
                           />
                         </Grid>
@@ -1318,67 +1405,128 @@ export default function RequestUpload() {
 
                     {/* Category: EVENTS */}
                     {targetCategory === 'events' && (
-                      <Grid container spacing={2}>
-                        <Grid size={{ xs: 12, sm: 4 }}>
-                          <DatePicker
-                            label="Event Date *"
-                            format="DD/MM/YYYY"
-                            value={eventDate ? dayjs(eventDate) : null}
-                            onChange={(newValue) => setEventDate(newValue && newValue.isValid() ? newValue.format('YYYY-MM-DD') : '')}
-                            slotProps={{
-                              textField: {
-                                fullWidth: true,
-                                required: true
-                              }
-                            }}
+                      <Box sx={{ mb: 2.5 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#334155', mb: 1 }}>
+                          Contribution Mode
+                        </Typography>
+                        <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+                          <Chip
+                            label="Contribute to Existing Event"
+                            color={eventContributionType === 'existing' ? 'primary' : 'default'}
+                            variant={eventContributionType === 'existing' ? 'filled' : 'outlined'}
+                            onClick={() => setEventContributionType('existing')}
+                            sx={{ fontWeight: 700, cursor: 'pointer' }}
                           />
-                        </Grid>
-                        <Grid size={{ xs: 12, sm: 4 }}>
-                          <TimePicker
-                            label="Start Time *"
-                            value={startTime ? dayjs(`2000-01-01T${startTime}`) : null}
-                            onChange={(newValue) => setStartTime(newValue && newValue.isValid() ? newValue.format('HH:mm') : '')}
-                            slotProps={{
-                              textField: {
-                                fullWidth: true,
-                                required: true
-                              }
+                          <Chip
+                            label="Propose New Event"
+                            color={eventContributionType === 'new' ? 'primary' : 'default'}
+                            variant={eventContributionType === 'new' ? 'filled' : 'outlined'}
+                            onClick={() => {
+                              setEventContributionType('new');
+                              setSelectedEventId('');
                             }}
+                            sx={{ fontWeight: 700, cursor: 'pointer' }}
                           />
-                        </Grid>
-                        <Grid size={{ xs: 12, sm: 4 }}>
-                          <TimePicker
-                            label="End Time *"
-                            value={endTime ? dayjs(`2000-01-01T${endTime}`) : null}
-                            onChange={(newValue) => setEndTime(newValue && newValue.isValid() ? newValue.format('HH:mm') : '')}
-                            slotProps={{
-                              textField: {
-                                fullWidth: true,
-                                required: true
-                              }
-                            }}
-                          />
-                        </Grid>
-                        <Grid size={{ xs: 12, sm: 6 }}>
+                        </Stack>
+
+                        {eventContributionType === 'existing' && (
                           <TextField
+                            select
                             fullWidth
-                            label="Event Location / Venue"
-                            placeholder="Hostel Auditorium, Main Ground..."
-                            value={eventLocation}
-                            onChange={(e) => setEventLocation(e.target.value)}
+                            label="Select Existing Event"
                             required
-                          />
-                        </Grid>
-                        <Grid size={{ xs: 12, sm: 6 }}>
-                          <TextField
-                            fullWidth
-                            label="Google Maps Location URL (Optional)"
-                            placeholder="https://maps.app.goo.gl/..."
-                            value={locationUrl}
-                            onChange={(e) => setLocationUrl(e.target.value)}
-                          />
-                        </Grid>
-                      </Grid>
+                            value={selectedEventId}
+                            onChange={(e) => {
+                              const evId = e.target.value;
+                              setSelectedEventId(evId);
+                              const found = eventsList.find((ev) => ev._id === evId);
+                              if (found) {
+                                setTitle(found.title);
+                                setEventDate(found.startDate || found.eventDate ? dayjs(found.startDate || found.eventDate).format('YYYY-MM-DD') : '');
+                                setStartTime(found.startTime || '09:00');
+                                setEndTime(found.endTime || '17:00');
+                                setEventLocation(found.location || '');
+                                setLocationUrl(found.locationUrl || '');
+                              }
+                            }}
+                            helperText="Media will be reviewed and published directly into this event's media details & gallery folder"
+                            sx={{ mb: 1 }}
+                          >
+                            <MenuItem value="" disabled>-- Choose an Event --</MenuItem>
+                            {eventsList.map((ev) => (
+                              <MenuItem key={ev._id} value={ev._id}>
+                                📅 {ev.title} {ev.startDate || ev.eventDate ? `(${dayjs(ev.startDate || ev.eventDate).format('DD MMM YYYY')})` : ''}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                        )}
+
+                        {eventContributionType === 'new' && (
+                          <Grid container spacing={2}>
+                            <Grid size={{ xs: 12, sm: 4 }}>
+                              <DatePicker
+                                label="Event Date"
+                                format="DD/MM/YYYY"
+                                required
+                                value={eventDate ? dayjs(eventDate) : null}
+                                onChange={(newValue) => setEventDate(newValue && newValue.isValid() ? newValue.format('YYYY-MM-DD') : '')}
+                                slotProps={{
+                                  textField: {
+                                    fullWidth: true,
+                                    required: true
+                                  }
+                                }}
+                              />
+                            </Grid>
+                            <Grid size={{ xs: 12, sm: 4 }}>
+                              <TimePicker
+                                label="Start Time"
+                                required
+                                value={startTime ? dayjs(`2000-01-01T${startTime}`) : null}
+                                onChange={(newValue) => setStartTime(newValue && newValue.isValid() ? newValue.format('HH:mm') : '')}
+                                slotProps={{
+                                  textField: {
+                                    fullWidth: true,
+                                    required: true
+                                  }
+                                }}
+                              />
+                            </Grid>
+                            <Grid size={{ xs: 12, sm: 4 }}>
+                              <TimePicker
+                                label="End Time *"
+                                value={endTime ? dayjs(`2000-01-01T${endTime}`) : null}
+                                onChange={(newValue) => setEndTime(newValue && newValue.isValid() ? newValue.format('HH:mm') : '')}
+                                slotProps={{
+                                  textField: {
+                                    fullWidth: true,
+                                    required: true
+                                  }
+                                }}
+                              />
+                            </Grid>
+                            <Grid size={{ xs: 12, sm: 6 }}>
+                              <TextField
+                                fullWidth
+                                label="Event Location / Venue"
+                                placeholder="Hostel Auditorium, Main Ground..."
+                                value={eventLocation}
+                                onChange={(e) => setEventLocation(e.target.value)}
+                                required
+                              />
+                            </Grid>
+                            <Grid size={{ xs: 12, sm: 6 }}>
+                              <TextField
+                                fullWidth
+                                label="Google Maps Location URL (Optional)"
+                                placeholder="https://maps.app.goo.gl/..."
+                                value={locationUrl}
+                                onChange={(e) => setLocationUrl(e.target.value)}
+                              />
+                            </Grid>
+                          </Grid>
+                        )}
+                      </Box>
                     )}
                   </CardContent>
                 </Card>
@@ -1391,13 +1539,9 @@ export default function RequestUpload() {
                         <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0F172A' }}>
                           3. Upload Media Assets {targetCategory === 'gallery' ? '(Required)' : '(Optional)'}
                         </Typography>
-                        {uploadedMedia.length > 0 && (
-                          <Chip size="small" label={`${uploadedMedia.length} asset(s) ready`} color="primary" sx={{ fontWeight: 700 }} />
-                        )}
+                 
                       </Box>
-                      <Typography variant="body2" sx={{ color: '#64748B', mb: 2 }}>
-                        Upload photos (PNG, JPG, WEBP) or videos (MP4, MOV).
-                      </Typography>
+             
 
                       {/* Dropzone Box */}
                       <Box
@@ -1430,60 +1574,228 @@ export default function RequestUpload() {
                         <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0F172A' }}>
                           {uploadingFiles ? 'Uploading assets...' : 'Click to select or drag and drop photos & videos'}
                         </Typography>
-                        <Typography variant="caption" sx={{ color: '#64748B', display: 'block', mt: 0.5 }}>
-                          Photos & Videos • Unlimited file size • MinIO Storage
-                        </Typography>
                       </Box>
 
                       {/* Uploaded Media Grid */}
                       {uploadedMedia.length > 0 && (
                         <Box sx={{ mt: 3 }}>
-                          <Typography variant="caption" sx={{ fontWeight: 700, color: '#475467', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                            Uploaded Assets ({uploadedMedia.length})
-                          </Typography>
-                          <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                          
+                            {uploadedMedia.length > 1 && (
+                              <Button
+                                size="small"
+                                color="error"
+                                onClick={() => setUploadedMedia([])}
+                                sx={{ fontSize: '12px', textTransform: 'none', py: 0.25, px: 1, minWidth: 'auto', fontWeight: 600 }}
+                              >
+                                Remove All
+                              </Button>
+                            )}
+                          </Box>
+
+                          <Grid container spacing={2}>
                             {uploadedMedia.map((item, idx) => (
-                              <Grid size={{ xs: 12, sm: 6 }} key={idx}>
+                              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={idx}>
                                 <Paper
                                   elevation={0}
                                   sx={{
-                                    p: 1.5,
-                                    borderRadius: '12px',
+                                    position: 'relative',
+                                    borderRadius: '14px',
+                                    overflow: 'hidden',
                                     border: '1px solid #E2E8F0',
+                                    bgcolor: '#0F172A',
+                                    aspectRatio: '16/10',
                                     display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 1.5,
-                                    bgcolor: '#F8FAFC'
+                                    flexDirection: 'column',
+                                    boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                                    transition: 'all 0.2s ease',
+                                    '&:hover': {
+                                      transform: 'translateY(-2px)',
+                                      boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                                      borderColor: '#CBD5E1',
+                                      '& .media-preview-img': {
+                                        transform: 'scale(1.04)'
+                                      }
+                                    }
                                   }}
                                 >
-                                  {item.resourceType === 'video' ? (
-                                    <Box sx={{ width: 56, height: 56, borderRadius: '8px', bgcolor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
-                                      <PlayIcon />
-                                    </Box>
-                                  ) : (
+                                  {/* Media Image / Video area with lightbox trigger */}
+                                  <Box
+                                    onClick={() => setPreviewMedia(item)}
+                                    sx={{
+                                      position: 'relative',
+                                      width: '100%',
+                                      height: '100%',
+                                      cursor: 'pointer',
+                                      overflow: 'hidden',
+                                      bgcolor: '#0F172A'
+                                    }}
+                                  >
+                                    {item.resourceType === 'video' ? (
+                                      <Box
+                                        sx={{
+                                          width: '100%',
+                                          height: '100%',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          bgcolor: '#0F172A',
+                                          position: 'relative'
+                                        }}
+                                      >
+                                        <Box
+                                          component="video"
+                                          src={item.url}
+                                          className="media-preview-img"
+                                          sx={{
+                                            width: '100%',
+                                            height: '100%',
+                                            objectFit: 'cover',
+                                            transition: 'transform 0.3s ease'
+                                          }}
+                                        />
+                                        <Box
+                                          sx={{
+                                            position: 'absolute',
+                                            width: 40,
+                                            height: 40,
+                                            borderRadius: '50%',
+                                            bgcolor: 'rgba(255, 255, 255, 0.92)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
+                                            color: '#0F172A',
+                                            zIndex: 2
+                                          }}
+                                        >
+                                          <PlayIcon sx={{ fontSize: 22, ml: 0.2 }} />
+                                        </Box>
+                                      </Box>
+                                    ) : (
+                                      <Box
+                                        component="img"
+                                        src={item.url}
+                                        alt={item.originalName || 'Asset preview'}
+                                        className="media-preview-img"
+                                        sx={{
+                                          width: '100%',
+                                          height: '100%',
+                                          objectFit: 'cover',
+                                          display: 'block',
+                                          transition: 'transform 0.3s ease'
+                                        }}
+                                      />
+                                    )}
+
+                                    {/* Type Badge on Top-Left */}
                                     <Box
-                                      component="img"
-                                      src={item.url}
-                                      alt="thumb"
-                                      sx={{ width: 56, height: 56, borderRadius: '8px', objectFit: 'cover', flexShrink: 0 }}
-                                    />
-                                  )}
-                                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                                    <TextField
-                                      fullWidth
+                                      sx={{
+                                        position: 'absolute',
+                                        top: 8,
+                                        left: 8,
+                                        bgcolor: 'rgba(15, 23, 42, 0.65)',
+                                        backdropFilter: 'blur(6px)',
+                                        color: '#FFFFFF',
+                                        borderRadius: '6px',
+                                        px: 1,
+                                        py: 0.35,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 0.5,
+                                        fontSize: '11px',
+                                        fontWeight: 600,
+                                        zIndex: 2
+                                      }}
+                                    >
+                                      {item.resourceType === 'video' ? (
+                                        <>
+                                          <VideoIcon sx={{ fontSize: 13 }} />
+                                          <span>Video</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <ImageIcon sx={{ fontSize: 13 }} />
+                                          <span>Photo</span>
+                                        </>
+                                      )}
+                                    </Box>
+
+                                    {/* Delete Button on Top-Right */}
+                                    <IconButton
                                       size="small"
-                                      placeholder="Add caption..."
-                                      value={item.caption}
-                                      onChange={(e) => handleCaptionChange(idx, e.target.value)}
-                                      sx={{ '& input': { fontSize: '12px', py: 0.75 } }}
-                                    />
-                                    <Typography variant="caption" sx={{ color: '#94A3B8', display: 'block', mt: 0.5 }} noWrap>
-                                      {item.originalName || 'Media File'} • {(item.size / (1024 * 1024)).toFixed(1)} MB
-                                    </Typography>
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleRemoveMedia(idx);
+                                      }}
+                                      title="Remove asset"
+                                      sx={{
+                                        position: 'absolute',
+                                        top: 8,
+                                        right: 8,
+                                        bgcolor: 'rgba(15, 23, 42, 0.65)',
+                                        backdropFilter: 'blur(6px)',
+                                        color: '#FFFFFF',
+                                        width: 28,
+                                        height: 28,
+                                        zIndex: 3,
+                                        transition: 'all 0.15s ease',
+                                        '&:hover': {
+                                          bgcolor: '#DC2626',
+                                          color: '#FFFFFF',
+                                          transform: 'scale(1.08)'
+                                        }
+                                      }}
+                                    >
+                                      <DeleteIcon sx={{ fontSize: 15 }} />
+                                    </IconButton>
+
+                                    {/* Bottom Info Bar Overlay with Filename and Size */}
+                                    <Box
+                                      sx={{
+                                        position: 'absolute',
+                                        bottom: 0,
+                                        left: 0,
+                                        right: 0,
+                                        background: 'linear-gradient(to top, rgba(15, 23, 42, 0.88) 0%, rgba(15, 23, 42, 0.45) 60%, transparent 100%)',
+                                        pt: 3,
+                                        pb: 1,
+                                        px: 1.25,
+                                        zIndex: 2,
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'flex-end',
+                                        gap: 1
+                                      }}
+                                    >
+                                      <Typography
+                                        sx={{
+                                          color: '#FFFFFF',
+                                          fontSize: '12px',
+                                          fontWeight: 600,
+                                          lineHeight: 1.2,
+                                          whiteSpace: 'nowrap',
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis',
+                                          minWidth: 0
+                                        }}
+                                        title={item.originalName}
+                                      >
+                                        {item.originalName || `Asset #${idx + 1}`}
+                                      </Typography>
+                                      <Typography
+                                        sx={{
+                                          color: 'rgba(255, 255, 255, 0.75)',
+                                          fontSize: '11px',
+                                          fontWeight: 500,
+                                          whiteSpace: 'nowrap',
+                                          flexShrink: 0
+                                        }}
+                                      >
+                                        {item.size ? (item.size / (1024 * 1024)).toFixed(1) + ' MB' : ''}
+                                      </Typography>
+                                    </Box>
                                   </Box>
-                                  <IconButton size="small" onClick={() => handleRemoveMedia(idx)} sx={{ color: '#EF4444' }}>
-                                    <DeleteIcon fontSize="small" />
-                                  </IconButton>
                                 </Paper>
                               </Grid>
                             ))}
@@ -1523,7 +1835,7 @@ export default function RequestUpload() {
                         Drive Album Cover Thumbnail
                       </Typography>
                       <Typography variant="caption" sx={{ color: '#64748B', display: 'block', mb: 2 }}>
-                        Set a custom thumbnail photo to represent this album (Images • MinIO Storage • Unlimited size).
+                        Set a custom thumbnail photo to represent this album.
                       </Typography>
 
                       {driveThumbnail ? (
@@ -1589,61 +1901,6 @@ export default function RequestUpload() {
                   </Card>
                 )}
 
-                {/* Specific Cover for Events */}
-                {targetCategory === 'events' && (
-                  <Card sx={{ borderRadius: '16px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', border: '1px solid #E2E8F0', mb: 3 }}>
-                    <CardContent sx={{ p: 2.5 }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0F172A', mb: 1 }}>
-                        Event Banner / Cover Image
-                      </Typography>
-                       <Typography variant="caption" sx={{ color: '#64748B', display: 'block', mb: 2 }}>
-                        Set a custom banner photo to represent this Event (Images • MinIO Storage • Unlimited size).
-                      </Typography>
-                      {eventCover.url ? (
-                        <Box sx={{ position: 'relative', borderRadius: '12px', overflow: 'hidden', height: 160, mb: 1 }}>
-                          <Box
-                            component="img"
-                            src={eventCover.url}
-                            alt="Cover"
-                            sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                          />
-                          <IconButton
-                            size="small"
-                            onClick={() => setEventCover({ url: '', publicId: '' })}
-                            sx={{ position: 'absolute', top: 8, right: 8, bgcolor: 'rgba(0,0,0,0.6)', color: '#fff' }}
-                          >
-                            <CloseIcon fontSize="small" />
-                          </IconButton>
-                        </Box>
-                      ) : (
-                        <Box
-                          onClick={() => coverInputRef.current?.click()}
-                          sx={{
-                            border: '2px dashed #CBD5E1',
-                            borderRadius: '12px',
-                            p: 3,
-                            textAlign: 'center',
-                            cursor: 'pointer',
-                            mb: 1,
-                            '&:hover': { borderColor: '#8b5cf6', bgcolor: 'rgba(139,92,246,0.02)' }
-                          }}
-                        >
-                          <input type="file" accept="image/*" ref={coverInputRef} style={{ display: 'none' }} onChange={handleCoverSelected} />
-                          {uploadingCover ? (
-                            <CircularProgress size={24} sx={{ color: '#8b5cf6' }} />
-                          ) : (
-                            <>
-                              <PhotoCameraIcon sx={{ color: '#64748B', mb: 0.5 }} />
-                              <Typography variant="caption" sx={{ display: 'block', fontWeight: 600, color: '#334155' }}>
-                                Upload event cover banner
-                              </Typography>
-                            </>
-                          )}
-                        </Box>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
 
                 {/* Moderation Workflow Notice */}
                 <Card sx={{ borderRadius: '16px', bgcolor: '#F0F9FF', border: '1px solid #BAE6FD', mb: 3 }}>
@@ -1685,7 +1942,7 @@ export default function RequestUpload() {
                   {submitting ? (
                     <CircularProgress size={22} sx={{ color: '#fff' }} />
                   ) : (
-                    'Submit for Moderation Review'
+                    'Submit for Review'
                   )}
                 </Button>
               </Grid>
@@ -1718,10 +1975,10 @@ export default function RequestUpload() {
             onRefresh={() => fetchMyRequests(myStatusFilter, myPage, myRowsPerPage, mySearch, myCategory)}
             extraFilters={
               <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', py: 0.5, flexWrap: 'nowrap' }}>
-                {['ALL', 'PENDING', 'APPROVED', 'REJECTED'].map((st) => (
+                {['PENDING', 'APPROVED', 'REJECTED'].map((st) => (
                   <Chip
                     key={st}
-                    label={st === 'ALL' ? 'All Submissions' : st.charAt(0) + st.slice(1).toLowerCase()}
+                    label={st.charAt(0) + st.slice(1).toLowerCase()}
                     clickable
                     onClick={() => {
                       setMyStatusFilter(st);
@@ -1733,8 +1990,8 @@ export default function RequestUpload() {
                     sx={{
                       fontWeight: 600,
                       fontSize: '12.5px',
-                      borderRadius: '20px',
-                      height: '36px',
+                      borderRadius: '8px',
+                      height: '30px',
                       whiteSpace: 'nowrap',
                       flexShrink: 0,
                       bgcolor: myStatusFilter === st ? '#0088ff' : '#FFFFFF',
@@ -1941,9 +2198,14 @@ export default function RequestUpload() {
             />
           )}
         </Box>
-        {previewMedia?.caption && (
-          <Box sx={{ p: 2, bgcolor: '#1E293B', color: '#fff' }}>
-            <Typography variant="body2">{previewMedia.caption}</Typography>
+        {previewMedia?.originalName && (
+          <Box sx={{ p: 2, bgcolor: '#1E293B', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>{previewMedia.originalName}</Typography>
+            {previewMedia.size ? (
+              <Typography variant="caption" sx={{ color: '#94A3B8' }}>
+                {(previewMedia.size / (1024 * 1024)).toFixed(1)} MB
+              </Typography>
+            ) : null}
           </Box>
         )}
       </Dialog>
@@ -2003,7 +2265,32 @@ export default function RequestUpload() {
                   <CloseIcon fontSize="small" />
                 </IconButton>
 
-                {activeMedia ? (
+                {req.status === 'REJECTED' ? (
+                  <Box sx={{ textAlign: 'center', py: 8, px: 3 }}>
+                    <Box
+                      sx={{
+                        width: 52,
+                        height: 52,
+                        borderRadius: '50%',
+                        bgcolor: 'rgba(220, 38, 38, 0.15)',
+                        color: '#EF4444',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        mx: 'auto',
+                        mb: 1.5
+                      }}
+                    >
+                      <DeleteIcon sx={{ fontSize: 26 }} />
+                    </Box>
+                    <Typography sx={{ color: '#F1F5F9', fontWeight: 700, fontSize: '15px' }}>
+                      Media Asset Deleted
+                    </Typography>
+                    <Typography sx={{ color: '#94A3B8', fontSize: '13px', mt: 0.5, maxWidth: 360, mx: 'auto' }}>
+                      The media asset has been permanently deleted from storage and database upon rejection.
+                    </Typography>
+                  </Box>
+                ) : activeMedia ? (
                   activeMedia.resourceType === 'video' || /\.(mp4|mov|avi|webm|mkv)$/i.test(activeMedia.url) ? (
                     <Box
                       component="video"
@@ -2040,7 +2327,7 @@ export default function RequestUpload() {
               </Box>
 
               {/* Multiple Media Thumbnails if any */}
-              {mediaItems.length > 1 && (
+              {req.status !== 'REJECTED' && mediaItems.length > 1 && (
                 <Stack direction="row" spacing={1} sx={{ mt: 1.5, overflowX: 'auto', py: 0.5 }}>
                   {mediaItems.map((m, idx) => (
                     <Box
@@ -2096,8 +2383,10 @@ export default function RequestUpload() {
                     <Button
                       variant="outlined"
                       color="error"
-                      onClick={() => handleOpenRejectDialog(req)}
-                      disabled={reviewingId === req._id}
+                      onClick={() => {
+                        setSelectedRequestForDetails(null);
+                        handleOpenDelete(req);
+                      }}
                       sx={{
                         textTransform: 'none',
                         fontWeight: 600,
@@ -2105,30 +2394,73 @@ export default function RequestUpload() {
                         px: 2.5
                       }}
                     >
-                      Reject with Feedback
+                      Delete Request
                     </Button>
 
-                    <Button
-                      variant="contained"
-                      color="success"
-                      startIcon={<ApprovedIcon />}
-                      onClick={() => handleApprove(req)}
-                      disabled={reviewingId === req._id}
-                      sx={{
-                        textTransform: 'none',
-                        fontWeight: 700,
-                        borderRadius: '8px',
-                        bgcolor: '#10b981',
-                        px: 2.5,
-                        '&:hover': { bgcolor: '#059669' }
-                      }}
-                    >
-                      {reviewingId === req._id ? (
-                        <CircularProgress size={18} sx={{ color: '#fff' }} />
-                      ) : (
-                        'Approve & Publish'
-                      )}
-                    </Button>
+                    {req.status === 'PENDING' && (
+                      <>
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          onClick={() => handleOpenRejectDialog(req)}
+                          disabled={reviewingId === req._id}
+                          sx={{
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            borderRadius: '8px',
+                            px: 2.5
+                          }}
+                        >
+                          Reject with Feedback
+                        </Button>
+
+                        <Button
+                          variant="contained"
+                          color="success"
+                          startIcon={<ApprovedIcon />}
+                          onClick={() => handleApprove(req)}
+                          disabled={reviewingId === req._id}
+                          sx={{
+                            textTransform: 'none',
+                            fontWeight: 700,
+                            borderRadius: '8px',
+                            bgcolor: '#10b981',
+                            px: 2.5,
+                            '&:hover': { bgcolor: '#059669' }
+                          }}
+                        >
+                          {reviewingId === req._id ? (
+                            <CircularProgress size={18} sx={{ color: '#fff' }} />
+                          ) : (
+                            'Approve & Publish'
+                          )}
+                        </Button>
+                      </>
+                    )}
+
+                    {req.status === 'REJECTED' && (
+                      <Button
+                        variant="contained"
+                        color="success"
+                        startIcon={<ApprovedIcon />}
+                        onClick={() => handleApprove(req)}
+                        disabled={reviewingId === req._id}
+                        sx={{
+                          textTransform: 'none',
+                          fontWeight: 700,
+                          borderRadius: '8px',
+                          bgcolor: '#10b981',
+                          px: 2.5,
+                          '&:hover': { bgcolor: '#059669' }
+                        }}
+                      >
+                        {reviewingId === req._id ? (
+                          <CircularProgress size={18} sx={{ color: '#fff' }} />
+                        ) : (
+                          'Re-approve'
+                        )}
+                      </Button>
+                    )}
                   </>
                 ) : (
                   req.status === 'PENDING' && (

@@ -49,7 +49,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       return {
         success: false,
-        message: error.response?.data?.message || 'Login failed. Please check credentials.'
+        message: error.response?.data?.message || 'Login failed.Please Try Again.'
       };
     }
   };

@@ -111,20 +111,6 @@ AccessSchema.statics.seedDefaults = async function() {
       await this.insertMany(reqEntries);
     }
 
-    // Restrict direct upload and delete access for normal users in Gallery and Events
-    await this.updateMany(
-      {
-        page: { $in: ['gallery', 'events'] },
-        role: { $nin: ['ADMIN', 'WARDEN'] }
-      },
-      {
-        $set: {
-          'permissions.fullAccess': false,
-          'permissions.create': false,
-          'permissions.delete': false
-        }
-      }
-    );
     return; // Already initialized
   }
 

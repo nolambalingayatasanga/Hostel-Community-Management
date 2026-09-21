@@ -82,7 +82,7 @@ const DashboardLayout = () => {
 
     // Request Upload page check
     if (path.startsWith('/request-upload')) {
-      return 'Request Upload';
+      return 'Share Media';
     }
 
     // Default formatting logic
@@ -131,7 +131,13 @@ const DashboardLayout = () => {
     try {
       const res = await API.get('/access/navigation');
       if (res.data?.success && Array.isArray(res.data?.data)) {
-        setNavItems(res.data.data);
+        const items = [...res.data.data];
+        const profileIdx = items.findIndex(i => i.id === 'profile' || i.path === '/profile');
+        if (profileIdx > 0) {
+          const [profileItem] = items.splice(profileIdx, 1);
+          items.unshift(profileItem);
+        }
+        setNavItems(items);
       }
     } catch (err) {
       console.error('Failed to load navigation items from backend:', err);
@@ -235,7 +241,7 @@ const DashboardLayout = () => {
               <ListItemText
                 primary={
                   <Typography sx={{ fontSize: 14, fontWeight: location.pathname === item.path ? 600 : 500 }}>
-                    {item.text}
+                    {item.id === 'request_upload' || item.text === 'Request Upload' || item.text === 'Upload Memories' ? 'Share Media' : item.text}
                   </Typography>
                 }
               />
@@ -294,7 +300,7 @@ const DashboardLayout = () => {
               aria-label="open drawer"
               edge="start"
               onClick={handleDrawerToggle}
-              sx={{ mr: 2, display: { md: 'none' } }}
+              sx={{ mr: { xs: 1, sm: 2 }, display: { md: 'none' } }}
             >
               <MenuIcon />
             </IconButton>
@@ -330,10 +336,13 @@ const DashboardLayout = () => {
                 component="div"
                 sx={{
                   fontWeight: 700,
-                  fontSize: { xs: '1rem', sm: '1.25rem' },
+                  fontSize: { xs: '0.95rem', sm: '1.25rem' },
                   color: '#0F172A',
                   letterSpacing: '-0.01em',
-                  display: 'block'
+                  display: 'block',
+                  maxWidth: { xs: 140, sm: 'none' },
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
                 }}
               >
                 {getPageTitle()}
@@ -497,7 +506,7 @@ const DashboardLayout = () => {
           p: { xs: 1.5, sm: 2.5, md: 3 },
           width: { xs: '100%', md: `calc(100% - ${drawerWidth}px)` },
           maxWidth: { xs: '100vw', md: '100%' },
-          overflowX: 'clip',
+          overflowX: 'hidden',
           boxSizing: 'border-box',
           mt: { xs: 7, sm: 8 } // spacing for fixed Appbar
         }}

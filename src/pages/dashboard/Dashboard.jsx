@@ -55,6 +55,7 @@ import {
   Area
 } from 'recharts';
 import { useNavigate } from 'react-router-dom';
+import { formatTime } from '../events/eventConstants';
 
 const COLORS = ['#005BEA', '#00C2A8', '#7C3AED', '#F59E0B', '#0EA5E9', '#F43F5E', '#10B981', '#F97316'];
 const DASHBOARD_BG = '#F4F8FF';
@@ -233,7 +234,7 @@ const Dashboard = () => {
                           secondary={
                             <>
                               <Typography component="span" variant="caption" sx={{ color: '#0088ff', display: 'block', mt: 0.5 }}>
-                                {new Date(evt.eventDate).toLocaleDateString(undefined, { dateStyle: 'medium' })} | {evt.startTime}
+                                {new Date(evt.startDate || evt.eventDate).toLocaleDateString(undefined, { dateStyle: 'medium' })}{evt.endDate && new Date(evt.endDate).toDateString() !== new Date(evt.startDate || evt.eventDate).toDateString() ? ` – ${new Date(evt.endDate).toLocaleDateString(undefined, { dateStyle: 'medium' })}` : ''} | {formatTime(evt.startTime)}{evt.endTime ? ` – ${formatTime(evt.endTime)}` : ''}
                               </Typography>
                               <Typography component="span" variant="caption" sx={{ color: 'text.disabled' }}>
                                 Location: {evt.location}

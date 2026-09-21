@@ -34,6 +34,7 @@ import {
   Chip,
   Menu,
   InputAdornment,
+  SvgIcon,
   useTheme,
   useMediaQuery
 } from '@mui/material';
@@ -68,9 +69,37 @@ import {
   CloudUpload as CloudUploadIcon,
   Instagram as InstagramIcon,
   LinkedIn as LinkedInIcon,
+  GitHub as GitHubIcon,
+  ContentCopy as ContentCopyIcon,
+  OpenInNew as OpenInNewIcon,
+  PictureAsPdf as PictureAsPdfIcon,
+  FileDownload as DownloadIcon,
+  Delete as DeleteIcon,
   Share as ShareIcon,
   VideocamOff as CameraOffIcon
 } from '@mui/icons-material';
+
+// Behance SVG Icon
+const BehanceIcon = (props) => (
+  <SvgIcon {...props} viewBox="0 0 24 24">
+    <path
+      d="M22 7h-7V5h7v2zm1.726 10c-.442 1.297-2.029 3-5.171 3-3.445 0-5.555-2.5-5.555-6.111 0-3.694 2.15-6.222 5.555-6.222 3.42 0 5.093 2.444 5.093 5.417 0 .528-.051 1.056-.126 1.472H16.03c.075 1.5 1.056 2.583 2.54 2.583 1.132 0 1.96-.583 2.338-1.5h2.818v.361zM18.88 12.5c-.05-1.194-.855-2.083-2.263-2.083-1.332 0-2.187.889-2.313 2.083h4.576zM2 18h6.242c3.041 0 4.758-1.444 4.758-3.778 0-1.583-.98-2.611-2.288-3.028 1.03-.444 1.76-1.389 1.76-2.694 0-2.139-1.635-3.5-4.23-3.5H2v13zm3.116-7.806h2.79c1.03 0 1.634.528 1.634 1.444 0 .917-.603 1.472-1.634 1.472H5.116v-2.916zm0 5.028h3.042c1.131 0 1.834.583 1.834 1.611 0 1.028-.703 1.639-1.834 1.639H5.116v-3.25z"
+      fill="currentColor"
+    />
+  </SvgIcon>
+);
+
+const normalizeChannelUrl = (val, type) => {
+  if (!val || typeof val !== 'string') return '';
+  const trimmed = val.trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+  if (type === 'github') return `https://github.com/${trimmed.replace(/^@/, '')}`;
+  if (type === 'behance') return `https://behance.net/${trimmed.replace(/^@/, '')}`;
+  if (type === 'instagram') return `https://instagram.com/${trimmed.replace(/^@/, '')}`;
+  if (type === 'linkedin') return `https://linkedin.com/in/${trimmed.replace(/^\/+/, '')}`;
+  return `https://${trimmed}`;
+};
 
 
 const months = [
@@ -190,8 +219,9 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
     (propUserId && currentUser?._id && String(propUserId) === String(currentUser._id))
   );
   const isAdmin = currentUser?.role === 'ADMIN';
-  const isAuthorizedViewer = isCreate || isOwnProfile || isAdmin;
-  const canEdit = isCreate || isOwnProfile || isAdmin;
+  const isWarden = currentUser?.role === 'WARDEN';
+  const isAuthorizedViewer = isCreate || isOwnProfile || isAdmin || isWarden;
+  const canEdit = isCreate || isOwnProfile || isAdmin || isWarden;
 
   const [user, setUser] = useState(isCreate ? { role: 'MEMBER', accountStatus: 'ACTIVE', isDropped: false } : null);
   const [loading, setLoading] = useState(!isCreate);
@@ -227,7 +257,8 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
   const [privacySettings, setPrivacySettings] = useState({
     maskPhone: false,
     maskEmail: false,
-    maskAdhaar: false
+    maskAdhaar: false,
+    maskDob: false
   });
 
   // Address
@@ -247,12 +278,21 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
     higherStudiesDetails: { institution: '', course: '', location: '' }
   });
 
-  // Channels (Social Links)
+  // Channels & Portfolio (Social Links & Resume)
   const [channels, setChannels] = useState({
     instagram: '',
     linkedin: '',
-    whatsapp: ''
+    whatsapp: '',
+    portfolio: '',
+    github: '',
+    behance: '',
+    resume: { url: '', publicId: '', filename: '', uploadedAt: null }
   });
+
+  // Resume upload & delete state
+  const [resumeUploading, setResumeUploading] = useState(false);
+  const [resumeDeleting, setResumeDeleting] = useState(false);
+  const resumeInputRef = useRef(null);
 
   // Photo upload
   const [photoUploading, setPhotoUploading] = useState(false);
@@ -347,7 +387,8 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
         setPrivacySettings({
           maskPhone: Boolean(u.privacySettings?.maskPhone),
           maskEmail: Boolean(u.privacySettings?.maskEmail),
-          maskAdhaar: Boolean(u.privacySettings?.maskAdhaar)
+          maskAdhaar: Boolean(u.privacySettings?.maskAdhaar),
+          maskDob: Boolean(u.privacySettings?.maskDob)
         });
 
         setRelation({
@@ -358,7 +399,11 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
         setChannels({
           instagram: u.channels?.instagram || '',
           linkedin: u.channels?.linkedin || '',
-          whatsapp: u.channels?.whatsapp || ''
+          whatsapp: u.channels?.whatsapp || '',
+          portfolio: u.channels?.portfolio || '',
+          github: u.channels?.github || '',
+          behance: u.channels?.behance || '',
+          resume: u.channels?.resume || { url: '', publicId: '', filename: '', uploadedAt: null }
         });
 
 
@@ -448,6 +493,129 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
     const file = e.target.files[0];
     if (!file) return;
     await uploadPhotoFile(file);
+  };
+
+  const handleResumeUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setResumeUploading(true);
+      setError('');
+      setSuccess('');
+
+      const formData = new FormData();
+      formData.append('resume', file);
+
+      const targetId = propUserId || id || currentUser?._id;
+      const targetEndpoint = isOwnProfile ? '/users/profile/resume' : `/users/${targetId}/resume`;
+
+      const res = await API.post(targetEndpoint, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      if (res.data?.success) {
+        const msg = 'Resume uploaded successfully!';
+        setSuccess(msg);
+        enqueueSnackbar(msg, { variant: 'success' });
+        const updatedResume = res.data.data?.resume;
+        setChannels((prev) => ({ ...prev, resume: updatedResume }));
+        setUser((prev) => ({
+          ...prev,
+          channels: { ...(prev?.channels || {}), resume: updatedResume }
+        }));
+        if (isOwnProfile && updateAuthUser) {
+          updateAuthUser({
+            ...currentUser,
+            channels: { ...(currentUser?.channels || {}), resume: updatedResume }
+          });
+        }
+        if (onUserUpdated) {
+          onUserUpdated({
+            ...user,
+            channels: { ...(user?.channels || {}), resume: updatedResume }
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to upload resume:', err);
+      const errMsg = err.response?.data?.message || 'Failed to upload resume.';
+      setError(errMsg);
+      enqueueSnackbar(errMsg, { variant: 'error' });
+    } finally {
+      setResumeUploading(false);
+      if (resumeInputRef.current) {
+        resumeInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleDeleteResume = async () => {
+    if (!window.confirm('Are you sure you want to remove this resume? The uploaded file will be deleted permanently.')) {
+      return;
+    }
+
+    try {
+      setResumeDeleting(true);
+      setError('');
+      setSuccess('');
+
+      const targetId = propUserId || id || currentUser?._id;
+      const targetEndpoint = isOwnProfile ? '/users/profile/resume' : `/users/${targetId}/resume`;
+
+      const res = await API.delete(targetEndpoint);
+
+      if (res.data?.success) {
+        const msg = 'Resume deleted successfully!';
+        setSuccess(msg);
+        enqueueSnackbar(msg, { variant: 'success' });
+        const emptyResume = { url: '', publicId: '', filename: '', uploadedAt: null };
+        setChannels((prev) => ({ ...prev, resume: emptyResume }));
+        setUser((prev) => ({
+          ...prev,
+          channels: { ...(prev?.channels || {}), resume: emptyResume }
+        }));
+        if (isOwnProfile && updateAuthUser) {
+          updateAuthUser({
+            ...currentUser,
+            channels: { ...(currentUser?.channels || {}), resume: emptyResume }
+          });
+        }
+        if (onUserUpdated) {
+          onUserUpdated({
+            ...user,
+            channels: { ...(user?.channels || {}), resume: emptyResume }
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to remove resume:', err);
+      const errMsg = err.response?.data?.message || 'Failed to remove resume.';
+      setError(errMsg);
+      enqueueSnackbar(errMsg, { variant: 'error' });
+    } finally {
+      setResumeDeleting(false);
+    }
+  };
+
+  const handleCopyLink = async (text, label) => {
+    if (!text) return;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      enqueueSnackbar(`${label || 'Link'} copied to clipboard!`, { variant: 'success' });
+    } catch (err) {
+      console.error('Failed to copy text:', err);
+      enqueueSnackbar('Failed to copy to clipboard', { variant: 'error' });
+    }
   };
 
   // Helper to convert base64 data URL to a File object
@@ -826,7 +994,10 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
         },
         privacySettings: privacySettings || {},
         relation: relation || {},
-        channels: channels || {},
+        channels: {
+          ...channels,
+          resume: (channels.resume?.url ? channels.resume : user?.channels?.resume) || undefined
+        },
       };
 
       if (isAdmin && role) {
@@ -871,6 +1042,13 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
         const updatedUser = res.data.data?.user || res.data.user || res.data.data;
         if (updatedUser) {
           setUser(updatedUser);
+          if (updatedUser.channels) {
+            setChannels((prev) => ({
+              ...prev,
+              ...(updatedUser.channels || {}),
+              resume: updatedUser.channels.resume || prev.resume || { url: '', publicId: '', filename: '', uploadedAt: null }
+            }));
+          }
         }
         setPassword('');
         setConfirmPassword('');
@@ -1021,9 +1199,34 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
 
                     {/* Date of Birth (DOB) */}
                     <Grid size={{ xs: 12, sm: 6 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', mb: 0.75 }}>
-                        Date of Birth
-                      </Typography>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.75 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569' }}>
+                          Date of Birth
+                        </Typography>
+                        {canEdit && (
+                          <Tooltip title="When hidden, your date of birth is hidden in directory and profile views.">
+                            <FormControlLabel
+                              control={
+                                <Switch
+                                  size="small"
+                                  checked={Boolean(privacySettings.maskDob)}
+                                  onChange={(e) => setPrivacySettings(prev => ({ ...prev, maskDob: e.target.checked }))}
+                                  sx={{
+                                    '& .MuiSwitch-switchBase.Mui-checked': { color: '#0088ff' },
+                                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#0088ff' }
+                                  }}
+                                />
+                              }
+                              label={
+                                <Typography variant="caption" sx={{ color: privacySettings.maskDob ? '#0088ff' : '#64748B', fontWeight: 600, fontSize: 11, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <MaskIcon sx={{ fontSize: 13 }} /> Hide
+                                </Typography>
+                              }
+                              sx={{ m: 0 }}
+                            />
+                          </Tooltip>
+                        )}
+                      </Box>
                       <DatePicker
                         format="DD/MM/YYYY"
                         maxDate={dayjs()}
@@ -1531,31 +1734,163 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                 {/* 3. CHANNELS */}
                 <Box>
                   <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1E293B', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <ShareIcon sx={{ color: '#0A66C2', fontSize: 20 }} /> Channels
+                    <ShareIcon sx={{ color: '#0A66C2', fontSize: 20 }} /> Channels & Portfolio
                   </Typography>
                   <Grid container spacing={2.5}>
+                    {/* Portfolio Website */}
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', mb: 0.75 }}>
-                        Instagram
+                        Portfolio Website
                       </Typography>
                       <TextField
                         fullWidth
                         size="small"
                         disabled={!canEdit}
-                        placeholder="https://instagram.com"
-                        value={channels.instagram || ''}
-                        onChange={(e) => setChannels((prev) => ({ ...prev, instagram: e.target.value }))}
+                        placeholder="https://yourportfolio.com"
+                        value={channels.portfolio || ''}
+                        onChange={(e) => setChannels((prev) => ({ ...prev, portfolio: e.target.value }))}
                         slotProps={{
                           input: {
                             startAdornment: (
                               <InputAdornment position="start">
-                                <InstagramIcon sx={{ color: '#E1306C', fontSize: 20 }} />
+                                <WebIcon sx={{ color: '#0284C7', fontSize: 20 }} />
+                              </InputAdornment>
+                            ),
+                            endAdornment: channels.portfolio && (
+                              <InputAdornment position="end" sx={{ pointerEvents: 'auto' }}>
+                                <Tooltip title="Open Portfolio">
+                                  <IconButton
+                                    size="small"
+                                    edge="end"
+                                    component="a"
+                                    href={normalizeChannelUrl(channels.portfolio, 'portfolio')}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    sx={{ color: '#0284C7' }}
+                                  >
+                                    <OpenInNewIcon sx={{ fontSize: 18 }} />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Copy link">
+                                  <IconButton
+                                    size="small"
+                                    edge="end"
+                                    onClick={() => handleCopyLink(normalizeChannelUrl(channels.portfolio, 'portfolio'), 'Portfolio link')}
+                                    sx={{ color: '#64748B', ml: 0.5 }}
+                                  >
+                                    <ContentCopyIcon sx={{ fontSize: 17 }} />
+                                  </IconButton>
+                                </Tooltip>
                               </InputAdornment>
                             )
                           }
                         }}
                       />
                     </Grid>
+
+                    {/* GitHub */}
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', mb: 0.75 }}>
+                        GitHub
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        disabled={!canEdit}
+                        placeholder="https://github.com/username"
+                        value={channels.github || ''}
+                        onChange={(e) => setChannels((prev) => ({ ...prev, github: e.target.value }))}
+                        slotProps={{
+                          input: {
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <GitHubIcon sx={{ color: '#24292E', fontSize: 20 }} />
+                              </InputAdornment>
+                            ),
+                            endAdornment: channels.github && (
+                              <InputAdornment position="end" sx={{ pointerEvents: 'auto' }}>
+                                <Tooltip title="Open GitHub">
+                                  <IconButton
+                                    size="small"
+                                    edge="end"
+                                    component="a"
+                                    href={normalizeChannelUrl(channels.github, 'github')}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    sx={{ color: '#24292E' }}
+                                  >
+                                    <OpenInNewIcon sx={{ fontSize: 18 }} />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Copy link">
+                                  <IconButton
+                                    size="small"
+                                    edge="end"
+                                    onClick={() => handleCopyLink(normalizeChannelUrl(channels.github, 'github'), 'GitHub link')}
+                                    sx={{ color: '#64748B', ml: 0.5 }}
+                                  >
+                                    <ContentCopyIcon sx={{ fontSize: 17 }} />
+                                  </IconButton>
+                                </Tooltip>
+                              </InputAdornment>
+                            )
+                          }
+                        }}
+                      />
+                    </Grid>
+
+                    {/* Behance */}
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', mb: 0.75 }}>
+                        Behance
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        disabled={!canEdit}
+                        placeholder="https://behance.net/username"
+                        value={channels.behance || ''}
+                        onChange={(e) => setChannels((prev) => ({ ...prev, behance: e.target.value }))}
+                        slotProps={{
+                          input: {
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <BehanceIcon sx={{ color: '#0057FF', fontSize: 20 }} />
+                              </InputAdornment>
+                            ),
+                            endAdornment: channels.behance && (
+                              <InputAdornment position="end" sx={{ pointerEvents: 'auto' }}>
+                                <Tooltip title="Open Behance">
+                                  <IconButton
+                                    size="small"
+                                    edge="end"
+                                    component="a"
+                                    href={normalizeChannelUrl(channels.behance, 'behance')}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    sx={{ color: '#0057FF' }}
+                                  >
+                                    <OpenInNewIcon sx={{ fontSize: 18 }} />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Copy link">
+                                  <IconButton
+                                    size="small"
+                                    edge="end"
+                                    onClick={() => handleCopyLink(normalizeChannelUrl(channels.behance, 'behance'), 'Behance link')}
+                                    sx={{ color: '#64748B', ml: 0.5 }}
+                                  >
+                                    <ContentCopyIcon sx={{ fontSize: 17 }} />
+                                  </IconButton>
+                                </Tooltip>
+                              </InputAdornment>
+                            )
+                          }
+                        }}
+                      />
+                    </Grid>
+
+                    {/* LinkedIn */}
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', mb: 0.75 }}>
                         LinkedIn
@@ -1564,7 +1899,7 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                         fullWidth
                         size="small"
                         disabled={!canEdit}
-                        placeholder="https://linkedin.com"
+                        placeholder="https://linkedin.com/in/username"
                         value={channels.linkedin || ''}
                         onChange={(e) => setChannels((prev) => ({ ...prev, linkedin: e.target.value }))}
                         slotProps={{
@@ -1573,9 +1908,272 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                               <InputAdornment position="start">
                                 <LinkedInIcon sx={{ color: '#0A66C2', fontSize: 20 }} />
                               </InputAdornment>
+                            ),
+                            endAdornment: channels.linkedin && (
+                              <InputAdornment position="end" sx={{ pointerEvents: 'auto' }}>
+                                <Tooltip title="Open LinkedIn">
+                                  <IconButton
+                                    size="small"
+                                    edge="end"
+                                    component="a"
+                                    href={normalizeChannelUrl(channels.linkedin, 'linkedin')}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    sx={{ color: '#0A66C2' }}
+                                  >
+                                    <OpenInNewIcon sx={{ fontSize: 18 }} />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Copy link">
+                                  <IconButton
+                                    size="small"
+                                    edge="end"
+                                    onClick={() => handleCopyLink(normalizeChannelUrl(channels.linkedin, 'linkedin'), 'LinkedIn link')}
+                                    sx={{ color: '#64748B', ml: 0.5 }}
+                                  >
+                                    <ContentCopyIcon sx={{ fontSize: 17 }} />
+                                  </IconButton>
+                                </Tooltip>
+                              </InputAdornment>
                             )
                           }
                         }}
+                      />
+                    </Grid>
+
+                    {/* Instagram */}
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', mb: 0.75 }}>
+                        Instagram
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        disabled={!canEdit}
+                        placeholder="https://instagram.com/username"
+                        value={channels.instagram || ''}
+                        onChange={(e) => setChannels((prev) => ({ ...prev, instagram: e.target.value }))}
+                        slotProps={{
+                          input: {
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <InstagramIcon sx={{ color: '#E1306C', fontSize: 20 }} />
+                              </InputAdornment>
+                            ),
+                            endAdornment: channels.instagram && (
+                              <InputAdornment position="end" sx={{ pointerEvents: 'auto' }}>
+                                <Tooltip title="Open Instagram">
+                                  <IconButton
+                                    size="small"
+                                    edge="end"
+                                    component="a"
+                                    href={normalizeChannelUrl(channels.instagram, 'instagram')}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    sx={{ color: '#E1306C' }}
+                                  >
+                                    <OpenInNewIcon sx={{ fontSize: 18 }} />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Copy link">
+                                  <IconButton
+                                    size="small"
+                                    edge="end"
+                                    onClick={() => handleCopyLink(normalizeChannelUrl(channels.instagram, 'instagram'), 'Instagram link')}
+                                    sx={{ color: '#64748B', ml: 0.5 }}
+                                  >
+                                    <ContentCopyIcon sx={{ fontSize: 17 }} />
+                                  </IconButton>
+                                </Tooltip>
+                              </InputAdornment>
+                            )
+                          }
+                        }}
+                      />
+                    </Grid>
+
+                    {/* Resume Card */}
+                    <Grid size={{ xs: 12 }}>
+                      <Box
+                        sx={{
+                          mt: 1,
+                          p: 2.5,
+                          borderRadius: '12px',
+                          border: '1px solid #E2E8F0',
+                          bgcolor: '#F8FAFC',
+                          display: 'flex',
+                          flexDirection: { xs: 'column', md: 'row' },
+                          alignItems: { xs: 'flex-start', md: 'center' },
+                          justifyContent: 'space-between',
+                          gap: 2,
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <Box
+                            sx={{
+                              width: 48,
+                              height: 48,
+                              borderRadius: '12px',
+                              bgcolor: channels.resume?.url ? '#FEE2E2' : '#F1F5F9',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: channels.resume?.url ? '#DC2626' : '#94A3B8',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <PictureAsPdfIcon sx={{ fontSize: 26 }} />
+                          </Box>
+                          <Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1E293B', fontSize: '0.95rem' }}>
+                                Resume
+                              </Typography>
+                      
+                            </Box>
+                            <Typography variant="body2" sx={{ color: '#64748B', mt: 0.25, wordBreak: 'break-all' }}>
+                              {channels.resume?.url
+                                ? (channels.resume?.filename || 'Resume document')
+                                : 'No resume document uploaded yet'}
+                            </Typography>
+                            {channels.resume?.uploadedAt && (
+                              <Typography variant="caption" sx={{ color: '#94A3B8', display: 'block', mt: 0.25 }}>
+ {dayjs(channels.resume.uploadedAt).format('DD MMM YYYY')}
+                              </Typography>
+                            )}
+                          </Box>
+                        </Box>
+
+                        {/* Actions */}
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          sx={{
+                            flexWrap: 'wrap',
+                            gap: 1,
+                            width: { xs: '100%', md: 'auto' },
+                            justifyContent: { xs: 'flex-start', md: 'flex-end' },
+                          }}
+                        >
+                          {channels.resume?.url ? (
+                            <>
+                              {/* Open preview in new Chrome tab */}
+                              <Button
+                                component="a"
+                                href={channels.resume.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                size="small"
+                                variant="contained"
+                                startIcon={<OpenInNewIcon sx={{ fontSize: 16 }} />}
+                                sx={{
+                                  textTransform: 'none',
+                                  fontWeight: 600,
+                                  fontSize: '0.8125rem',
+                                  bgcolor: '#2563EB',
+                                  boxShadow: 'none',
+                                  '&:hover': { bgcolor: '#1D4ED8', boxShadow: 'none' },
+                                }}
+                              >
+                                Preview
+                              </Button>
+
+
+                        
+
+                              {/* Authorized update and delete */}
+                              {canEdit && (
+                                <>
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    onClick={() => resumeInputRef.current?.click()}
+                                    disabled={resumeUploading}
+                                    startIcon={resumeUploading ? <CircularProgress size={14} /> : <CloudUploadIcon sx={{ fontSize: 16 }} />}
+                                    sx={{
+                                      textTransform: 'none',
+                                      fontWeight: 600,
+                                      fontSize: '0.8125rem',
+                                      color: '#334155',
+                                      borderColor: '#CBD5E1',
+                                      bgcolor: '#FFFFFF',
+                                      '&:hover': { bgcolor: '#F8FAFC', borderColor: '#94A3B8' },
+                                    }}
+                                  >
+                                    {resumeUploading ? 'Replacing...' : 'Update Resume'}
+                                  </Button>
+                                  <Tooltip title="Remove Resume">
+                                    <IconButton
+                                      size="small"
+                                      onClick={handleDeleteResume}
+                                      disabled={resumeDeleting}
+                                      sx={{
+                                        borderRadius: '8px',
+                                        border: '1px solid #FECACA',
+                                        bgcolor: '#FEF2F2',
+                                        color: '#DC2626',
+                                        p: 0.8,
+                                        '&:hover': { bgcolor: '#FEE2E2', color: '#B91C1C' },
+                                      }}
+                                    >
+                                      {resumeDeleting ? <CircularProgress size={16} color="error" /> : <DeleteIcon sx={{ fontSize: 16 }} />}
+                                    </IconButton>
+                                  </Tooltip>
+                                </>
+                              )}
+                              {/* Download resume */}
+                              <Tooltip title="Download Resume">
+                                <IconButton
+                                  component="a"
+                                  href={channels.resume.url}
+                                  download={channels.resume?.filename || 'Resume.pdf'}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  size="small"
+                                  sx={{
+                                    borderRadius: '8px',
+                                    border: '1px solid #CBD5E1',
+                                    bgcolor: '#FFFFFF',
+                                    color: '#475569',
+                                    p: 0.8,
+                                    '&:hover': { bgcolor: '#F1F5F9', color: '#1E293B' },
+                                  }}
+                                >
+                                  <DownloadIcon sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </Tooltip>
+                            </>
+                          ) : (
+                            canEdit && (
+                              <Button
+                                size="small"
+                                variant="contained"
+                                onClick={() => resumeInputRef.current?.click()}
+                                disabled={resumeUploading}
+                                startIcon={resumeUploading ? <CircularProgress size={14} sx={{ color: '#fff' }} /> : <CloudUploadIcon sx={{ fontSize: 16 }} />}
+                                sx={{
+                                  textTransform: 'none',
+                                  fontWeight: 600,
+                                  fontSize: '0.8125rem',
+                                  bgcolor: '#2563EB',
+                                  boxShadow: 'none',
+                                  '&:hover': { bgcolor: '#1D4ED8', boxShadow: 'none' },
+                                }}
+                              >
+                                {resumeUploading ? 'Uploading...' : 'Upload Resume'}
+                              </Button>
+                            )
+                          )}
+                        </Stack>
+                      </Box>
+
+                      {/* Hidden Resume File Input */}
+                      <input
+                        type="file"
+                        ref={resumeInputRef}
+                        style={{ display: 'none' }}
+                        accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                        onChange={handleResumeUpload}
                       />
                     </Grid>
                   </Grid>
@@ -1991,21 +2589,41 @@ const Profile = ({ userId: propUserId, isCreate = false, isDialog = false, onClo
                   )}
 
                   {/* Date of Birth */}
-                  {(dob || user?.dob || user?.dateOfBirth) && (
-                    <Stack direction="row" spacing={2} alignItems="center">
-                      <CakeIcon sx={{ color: '#64748B', fontSize: 20 }} />
-                      <Box sx={{ flexGrow: 1 }}>
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <CakeIcon sx={{ color: '#64748B', fontSize: 20 }} />
+                    <Box sx={{ flexGrow: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <Typography variant="caption" sx={{ color: '#94A3B8', display: 'block', fontSize: 12, fontWeight: 500, lineHeight: 1.1 }}>
                           Date of Birth
                         </Typography>
-                        <Typography variant="body2" sx={{ color: '#334155', fontWeight: 600 }}>
-                          {dayjs(dob || user?.dob || user?.dateOfBirth).isValid()
-                            ? dayjs(dob || user?.dob || user?.dateOfBirth).format('DD MMM YYYY')
-                            : (dob || user?.dob || user?.dateOfBirth)}
-                        </Typography>
+                        {privacySettings.maskDob && (
+                          <Tooltip title="Hidden in directory and profile views.">
+                            <Chip
+                              size="small"
+                              icon={<LockIcon color="#fff" sx={{ fontSize: '11px !important', borderRadius: '10px' }} />}
+                              label="Hidden"
+                              sx={{ height: 18, fontSize: 10, bgcolor: '#0088ff', color: '#fff', fontWeight: 700 }}
+                            />
+                          </Tooltip>
+                        )}
                       </Box>
-                    </Stack>
-                  )}
+                      <Typography variant="body2" sx={{ color: '#334155', fontWeight: 600 }}>
+                        {isAuthorizedViewer
+                          ? (dob || user?.dob || user?.dateOfBirth
+                              ? (dayjs(dob || user?.dob || user?.dateOfBirth).isValid()
+                                  ? dayjs(dob || user?.dob || user?.dateOfBirth).format('DD MMM YYYY')
+                                  : (dob || user?.dob || user?.dateOfBirth))
+                              : 'Not Provided')
+                          : (privacySettings.maskDob || user?.isDobMasked
+                              ? '••••••••••'
+                              : (dob || user?.dob || user?.dateOfBirth
+                                  ? (dayjs(dob || user?.dob || user?.dateOfBirth).isValid()
+                                      ? dayjs(dob || user?.dob || user?.dateOfBirth).format('DD MMM YYYY')
+                                      : (dob || user?.dob || user?.dateOfBirth))
+                                  : 'Not Provided'))}
+                      </Typography>
+                    </Box>
+                  </Stack>
 
                   {/* Adhaar Number */}
                   <Stack direction="row" spacing={2} alignItems="center">

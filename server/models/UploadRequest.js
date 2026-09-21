@@ -58,7 +58,10 @@ const UploadRequestSchema = new mongoose.Schema({
   },
   // Fields for Event requests
   eventDetails: {
+    existingEvent: { type: mongoose.Schema.Types.ObjectId, ref: 'Event', default: null },
     eventDate: { type: Date },
+    startDate: { type: Date },
+    endDate: { type: Date },
     startTime: { type: String },
     endTime: { type: String },
     location: { type: String },

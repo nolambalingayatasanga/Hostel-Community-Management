@@ -39,85 +39,103 @@ exports.getMetadata = async (req, res, next) => {
       }
     }
 
-    // Auto-ensure Relative Name, Channels, Role, Login Details, and DOB exist
+    // Auto-migrate Course to Branch, Start Year to College Joining, End Year to Graduation Year
+    for (const f of customFields) {
+      if ((f.slug || '').toLowerCase() === 'education.course' && f.name !== 'Branch') {
+        f.name = 'Branch';
+        await CustomField.findByIdAndUpdate(f._id, { name: 'Branch' });
+      }
+      if ((f.slug || '').toLowerCase() === 'education.startyear' && f.name !== 'College Joining') {
+        f.name = 'College Joining';
+        await CustomField.findByIdAndUpdate(f._id, { name: 'College Joining' });
+      }
+      if ((f.slug || '').toLowerCase() === 'education.endyear' && f.name !== 'Graduation Year') {
+        f.name = 'Graduation Year';
+        await CustomField.findByIdAndUpdate(f._id, { name: 'Graduation Year' });
+      }
+    }
+
+    // Auto-ensure default columns and required schema fields exist
     const slugs = customFields.map(f => (f.slug || '').toLowerCase());
     let added = false;
     let maxOrder = customFields.reduce((max, f) => Math.max(max, f.order || 0), 7);
 
-    if (!slugs.includes('dob')) {
-      maxOrder += 1;
-      const f = await CustomField.create({
-        name: 'DOB',
-        slug: 'dob',
-        type: 'date',
-        isInternal: true,
-        order: maxOrder,
-        isVisible: true
-      });
-      customFields.push(f);
-      added = true;
+    const defaultFieldsToEnsure = [
+      { name: 'Name', slug: 'name', type: 'text', isInternal: true, order: 0 },
+      { name: 'Email', slug: 'email', type: 'email', isInternal: true, order: 1 },
+      { name: 'Phone', slug: 'phone', type: 'text', isInternal: true, order: 2 },
+      { name: 'Channels', slug: 'channels', type: 'text', isInternal: true, order: 3 },
+      { name: 'College', slug: 'education.college', type: 'text', isInternal: true, order: 4 },
+      { name: 'Branch', slug: 'education.course', type: 'text', isInternal: true, order: 5 },
+      { name: 'DOB', slug: 'dob', type: 'date', isInternal: true, order: 6 },
+      { name: 'College Joining', slug: 'education.startYear', type: 'number', isInternal: true, order: 7 },
+      { name: 'Graduation Year', slug: 'education.endYear', type: 'number', isInternal: true, order: 8 },
+      { name: 'Role', slug: 'role', type: 'select', options: ['ADMIN', 'WARDEN', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'], isInternal: true, order: 9 },
+      { name: 'Relative Name', slug: 'relativeName', type: 'text', isInternal: true, order: 10 },
+      { name: 'Login Details', slug: 'loginDetails', type: 'text', isInternal: true, order: 11 },
+    ];
+
+    for (const df of defaultFieldsToEnsure) {
+      if (!slugs.includes(df.slug.toLowerCase())) {
+        maxOrder += 1;
+        const created = await CustomField.create({
+          ...df,
+          order: maxOrder,
+          isVisible: true
+        });
+        customFields.push(created);
+        slugs.push(df.slug.toLowerCase());
+        added = true;
+      }
     }
 
-    if (!slugs.includes('relativename')) {
-      maxOrder += 1;
-      const f = await CustomField.create({
-        name: 'Relative Name',
-        slug: 'relativeName',
-        type: 'text',
-        isInternal: true,
-        order: maxOrder,
-        isVisible: true
-      });
-      customFields.push(f);
-      added = true;
+    const defaultSlugOrders = {
+      'name': 0,
+      'email': 1,
+      'phone': 2,
+      'channels': 3,
+      'education.college': 4,
+      'education.course': 5,
+      'dob': 6,
+      'education.startyear': 7,
+      'education.endyear': 8,
+      'role': 9,
+      'gender': 10,
+      'slno': 11,
+      'registrationnumber': 12,
+      'receiptno': 13,
+      'locallanguagedetails': 14,
+      'adhaar': 15,
+      'relativename': 16,
+      'address.street': 17,
+      'address.area': 18,
+      'address.landmark': 19,
+      'address.location': 20,
+      'address.city': 21,
+      'address.district': 22,
+      'address.taluk': 23,
+      'address.pincode': 24,
+      'education.startmonth': 25,
+      'education.endmonth': 26,
+      'employment.occupation': 27,
+      'employment.organization': 28,
+      'employment.industry': 29,
+      'employment.worklocation': 30,
+      'employment.employmentstatus': 31,
+      'employment.businessname': 32,
+      'employment.businesstype': 33,
+      'logindetails': 34,
+    };
+
+    for (const f of customFields) {
+      const s = (f.slug || '').toLowerCase();
+      if (defaultSlugOrders[s] !== undefined && f.order !== defaultSlugOrders[s]) {
+        f.order = defaultSlugOrders[s];
+        await CustomField.findByIdAndUpdate(f._id, { order: defaultSlugOrders[s] });
+      }
     }
 
-    if (!slugs.includes('channels')) {
-      maxOrder += 1;
-      const f = await CustomField.create({
-        name: 'Channels',
-        slug: 'channels',
-        type: 'text',
-        isInternal: true,
-        order: maxOrder,
-        isVisible: true
-      });
-      customFields.push(f);
-      added = true;
-    }
-
-    if (!slugs.includes('role')) {
-      maxOrder += 1;
-      const f = await CustomField.create({
-        name: 'Role',
-        slug: 'role',
-        type: 'select',
-        options: ['ADMIN', 'WARDEN', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'],
-        isInternal: true,
-        order: maxOrder,
-        isVisible: true
-      });
-      customFields.push(f);
-      added = true;
-    }
-
-    if (!slugs.includes('logindetails')) {
-      maxOrder += 1;
-      const f = await CustomField.create({
-        name: 'Login Details',
-        slug: 'loginDetails',
-        type: 'text',
-        isInternal: true,
-        order: maxOrder,
-        isVisible: true
-      });
-      customFields.push(f);
-      added = true;
-    }
-
-    if (added) {
-      customFields.sort((a, b) => (a.order || 0) - (b.order || 0));
-    }
+    customFields.sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
 
     // Filter out obsolete Status column
     customFields = customFields.filter(f => (f.slug || '').toLowerCase() !== 'status' && (f.name || '').toLowerCase() !== 'status');

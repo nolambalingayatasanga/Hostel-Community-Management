@@ -5,15 +5,13 @@ import { ACCESS_COLORS } from '../data/accessControlData';
 
 const AccessPageHeader = ({ pageCount, roleCount }) => {
   return (
-    <Box sx={{ mb: 3 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+    <Box sx={{ mb: { xs: 2, sm: 3 } }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: { xs: 1, sm: 2 }, flexWrap: 'wrap' }}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: '-0.02em', color: ACCESS_COLORS.primary }}>
+          <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: '-0.02em', color: ACCESS_COLORS.primary, fontSize: { xs: '1.5rem', sm: '2rem' } }}>
             Access Control
           </Typography>
-          <Typography variant="body2" sx={{ color: ACCESS_COLORS.muted, mt: 0.5 }}>
-            Configure which pages and actions each role can access. Changes are applied instantly after save.
-          </Typography>
+
         </Box>
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
           <Chip

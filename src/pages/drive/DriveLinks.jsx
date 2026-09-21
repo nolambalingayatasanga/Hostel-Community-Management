@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -87,6 +88,7 @@ function GoogleDriveLogo({ size = 40 }) {
 }
 
 export default function DriveLinks() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { canCreate } = usePermissions();
   const { enqueueSnackbar } = useSnackbar();
@@ -362,8 +364,8 @@ export default function DriveLinks() {
           </Box>
         </Stack>
 
-        {/* Right: Add button */}
-        {hasFullAccess && (
+        {/* Right: Add button / Upload Drive button */}
+        {hasFullAccess ? (
           <Button
             variant="contained"
             startIcon={<AddIcon />}
@@ -377,6 +379,21 @@ export default function DriveLinks() {
           >
             <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Add Drive Link</Box>
             <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>Add</Box>
+          </Button>
+        ) : (
+          <Button
+            variant="contained"
+            startIcon={<CloudUploadIcon />}
+            onClick={() => navigate('/request-upload?tab=submit&category=drive_links')}
+            sx={{
+              bgcolor: '#2563EB', color: '#FFFFFF', textTransform: 'none', fontWeight: 700,
+              borderRadius: '10px', px: { xs: 2, sm: 2.5 }, py: 1, fontSize: { xs: 12, sm: 13 },
+              boxShadow: '0 4px 14px rgba(37,99,235,0.35)', flexShrink: 0, zIndex: 1,
+              '&:hover': { bgcolor: '#1D4ED8', boxShadow: '0 6px 18px rgba(37,99,235,0.45)' }
+            }}
+          >
+            <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Upload Drive</Box>
+            <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>Upload</Box>
           </Button>
         )}
       </Box>
@@ -532,10 +549,15 @@ export default function DriveLinks() {
                 : 'Google Drive folders containing high-resolution event media will appear here.'}
             </Typography>
      
-            {hasFullAccess && (
+            {hasFullAccess ? (
               <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenCreate}
                 sx={{ bgcolor: '#2563EB', textTransform: 'none', fontWeight: 600, borderRadius: '8px', '&:hover': { bgcolor: '#1D4ED8' } }}>
                 Add Drive Link
+              </Button>
+            ) : (
+              <Button variant="contained" startIcon={<CloudUploadIcon />} onClick={() => navigate('/request-upload?tab=submit&category=drive_links')}
+                sx={{ bgcolor: '#2563EB', textTransform: 'none', fontWeight: 600, borderRadius: '8px', '&:hover': { bgcolor: '#1D4ED8' } }}>
+                Upload Drive
               </Button>
             )}
           </Card>

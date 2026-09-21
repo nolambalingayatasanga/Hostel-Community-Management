@@ -1,13 +1,19 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
-import { Box, Select, MenuItem, TextField, Typography, Tooltip, CircularProgress } from "@mui/material";
+import { Box, Select, MenuItem, TextField, Typography, Tooltip, CircularProgress, SvgIcon } from "@mui/material";
 import {
   KeyboardArrowDown as ChevronDownIcon,
   WhatsApp as WhatsAppIcon,
   Instagram as InstagramIcon,
   LinkedIn as LinkedInIcon,
+  GitHub as GitHubIcon,
+  Language as LanguageIcon,
+  PictureAsPdf as PictureAsPdfIcon,
   CheckCircle as CheckCircleIcon,
   Shield as SecurityIcon,
+  ContentCopy as ContentCopyIcon,
+  Check as CheckIcon,
+  Edit as EditIcon,
 } from "@mui/icons-material";
 import debounce from "lodash/debounce";
 
@@ -18,6 +24,15 @@ const ChatIcon = (props) => (
     <path d="M8 9h8" strokeWidth="2" strokeLinecap="round" />
     <path d="M8 13h5" strokeWidth="2" strokeLinecap="round" />
   </svg>
+);
+
+const BehanceIcon = (props) => (
+  <SvgIcon {...props} viewBox="0 0 24 24">
+    <path
+      d="M22 7h-7V5h7v2zm1.726 10c-.442 1.297-2.029 3-5.171 3-3.445 0-5.555-2.5-5.555-6.111 0-3.694 2.15-6.222 5.555-6.222 3.42 0 5.093 2.444 5.093 5.417 0 .528-.051 1.056-.126 1.472H16.03c.075 1.5 1.056 2.583 2.54 2.583 1.132 0 1.96-.583 2.338-1.5h2.818v.361zM18.88 12.5c-.05-1.194-.855-2.083-2.263-2.083-1.332 0-2.187.889-2.313 2.083h4.576zM2 18h6.242c3.041 0 4.758-1.444 4.758-3.778 0-1.583-.98-2.611-2.288-3.028 1.03-.444 1.76-1.389 1.76-2.694 0-2.139-1.635-3.5-4.23-3.5H2v13zm3.116-7.806h2.79c1.03 0 1.634.528 1.634 1.444 0 .917-.603 1.472-1.634 1.472H5.116v-2.916zm0 5.028h3.042c1.131 0 1.834.583 1.834 1.611 0 1.028-.703 1.639-1.834 1.639H5.116v-3.25z"
+      fill="currentColor"
+    />
+  </SvgIcon>
 );
 
 import { INTERNAL_SLUGS, leadFieldValue, formatLeadDate, formatLeadDateTime, isFieldNonEditable } from "./leadHelpers";
@@ -65,6 +80,48 @@ const readSx = (editable, isLocked = false) => ({
     userSelect: "none",
   }),
 });
+
+function CopyButton({ text, tooltip = "Copy", sx }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = (e) => {
+    e.stopPropagation();
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <Tooltip title={copied ? "Copied!" : tooltip} arrow>
+      <Box
+        component="span"
+        onClick={handleCopy}
+        sx={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "pointer",
+          p: 0.5,
+          borderRadius: "4px",
+          color: copied ? "#12B76A" : "#98A2B3",
+          flexShrink: 0,
+          "&:hover": {
+            backgroundColor: "#F2F4F7",
+            color: copied ? "#12B76A" : "#344054",
+          },
+          ...sx,
+        }}
+      >
+        {copied ? (
+          <CheckIcon sx={{ fontSize: 14, color: "#12B76A" }} />
+        ) : (
+          <ContentCopyIcon sx={{ fontSize: 14 }} />
+        )}
+      </Box>
+    </Tooltip>
+  );
+}
 
 // Debounced Inline Text Editor component with live auto-save
 function InlineTextEditor({
@@ -272,6 +329,8 @@ export default function LeadCell({
     if (isRole) return row.role || "";
     if (isGender) return row.gender || "";
     if (isDob) {
+      const isDobHidden = Boolean(row.raw?.isDobMasked || row.raw?.privacySettings?.maskDob);
+      if (isDobHidden && !forEdit) return "••••••••••";
       const rawDob = row.dobRaw || row.raw?.dob || row.raw?.dateOfBirth || row.dob || row.dateOfBirth;
       if (!rawDob) return "";
       const d = new Date(rawDob);
@@ -364,64 +423,136 @@ export default function LeadCell({
             mt: 0.25,
           }}
         >
-          {formatLeadDate(row.joiningDate) || "—"}
+          {Boolean(row.raw?.isDobMasked || row.raw?.privacySettings?.maskDob)
+            ? "••••••••••"
+            : (row.dob || row.dateOfBirth || (row.raw?.dob ? formatLeadDate(row.raw.dob) : (row.raw?.dateOfBirth ? formatLeadDate(row.raw.dateOfBirth) : "Date of Birth")))}
         </Typography>
       </Box>
     );
   }
 
-  // 2. Phone View with same standard Cell UI
+  // 2. Phone View with standard Cell UI & Copy button
   if (isPhone && !isEditing) {
     const isPhoneHidden = Boolean(row.raw?.isPhoneMasked || row.raw?.privacySettings?.maskPhone);
     const rawPhone = isPhoneHidden ? "" : (row.phone || "");
     return wrap(
       <Box
         onClick={editable && !isPhoneHidden ? onStartEdit : undefined}
-        sx={readSx(editable && !isPhoneHidden)}
-        title={isPhoneHidden ? "Phone is hidden by user privacy settings" : rawPhone}
+        sx={{
+          ...readSx(editable && !isPhoneHidden),
+          justifyContent: "space-between",
+          pr: 1,
+        }}
+        title={isPhoneHidden ? "Phone is hidden by user privacy settings" : (editable ? `Click to edit: ${rawPhone}` : rawPhone)}
       >
         <Typography
           variant="body2"
           sx={{
             color: rawPhone ? "#101828" : isPhoneHidden ? "#64748B" : "#98A2B3",
             fontSize: "0.875rem",
-            fontWeight:  500,
+            fontWeight: 500,
             fontStyle: isPhoneHidden ? "italic" : "normal",
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
+            flex: 1,
           }}
         >
           {rawPhone || (isPhoneHidden ? "••••••••••" : "-")}
         </Typography>
+
+        {rawPhone && !isPhoneHidden && (
+          <CopyButton text={rawPhone} tooltip="Copy Phone Number" />
+        )}
       </Box>
     );
   }
 
-  // 3. Email View with same standard Cell UI
+  // 3. Email View with Gmail composer on click & Copy icon
   if (isEmail && !isEditing) {
     const isEmailHidden = Boolean(row.raw?.isEmailMasked || row.raw?.privacySettings?.maskEmail);
     const rawEmail = isEmailHidden ? "" : (row.email || "");
+
+    const handleEmailClick = (e) => {
+      e.stopPropagation();
+      if (!rawEmail || isEmailHidden) return;
+      const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(rawEmail)}`;
+      window.open(gmailUrl, "_blank", "noopener,noreferrer");
+    };
+
     return wrap(
       <Box
-        onClick={editable && !isEmailHidden ? onStartEdit : undefined}
-        sx={readSx(editable && !isEmailHidden)}
-        title={isEmailHidden ? "Email is hidden by user privacy settings" : rawEmail}
+        onDoubleClick={editable && !isEmailHidden ? onStartEdit : undefined}
+        sx={{
+          ...readSx(false),
+          justifyContent: "space-between",
+          pr: 1,
+        }}
+        title={isEmailHidden ? "Email is hidden by user privacy settings" : `Click to compose in Gmail: ${rawEmail}`}
       >
-        <Typography
-          variant="body2"
+        <Box
+          onClick={handleEmailClick}
           sx={{
-            color: rawEmail ? "#101828" : isEmailHidden ? "#64748B" : "#98A2B3",
-            fontSize: "0.875rem",
-            fontWeight: 500,
-            fontStyle: isEmailHidden ? "italic" : "normal",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
+            display: "flex",
+            alignItems: "center",
+            flex: 1,
+            minWidth: 0,
+            cursor: rawEmail && !isEmailHidden ? "pointer" : "default",
+            "&:hover .email-text": {
+              color: rawEmail && !isEmailHidden ? "#0088ff" : undefined,
+              textDecoration: rawEmail && !isEmailHidden ? "underline" : "none",
+            },
           }}
         >
-          {rawEmail || (isEmailHidden ? "••••••••••••" : "-")}
-        </Typography>
+          <Typography
+            className="email-text"
+            variant="body2"
+            sx={{
+              color: rawEmail ? "#101828" : isEmailHidden ? "#64748B" : "#98A2B3",
+              fontSize: "0.875rem",
+              fontWeight: 500,
+              fontStyle: isEmailHidden ? "italic" : "normal",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              transition: "color 0.15s ease",
+            }}
+          >
+            {rawEmail || (isEmailHidden ? "••••••••••••" : "-")}
+          </Typography>
+        </Box>
+
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, ml: 1, flexShrink: 0 }}>
+          {rawEmail && !isEmailHidden && (
+            <CopyButton text={rawEmail} tooltip="Copy Email" />
+          )}
+          {editable && !isEmailHidden && (
+            <Tooltip title="Edit Email" arrow>
+              <Box
+                component="span"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onStartEdit();
+                }}
+                sx={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  p: 0.5,
+                  borderRadius: "4px",
+                  color: "#98A2B3",
+                  "&:hover": {
+                    backgroundColor: "#F2F4F7",
+                    color: "#0088ff",
+                  },
+                }}
+              >
+                <EditIcon sx={{ fontSize: 14 }} />
+              </Box>
+            </Tooltip>
+          )}
+        </Box>
       </Box>
     );
   }
@@ -454,7 +585,7 @@ export default function LeadCell({
     );
   }
 
-  // 3. Channels View (WhatsApp, Instagram, LinkedIn icons)
+  // 3. Channels View (WhatsApp, Portfolio, GitHub, Behance, LinkedIn, Instagram, Resume)
   if (isChannels && !isEditing) {
     const ch = row.channels || row.raw?.channels || {};
     const isPhoneHidden = Boolean(row.raw?.isPhoneMasked || row.raw?.privacySettings?.maskPhone);
@@ -467,8 +598,18 @@ export default function LeadCell({
       ? (ch.linkedin.startsWith("http") ? ch.linkedin : `https://linkedin.com/in/${ch.linkedin.replace(/^\/+/, "")}`)
       : null;
     const whatsappUrl = whatsappNum ? `https://wa.me/${whatsappNum}` : null;
+    const portfolioUrl = ch.portfolio
+      ? (ch.portfolio.startsWith("http") ? ch.portfolio : `https://${ch.portfolio}`)
+      : null;
+    const githubUrl = ch.github
+      ? (ch.github.startsWith("http") ? ch.github : `https://github.com/${ch.github.replace(/^@/, "")}`)
+      : null;
+    const behanceUrl = ch.behance
+      ? (ch.behance.startsWith("http") ? ch.behance : `https://behance.net/${ch.behance.replace(/^@/, "")}`)
+      : null;
+    const resumeUrl = ch.resume?.url || (typeof ch.resume === 'string' && ch.resume ? ch.resume : null);
 
-    const hasAny = Boolean(whatsappUrl || instagramUrl || linkedinUrl);
+    const hasAny = Boolean(whatsappUrl || instagramUrl || linkedinUrl || portfolioUrl || githubUrl || behanceUrl || resumeUrl);
 
     if (!hasAny) {
       return wrap(
@@ -481,7 +622,7 @@ export default function LeadCell({
     }
 
     return wrap(
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", gap: 1.5, minHeight: 38 }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", gap: 1.25, minHeight: 38, flexWrap: "wrap", py: 0.5 }}>
         {whatsappUrl && (
           <Tooltip title="Chat on WhatsApp" arrow>
             <Box
@@ -499,15 +640,15 @@ export default function LeadCell({
                 "&:hover": { transform: "scale(1.2)" },
               }}
             >
-              <WhatsAppIcon sx={{ fontSize: 22 }} />
+              <WhatsAppIcon sx={{ fontSize: 20 }} />
             </Box>
           </Tooltip>
         )}
-        {instagramUrl && (
-          <Tooltip title="View Instagram Profile" arrow>
+        {portfolioUrl && (
+          <Tooltip title="Visit Portfolio Website" arrow>
             <Box
               component="a"
-              href={instagramUrl}
+              href={portfolioUrl}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
@@ -515,12 +656,54 @@ export default function LeadCell({
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "#E1306C",
+                color: "#0284C7",
                 transition: "transform 0.15s ease",
                 "&:hover": { transform: "scale(1.2)" },
               }}
             >
-              <InstagramIcon sx={{ fontSize: 20 }} />
+              <LanguageIcon sx={{ fontSize: 19 }} />
+            </Box>
+          </Tooltip>
+        )}
+        {githubUrl && (
+          <Tooltip title="View GitHub Profile" arrow>
+            <Box
+              component="a"
+              href={githubUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              sx={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#24292E",
+                transition: "transform 0.15s ease",
+                "&:hover": { transform: "scale(1.2)" },
+              }}
+            >
+              <GitHubIcon sx={{ fontSize: 18 }} />
+            </Box>
+          </Tooltip>
+        )}
+        {behanceUrl && (
+          <Tooltip title="View Behance Portfolio" arrow>
+            <Box
+              component="a"
+              href={behanceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              sx={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#0057FF",
+                transition: "transform 0.15s ease",
+                "&:hover": { transform: "scale(1.2)" },
+              }}
+            >
+              <BehanceIcon sx={{ fontSize: 18 }} />
             </Box>
           </Tooltip>
         )}
@@ -541,7 +724,49 @@ export default function LeadCell({
                 "&:hover": { transform: "scale(1.2)" },
               }}
             >
-              <LinkedInIcon sx={{ fontSize: 20 }} />
+              <LinkedInIcon sx={{ fontSize: 19 }} />
+            </Box>
+          </Tooltip>
+        )}
+        {instagramUrl && (
+          <Tooltip title="View Instagram Profile" arrow>
+            <Box
+              component="a"
+              href={instagramUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              sx={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#E1306C",
+                transition: "transform 0.15s ease",
+                "&:hover": { transform: "scale(1.2)" },
+              }}
+            >
+              <InstagramIcon sx={{ fontSize: 19 }} />
+            </Box>
+          </Tooltip>
+        )}
+        {resumeUrl && (
+          <Tooltip title="Preview Resume" arrow>
+            <Box
+              component="a"
+              href={resumeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              sx={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#DC2626",
+                transition: "transform 0.15s ease",
+                "&:hover": { transform: "scale(1.2)" },
+              }}
+            >
+              <PictureAsPdfIcon sx={{ fontSize: 19 }} />
             </Box>
           </Tooltip>
         )}

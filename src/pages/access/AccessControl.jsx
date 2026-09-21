@@ -242,7 +242,7 @@ const AccessControl = () => {
   }
 
   return (
-    <Box sx={{ p: 2, maxWidth: 1440, margin: '0 auto' }}>
+    <Box sx={{ p: { xs: 1.5, sm: 2.5 }, maxWidth: 1440, margin: '0 auto' }}>
       <AccessHeaderActions
         portalNode={portalNode}
         saving={saving}

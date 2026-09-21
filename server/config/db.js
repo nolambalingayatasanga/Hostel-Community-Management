@@ -27,16 +27,37 @@ const connectDB = async () => {
         }
       );
 
+      // Migrate course to Branch, startYear to College Joining, endYear to Graduation Year
+      await CustomField.updateMany(
+        { slug: 'education.course' },
+        { $set: { name: 'Branch' } }
+      );
+      await CustomField.updateMany(
+        { slug: 'education.startYear' },
+        { $set: { name: 'College Joining' } }
+      );
+      await CustomField.updateMany(
+        { slug: 'education.endYear' },
+        { $set: { name: 'Graduation Year' } }
+      );
+
       const schemaFields = [
+        { name: 'Name', slug: 'name', type: 'text', isInternal: true },
+        { name: 'Email', slug: 'email', type: 'email', isInternal: true },
+        { name: 'Phone', slug: 'phone', type: 'text', isInternal: true },
+        { name: 'Channels', slug: 'channels', type: 'text', isInternal: true },
+        { name: 'College', slug: 'education.college', type: 'text', isInternal: true },
+        { name: 'Branch', slug: 'education.course', type: 'text', isInternal: true },
+        { name: 'DOB', slug: 'dob', type: 'date', isInternal: true },
+        { name: 'College Joining', slug: 'education.startYear', type: 'number', isInternal: true },
+        { name: 'Graduation Year', slug: 'education.endYear', type: 'number', isInternal: true },
+        { name: 'Role', slug: 'role', type: 'select', options: ['ADMIN', 'WARDEN', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'], isInternal: true },
         { name: 'Slot No.', slug: 'slNo', type: 'number', isInternal: true },
         { name: 'Reg No.', slug: 'registrationNumber', type: 'text', isInternal: true },
         { name: 'Receipt No', slug: 'receiptNo', type: 'text', isInternal: true },
         { name: 'Kanada Overview', slug: 'localLanguageDetails', type: 'text', isInternal: true },
         { name: 'Adhaar', slug: 'adhaar', type: 'text', isInternal: true },
-        { name: 'DOB', slug: 'dob', type: 'date', isInternal: true },
-        { name: 'Role', slug: 'role', type: 'select', options: ['ADMIN', 'WARDEN', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'], isInternal: true },
         { name: 'Relative Name', slug: 'relativeName', type: 'text', isInternal: true },
-        { name: 'Channels', slug: 'channels', type: 'text', isInternal: true },
         { name: 'Street', slug: 'address.street', type: 'text', isInternal: true },
         { name: 'Area', slug: 'address.area', type: 'text', isInternal: true },
         { name: 'Landmark', slug: 'address.landmark', type: 'text', isInternal: true },
@@ -46,12 +67,8 @@ const connectDB = async () => {
         { name: 'Taluk', slug: 'address.taluk', type: 'text', isInternal: true },
         { name: 'Pincode', slug: 'address.pincode', type: 'text', isInternal: true },
 
-        { name: 'College', slug: 'education.college', type: 'text', isInternal: true },
-        { name: 'Course', slug: 'education.course', type: 'text', isInternal: true },
         { name: 'Edu Start Month', slug: 'education.startMonth', type: 'number', isInternal: true },
-        { name: 'Edu Start Year', slug: 'education.startYear', type: 'number', isInternal: true },
         { name: 'Edu End Month', slug: 'education.endMonth', type: 'number', isInternal: true },
-        { name: 'Edu End Year', slug: 'education.endYear', type: 'number', isInternal: true },
         { name: 'Occupation', slug: 'employment.occupation', type: 'text', isInternal: true },
         { name: 'Organization', slug: 'employment.organization', type: 'text', isInternal: true },
         { name: 'Industry', slug: 'employment.industry', type: 'text', isInternal: true },

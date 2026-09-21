@@ -93,8 +93,8 @@ const ActivePrivilegesCard = ({
         borderRadius: '14px',
         border: `1px solid ${ACCESS_COLORS.border}`,
         backgroundColor: '#FFFFFF',
-        p: { xs: 2.5, md: 3 },
-        mb: 3,
+        p: { xs: 1.5, sm: 2.5, md: 3 },
+        mb: { xs: 2, sm: 3 },
         boxShadow: 'none'
       }}
     >
@@ -155,12 +155,11 @@ const ActivePrivilegesCard = ({
         sx={{
           display: 'grid',
           gridTemplateColumns: {
-            xs: '1fr',
-            sm: 'repeat(2, 1fr)',
-            md: 'repeat(3, 1fr)',
+            xs: 'repeat(2, 1fr)',
+            sm: 'repeat(3, 1fr)',
             lg: 'repeat(6, 1fr)'
           },
-          gap: 2
+          gap: { xs: 1.25, sm: 2 }
         }}
       >
         {PERMISSION_CARDS.map((item) => {
@@ -170,7 +169,7 @@ const ActivePrivilegesCard = ({
               key={item.key}
               onClick={() => onPermissionChange(item.key, !currentPermissions[item.key])}
               sx={{
-                p: 2.05,
+                p: { xs: 1.5, sm: 2.05 },
                 borderRadius: '12px',
                 border: isActive ? `2px solid ${item.activeBorder}` : `1.2px solid ${ACCESS_COLORS.border}`,
                 backgroundColor: isActive ? item.activeBg : '#FFFFFF',
@@ -206,21 +205,21 @@ const ActivePrivilegesCard = ({
 
               <Box
                 sx={{
-                  width: 38,
-                  height: 38,
+                  width: { xs: 32, sm: 38 },
+                  height: { xs: 32, sm: 38 },
                   borderRadius: '10px',
                   backgroundColor: `${item.themeColor}15`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: item.themeColor,
-                  mb: 1.5
+                  mb: 1.2
                 }}
               >
-                {item.icon}
+                {React.cloneElement(item.icon, { sx: { fontSize: { xs: 20, sm: 24 } } })}
               </Box>
 
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '15px', color: isActive ? item.themeColor : '#0F172A', mb: 0.3 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: { xs: '13.5px', sm: '15px' }, color: isActive ? item.themeColor : '#0F172A', mb: 0.3 }}>
                 {(() => {
                   if (selectedPage === 'gallery') {
                     if (item.key === 'create') return 'Upload Media';
@@ -289,7 +288,7 @@ const ActivePrivilegesCard = ({
               Gallery Media Access & Ownership Control
             </Typography>
             <Typography variant="body2" sx={{ color: '#64748B', fontSize: '12.5px', lineHeight: 1.5 }}>
-              Users with <strong>Upload Media (Create)</strong> permission can upload photos and videos to existing gallery folders. Users with <strong>Delete (Own)</strong> can remove only the media assets they personally uploaded. Administrators and Wardens have full privileges to manage all folders and delete any media item.
+              Users with <strong>Create</strong> permission can upload photos and videos to existing gallery folders. Users with <strong>Delete (Own)</strong> can remove only the media assets they personally uploaded.
             </Typography>
           </Box>
         </Box>

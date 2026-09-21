@@ -17,17 +17,19 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
+  Chip
 } from "@mui/material";
 import {
   Add as AddIcon,
   Close as CloseIcon,
   DragIndicator as DragIndicatorIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
+  Lock as LockIcon
 } from "@mui/icons-material";
 
 import { useCustomFieldMutations } from "./crmHooks";
 import AddFieldForm from "./AddFieldForm";
-import { getColumnDisplayName } from "./leadHelpers";
+import { getColumnDisplayName, isDefaultColumn, getDefaultColumnIndex } from "./leadHelpers";
 
 export default function ColumnSelectorPanel({
   open,
@@ -40,9 +42,10 @@ export default function ColumnSelectorPanel({
   currentTabHidden,
   onSaveTabLayout
 }) {
-  const { saveLayout, create, remove, fetchUsage } = useCustomFieldMutations();
+  const { create, remove, fetchUsage } = useCustomFieldMutations();
 
-  const [draft, setDraft] = useState([]);
+  const [fixedCols, setFixedCols] = useState([]);
+  const [otherCols, setOtherCols] = useState([]);
   const [search, setSearch] = useState("");
   const [adding, setAdding] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null);
@@ -56,63 +59,68 @@ export default function ColumnSelectorPanel({
     const orderMap = currentTabOrder && currentTabOrder.length > 0
       ? new Map(currentTabOrder.map((id, index) => [String(id), index]))
       : null;
+    const hasCustomHidden = currentTabHidden !== null && currentTabHidden !== undefined;
     const hiddenSet = new Set(currentTabHidden || []);
 
-    const sorted = all.map(f => ({
-      ...f,
-      isVisible: ((f.slug || '').toLowerCase() === 'name' || (f.name || '').toLowerCase() === 'name') ? true : (hiddenSet.has(String(f._id)) ? false : (f.isVisible !== false))
-    })).sort((a, b) => {
-      const isNameA = (a.slug || '').toLowerCase() === 'name' || (a.name || '').toLowerCase() === 'name';
-      const isNameB = (b.slug || '').toLowerCase() === 'name' || (b.name || '').toLowerCase() === 'name';
-      if (isNameA) return -1;
-      if (isNameB) return 1;
-      if (orderMap) {
+    // 1. Fixed Default Columns (Always visible, non-draggable, permanently pinned)
+    const fixed = all
+      .filter(isDefaultColumn)
+      .map((f) => ({
+        ...f,
+        isVisible: true
+      }))
+      .sort((a, b) => getDefaultColumnIndex(a) - getDefaultColumnIndex(b));
+
+    // 2. Other Remaining Columns (Can be dragged, dropped, reordered, hidden)
+    const others = all
+      .filter((f) => !isDefaultColumn(f))
+      .map((f) => ({
+        ...f,
+        isVisible: hasCustomHidden ? !hiddenSet.has(String(f._id)) : true
+      }));
+
+    if (orderMap) {
+      others.sort((a, b) => {
         const idxA = orderMap.has(String(a._id)) ? orderMap.get(String(a._id)) : 9999 + (a.order ?? 0);
         const idxB = orderMap.has(String(b._id)) ? orderMap.get(String(b._id)) : 9999 + (b.order ?? 0);
         return idxA - idxB;
-      }
-      return (a.order ?? 0) - (b.order ?? 0);
-    });
+      });
+    } else {
+      others.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    }
 
-    setDraft(sorted);
+    setFixedCols(fixed);
+    setOtherCols(others);
     setSearch("");
     setAdding(false);
   }, [open, customFields, currentTabOrder, currentTabHidden]);
 
   const handleClose = () => {
     if (onSaveTabLayout && activeTabId) {
-      const orderIds = draft.map((f) => String(f._id));
-      const hiddenIds = draft.filter((f) => !f.isVisible).map((f) => String(f._id));
+      const orderIds = [
+        ...fixedCols.map((f) => String(f._id)),
+        ...otherCols.map((f) => String(f._id))
+      ];
+      const hiddenIds = otherCols.filter((f) => !f.isVisible).map((f) => String(f._id));
       onSaveTabLayout(activeTabId, orderIds, hiddenIds);
-    } else if (canManage) {
-      saveLayout.mutate(draft.map((f, index) => ({ ...f, order: index })));
     }
     onClose();
   };
 
-  const toggle = (id) =>
-    setDraft((prev) =>
-      prev.map((f) => {
-        const isName = (f.slug || '').toLowerCase() === 'name' || (f.name || '').toLowerCase() === 'name';
-        if (isName) return f;
-        return String(f._id) === String(id) ? { ...f, isVisible: !f.isVisible } : f;
-      }),
-    );
-
-  const handleDragEnd = (result) => {
+  const handleOtherDragEnd = (result) => {
     if (!result.destination) return;
-    setDraft((prev) => {
+    setOtherCols((prev) => {
       const next = Array.from(prev);
       const [moved] = next.splice(result.source.index, 1);
       next.splice(result.destination.index, 0, moved);
-      // Guarantee Name remains strictly at index 0
-      const nameIdx = next.findIndex(f => (f.slug || '').toLowerCase() === 'name' || (f.name || '').toLowerCase() === 'name');
-      if (nameIdx > 0) {
-        const [nameItem] = next.splice(nameIdx, 1);
-        next.unshift(nameItem);
-      }
       return next;
     });
+  };
+
+  const toggleOther = (id) => {
+    setOtherCols((prev) =>
+      prev.map((f) => (String(f._id) === String(id) ? { ...f, isVisible: !f.isVisible } : f))
+    );
   };
 
   const askDelete = async (field) => {
@@ -125,8 +133,8 @@ export default function ColumnSelectorPanel({
   const confirmDelete = async () => {
     try {
       await remove.mutateAsync(pendingDelete._id);
-      setDraft((prev) =>
-        prev.filter((f) => String(f._id) !== String(pendingDelete._id)),
+      setOtherCols((prev) =>
+        prev.filter((f) => String(f._id) !== String(pendingDelete._id))
       );
     } finally {
       setPendingDelete(null);
@@ -134,17 +142,21 @@ export default function ColumnSelectorPanel({
   };
 
   const handleCreate = async (data) => {
-    const nextOrder = draft.reduce((max, f) => Math.max(max, f.order ?? 0), 0) + 1;
-    await create.mutateAsync({ ...data, order: nextOrder });
+    const nextOrder = otherCols.reduce((max, f) => Math.max(max, f.order ?? 0), 100) + 1;
+    const created = await create.mutateAsync({ ...data, order: nextOrder });
+    if (created) {
+      setOtherCols((prev) => [...prev, { ...created, isVisible: true }]);
+    }
     setAdding(false);
   };
 
   const term = search.trim().toLowerCase();
-  const shown = term
-    ? draft.filter((f) => f.name?.toLowerCase().includes(term))
-    : draft;
-
-  const canReorder = canManage && !term;
+  const shownFixed = term
+    ? fixedCols.filter((f) => (getColumnDisplayName(f) || f.name || "").toLowerCase().includes(term))
+    : fixedCols;
+  const shownOthers = term
+    ? otherCols.filter((f) => (getColumnDisplayName(f) || f.name || "").toLowerCase().includes(term))
+    : otherCols;
 
   return (
     <>
@@ -155,13 +167,22 @@ export default function ColumnSelectorPanel({
         PaperProps={{ sx: { width: { xs: "100%", sm: 420 } } }}
       >
         <Stack sx={{ height: "100%" }}>
+          {/* Header */}
           <Stack
             direction="row"
             alignItems="center"
             justifyContent="space-between"
             sx={{ p: 2, borderBottom: "1px solid #EAECF0" }}
           >
-         
+            <Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "#101828" }}>
+                Manage Columns
+              </Typography>
+              <Typography variant="caption" sx={{ color: "#667085" }}>
+                {activeTabName ? `Tab: ${activeTabName}` : "Configure column layout"}
+              </Typography>
+            </Box>
+
             <Stack direction="row" spacing={1} alignItems="center">
               {canManage && (
                 <Button
@@ -188,122 +209,203 @@ export default function ColumnSelectorPanel({
             />
           )}
 
+          {/* Search Box */}
           <Box sx={{ p: 2, pb: 1 }}>
             <TextField
               fullWidth
               size="small"
-              placeholder="Search fields..."
+              placeholder="Search columns..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               slotProps={{ input: { sx: { borderRadius: "8px" } } }}
             />
           </Box>
 
-          <Box sx={{ flex: 1, overflowY: "auto", px: 2 }}>
-            <DragDropContext onDragEnd={handleDragEnd}>
-              <Droppable droppableId="fields" isDropDisabled={!canReorder}>
-                {(provided) => (
-                  <Stack
-                    ref={provided.innerRef}
-                    {...provided.droppableProps}
-                    spacing={0.5}
-                  >
-                    {shown.map((field, index) => {
-                      const isInternal = field.isInternal;
-                      const isName = (field.slug || '').toLowerCase() === 'name' || (field.name || '').toLowerCase() === 'name';
-                      return (
-                        <Draggable
-                          key={field._id}
-                          draggableId={field._id}
-                          index={index}
-                          isDragDisabled={!canReorder || isName}
-                        >
-                          {(provided, snapshot) => (
-                            <Stack
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              direction="row"
-                              alignItems="center"
-                              justifyContent="space-between"
+          <Box sx={{ flex: 1, overflowY: "auto", px: 2, pb: 2 }}>
+            {/* Section 1: Fixed Default Columns (NON-DRAGGABLE, NON-DROPPABLE) */}
+            {shownFixed.length > 0 && (
+              <Box sx={{ mb: 2 }}>
+                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", py: 1 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: "#475467", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                    Default Columns ({shownFixed.length})
+                  </Typography>
+                  <Chip
+                    icon={<LockIcon sx={{ fontSize: "12px !important", color: "#667085 !important" }} />}
+                    label="Fixed • Not Draggable"
+                    size="small"
+                    sx={{
+                      height: 20,
+                      fontSize: "0.65rem",
+                      fontWeight: 600,
+                      backgroundColor: "#F2F4F7",
+                      color: "#475467",
+                      borderRadius: "4px"
+                    }}
+                  />
+                </Box>
+                <Stack spacing={0.5}>
+                  {shownFixed.map((field) => (
+                    <Stack
+                      key={String(field._id)}
+                      direction="row"
+                      alignItems="center"
+                      justifyContent="space-between"
+                      sx={{
+                        p: 1,
+                        borderRadius: "8px",
+                        backgroundColor: "#F9FAFB",
+                        border: "1px solid #EAECF0"
+                      }}
+                    >
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Tooltip title="Fixed default column (Always visible & non-draggable)" arrow>
+                          <span>
+                            <Checkbox
+                              size="small"
+                              checked={true}
+                              disabled={true}
                               sx={{
-                                p: 1,
-                                borderRadius: "8px",
-                                border: snapshot.isDragging
-                                  ? "1px solid #0088ff"
-                                  : "1px solid transparent",
-                                backgroundColor: snapshot.isDragging
-                                  ? "#F4F9FF"
-                                  : "transparent",
-                                "&:hover": {
+                                p: 0.5,
+                                color: "#0088ff",
+                                "&.Mui-disabled": { color: "#0088ff", opacity: 0.85 }
+                              }}
+                            />
+                          </span>
+                        </Tooltip>
+
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: "#101828",
+                            fontWeight: 600,
+                            lineHeight: 1,
+                            display: "inline-flex",
+                            alignItems: "center",
+                          }}
+                        >
+                          {getColumnDisplayName(field)}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+
+            <Divider sx={{ my: 1.5 }} />
+
+            {/* Section 2: Other Remaining Columns (DRAGGABLE & DROPABLE TO REORDER) */}
+            <Box>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", py: 1 }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: "#475467", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  Other Columns ({shownOthers.length})
+                </Typography>
+                <Typography variant="caption" sx={{ color: "#98A2B3", fontSize: "0.7rem" }}>
+                  Drag ⁝⁝ to reorder
+                </Typography>
+              </Box>
+
+              <DragDropContext onDragEnd={handleOtherDragEnd}>
+                <Droppable droppableId="other-columns-droppable">
+                  {(provided) => (
+                    <Stack
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      spacing={0.5}
+                    >
+                      {shownOthers.map((field, index) => {
+                        const isInternal = field.isInternal;
+
+                        return (
+                          <Draggable
+                            key={String(field._id)}
+                            draggableId={String(field._id)}
+                            index={index}
+                            isDragDisabled={Boolean(term)}
+                          >
+                            {(dragProvided, snapshot) => (
+                              <Stack
+                                ref={dragProvided.innerRef}
+                                {...dragProvided.draggableProps}
+                                direction="row"
+                                alignItems="center"
+                                justifyContent="space-between"
+                                sx={{
+                                  p: 1,
+                                  borderRadius: "8px",
+                                  border: snapshot.isDragging
+                                    ? "1px solid #0088ff"
+                                    : "1px solid transparent",
                                   backgroundColor: snapshot.isDragging
                                     ? "#F4F9FF"
-                                    : "#F9FAFB",
-                                },
-                              }}
-                            >
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                {canReorder && !isName ? (
-                                  <Box
-                                    {...provided.dragHandleProps}
+                                    : "transparent",
+                                  "&:hover": {
+                                    backgroundColor: snapshot.isDragging
+                                      ? "#F4F9FF"
+                                      : "#F9FAFB",
+                                  },
+                                  ...dragProvided.draggableProps.style,
+                                }}
+                              >
+                                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                  {!term ? (
+                                    <Box
+                                      {...dragProvided.dragHandleProps}
+                                      sx={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        color: "#98A2B3",
+                                        cursor: "grab",
+                                        "&:hover": { color: "#475467" }
+                                      }}
+                                    >
+                                      <DragIndicatorIcon fontSize="small" />
+                                    </Box>
+                                  ) : (
+                                    <Box sx={{ width: 20 }} />
+                                  )}
+
+                                  <Checkbox
+                                    size="small"
+                                    checked={Boolean(field.isVisible)}
+                                    onChange={() => toggleOther(field._id)}
+                                    sx={{ p: 0.5, color: "#0088ff", "&.Mui-checked": { color: "#0088ff" } }}
+                                  />
+
+                                  <Typography
+                                    variant="body2"
                                     sx={{
-                                      display: "flex",
+                                      color: "#344054",
+                                      fontWeight: 500,
+                                      lineHeight: 1,
+                                      display: "inline-flex",
                                       alignItems: "center",
-                                      color: "text.secondary",
-                                      cursor: "grab",
                                     }}
                                   >
-                                    <DragIndicatorIcon fontSize="small" />
-                                  </Box>
-                                ) : (
-                                  <Box sx={{ width: 20 }} />
+                                    {getColumnDisplayName(field)}
+                                  </Typography>
+                                </Box>
+
+                                {!isInternal && canManage && (
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => askDelete(field)}
+                                    sx={{ color: "error.main" }}
+                                  >
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
                                 )}
-
-                                <Tooltip title={isName ? "Name is a fixed required column" : ""} arrow>
-                                  <span>
-                                    <Checkbox
-                                      size="small"
-                                      disabled={isName}
-                                      checked={Boolean(field.isVisible)}
-                                      onChange={() => toggle(field._id)}
-                                      sx={{ p: 0.5, color: "#0088ff", "&.Mui-checked": { color: "#0088ff" } }}
-                                    />
-                                  </span>
-                                </Tooltip>
-
-                                <Typography
-                                  variant="body2"
-                                  sx={{
-                                    color: "#344054",
-                                    fontWeight: isName ? 600 : 500,
-                                    lineHeight: 1,
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                  }}
-                                >
-                                  {getColumnDisplayName(field)}
-                              
-                                </Typography>
-                              </Box>
-
-                              {!isInternal && canManage && (
-                                <IconButton
-                                  size="small"
-                                  onClick={() => askDelete(field)}
-                                  sx={{ color: "error.main" }}
-                                >
-                                  <DeleteIcon fontSize="small" />
-                                </IconButton>
-                              )}
-                            </Stack>
-                          )}
-                        </Draggable>
-                      );
-                    })}
-                    {provided.placeholder}
-                  </Stack>
-                )}
-              </Droppable>
-            </DragDropContext>
+                              </Stack>
+                            )}
+                          </Draggable>
+                        );
+                      })}
+                      {provided.placeholder}
+                    </Stack>
+                  )}
+                </Droppable>
+              </DragDropContext>
+            </Box>
           </Box>
 
           <Divider />
@@ -368,4 +470,9 @@ ColumnSelectorPanel.propTypes = {
   onClose: PropTypes.func.isRequired,
   customFields: PropTypes.array,
   canManage: PropTypes.bool,
+  activeTabId: PropTypes.string,
+  activeTabName: PropTypes.string,
+  currentTabOrder: PropTypes.array,
+  currentTabHidden: PropTypes.array,
+  onSaveTabLayout: PropTypes.func,
 };

@@ -90,7 +90,7 @@ const Login = () => {
       enqueueSnackbar('Login successful! Welcome back.', { variant: 'success' });
       navigate('/profile');
     } else {
-      const errMsg = result?.message || 'Login failed. Please check your credentials.';
+      const errMsg = result?.message || 'Login failed. Please Try Again.';
       enqueueSnackbar(errMsg, { variant: 'error' });
     }
   };

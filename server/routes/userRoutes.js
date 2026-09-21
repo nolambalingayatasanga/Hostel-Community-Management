@@ -11,6 +11,8 @@ router.use(protect);
 // Self endpoints
 router.patch('/profile', userController.updateOwnProfile);
 router.post('/profile/photo', s3UploadMiddleware('profilePhoto'), userController.uploadProfilePhoto);
+router.post('/profile/resume', s3UploadMiddleware('resume'), userController.uploadResume);
+router.delete('/profile/resume', userController.deleteResume);
 router.post('/profile/transition', restrictTo('STUDENT'), userController.transitionToAlumni);
 router.post('/translate-kannada', userController.translateToKannada);
 router.post('/translate-english', userController.translateToEnglish);
@@ -35,6 +37,8 @@ const allowSelfOrRoles = (...roles) => (req, res, next) => {
 // Admin & Warden management endpoints
 router.post('/bulk-drop', restrictTo('ADMIN', 'WARDEN'), userController.bulkDropUsers);
 router.post('/:id/photo', allowSelfOrRoles('ADMIN', 'WARDEN'), s3UploadMiddleware('profilePhoto'), userController.uploadProfilePhoto);
+router.post('/:id/resume', allowSelfOrRoles('ADMIN', 'WARDEN'), s3UploadMiddleware('resume'), userController.uploadResume);
+router.delete('/:id/resume', allowSelfOrRoles('ADMIN', 'WARDEN'), userController.deleteResume);
 router.post('/', restrictTo('ADMIN', 'WARDEN'), userController.adminCreateUser);
 router.patch('/:id/status', restrictTo('ADMIN', 'WARDEN'), userController.adminUpdateUserStatus);
 router.post('/:id/transition', restrictTo('ADMIN', 'WARDEN'), userController.adminTransitionStudent);

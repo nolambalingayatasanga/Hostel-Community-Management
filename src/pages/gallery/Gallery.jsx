@@ -117,7 +117,7 @@ const buildFolderTreeOptions = (allFolders) => {
 
 const Gallery = () => {
   const { user } = useAuth();
-  const { enqueueSnackbar } = useSnackbar();
+  const { enqueueSnackbar, closeSnackbar } = useSnackbar();
   const { enqueueFiles } = useUploadQueue();
   const navigate = useNavigate();
   const theme = useTheme();
@@ -179,6 +179,7 @@ const Gallery = () => {
   const [deleting, setDeleting] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadProgressText, setDownloadProgressText] = useState('');
+  const [singleDownloading, setSingleDownloading] = useState(false);
 
   // Lightbox Modal State
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -622,27 +623,41 @@ const Gallery = () => {
   };
 
   const executeDelete = async (explicitTarget = null) => {
-    const target = explicitTarget || deleteTarget;
+    // Prevent React synthetic event object from being treated as explicitTarget
+    const isTargetValid =
+      explicitTarget &&
+      typeof explicitTarget === 'object' &&
+      ('id' in explicitTarget || 'ids' in explicitTarget) &&
+      !('nativeEvent' in explicitTarget);
+    const target = isTargetValid ? explicitTarget : deleteTarget;
     if (!target) return;
 
-    if (dontShowAgain) {
+    if (dontShowAgain && target.type !== 'folder') {
       sessionStorage.setItem('gallery_skip_delete_confirm', 'true');
     }
 
     try {
       setDeleting(true);
       if (target.type === 'folder') {
+        enqueueSnackbar(`Deleting folder "${target.name || ''}"... Deletion process started.`, {
+          variant: 'info',
+          key: 'folder-deleting-snackbar',
+          autoHideDuration: 6000
+        });
         const res = await API.delete(`/gallery/folders/${target.id}`);
+        closeSnackbar('folder-deleting-snackbar');
         if (res.data?.success) {
-          enqueueSnackbar('Folder, subfolders, and media deleted successfully.', { variant: 'success' });
-          const deletedIds = res.data?.data?.deletedFolderIds || [target.id];
-          setFolders((prev) => prev.filter((f) => !deletedIds.includes(f._id)));
-          if (currentFolder && deletedIds.includes(currentFolder._id)) {
+          enqueueSnackbar(`Folder "${target.name || ''}" deleted successfully. Deletion process completed.`, {
+            variant: 'success'
+          });
+          const deletedIds = (res.data?.data?.deletedFolderIds || [target.id]).map(String);
+          setFolders((prev) => prev.filter((f) => !deletedIds.includes(String(f._id))));
+          if (currentFolder && deletedIds.includes(String(currentFolder._id))) {
             const parentId = getParentId(currentFolder);
-            const parent = parentId && !deletedIds.includes(parentId) ? folders.find((f) => f._id === parentId) : null;
+            const parent = parentId && !deletedIds.includes(String(parentId)) ? folders.find((f) => String(f._id) === String(parentId)) : null;
             navigateToFolder(parent || null);
           }
-          fetchFolders();
+          await fetchFolders();
         }
       } else if (target.type === 'photo') {
         const res = await API.delete(`/gallery/${target.id}`);
@@ -683,11 +698,14 @@ const Gallery = () => {
         }
       }
       setDeleteConfirmOpen(false);
+      setDeleteTarget(null);
     } catch (err) {
-      enqueueSnackbar('Failed to delete item(s).', { variant: 'error' });
+      closeSnackbar('folder-deleting-snackbar');
+      enqueueSnackbar(err.response?.data?.message || 'Failed to delete item(s).', { variant: 'error' });
+      setDeleteConfirmOpen(false);
+      setDeleteTarget(null);
     } finally {
       setDeleting(false);
-      setDeleteTarget(null);
     }
   };
 
@@ -715,6 +733,40 @@ const Gallery = () => {
     setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
     );
+  };
+
+  const handleDownloadSinglePhoto = async (photo) => {
+    if (!photo || !photo.url || singleDownloading) return;
+    setSingleDownloading(true);
+    const extension = photo.resourceType === 'video' ? 'mp4' : 'jpg';
+    const rawTitle = (photo.title || photo.caption || '').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename = rawTitle ? `${rawTitle}.${extension}` : `KSH_Gallery_${Date.now()}.${extension}`;
+
+    try {
+      const response = await fetch(photo.url, { mode: 'cors' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60000);
+      enqueueSnackbar('Download started.', { variant: 'success' });
+    } catch (corsErr) {
+      const a = document.createElement('a');
+      a.href = photo.url;
+      a.target = '_blank';
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      enqueueSnackbar('Download opened.', { variant: 'info' });
+    } finally {
+      setSingleDownloading(false);
+    }
   };
 
   const handleDownloadSelected = async () => {
@@ -1171,6 +1223,7 @@ const Gallery = () => {
                   <Button
                     variant="contained"
                     size="small"
+                    disabled={deleting}
                     startIcon={<AddIcon sx={{ fontSize: '16px !important' }} />}
                     onClick={handleOpenUpload}
                     sx={{
@@ -1199,11 +1252,12 @@ const Gallery = () => {
                   <Button
                     variant="contained"
                     size="small"
+                    disabled={deleting}
                     startIcon={<UploadIcon sx={{ fontSize: '16px !important' }} />}
-                    onClick={() => navigate('/request-upload?category=gallery')}
+                    onClick={() => navigate('/request-upload?tab=submit&category=gallery')}
                     sx={{
                       width: { xs: '100%', md: 'auto' },
-                      background: 'linear-gradient(135deg, #0088ff 0%, #0066cc 100%)',
+                      background: '#0088ff',
                       color: '#fff',
                       borderRadius: '9px',
                       px: { xs: 1.5, md: 2 },
@@ -1212,16 +1266,16 @@ const Gallery = () => {
                       fontSize: '12.5px',
                       fontWeight: 600,
                       textTransform: 'none',
-                      boxShadow: '0 2px 8px rgba(0, 136, 255, 0.25)',
+                      boxShadow: 'none',
                       whiteSpace: 'nowrap',
                       justifyContent: 'center',
                       '&:hover': {
                         background: '#0077ee',
-                        boxShadow: '0 4px 12px rgba(0, 136, 255, 0.35)'
+                        boxShadow: 'none'
                       }
                     }}
                   >
-                    Request Upload
+                    Share Media
                   </Button>
                 )}
 
@@ -1230,7 +1284,8 @@ const Gallery = () => {
                   <Button
                     variant="outlined"
                     size="small"
-                    startIcon={<CreateNewFolderIcon sx={{ fontSize: '16px !important' }} />}
+                    disabled={deleting || folderSubmitting}
+                    startIcon={folderSubmitting ? <CircularProgress size={14} color="inherit" /> : <CreateNewFolderIcon sx={{ fontSize: '16px !important' }} />}
                     onClick={() => handleOpenCreateFolderDialog(null)}
                     sx={{
                       width: { xs: '100%', md: 'auto' },
@@ -1251,14 +1306,14 @@ const Gallery = () => {
                       }
                     }}
                   >
-                    New folder
+                    {folderSubmitting ? 'Creating...' : 'New folder'}
                   </Button>
                 )}
 
                 {/* Select all */}
                 {showSelectAll && (
                   <Box
-                    onClick={handleSelectAll}
+                    onClick={deleting ? undefined : handleSelectAll}
                     sx={{
                       width: { xs: '100%', md: 'auto' },
                       height: 34,
@@ -1270,7 +1325,8 @@ const Gallery = () => {
                       border: '1px solid #E2E8F0',
                       bgcolor: selectedIds.length > 0 ? 'rgba(0, 136, 255, 0.04)' : '#F8FAFC',
                       px: { xs: 1.5, md: 2 },
-                      cursor: 'pointer',
+                      cursor: deleting ? 'not-allowed' : 'pointer',
+                      opacity: deleting ? 0.6 : 1,
                       userSelect: 'none',
                       boxSizing: 'border-box',
                       whiteSpace: 'nowrap',
@@ -1283,6 +1339,7 @@ const Gallery = () => {
                   >
                     <Checkbox
                       size="small"
+                      disabled={deleting}
                       checked={photos.length > 0 && selectedIds.length === photos.length}
                       indeterminate={selectedIds.length > 0 && selectedIds.length < photos.length}
                       onChange={handleSelectAll}
@@ -1328,7 +1385,7 @@ const Gallery = () => {
             <Button
               variant="outlined"
               size="small"
-              disabled={downloading}
+              disabled={downloading || deleting}
               startIcon={downloading ? <CircularProgress size={13} color="inherit" /> : <DownloadIcon sx={{ fontSize: '15px !important' }} />}
               onClick={handleDownloadSelected}
               sx={{
@@ -1355,7 +1412,8 @@ const Gallery = () => {
                 variant="outlined"
                 color="error"
                 size="small"
-                startIcon={<DeleteIcon sx={{ fontSize: '15px !important' }} />}
+                disabled={deleting || downloading}
+                startIcon={deleting ? <CircularProgress size={13} color="inherit" /> : <DeleteIcon sx={{ fontSize: '15px !important' }} />}
                 onClick={handleDeleteSelectedPhotosClick}
                 sx={{
                   width: { xs: '100%', md: 'auto' },
@@ -1369,7 +1427,7 @@ const Gallery = () => {
                   justifyContent: 'center'
                 }}
               >
-                Delete ({deletableSelectedCount})
+                {deleting ? 'Deleting...' : `Delete (${deletableSelectedCount})`}
               </Button>
             )}
           </Box>
@@ -1392,8 +1450,8 @@ const Gallery = () => {
             ) : photos.length === 0 ? (
               <EmptyGalleryCard
                 isAdmin={true}
-                onUpload={canUpload ? handleOpenUpload : () => navigate('/request-upload?category=gallery')}
-                buttonLabel={canUpload ? 'Add photos' : 'Request Upload'}
+                onUpload={canUpload ? handleOpenUpload : () => navigate('/request-upload?tab=submit&category=gallery')}
+                buttonLabel={canUpload ? 'Add photos' : 'Share Media'}
                 title="No Media Found"
                 subtitle="Upload media or submit memories to share them with your community."
               />
@@ -1465,11 +1523,12 @@ const Gallery = () => {
                     {isAdminOrWarden && (
                       <Button
                         size="small"
-                        startIcon={<CreateNewFolderIcon fontSize="small" />}
+                        startIcon={folderSubmitting ? <CircularProgress size={14} color="inherit" /> : <CreateNewFolderIcon fontSize="small" />}
                         onClick={() => handleOpenCreateFolderDialog(currentFolder._id)}
+                        disabled={folderSubmitting || deleting}
                         sx={{ textTransform: 'none', fontWeight: 600, color: '#0088ff' }}
                       >
-                        New subfolder
+                        {folderSubmitting ? 'Creating...' : 'New subfolder'}
                       </Button>
                     )}
                   </Box>
@@ -1524,6 +1583,7 @@ const Gallery = () => {
                         <Button
                           size="small"
                           variant="outlined"
+                          disabled={deleting}
                           startIcon={<UploadIcon />}
                           onClick={handleOpenUpload}
                           sx={{ textTransform: 'none', fontWeight: 600, borderRadius: '8px', mt: 0.5 }}
@@ -1534,20 +1594,21 @@ const Gallery = () => {
                         <Button
                           size="small"
                           variant="outlined"
+                          disabled={deleting}
                           startIcon={<UploadIcon />}
-                          onClick={() => navigate(`/request-upload?category=gallery`)}
+                          onClick={() => navigate(`/request-upload?tab=submit&category=gallery`)}
                           sx={{ textTransform: 'none', fontWeight: 600, borderRadius: '8px', mt: 0.5 }}
                         >
-                          Request Upload to this folder
+                          Share Media to this folder
                         </Button>
                       )}
                     </Box>
                   ) : (
                     <EmptyGalleryCard
                       isAdmin={true}
-                      onUpload={canUpload ? handleOpenUpload : () => navigate(`/request-upload?category=gallery`)}
+                      onUpload={canUpload ? handleOpenUpload : () => navigate(`/request-upload?tab=submit&category=gallery`)}
                       title="Folder is Empty"
-                      buttonLabel={canUpload ? 'Upload to Folder' : 'Request Upload'}
+                      buttonLabel={canUpload ? 'Upload to Folder' : 'Share Media'}
                       icon={<FolderOpenIcon sx={{ fontSize: 40, color: currentFolder.color || '#0F9D58' }} />}
                       secondaryButton={isAdminOrWarden ? {
                         label: 'New Subfolder',
@@ -2037,6 +2098,14 @@ const Gallery = () => {
                 ? `Are you sure you want to delete the ${deleteTarget.ids?.length} selected media assets?`
                 : 'Are you sure you want to permanently delete this media item? This action cannot be undone.'}
           </Typography>
+          {deleting && (
+            <Box sx={{ mt: 2.5 }}>
+              <LinearProgress color="error" sx={{ height: 6, borderRadius: 1.5 }} />
+              <Typography variant="caption" sx={{ color: '#EF4444', fontWeight: 600, mt: 1, display: 'block' }}>
+                Deletion in progress... Please wait.
+              </Typography>
+            </Box>
+          )}
         </DialogContent>
         <DialogActions
           sx={{
@@ -2050,37 +2119,40 @@ const Gallery = () => {
             gap: 1
           }}
         >
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={dontShowAgain}
-                onChange={(e) => setDontShowAgain(e.target.checked)}
-                size="small"
-                sx={{
-                  color: '#94A3B8',
-                  p: 0.5,
-                  mr: 0.5,
-                  '&.Mui-checked': { color: '#EF4444' }
-                }}
-              />
-            }
-            label={
-              <Typography
-                variant="body2"
-                sx={{
-                  color: '#64748B',
-                  fontSize: '0.82rem',
-                  fontWeight: 500,
-                  userSelect: 'none',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                Don't Show again
-              </Typography>
-            }
-            sx={{ m: 0 }}
-          />
-          <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+          {deleteTarget?.type !== 'folder' && (
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={dontShowAgain}
+                  onChange={(e) => setDontShowAgain(e.target.checked)}
+                  size="small"
+                  disabled={deleting}
+                  sx={{
+                    color: '#94A3B8',
+                    p: 0.5,
+                    mr: 0.5,
+                    '&.Mui-checked': { color: '#EF4444' }
+                  }}
+                />
+              }
+              label={
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: '#64748B',
+                    fontSize: '0.82rem',
+                    fontWeight: 500,
+                    userSelect: 'none',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  Don't Show again
+                </Typography>
+              }
+              sx={{ m: 0 }}
+            />
+          )}
+          <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', ml: 'auto' }}>
             <Button
               onClick={() => setDeleteConfirmOpen(false)}
               color="inherit"
@@ -2090,23 +2162,20 @@ const Gallery = () => {
               Cancel
             </Button>
             <Button
-              onClick={executeDelete}
+              onClick={() => executeDelete()}
               variant="contained"
               color="error"
               disabled={deleting}
+              startIcon={deleting ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : null}
               sx={{
                 fontWeight: 600,
                 textTransform: 'none',
                 borderRadius: '10px',
                 px: 3,
-                minWidth: 80
+                minWidth: 95
               }}
             >
-              {deleting ? (
-                <CircularProgress size={20} sx={{ color: '#fff' }} />
-              ) : (
-                'Delete'
-              )}
+              {deleting ? 'Deleting...' : 'Delete'}
             </Button>
           </Box>
         </DialogActions>
@@ -2128,7 +2197,7 @@ const Gallery = () => {
         }}
       >
         <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', outline: 'none' }}>
-          {/* Fixed Top Right Action Buttons: Delete (if permitted) just left of Close */}
+          {/* Fixed Top Right Action Buttons: Download, Delete (if permitted), Close */}
           <Box
             sx={{
               position: 'fixed',
@@ -2140,6 +2209,40 @@ const Gallery = () => {
               gap: { xs: 1, sm: 1.5 }
             }}
           >
+            {activePhoto && (
+              <Tooltip title="Download Media" arrow>
+                <IconButton
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDownloadSinglePhoto(activePhoto);
+                  }}
+                  disabled={singleDownloading}
+                  aria-label="Download media"
+                  sx={{
+                    color: '#FFFFFF',
+                    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(255, 255, 255, 0.25)',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+                    width: { xs: 38, sm: 44 },
+                    height: { xs: 38, sm: 44 },
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      backgroundColor: 'rgba(0, 136, 255, 0.85)',
+                      borderColor: 'rgba(0, 136, 255, 0.95)',
+                      transform: 'scale(1.08)'
+                    }
+                  }}
+                >
+                  {singleDownloading ? (
+                    <CircularProgress size={18} sx={{ color: '#FFFFFF' }} />
+                  ) : (
+                    <DownloadIcon sx={{ fontSize: { xs: 19, sm: 22 } }} />
+                  )}
+                </IconButton>
+              </Tooltip>
+            )}
+
             {activePhoto && canDeletePhoto(activePhoto) && (
               <Tooltip title="Delete Media" arrow>
                 <IconButton
@@ -2164,7 +2267,11 @@ const Gallery = () => {
                     }
                   }}
                 >
-                  <DeleteIcon sx={{ fontSize: { xs: 19, sm: 22 } }} />
+                  {deleting && deleteTarget?.id === activePhoto?._id ? (
+                    <CircularProgress size={20} sx={{ color: '#fff' }} />
+                  ) : (
+                    <DeleteIcon sx={{ fontSize: { xs: 19, sm: 22 } }} />
+                  )}
                 </IconButton>
               </Tooltip>
             )}
@@ -2319,44 +2426,6 @@ const Gallery = () => {
               )}
             </Box>
           )}
-
-          {/* Bottom Center Info Pill: Uploader Name above Date */}
-          {activePhoto && (activePhoto.uploadedBy?.name || activePhoto.createdAt) && (
-            <Box
-              sx={{
-                position: 'fixed',
-                bottom: 24,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                zIndex: 1600,
-                backgroundColor: 'rgba(15, 23, 42, 0.8)',
-                backdropFilter: 'blur(10px)',
-                border: '1px solid rgba(255, 255, 255, 0.18)',
-                borderRadius: '16px',
-                px: 2.5,
-                py: 0.9,
-                textAlign: 'center',
-                color: '#FFFFFF',
-                pointerEvents: 'none',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
-              }}
-            >
-              {activePhoto.uploadedBy?.name && (
-                <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem', color: '#FFFFFF', lineHeight: 1.2 }}>
-                  {activePhoto.uploadedBy.name}
-                </Typography>
-              )}
-              {activePhoto.createdAt && (
-                <Typography variant="caption" sx={{ color: '#CBD5E1', fontSize: '0.72rem', display: 'block', mt: 0.2 }}>
-                  {new Date(activePhoto.createdAt).toLocaleDateString(undefined, {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric'
-                  })}
-                </Typography>
-              )}
-            </Box>
-          )}
         </Box>
       </Modal>
     </Box>
@@ -2439,6 +2508,7 @@ const Gallery = () => {
             {isAdminOrWarden && (
               <IconButton
                 size="small"
+                disabled={deleting}
                 onClick={(e) => {
                   e.stopPropagation();
                   setActiveMenuFolder(folder);
@@ -2451,7 +2521,11 @@ const Gallery = () => {
                   '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.06)' }
                 }}
               >
-                <MoreVertIcon fontSize="small" />
+                {deleting && deleteTarget?.type === 'folder' && deleteTarget?.id === folder._id ? (
+                  <CircularProgress size={16} sx={{ color: '#EF4444' }} />
+                ) : (
+                  <MoreVertIcon fontSize="small" />
+                )}
               </IconButton>
             )}
           </Box>
@@ -2859,6 +2933,7 @@ const Gallery = () => {
                   e.stopPropagation();
                   handleDeletePhotoClick(photo._id);
                 }}
+                disabled={deleting}
                 sx={{
                   position: 'absolute',
                   top: 10,
@@ -2874,7 +2949,11 @@ const Gallery = () => {
                 }}
                 size="small"
               >
-                <DeleteIcon sx={{ fontSize: 16 }} />
+                {deleting && deleteTarget?.id === photo._id ? (
+                  <CircularProgress size={16} sx={{ color: '#fff' }} />
+                ) : (
+                  <DeleteIcon sx={{ fontSize: 16 }} />
+                )}
               </IconButton>
             )}
 
