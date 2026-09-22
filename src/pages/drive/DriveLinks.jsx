@@ -400,9 +400,18 @@ export default function DriveLinks() {
 
       {/* ── Content Area ── */}
       <Box sx={{ px: { xs: 2, sm: 3, md: 4 }, py: { xs: 2, sm: 2.5 } }}>
-        {/* Category Tabs & Search Bar */}
+        {/* Category Tabs & Search Bar (Sticky below Header when scrolled) */}
         <Box
           sx={{
+            position: 'sticky',
+            top: { xs: 56, sm: 64 },
+            zIndex: 90,
+            bgcolor: 'rgba(248, 250, 252, 0.96)',
+            backdropFilter: 'blur(8px)',
+            mx: { xs: -2, sm: -3, md: -4 },
+            px: { xs: 2, sm: 3, md: 4 },
+            py: { xs: 1.25, sm: 1.5 },
+            borderBottom: '1px solid #E2E8F0',
             display: 'flex',
             flexDirection: { xs: 'column', md: 'row' },
             justifyContent: 'space-between',

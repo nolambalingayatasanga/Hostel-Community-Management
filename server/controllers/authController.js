@@ -228,6 +228,27 @@ exports.register = async (req, res, next) => {
           }
         }
 
+        // Save top-level education fields if provided (e.g. from Student / Alumni registration)
+        if (!existingMember.education) existingMember.education = {};
+        if (college && typeof college === 'string' && college.trim() && (!existingMember.education.college || !existingMember.education.college.trim())) {
+          existingMember.education.college = college.trim();
+        }
+        if (endYear) {
+          const gradYearNum = parseInt(endYear, 10);
+          if (!isNaN(gradYearNum) && !existingMember.education.endYear) {
+            existingMember.education.endYear = gradYearNum;
+          }
+        }
+        if (course && typeof course === 'string' && course.trim() && (!existingMember.education.course || !existingMember.education.course.trim())) {
+          existingMember.education.course = course.trim();
+        }
+        if (startYear) {
+          const startYearNum = parseInt(startYear, 10);
+          if (!isNaN(startYearNum) && !existingMember.education.startYear) {
+            existingMember.education.startYear = startYearNum;
+          }
+        }
+
         if (req.body.employment && typeof req.body.employment === 'object') {
           if (!existingMember.employment) existingMember.employment = {};
           for (const [k, v] of Object.entries(req.body.employment)) {
@@ -258,7 +279,13 @@ exports.register = async (req, res, next) => {
           existingMember.profilePhoto = defaultPhoto;
         }
 
-        if (!existingMember.role) {
+        // If the user registers through Student / Alumni role and this phone number is present in members list,
+        // log him as an ALUMNI role from MEMBER (keeping all memberInfo and registration details intact)
+        const isStudentOrAlumniSignup = role && ['STUDENT', 'ALUMNI'].includes(role.toUpperCase());
+        const previousRole = existingMember.role;
+        if (isStudentOrAlumniSignup) {
+          existingMember.role = 'ALUMNI';
+        } else if (!existingMember.role) {
           existingMember.role = 'MEMBER';
         }
 
@@ -285,7 +312,13 @@ exports.register = async (req, res, next) => {
           user: existingMember,
           action: 'REGISTER',
           sessionId,
-          details: { role: existingMember.role, email: existingMember.email, phone: existingMember.phone, mergedFromExisting: true }
+          details: {
+            role: existingMember.role,
+            previousRole: previousRole !== existingMember.role ? previousRole : undefined,
+            email: existingMember.email,
+            phone: existingMember.phone,
+            mergedFromExisting: true
+          }
         });
 
         return createSendToken(existingMember, 200, res);

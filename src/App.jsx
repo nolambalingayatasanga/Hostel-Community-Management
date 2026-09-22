@@ -10,6 +10,7 @@ import theme from './theme';
 import { AuthProvider } from './context/AuthContext';
 import { PermissionProvider } from './context/PermissionContext';
 import { UploadQueueProvider } from './context/UploadQueueContext';
+import { JobDraftProvider } from './context/JobDraftContext';
 import UploadManager from './components/common/UploadManager';
 import RouteTracker from './components/common/RouteTracker';
 import ProtectedRoute from './routes/ProtectedRoute';
@@ -35,6 +36,8 @@ import EventDetail from './pages/events/EventDetail';
 import Gallery from './pages/gallery/Gallery';
 import DriveLinks from './pages/drive/DriveLinks';
 import RequestUpload from './pages/upload-request/RequestUpload';
+import JobOpenings from './pages/jobs/JobOpenings';
+import Feedback from './pages/feedback/Feedback';
 
 // Admin Page
 import UserManagement from './pages/admin/UserManagement';
@@ -91,63 +94,67 @@ function App() {
           <AuthProvider>
             <PermissionProvider>
               <UploadQueueProvider>
-                <Router>
-                  <RouteTracker />
-                  <Routes>
-                    {/* Public Authentication Routes */}
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/register" element={<Register />} />
-                    <Route path="/forgot-password" element={<ForgotPassword />} />
-                    <Route path="/reset-password/:token" element={<ResetPassword />} />
+                <JobDraftProvider>
+                  <Router>
+                    <RouteTracker />
+                    <Routes>
+                      {/* Public Authentication Routes */}
+                      <Route path="/login" element={<Login />} />
+                      <Route path="/register" element={<Register />} />
+                      <Route path="/forgot-password" element={<ForgotPassword />} />
+                      <Route path="/reset-password/:token" element={<ResetPassword />} />
 
-                    {/* Profile Completion - Protected but without dashboard layout */}
-                    <Route element={<ProtectedRoute />}>
-                      <Route path="/complete-profile" element={<CompleteProfile />} />
-                    </Route>
-
-                    {/* Main Portal Routes - Protected and with sidebar layout */}
-                    <Route element={<ProtectedRoute />}>
-                      <Route element={<DashboardLayout />}>
-                        <Route path="/dashboard" element={<Dashboard />} />
-                        <Route path="/profile" element={<Profile />} />
-                        <Route path="/profile/:id" element={<Profile />} />
-                        
-                        {/* Unified Directory Route */}
-                        <Route path="/users" element={<DirectoryList />} />
-                        <Route path="/members" element={<Navigate to="/users" replace />} />
-                        
-                        <Route path="/events" element={<EventList />} />
-                        <Route path="/events/:id" element={<EventDetail />} />
-                        <Route path="/gallery" element={<Gallery />} />
-                        <Route path="/drive-links" element={<DriveLinks />} />
-                        <Route path="/request-upload" element={<RequestUpload />} />
-                        <Route path="/access-control" element={<AccessControl />} />
+                      {/* Profile Completion - Protected but without dashboard layout */}
+                      <Route element={<ProtectedRoute />}>
+                        <Route path="/complete-profile" element={<CompleteProfile />} />
                       </Route>
-                    </Route>
 
-                    {/* Admin & Warden Routes */}
-                    <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'WARDEN']} />}>
-                      <Route element={<DashboardLayout />}>
-                        <Route path="/admin/users" element={<UserManagement />} />
+                      {/* Main Portal Routes - Protected and with sidebar layout */}
+                      <Route element={<ProtectedRoute />}>
+                        <Route element={<DashboardLayout />}>
+                          <Route path="/dashboard" element={<Dashboard />} />
+                          <Route path="/profile" element={<Profile />} />
+                          <Route path="/profile/:id" element={<Profile />} />
+                          
+                          {/* Unified Directory Route */}
+                          <Route path="/users" element={<DirectoryList />} />
+                          <Route path="/members" element={<Navigate to="/users" replace />} />
+                          
+                          <Route path="/events" element={<EventList />} />
+                          <Route path="/events/:id" element={<EventDetail />} />
+                          <Route path="/gallery" element={<Gallery />} />
+                          <Route path="/drive-links" element={<DriveLinks />} />
+                          <Route path="/request-upload" element={<RequestUpload />} />
+                          <Route path="/job-openings" element={<JobOpenings />} />
+                          <Route path="/feedback" element={<Feedback />} />
+                          <Route path="/access-control" element={<AccessControl />} />
+                        </Route>
                       </Route>
-                    </Route>
 
-                    {/* Admin Only Routes */}
-                    <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
-                      <Route element={<DashboardLayout />}>
-                        <Route path="/qr-scan-count" element={<QrScanCount />} />
+                      {/* Admin & Warden Routes */}
+                      <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'WARDEN']} />}>
+                        <Route element={<DashboardLayout />}>
+                          <Route path="/admin/users" element={<UserManagement />} />
+                        </Route>
                       </Route>
-                    </Route>
 
-                    {/* Public QR tracking: domain/{code}?r=qr → count scan, then login */}
-                    <Route path="/:code" element={<QrRedirect />} />
+                      {/* Admin Only Routes */}
+                      <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+                        <Route element={<DashboardLayout />}>
+                          <Route path="/qr-scan-count" element={<QrScanCount />} />
+                        </Route>
+                      </Route>
 
-                    {/* Redirects and 404 catch-all */}
-                    <Route path="/" element={<Navigate to="/profile" replace />} />
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </Router>
-                <UploadManager />
+                      {/* Public QR tracking: domain/{code}?r=qr → count scan, then login */}
+                      <Route path="/:code" element={<QrRedirect />} />
+
+                      {/* Redirects and 404 catch-all */}
+                      <Route path="/" element={<Navigate to="/profile" replace />} />
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </Router>
+                  <UploadManager />
+                </JobDraftProvider>
               </UploadQueueProvider>
             </PermissionProvider>
           </AuthProvider>

@@ -846,7 +846,7 @@ export default function RequestUpload() {
               <Box sx={{ flexShrink: 0 }}>
                 <Typography variant="h5" sx={{ fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 1.5 }}>
                   <CloudUploadIcon sx={{ color: '#0088ff', fontSize: 32 }} />
-                    Media Request Management
+                    Media Management
                 </Typography>
               </Box>
             )}

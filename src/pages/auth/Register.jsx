@@ -3,7 +3,6 @@ import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
 import { useAuth } from '../../context/AuthContext';
 import API from '../../api';
-import AuthLayout from '../../layouts/AuthLayout';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
@@ -173,7 +172,7 @@ const Register = () => {
   }, []);
 
   // State initialization with strictly clean, empty default values
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(2);
   const [role, setRole] = useState('STUDENT');
 
   const [name, setName] = useState('');
@@ -417,7 +416,7 @@ const Register = () => {
       e.preventDefault();
       e.stopPropagation();
     }
-    if (step !== 2) return;
+    // step is always 2 now (role selection page is skipped)
     setError('');
     const notifyWarn = (msg) => {
       setError(msg);
@@ -581,14 +580,16 @@ const Register = () => {
       {/* Full-screen 50/50 split */}
       <Box
         sx={{
-          height: '100vh',
-          maxHeight: '100vh',
+          minHeight: { xs: '100dvh', md: '100vh' },
+          height: { xs: '100dvh', md: '100vh' },
+          maxHeight: { xs: '100dvh', md: '100vh' },
           width: '100vw',
           maxWidth: '100vw',
           display: 'flex',
           flexDirection: { xs: 'column', md: 'row' },
           overflow: 'hidden',
-          fontFamily: '"Inter", "Roboto", sans-serif'
+          fontFamily: '"Inter", "Roboto", sans-serif',
+          boxSizing: 'border-box'
         }}
       >
         {/* ─── LEFT PANEL — Single Static Background Image (60%) ─── */}
@@ -628,18 +629,22 @@ const Register = () => {
         {/* ─── RIGHT PANEL — Register Form (40%) ─── */}
         <Box
           sx={{
+            flex: 1,
             width: { xs: '100%', md: '40%' },
-            minWidth: { md: '40%' },
-            maxWidth: { md: '40%' },
-            height: '100vh',
-            maxHeight: '100vh',
+            minWidth: { xs: '100%', md: '40%' },
+            maxWidth: { xs: '100%', md: '40%' },
+            minHeight: { xs: '100dvh', md: '100vh' },
+            height: { xs: '100dvh', md: '100vh' },
+            maxHeight: { xs: '100dvh', md: '100vh' },
             bgcolor: '#FFFFFF',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             overflowY: 'auto',
+            overflowX: 'hidden',
             px: { xs: 2.5, sm: 4, md: 5 },
-            py: { xs: 3, sm: 4 },
+            py: { xs: 2.5, sm: 4 },
+            boxSizing: 'border-box',
             '&::-webkit-scrollbar': { width: '5px' },
             '&::-webkit-scrollbar-thumb': { bgcolor: '#CBD5E1', borderRadius: '4px' },
             '&::-webkit-scrollbar-thumb:hover': { bgcolor: '#94A3B8' }
@@ -651,11 +656,7 @@ const Register = () => {
             autoComplete="off"
             onSubmit={(e) => {
               e.preventDefault();
-              if (step === 2) {
-                handleSubmit(e);
-              } else {
-                handleNextStep(e);
-              }
+              handleSubmit(e);
             }}
             sx={{
               width: '100%',
@@ -667,149 +668,7 @@ const Register = () => {
             }}
           >
      
-            {/* Step 2 Header: Assigned Role Badge & Change Role Action */}
-            {step === 2 && (
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  mb: 2.5
-                }}
-              >
-                <Box
-                  sx={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 1,
-                    bgcolor: '#EFF6FF',
-                    color: '#1D4ED8',
-                    px: 1.6,
-                    py: 0.7,
-                    borderRadius: '8px',
-                    fontSize: '13px',
-                    fontWeight: 600
-                  }}
-                >
-                  <Diversity3Outlined sx={{ fontSize: 18, color: '#2563EB' }} />
-                {computedRole}
-                </Box>
-                <Button
-                  type="button"
-                  size="small"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setStep(1);
-                  }}
-                  startIcon={<ArrowBackIcon sx={{ fontSize: 16 }} />}
-                  sx={{
-                    textTransform: 'none',
-                    color: '#2563EB',
-                    fontWeight: 600,
-                    fontSize: '13.5px',
-                    p: 0,
-                    '&:hover': { bgcolor: 'transparent', textDecoration: 'underline' }
-                  }}
-                >
-                  Change Role
-                </Button>
-              </Box>
-            )}
-
-            {step === 1 ? (
-              /* STEP 1: CHOOSE ROLE */
-              <Box sx={{ py: 1 }}>
-                  <Stack spacing={2} sx={{ mb: 2 }}>
-                    {/* Option 1: Student / Alumni */}
-                    <Box
-                      onClick={() => setRole('STUDENT')}
-                      sx={{
-                        p: 2.2,
-                        borderRadius: '14px',
-                        border: '2px solid',
-                        borderColor: role === 'STUDENT' ? '#1877F2' : '#E2E8F0',
-                        bgcolor: role === 'STUDENT' ? '#EFF6FF' : '#FFFFFF',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 2,
-                        transition: 'all 0.2s ease',
-                        '&:hover': {
-                          borderColor: '#93C5FD',
-                          bgcolor: role === 'STUDENT' ? '#EFF6FF' : '#F8FAFC'
-                        }
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          width: 44,
-                          height: 44,
-                          borderRadius: '10px',
-                          bgcolor: role === 'STUDENT' ? '#1877F2' : '#F1F5F9',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0
-                        }}
-                      >
-                        <StudentIcon sx={{ color: role === 'STUDENT' ? '#FFFFFF' : '#64748B', fontSize: 24 }} />
-                      </Box>
-                      <Box sx={{ flexGrow: 1 }}>
-                        <Typography sx={{ fontWeight: 700, color: '#0F172A', fontSize: '15px' }}>
-                          Student / Alumni
-                        </Typography>
-                        <Typography sx={{ color: '#64748B', fontSize: '12.5px' }}>
-                          Current residents or graduated hostel seniors
-                        </Typography>
-                      </Box>
-                    </Box>
-
-                    {/* Option 2: Community Member */}
-                    <Box
-                      onClick={() => setRole('MEMBER')}
-                      sx={{
-                        p: 2.2,
-                        borderRadius: '14px',
-                        border: '2px solid',
-                        borderColor: role === 'MEMBER' ? '#1877F2' : '#E2E8F0',
-                        bgcolor: role === 'MEMBER' ? '#EFF6FF' : '#FFFFFF',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 2,
-                        transition: 'all 0.2s ease',
-                        '&:hover': {
-                          borderColor: '#93C5FD',
-                          bgcolor: role === 'MEMBER' ? '#EFF6FF' : '#F8FAFC'
-                        }
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          width: 44,
-                          height: 44,
-                          borderRadius: '10px',
-                          bgcolor: role === 'MEMBER' ? '#1877F2' : '#F1F5F9',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0
-                        }}
-                      >
-                        <MemberIcon sx={{ color: role === 'MEMBER' ? '#FFFFFF' : '#64748B', fontSize: 24 }} />
-                      </Box>
-                      <Box sx={{ flexGrow: 1 }}>
-                        <Typography sx={{ fontWeight: 700, color: '#0F172A', fontSize: '15px' }}>
-                          Community Member
-                        </Typography>
-                        <Typography sx={{ color: '#64748B', fontSize: '12.5px' }}>
-                          Trust board, parent representative, or patron
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Stack>
-                </Box>
-              ) : (
+            {(
                 /* STEP 2: 2 INPUTS PER ROW RESPONSIVE GRID */
                 <Box
                   sx={{
@@ -1214,58 +1073,32 @@ const Register = () => {
 
             {/* Submit Button */}
             <Box sx={{ mt: 2.8 }}>
-              {step === 1 ? (
-                <Button
-                  fullWidth
-                  size="large"
-                  type="button"
-                  variant="contained"
-                  onClick={handleNextStep}
-                  endIcon={<ArrowForwardIcon />}
-                  sx={{
-                    py: 1.35,
-                    borderRadius: '12px',
-                    fontWeight: 700,
-                    fontSize: '15.5px',
-                    textTransform: 'none',
-                    bgcolor: '#0088ff',
-                    boxShadow: 'none',
-                    '&:hover': {
-                      bgcolor: '#0077e6',
-                      boxShadow: 'none'
-                    }
-                  }}
-                >
-                  Continue
-                </Button>
-              ) : (
-                <Button
-                  fullWidth
-                  size="large"
-                  type="submit"
-                  variant="contained"
-                  endIcon={<ArrowForwardIcon />}
-                  disabled={loading}
-                  sx={{
-                    py: 1.35,
-                    borderRadius: '12px',
-                    fontWeight: 700,
-                    fontSize: '15.5px',
-                    textTransform: 'none',
-                    bgcolor: '#0088ff',
-                    boxShadow: 'none',
-                    '&:hover': {
-                      bgcolor: '#0077e6',
-                      boxShadow: 'none'
-                    },
-                    '&.Mui-disabled': {
-                      bgcolor: '#93C5FD'
-                    }
-                  }}
-                >
-                  {loading ? <CircularProgress size={22} sx={{ color: '#FFFFFF' }} /> : 'Create Account'}
-                </Button>
-              )}
+              <Button
+                fullWidth
+                size="large"
+                type="submit"
+                variant="contained"
+                endIcon={<ArrowForwardIcon />}
+                disabled={loading}
+                sx={{
+                  py: 1.35,
+                  borderRadius: '12px',
+                  fontWeight: 700,
+                  fontSize: '15.5px',
+                  textTransform: 'none',
+                  bgcolor: '#0088ff',
+                  boxShadow: 'none',
+                  '&:hover': {
+                    bgcolor: '#0077e6',
+                    boxShadow: 'none'
+                  },
+                  '&.Mui-disabled': {
+                    bgcolor: '#93C5FD'
+                  }
+                }}
+              >
+                {loading ? <CircularProgress size={22} sx={{ color: '#FFFFFF' }} /> : 'Create Account'}
+              </Button>
             </Box>
 
             {/* Divider OR */}
@@ -1300,7 +1133,7 @@ const Register = () => {
                     '&:hover': { textDecoration: 'underline' }
                   }}
                 >
-                  Sign In
+                  Log In
                 </Link>
               </Typography>
             </Box>
@@ -1308,51 +1141,81 @@ const Register = () => {
             {/* 3 Trust Badges */}
             <Box
               sx={{
-                display: 'flex',
+                display: { xs: 'grid', sm: 'flex' },
+                gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'none' },
                 alignItems: 'center',
-                justifyContent: 'space-between',
-                pt: 2.5,
-             
+                justifyContent: { sm: 'space-between' },
+                pt: { xs: 2, sm: 2.5 },
+                gap: { xs: 1, sm: 0 },
+                width: '100%',
+                boxSizing: 'border-box'
               }}
             >
               {/* 1. Stay Connected */}
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Diversity3Outlined sx={{ color: '#2563EB', fontSize: 22 }} />
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: { xs: 'column', sm: 'row' },
+                  alignItems: 'center',
+                  textAlign: { xs: 'center', sm: 'left' },
+                  gap: { xs: 0.5, sm: 1 },
+                  px: { xs: 0.5, sm: 0 }
+                }}
+              >
+                <Diversity3Outlined sx={{ color: '#2563EB', fontSize: { xs: 20, sm: 22 } }} />
                 <Box>
-                  <Typography sx={{ fontWeight: 700, fontSize: '11.5px', color: '#1E293B', lineHeight: 1.2 }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: { xs: '10.5px', sm: '11.5px' }, color: '#1E293B', lineHeight: 1.2 }}>
                     Stay Connected
                   </Typography>
-                  <Typography sx={{ fontSize: '10.5px', color: '#64748B', lineHeight: 1.2 }}>
+                  <Typography sx={{ fontSize: { xs: '9.5px', sm: '10.5px' }, color: '#64748B', lineHeight: 1.2, mt: { xs: 0.2, sm: 0 } }}>
                     With your community
                   </Typography>
                 </Box>
               </Box>
 
-              <Divider orientation="vertical" flexItem sx={{ borderColor: '#E2E8F0', height: 26, my: 'auto' }} />
+              <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' }, borderColor: '#E2E8F0', height: 26, my: 'auto' }} />
 
               {/* 2. Build Relationships */}
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <ShieldOutlined sx={{ color: '#2563EB', fontSize: 22 }} />
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: { xs: 'column', sm: 'row' },
+                  alignItems: 'center',
+                  textAlign: { xs: 'center', sm: 'left' },
+                  gap: { xs: 0.5, sm: 1 },
+                  px: { xs: 0.5, sm: 0 }
+                }}
+              >
+                <ShieldOutlined sx={{ color: '#2563EB', fontSize: { xs: 20, sm: 22 } }} />
                 <Box>
-                  <Typography sx={{ fontWeight: 700, fontSize: '11.5px', color: '#1E293B', lineHeight: 1.2 }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: { xs: '10.5px', sm: '11.5px' }, color: '#1E293B', lineHeight: 1.2 }}>
                     Build Relationships
                   </Typography>
-                  <Typography sx={{ fontSize: '10.5px', color: '#64748B', lineHeight: 1.2 }}>
+                  <Typography sx={{ fontSize: { xs: '9.5px', sm: '10.5px' }, color: '#64748B', lineHeight: 1.2, mt: { xs: 0.2, sm: 0 } }}>
                     That last beyond hostel
                   </Typography>
                 </Box>
               </Box>
 
-              <Divider orientation="vertical" flexItem sx={{ borderColor: '#E2E8F0', height: 26, my: 'auto' }} />
+              <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' }, borderColor: '#E2E8F0', height: 26, my: 'auto' }} />
 
               {/* 3. Share & Grow */}
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <StarBorderOutlined sx={{ color: '#2563EB', fontSize: 22 }} />
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: { xs: 'column', sm: 'row' },
+                  alignItems: 'center',
+                  textAlign: { xs: 'center', sm: 'left' },
+                  gap: { xs: 0.5, sm: 1 },
+                  px: { xs: 0.5, sm: 0 }
+                }}
+              >
+                <StarBorderOutlined sx={{ color: '#2563EB', fontSize: { xs: 20, sm: 22 } }} />
                 <Box>
-                  <Typography sx={{ fontWeight: 700, fontSize: '11.5px', color: '#1E293B', lineHeight: 1.2 }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: { xs: '10.5px', sm: '11.5px' }, color: '#1E293B', lineHeight: 1.2 }}>
                     Share & Grow
                   </Typography>
-                  <Typography sx={{ fontSize: '10.5px', color: '#64748B', lineHeight: 1.2 }}>
+                  <Typography sx={{ fontSize: { xs: '9.5px', sm: '10.5px' }, color: '#64748B', lineHeight: 1.2, mt: { xs: 0.2, sm: 0 } }}>
                     Together
                   </Typography>
                 </Box>

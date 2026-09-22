@@ -42,6 +42,31 @@ const Login = () => {
 
   const hasTrackedDirectRef = useRef(false);
 
+  // Restore remembered login identifier if previously saved
+  useEffect(() => {
+    try {
+      const savedIdentifier = localStorage.getItem('remembered_login_identifier');
+      if (savedIdentifier) {
+        setLoginIdentifier(savedIdentifier);
+        setRememberMe(true);
+      }
+    } catch (err) {
+      console.debug('Error reading remembered login:', err);
+    }
+  }, []);
+
+  const handleRememberMeChange = (e) => {
+    const checked = e.target.checked;
+    setRememberMe(checked);
+    if (!checked) {
+      try {
+        localStorage.removeItem('remembered_login_identifier');
+      } catch (err) {
+        console.debug('Error clearing remembered login:', err);
+      }
+    }
+  };
+
   // Track direct portal hits on https://www.kambi-connect.in/login
   useEffect(() => {
     if (hasTrackedDirectRef.current) return;
@@ -87,6 +112,15 @@ const Login = () => {
     const result = await login(identifierToSend, password);
     setLoading(false);
     if (result?.success) {
+      try {
+        if (rememberMe) {
+          localStorage.setItem('remembered_login_identifier', rawIdentifier);
+        } else {
+          localStorage.removeItem('remembered_login_identifier');
+        }
+      } catch (err) {
+        console.debug('Error storing remembered login:', err);
+      }
       enqueueSnackbar('Login successful! Welcome back.', { variant: 'success' });
       navigate('/profile');
     } else {
@@ -99,14 +133,13 @@ const Login = () => {
     <Box
       sx={{
         minHeight: { xs: '100dvh', md: '100vh' },
-        height: { xs: 'auto', md: '100vh' },
-        maxHeight: { md: '100vh' },
+        height: { xs: '100dvh', md: '100vh' },
+        maxHeight: { xs: '100dvh', md: '100vh' },
         width: '100vw',
         maxWidth: '100vw',
         display: 'flex',
         flexDirection: { xs: 'column', md: 'row' },
-        overflowY: { xs: 'auto', md: 'hidden' },
-        overflowX: 'hidden',
+        overflow: 'hidden',
         fontFamily: '"Outfit", "Inter", sans-serif',
         bgcolor: '#FFFFFF'
       }}
@@ -172,27 +205,28 @@ const Login = () => {
           minWidth: { md: '40%' },
           maxWidth: { md: '40%' },
           minHeight: { xs: '100dvh', md: '100vh' },
-          height: { xs: 'auto', md: '100vh' },
-          maxHeight: { md: '100vh' },
-          overflowY: { xs: 'visible', md: 'auto' },
+          height: { xs: '100dvh', md: '100vh' },
+          maxHeight: { xs: '100dvh', md: '100vh' },
+          overflowY: { xs: 'auto', md: 'auto' },
           bgcolor: '#FFFFFF',
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: { xs: 'flex-start', md: 'center' },
+          justifyContent: 'center',
           alignItems: 'center',
-          px: { xs: 2.5, sm: 4, md: 6, lg: 7 },
-          py: { xs: 3, sm: 4, md: 5 }
+          px: { xs: 3, sm: 4, md: 6, lg: 7 },
+          py: { xs: 2, sm: 3, md: 5 },
+          boxSizing: 'border-box'
         }}
       >
-        <Box sx={{ width: '100%', maxWidth: 440 }}>
+        <Box sx={{ width: '100%', maxWidth: 440, my: 'auto' }}>
           {/* Top Center Avatar */}
-          <Box sx={{ display: 'flex', justifyContent: 'center', mb: { xs: 1.5, sm: 2 } }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: { xs: 1.25, sm: 1.5, md: 2 } }}>
             <Avatar
               src={ProfileIconImg}
               alt="Kambi Connect"
               sx={{
-                width: { xs: 72, sm: 84, md: 96 },
-                height: { xs: 72, sm: 84, md: 96 },
+                width: { xs: 68, sm: 76, md: 96 },
+                height: { xs: 68, sm: 76, md: 96 },
                 border: '3px solid #FFFFFF',
                 boxShadow: '0 0 0 3px #BFDBFE, 0 10px 24px -4px rgba(59, 130, 246, 0.35)',
                 transition: 'transform 0.3s ease',
@@ -206,12 +240,12 @@ const Login = () => {
             component="h1"
             sx={{
               fontWeight: 900,
-              fontSize: { xs: '24px', sm: '28px', md: '32px' },
+              fontSize: { xs: '24px', sm: '26px', md: '32px' },
               letterSpacing: '-0.5px',
               textAlign: 'center',
               color: '#0F172A',
               lineHeight: 1.2,
-              mb: 0.6
+              mb: { xs: 0.5, sm: 0.6 }
             }}
           >
             Kambi{' '}
@@ -227,21 +261,21 @@ const Login = () => {
               alignItems: 'center',
               justifyContent: 'center',
               gap: 1.5,
-              mb: { xs: 1.5, sm: 2 }
+              mb: { xs: 1.4, sm: 1.8, md: 2 }
             }}
           >
-            <Box sx={{ width: 45, height: '1.5px', bgcolor: '#CBD5E1' }} />
+            <Box sx={{ width: 40, height: '1.5px', bgcolor: '#CBD5E1' }} />
             <Typography
               sx={{
                 fontWeight: 800,
-                fontSize: '11px',
-                letterSpacing: '3px',
+                fontSize: { xs: '10.5px', sm: '11px' },
+                letterSpacing: '2.5px',
                 color: '#475569'
               }}
             >
               K M S &nbsp; H O S T E L
             </Typography>
-            <Box sx={{ width: 45, height: '1.5px', bgcolor: '#CBD5E1' }} />
+            <Box sx={{ width: 40, height: '1.5px', bgcolor: '#CBD5E1' }} />
           </Box>
 
           {/* Community Info Box */}
@@ -250,17 +284,17 @@ const Login = () => {
               display: 'flex',
               alignItems: 'center',
               gap: { xs: 1.5, sm: 2 },
-              p: { xs: 1.5, sm: 2 },
-              borderRadius: '16px',
+              p: { xs: 1.35, sm: 1.75, md: 2 },
+              borderRadius: '14px',
               bgcolor: '#F0F6FF',
-              mb: { xs: 2, sm: 2.8 }
+              mb: { xs: 1.8, sm: 2.2, md: 2.8 }
             }}
           >
             <Box
               sx={{
-                width: { xs: 40, sm: 48 },
-                height: { xs: 40, sm: 48 },
-                minWidth: { xs: 40, sm: 48 },
+                width: { xs: 42, sm: 48 },
+                height: { xs: 42, sm: 48 },
+                minWidth: { xs: 42, sm: 48 },
                 borderRadius: '50%',
                 bgcolor: '#DBEAFE',
                 display: 'flex',
@@ -268,15 +302,15 @@ const Login = () => {
                 justifyContent: 'center'
               }}
             >
-              <PeopleAltOutlined sx={{ color: '#2563EB', fontSize: { xs: 20, sm: 24 } }} />
+              <PeopleAltOutlined sx={{ color: '#2563EB', fontSize: { xs: 20, sm: 22, md: 24 } }} />
             </Box>
             <Box>
               <Typography
                 sx={{
                   fontWeight: 800,
-                  fontSize: { xs: '13.5px', sm: '14.5px' },
+                  fontSize: { xs: '12.5px', sm: '13.5px', md: '14.5px' },
                   color: '#1E3A8A',
-                  mb: 0.3
+                  mb: 0.2
                 }}
               >
                 Learn &nbsp;•&nbsp; Connect &nbsp;•&nbsp; Grow
@@ -284,8 +318,8 @@ const Login = () => {
               <Typography
                 sx={{
                   color: '#64748B',
-                  fontSize: { xs: '11.5px', sm: '12.5px' },
-                  lineHeight: 1.4,
+                  fontSize: { xs: '11px', sm: '12px', md: '12.5px' },
+                  lineHeight: 1.35,
                   fontWeight: 400
                 }}
               >
@@ -297,11 +331,12 @@ const Login = () => {
           {/* Form */}
           <form onSubmit={handleSubmit}>
             {/* Email / Phone field */}
-            <Box sx={{ mb: 2 }}>
+            <Box sx={{ mb: { xs: 1.6, sm: 2 } }}>
               <TextField
+                id="loginIdentifier"
+                name="loginIdentifier"
                 inputRef={emailInputRef}
                 fullWidth
-                size="medium"
                 value={loginIdentifier}
                 onChange={(e) => setLoginIdentifier(e.target.value)}
                 onKeyDown={(e) => {
@@ -316,7 +351,7 @@ const Login = () => {
                   input: {
                     startAdornment: (
                       <InputAdornment position="start">
-                        <MailIcon sx={{ color: '#94A3B8', fontSize: 20 }} />
+                        <MailIcon sx={{ color: '#94A3B8', fontSize: { xs: 20, sm: 20 } }} />
                       </InputAdornment>
                     )
                   }
@@ -324,22 +359,26 @@ const Login = () => {
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     borderRadius: '12px',
-                    fontSize: '14.5px',
+                    fontSize: { xs: '15px', sm: '15px' },
                     bgcolor: '#FFFFFF',
                     '& fieldset': { borderColor: '#CBD5E1' },
                     '&:hover fieldset': { borderColor: '#93C5FD' },
                     '&.Mui-focused fieldset': { borderColor: '#2563EB', borderWidth: '1.5px' }
+                  },
+                  '& .MuiOutlinedInput-input': {
+                    py: { xs: '13px', sm: '14px' }
                   }
                 }}
               />
             </Box>
 
             {/* Password field */}
-            <Box sx={{ mb: 1.5 }}>
+            <Box sx={{ mb: { xs: 1.35, sm: 1.5 } }}>
               <TextField
+                id="password"
+                name="password"
                 inputRef={passwordInputRef}
                 fullWidth
-                size="medium"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -355,7 +394,7 @@ const Login = () => {
                   input: {
                     startAdornment: (
                       <InputAdornment position="start">
-                        <LockIcon sx={{ color: '#94A3B8', fontSize: 20 }} />
+                        <LockIcon sx={{ color: '#94A3B8', fontSize: { xs: 20, sm: 20 } }} />
                       </InputAdornment>
                     ),
                     endAdornment: (
@@ -364,12 +403,12 @@ const Login = () => {
                           size="small"
                           onClick={() => setShowPassword(!showPassword)}
                           edge="end"
-                          sx={{ color: '#94A3B8' }}
+                          sx={{ color: '#94A3B8', p: 0.5 }}
                         >
                           {showPassword ? (
-                            <VisibilityOffIcon fontSize="small" />
+                            <VisibilityOffIcon sx={{ fontSize: 20 }} />
                           ) : (
-                            <VisibilityIcon fontSize="small" />
+                            <VisibilityIcon sx={{ fontSize: 20 }} />
                           )}
                         </IconButton>
                       </InputAdornment>
@@ -379,24 +418,29 @@ const Login = () => {
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     borderRadius: '12px',
-                    fontSize: '14.5px',
+                    fontSize: { xs: '15px', sm: '15px' },
                     bgcolor: '#FFFFFF',
                     '& fieldset': { borderColor: '#CBD5E1' },
                     '&:hover fieldset': { borderColor: '#93C5FD' },
                     '&.Mui-focused fieldset': { borderColor: '#2563EB', borderWidth: '1.5px' }
+                  },
+                  '& .MuiOutlinedInput-input': {
+                    py: { xs: '13px', sm: '14px' }
                   }
                 }}
               />
             </Box>
 
             {/* Remember me + Forgot password */}
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: { xs: 1.8, sm: 2.2 } }}>
               <FormControlLabel
                 control={
                   <Checkbox
+                    id="rememberMe"
+                    name="rememberMe"
                     size="small"
                     checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
+                    onChange={handleRememberMeChange}
                     sx={{
                       color: '#CBD5E1',
                       '&.Mui-checked': { color: '#2563EB' },
@@ -405,7 +449,7 @@ const Login = () => {
                   />
                 }
                 label={
-                  <Typography sx={{ fontSize: '13.5px', color: '#475569', fontWeight: 500 }}>
+                  <Typography sx={{ fontSize: { xs: '13px', sm: '13.5px' }, color: '#475569', fontWeight: 500 }}>
                     Remember me
                   </Typography>
                 }
@@ -417,7 +461,7 @@ const Login = () => {
                 sx={{
                   color: '#2563EB',
                   fontWeight: 600,
-                  fontSize: '13.5px',
+                  fontSize: { xs: '13px', sm: '13.5px' },
                   textDecoration: 'none',
                   '&:hover': { textDecoration: 'underline' }
                 }}
@@ -435,10 +479,10 @@ const Login = () => {
               disabled={loading}
               endIcon={!loading && <ArrowIcon sx={{ fontSize: '20px !important' }} />}
               sx={{
-                py: 1.4,
+                py: { xs: 1.3, sm: 1.35, md: 1.4 },
                 borderRadius: '12px',
                 fontWeight: 700,
-                fontSize: '15.5px',
+                fontSize: { xs: '15px', sm: '15.5px' },
                 textTransform: 'none',
                 bgcolor: '#0088ff',
                 boxShadow: 'none',
@@ -450,19 +494,19 @@ const Login = () => {
                 '&.Mui-disabled': { bgcolor: '#93C5FD' }
               }}
             >
-              {loading ? <CircularProgress size={22} sx={{ color: '#fff' }} /> : 'Login In'}
+              {loading ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : 'Login In'}
             </Button>
           </form>
 
           {/* OR divider */}
-          <Box sx={{ display: 'flex', alignItems: 'center', my: 2.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', my: { xs: 1.8, sm: 2, md: 2.2 } }}>
             <Box sx={{ flex: 1, height: '1px', bgcolor: '#E2E8F0' }} />
             <Typography
               sx={{
                 px: 2,
                 color: '#94A3B8',
                 fontWeight: 700,
-                fontSize: '11px',
+                fontSize: { xs: '11px', sm: '11px' },
                 letterSpacing: '1.5px'
               }}
             >
@@ -472,29 +516,28 @@ const Login = () => {
           </Box>
 
           {/* Register link */}
-          <Box sx={{ textAlign: 'center', mt: { xs: 2, sm: 2.5 }, mb: 1 }}>
-            <Typography sx={{ color: '#64748B', fontSize: '13.5px', fontWeight: 500 }}>
+          <Box sx={{ textAlign: 'center', mt: { xs: 0.8, sm: 1.5 }, mb: { xs: 0.8, sm: 1 } }}>
+            <Typography sx={{ color: '#64748B', fontSize: { xs: '13px', sm: '13.5px' }, fontWeight: 500 }}>
               Don't have an account?
             </Typography>
           </Box>
           {/* Create an Account button */}
           <Button
             fullWidth
-            size="large"
             component={RouterLink}
             to="/register"
             variant="outlined"
             startIcon={<PersonAddOutlined sx={{ fontSize: '20px !important' }} />}
             sx={{
-              py: { xs: 1.2, sm: 1.3 },
+              py: { xs: 1.15, sm: 1.25, md: 1.3 },
               borderRadius: '12px',
               fontWeight: 700,
-              fontSize: '14.5px',
+              fontSize: { xs: '14px', sm: '14.5px' },
               textTransform: 'none',
               color: '#1877F2',
               borderColor: '#93C5FD',
               bgcolor: '#FFFFFF',
-              mb: { xs: 3, md: 0 },
+              mb: 0,
               '&:hover': {
                 borderColor: '#1877F2',
                 bgcolor: '#EFF6FF'

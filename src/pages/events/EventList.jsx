@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
+import ReactDOM from "react-dom";
 import { useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
 import isoWeek from "dayjs/plugin/isoWeek";
@@ -153,7 +154,7 @@ function CalendarToolbar({ view, onViewChange, currentDate, onPrev, onNext, onTo
           sx={{
             width: { xs: "100%", sm: "auto" },
             alignSelf: "stretch",
-            display: "flex",
+            display: { xs: view === "all" ? "none" : "flex", sm: "flex" },
             alignItems: "center",
             justifyContent: { xs: "flex-end", sm: "flex-end" },
             flex: { sm: 1 },
@@ -167,6 +168,7 @@ function CalendarToolbar({ view, onViewChange, currentDate, onPrev, onNext, onTo
                 startIcon={<AddRoundedIcon sx={{ fontSize: 18 }} />}
                 onClick={onOpenCreate}
                 sx={{
+                  display: { xs: "none", sm: "inline-flex" },
                   bgcolor: "#0088ff",
                   color: "#fff",
                   fontWeight: 700,
@@ -2470,6 +2472,47 @@ function EventFormDialog({ open, onClose, onSubmit, isEdit, defaultDate, initial
   );
 }
 
+// ─── Header Action Button (Teleported to DashboardLayout header) ─────────────
+function EventHeaderActions({ portalNode, canCreate, onOpenCreate }) {
+  if (!canCreate || !onOpenCreate) return null;
+
+  const actionButton = (
+    <Stack direction="row" spacing={1} alignItems="center">
+      <Button
+        variant="contained"
+        startIcon={<AddRoundedIcon sx={{ fontSize: { xs: 16, sm: 18 } }} />}
+        onClick={onOpenCreate}
+        sx={{
+          backgroundColor: '#0088ff',
+          color: '#FFFFFF',
+          fontWeight: 700,
+          fontSize: { xs: '12px', sm: '13.5px' },
+          borderRadius: '10px',
+          textTransform: 'none',
+          px: { xs: 1.5, sm: 2.2 },
+          py: { xs: 0.6, sm: 0.8 },
+          minWidth: 'auto',
+          whiteSpace: 'nowrap',
+          boxShadow: 'none',
+          transition: 'all 0.15s ease',
+          '&:hover': {
+            backgroundColor: '#1465D0',
+            boxShadow: '0 6px 18px rgba(24, 119, 242, 0.45)'
+          }
+        }}
+      >
+        Add Event
+      </Button>
+    </Stack>
+  );
+
+  if (portalNode) {
+    return ReactDOM.createPortal(actionButton, portalNode);
+  }
+
+  return null;
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function EventList() {
   const { user } = useAuth();
@@ -2479,6 +2522,22 @@ export default function EventList() {
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
+  // Portal node to teleport 'Add Event' button to the dashboard layout header (matching Access Control)
+  const [portalNode, setPortalNode] = useState(null);
+
+  useEffect(() => {
+    const el = document.getElementById("dashboard-header-actions");
+    if (el) {
+      setPortalNode(el);
+    } else {
+      const timer = setTimeout(() => {
+        const delayedEl = document.getElementById("dashboard-header-actions");
+        if (delayedEl) setPortalNode(delayedEl);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   // By default open All events tab
   const [view, setView] = useState("all");
@@ -2651,6 +2710,13 @@ export default function EventList() {
         boxSizing: "border-box",
       }}
     >
+      {/* Header action button teleported to Dashboard header next to profile avatar (matching Access Control) */}
+      <EventHeaderActions
+        portalNode={portalNode}
+        canCreate={canManage}
+        onOpenCreate={() => handleOpenCreate()}
+      />
+
       {error && <Alert severity="error" sx={{ mb: 2, borderRadius: "10px", flexShrink: 0 }} onClose={() => setError("")}>{error}</Alert>}
 
       {/* Calendar Card in full viewport height */}

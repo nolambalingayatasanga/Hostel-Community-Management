@@ -10,17 +10,21 @@ import {
   QrCodeScanner as QrCodeScannerIcon,
   AdminPanelSettings as AdminIcon,
   Security as SecurityIcon,
-  SchoolRounded as SchoolIcon
+  SchoolRounded as SchoolIcon,
+  RateReview as FeedbackIcon,
+  Work as WorkIcon
 } from '@mui/icons-material';
 
 export const PAGE_DEFINITIONS = [
-  { id: 'profile', label: 'Profile', icon: React.createElement(ProfileIcon, { sx: { fontSize: 18 } }) },
   { id: 'overview', label: 'Overview', icon: React.createElement(DashboardIcon, { sx: { fontSize: 18 } }) },
+  { id: 'profile', label: 'Profile', icon: React.createElement(ProfileIcon, { sx: { fontSize: 18 } }) },
   { id: 'users', label: 'Users', icon: React.createElement(PeopleIcon, { sx: { fontSize: 18 } }) },
   { id: 'events', label: 'Events', icon: React.createElement(EventIcon, { sx: { fontSize: 18 } }) },
   { id: 'gallery', label: 'Gallery', icon: React.createElement(GalleryIcon, { sx: { fontSize: 18 } }) },
   { id: 'drive_links', label: 'Drive Links', icon: React.createElement(CloudQueueIcon, { sx: { fontSize: 18 } }) },
   { id: 'request_upload', label: 'Share Media', icon: React.createElement(CloudUploadIcon, { sx: { fontSize: 18 } }) },
+  { id: 'job_openings', label: 'Job Openings', icon: React.createElement(WorkIcon, { sx: { fontSize: 18 } }) },
+  { id: 'feedback', label: 'Feedback', icon: React.createElement(FeedbackIcon, { sx: { fontSize: 18 } }) },
   { id: 'qr_scan_count', label: 'QR Scan Count', icon: React.createElement(QrCodeScannerIcon, { sx: { fontSize: 18 } }) },
   { id: 'access_control', label: 'Access Control', icon: React.createElement(AdminIcon, { sx: { fontSize: 18 } }) }
 ];

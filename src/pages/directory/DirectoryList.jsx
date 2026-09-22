@@ -29,6 +29,7 @@ import {
   Search as SearchIcon,
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
+  Close as CloseIcon,
 } from "@mui/icons-material";
 
 import {
@@ -49,10 +50,122 @@ import { columnWidth, toRow, formatLeadDate, leadFieldValue, getColumnDisplayNam
 import API from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import CustomDateRangePicker from "../../components/CustomDateRangePicker";
-import debounce from "lodash/debounce";
 
 const ALL_TAB = "all";
 const DROPPED_TAB = "dropped";
+
+const DirectorySearchBar = React.memo(function DirectorySearchBar({
+  initialValue = "",
+  onSearch,
+  isSearching = false
+}) {
+  const [term, setTerm] = useState(initialValue);
+
+  // Sync if URL search changes externally (e.g. back button or tab switch)
+  useEffect(() => {
+    setTerm(initialValue || "");
+  }, [initialValue]);
+
+  const handleSubmit = (e) => {
+    if (e) e.preventDefault();
+    onSearch(term);
+  };
+
+  const handleClear = () => {
+    setTerm("");
+    onSearch("");
+  };
+
+  return (
+    <Box
+      component="form"
+      onSubmit={handleSubmit}
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        gap: 0.75,
+        flexShrink: 0
+      }}
+    >
+      <TextField
+        size="small"
+        placeholder="Search..."
+        value={term}
+        onChange={(e) => setTerm(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            handleSubmit();
+          }
+        }}
+        slotProps={{
+          input: {
+            startAdornment: (
+              <SearchIcon
+                sx={{
+                  color: "text.secondary",
+                  mr: { xs: 0.5, sm: 1 },
+                  fontSize: { xs: 16, sm: 18 }
+                }}
+              />
+            ),
+            endAdornment: term ? (
+              <IconButton
+                size="small"
+                onClick={handleClear}
+                sx={{ p: 0.5, color: "text.secondary", mr: -0.5 }}
+                title="Clear search"
+                disabled={isSearching}
+              >
+                <CloseIcon sx={{ fontSize: { xs: 14, sm: 16 } }} />
+              </IconButton>
+            ) : null,
+            sx: {
+              height: { xs: "36px", sm: "40px" },
+              fontSize: { xs: "12px", sm: "13.5px" },
+              borderRadius: "8px",
+            }
+          }
+        }}
+        sx={{
+          width: { xs: 125, sm: 200, md: 260 },
+          flexShrink: 0,
+          "& .MuiOutlinedInput-root": { borderRadius: "8px" }
+        }}
+      />
+      <Button
+        type="submit"
+        variant="contained"
+        size="small"
+        disabled={isSearching}
+        startIcon={isSearching ? <CircularProgress size={14} color="inherit" /> : null}
+        sx={{
+          height: { xs: "36px", sm: "40px" },
+          borderRadius: "8px",
+          px: { xs: 1.5, sm: 2 },
+          fontSize: { xs: "12px", sm: "13.5px" },
+          fontWeight: 600,
+          textTransform: "none",
+          bgcolor: "#0088ff",
+          color: "#fff",
+          boxShadow: "none",
+          whiteSpace: "nowrap",
+          flexShrink: 0,
+          "&:hover": {
+            bgcolor: "#0077ee",
+            boxShadow: "none"
+          },
+          "&.Mui-disabled": {
+            bgcolor: "rgba(0, 136, 255, 0.6)",
+            color: "#fff"
+          }
+        }}
+      >
+        {isSearching ? "Searching..." : "Search"}
+      </Button>
+    </Box>
+  );
+});
 
 export default function DirectoryList() {
   const queryClient = useQueryClient();
@@ -138,7 +251,7 @@ export default function DirectoryList() {
   };
 
   const initialSearchParam = searchParams.get("search") || "";
-  const [searchTerm, setSearchTerm] = useState(initialSearchParam);
+  const [appliedSearch, setAppliedSearch] = useState(initialSearchParam);
   const [tabOrder, setTabOrder] = useState(null);
 
   useEffect(() => {
@@ -151,24 +264,12 @@ export default function DirectoryList() {
       } catch { /* ignore */ }
     }
   }, [user?._id]);
-  const [debouncedSearch, setDebouncedSearch] = useState(initialSearchParam);
 
-  const debouncedSetSearch = useMemo(
-    () => debounce((val) => setDebouncedSearch(val), 800),
-    []
-  );
-
-  useEffect(() => {
-    return () => {
-      debouncedSetSearch.cancel();
-    };
-  }, [debouncedSetSearch]);
-
-  const handleSearchChange = (e) => {
-    const val = e.target.value;
-    setSearchTerm(val);
-    debouncedSetSearch(val);
-  };
+  const handleSearchSubmit = useCallback((val) => {
+    const trimmed = (val || "").trim();
+    setAppliedSearch(trimmed);
+    setPage(1);
+  }, []);
 
   const initialPageParam = parseInt(searchParams.get("page"), 10);
   const [page, setPage] = useState(initialPageParam > 0 ? initialPageParam : 1);
@@ -185,7 +286,7 @@ export default function DirectoryList() {
   // Clear selection whenever tab, page, search query, or role changes
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [activeTabId, page, debouncedSearch, isAdminOrWarden]);
+  }, [activeTabId, page, appliedSearch, isAdminOrWarden]);
 
   const getStoredTabColumnOrder = (userId, tabId) => {
     try {
@@ -272,9 +373,9 @@ export default function DirectoryList() {
       page,
       limit: pageSize,
       filters: JSON.stringify(filters),
-      searchQuery: debouncedSearch || undefined,
+      searchQuery: appliedSearch || undefined,
     }),
-    [page, pageSize, filters, debouncedSearch],
+    [page, pageSize, filters, appliedSearch],
   );
 
   const isTabReady = Boolean(
@@ -465,7 +566,7 @@ export default function DirectoryList() {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = 0;
     }
-  }, [debouncedSearch, joinDateMin, joinDateMax, pageSize]);
+  }, [appliedSearch, joinDateMin, joinDateMax, pageSize]);
 
   useEffect(() => {
     if (scrollContainerRef.current) {
@@ -611,16 +712,15 @@ export default function DirectoryList() {
     }
 
     const paramSearch = searchParams.get("search") || "";
-    if (paramSearch !== searchTerm) {
-      setSearchTerm(paramSearch);
-      setDebouncedSearch(paramSearch);
+    if (paramSearch !== appliedSearch) {
+      setAppliedSearch(paramSearch);
     }
 
     const paramStart = searchParams.get("startDate") || searchParams.get("from") || null;
     const paramEnd = searchParams.get("endDate") || searchParams.get("to") || null;
     if (paramStart !== joinDateMin) setJoinDateMin(paramStart);
     if (paramEnd !== joinDateMax) setJoinDateMax(paramEnd);
-  }, [searchParams, allStatusGroups, activeTabId, page, searchTerm, joinDateMin, joinDateMax, resolveTabParamToId]);
+  }, [searchParams, allStatusGroups, activeTabId, page, appliedSearch, joinDateMin, joinDateMax, resolveTabParamToId]);
 
   // Sync pagination to URL
   useEffect(() => {
@@ -633,12 +733,12 @@ export default function DirectoryList() {
     }
   }, [page]);
 
-  // Sync debounced search to URL
+  // Sync applied search to URL
   useEffect(() => {
     if (!hasInitializedTabRef.current) return;
     const nextParams = new URLSearchParams(searchParams);
-    if (debouncedSearch) {
-      nextParams.set("search", debouncedSearch);
+    if (appliedSearch) {
+      nextParams.set("search", appliedSearch);
       nextParams.delete("page");
     } else {
       nextParams.delete("search");
@@ -646,7 +746,7 @@ export default function DirectoryList() {
     if (searchParams.toString() !== nextParams.toString()) {
       setSearchParams(nextParams, { replace: true });
     }
-  }, [debouncedSearch]);
+  }, [appliedSearch]);
 
   // Sync date range to URL
   useEffect(() => {
@@ -1036,27 +1136,11 @@ export default function DirectoryList() {
             }}
           />
 
-          {/* Search Input */}
-          <TextField
-            size="small"
-            placeholder="Search..."
-            value={searchTerm}
-            onChange={handleSearchChange}
-            slotProps={{
-              input: {
-                startAdornment: <SearchIcon sx={{ color: "text.secondary", mr: { xs: 0.5, sm: 1 }, fontSize: { xs: 16, sm: 18 } }} />,
-                sx: {
-                  height: { xs: "36px", sm: "40px" },
-                  fontSize: { xs: "12px", sm: "13.5px" },
-                  borderRadius: "8px",
-                }
-              }
-            }}
-            sx={{
-              width: { xs: 125, sm: 220, md: 300 },
-              flexShrink: 0,
-              "& .MuiOutlinedInput-root": { borderRadius: "8px" }
-            }}
+          {/* Search Bar with Zero Typing Delay & Loading Indicator */}
+          <DirectorySearchBar
+            initialValue={appliedSearch}
+            onSearch={handleSearchSubmit}
+            isSearching={Boolean((isFetching || isLoading) && !isTabSwitching)}
           />
 
           {/* Table Fields Settings Button */}

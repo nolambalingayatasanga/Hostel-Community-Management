@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useOutletContext } from 'react-router-dom';
 import JSZip from 'jszip';
 import {
   Box,
@@ -120,6 +120,7 @@ const Gallery = () => {
   const { enqueueSnackbar, closeSnackbar } = useSnackbar();
   const { enqueueFiles } = useUploadQueue();
   const navigate = useNavigate();
+  const outletContext = useOutletContext();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [searchParams, setSearchParams] = useSearchParams();
@@ -318,7 +319,6 @@ const Gallery = () => {
         setPhotos((prev) => [newPhoto, ...prev.filter((p) => p._id !== newPhoto._id)]);
         setTotalPhotos((prev) => prev + 1);
       }
-
       fetchFolders();
     };
 
@@ -421,6 +421,86 @@ const Gallery = () => {
     next.delete('folderId');
     setSearchParams(next, { replace: true });
   };
+
+  // Sync folder name & back button into top header when inside a folder
+  useEffect(() => {
+    if (!outletContext?.setCustomHeader) return;
+
+    if (activeTab === 'folders' && currentFolder) {
+      outletContext.setCustomHeader(
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+          <IconButton
+            onClick={handleBackToFolders}
+            size="small"
+            aria-label="Back to parent folder"
+            sx={{
+              width: 32,
+              height: 32,
+              bgcolor: '#F1F5F9',
+              color: '#1E293B',
+              borderRadius: '8px',
+              flexShrink: 0,
+              '&:hover': {
+                bgcolor: '#E2E8F0',
+                color: '#0F172A'
+              },
+              transition: 'all 0.15s'
+            }}
+          >
+            <ArrowBackIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+          {currentFolder.color && (
+            <Box
+              component="span"
+              sx={{
+                width: 9,
+                height: 9,
+                borderRadius: '3px',
+                bgcolor: currentFolder.color,
+                display: 'inline-block',
+                flexShrink: 0
+              }}
+            />
+          )}
+          <Typography
+            variant="h6"
+            noWrap
+            component="div"
+            sx={{
+              fontWeight: 700,
+              fontSize: { xs: '0.95rem', sm: '1.25rem' },
+              color: '#0F172A',
+              letterSpacing: '-0.01em',
+              maxWidth: { xs: 150, sm: 280, md: 450 },
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}
+          >
+            {currentFolder.name}
+          </Typography>
+          <Chip
+            label={`${totalPhotos} items`}
+            size="small"
+            sx={{
+              fontWeight: 600,
+              bgcolor: '#F1F5F9',
+              color: '#475569',
+              fontSize: '11px',
+              height: 20,
+              flexShrink: 0,
+              display: { xs: 'none', sm: 'inline-flex' }
+            }}
+          />
+        </Box>
+      );
+    } else {
+      outletContext.setCustomHeader(null);
+    }
+
+    return () => {
+      outletContext.setCustomHeader?.(null);
+    };
+  }, [outletContext?.setCustomHeader, activeTab, currentFolder, totalPhotos, folders]);
 
   // -------------------------------------------------------------
   // 5. Folder CRUD Dialog & Actions
@@ -968,151 +1048,36 @@ const Gallery = () => {
       {/* ------------------------------------------------------------- */}
       <Box
         sx={{
-          position: { xs: 'sticky', md: 'static' },
-          top: { xs: 56, sm: 64, md: 'auto' },
+          position: 'sticky',
+          top: { xs: 56, sm: 64 },
           zIndex: 100,
-          bgcolor: isMobile ? '#fff' : 'none',
-          mx: { xs: -1.5, sm: -2.5, md: 0 },
-          px: { xs: 1.5, sm: 2.5, md: 0 },
-          mt: { xs: -1.5, sm: -2.5, md: 0 },
-          pt: { xs: 0.5, sm: 1, md: 0 },
-          pb: { xs: 1, sm: 1.5, md: 0 },
+          bgcolor: { xs: '#FFFFFF', md: 'rgba(248, 250, 252, 0.95)' },
+          backdropFilter: 'blur(8px)',
+          mx: { xs: -1.5, sm: -2.5, md: -3 },
+          px: { xs: 1.5, sm: 2.5, md: 3 },
+          mt: { xs: -1.5, sm: -2.5, md: -3 },
+          pt: { xs: 1, sm: 1.25, md: 1.25 },
+          pb: { xs: 1, sm: 1.25, md: 1.25 },
           mb: { xs: 1.5, sm: 2, md: 2.5 },
-          borderBottom: { xs: '1px solid #E2E8F0', md: 'none' },
+          borderBottom: '1px solid #E2E8F0',
           display: 'flex',
           flexDirection: 'column',
           gap: { xs: 1, md: 1.5 }
         }}
       >
-        {/* Main Row: On Desktop, single row with Tabs/Breadcrumbs on Left & Actions on Right */}
+        {/* Main Row: On Desktop, single row with Tabs on Left (when at root) & Actions on Right */}
         <Box
           sx={{
             display: 'flex',
             flexDirection: { xs: 'column', md: 'row' },
-            justifyContent: { md: 'space-between' },
+            justifyContent: { md: activeTab === 'folders' && currentFolder ? 'flex-end' : 'space-between' },
             alignItems: { xs: 'stretch', md: 'center' },
             width: '100%',
             gap: { xs: 1, md: 2 }
           }}
         >
-          {/* Left Side: Tabs or Folder Breadcrumbs */}
-          {activeTab === 'folders' && currentFolder ? (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, overflowX: 'auto', py: 1, flexShrink: 0 }}>
-              <IconButton
-                onClick={handleBackToFolders}
-                sx={{
-                  width: 30,
-                  height: 30,
-                  bgcolor: '#F1F5F9',
-                  color: '#1E293B',
-                  flexShrink: 0,
-                  '&:hover': { bgcolor: '#E2E8F0' }
-                }}
-                size="medium"
-              >
-                <ArrowBackIcon sx={{ fontSize: 18 }} />
-              </IconButton>
-
-              <Breadcrumbs separator="/" aria-label="breadcrumb" sx={{ flexWrap: 'nowrap' }}>
-                <Link
-                  component="button"
-                  variant="body2"
-                  onClick={() => navigateToFolder(null)}
-                  underline="hover"
-                  sx={{
-                    color: '#64748B',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 0.5,
-                    fontSize: '13px',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  <FolderIcon sx={{ fontSize: 18 }} />
-                  Folders
-                </Link>
-                {folderTrail.map((folderCrumb, idx) => {
-                  const isLast = idx === folderTrail.length - 1;
-                  if (isLast) {
-                    return (
-                      <Box key={folderCrumb._id} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, whiteSpace: 'nowrap' }}>
-                        <Typography
-                          component="span"
-                          variant="body2"
-                          sx={{
-                            fontWeight: 700,
-                            color: '#1E293B',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 0.5,
-                            fontSize: '13px'
-                          }}
-                        >
-                          <Box
-                            component="span"
-                            sx={{
-                              width: 10,
-                              height: 10,
-                              borderRadius: '3px',
-                              bgcolor: folderCrumb.color || '#0F9D58',
-                              display: 'inline-block',
-                              flexShrink: 0
-                            }}
-                          />
-                          {folderCrumb.name}
-                        </Typography>
-                        <Chip
-                          label={`${totalPhotos} items`}
-                          size="small"
-                          sx={{
-                            fontWeight: 600,
-                            bgcolor: '#F1F5F9',
-                            color: '#475569',
-                            fontSize: '11px',
-                            height: 20
-                          }}
-                        />
-                      </Box>
-                    );
-                  }
-                  return (
-                    <Link
-                      key={folderCrumb._id}
-                      component="button"
-                      variant="body2"
-                      onClick={() => navigateToFolder(folderCrumb)}
-                      underline="hover"
-                      sx={{
-                        color: '#64748B',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 0.5,
-                        fontSize: '13px',
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      <Box
-                        component="span"
-                        sx={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: '2px',
-                          bgcolor: folderCrumb.color || '#0F9D58',
-                          display: 'inline-block',
-                          flexShrink: 0
-                        }}
-                      />
-                      {folderCrumb.name}
-                    </Link>
-                  );
-                })}
-              </Breadcrumbs>
-            </Box>
-          ) : (
+          {/* Left Side: Tabs (shown only when NOT inside a folder) */}
+          {!(activeTab === 'folders' && currentFolder) && (
             <Tabs
               value={activeTab}
               onChange={handleTabChange}
@@ -1200,18 +1165,25 @@ const Gallery = () => {
             </Tabs>
           )}
 
-          {/* Right Side: Action Buttons (Add photos, Select all, New folder) */}
+          {/* Right Side: Action Buttons (Add photos, Select all, New folder / New subfolder) */}
           {(() => {
             const showSelectAll = (activeTab === 'all' || currentFolder) && photos.length > 0;
-            const showNewFolder = isAdminOrWarden && activeTab === 'folders' && !currentFolder;
-            const rightAction = showSelectAll ? 'select' : (showNewFolder ? 'new_folder' : null);
-            const hasTwoColumns = Boolean(rightAction);
+            const showFolderAction = isAdminOrWarden && activeTab === 'folders';
+            const folderActionLabel = currentFolder ? 'New subfolder' : 'New folder';
+
+            // Calculate grid columns on mobile
+            let numButtons = 1; // Add photos / Share media
+            if (showFolderAction) numButtons += 1;
+            if (showSelectAll) numButtons += 1;
 
             return (
               <Box
                 sx={{
                   display: { xs: 'grid', md: 'flex' },
-                  gridTemplateColumns: hasTwoColumns ? 'repeat(2, minmax(0, 1fr))' : '1fr',
+                  gridTemplateColumns: {
+                    xs: numButtons === 3 ? 'repeat(2, minmax(0, 1fr))' : (numButtons === 2 ? 'repeat(2, minmax(0, 1fr))' : '1fr'),
+                    md: 'none'
+                  },
                   alignItems: 'center',
                   justifyContent: { md: 'flex-end' },
                   width: { xs: '100%', md: 'auto' },
@@ -1228,6 +1200,7 @@ const Gallery = () => {
                     onClick={handleOpenUpload}
                     sx={{
                       width: { xs: '100%', md: 'auto' },
+                      gridColumn: { xs: numButtons === 3 ? '1 / -1' : 'auto', md: 'auto' },
                       background: '#0088ff',
                       color: '#fff',
                       borderRadius: '9px',
@@ -1257,6 +1230,7 @@ const Gallery = () => {
                     onClick={() => navigate('/request-upload?tab=submit&category=gallery')}
                     sx={{
                       width: { xs: '100%', md: 'auto' },
+                      gridColumn: { xs: numButtons === 3 ? '1 / -1' : 'auto', md: 'auto' },
                       background: '#0088ff',
                       color: '#fff',
                       borderRadius: '9px',
@@ -1279,14 +1253,14 @@ const Gallery = () => {
                   </Button>
                 )}
 
-                {/* New folder (on Folders root) */}
-                {showNewFolder && !showSelectAll && (
+                {/* New folder (at root) or New subfolder (inside folder) */}
+                {showFolderAction && (
                   <Button
                     variant="outlined"
                     size="small"
                     disabled={deleting || folderSubmitting}
                     startIcon={folderSubmitting ? <CircularProgress size={14} color="inherit" /> : <CreateNewFolderIcon sx={{ fontSize: '16px !important' }} />}
-                    onClick={() => handleOpenCreateFolderDialog(null)}
+                    onClick={() => handleOpenCreateFolderDialog(currentFolder ? currentFolder._id : null)}
                     sx={{
                       width: { xs: '100%', md: 'auto' },
                       borderRadius: '9px',
@@ -1306,7 +1280,7 @@ const Gallery = () => {
                       }
                     }}
                   >
-                    {folderSubmitting ? 'Creating...' : 'New folder'}
+                    {folderSubmitting ? 'Creating...' : folderActionLabel}
                   </Button>
                 )}
 
@@ -1511,8 +1485,8 @@ const Gallery = () => {
           ) : (
             /* View 2B: Inside Folder View (Subfolders + Media) */
             <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-              {/* 1. Subfolders Section if any exist inside current folder */}
-              {childFolders.length > 0 && (
+              {/* 1. Subfolders Section */}
+              {childFolders.length > 0 ? (
                 <Box sx={{ mb: 4 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                     <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1536,6 +1510,10 @@ const Gallery = () => {
                     {childFolders.map((folder) => renderFolderCard(folder))}
                   </Grid>
                 </Box>
+              ) : (
+                isAdminOrWarden && photos.length > 0 && (
+                 <></>
+                )
               )}
 
               {/* 2. Media Section inside this folder */}

@@ -4,7 +4,7 @@ const AccessSchema = new mongoose.Schema({
   page: {
     type: String,
     required: true,
-    enum: ['overview', 'users', 'events', 'gallery', 'drive_links', 'request_upload', 'profile', 'qr_scan_count', 'access_control']
+    enum: ['overview', 'users', 'events', 'gallery', 'drive_links', 'request_upload', 'job_openings', 'feedback', 'profile', 'qr_scan_count', 'access_control']
   },
   role: {
     type: String,
@@ -31,7 +31,7 @@ AccessSchema.index({ page: 1, role: 1 }, { unique: true });
 
 // Standard default permissions seeder
 AccessSchema.statics.seedDefaults = async function() {
-  const pages = ['overview', 'users', 'events', 'gallery', 'drive_links', 'request_upload', 'profile', 'qr_scan_count', 'access_control'];
+  const pages = ['overview', 'users', 'events', 'gallery', 'drive_links', 'request_upload', 'job_openings', 'feedback', 'profile', 'qr_scan_count', 'access_control'];
   const roles = ['ADMIN', 'WARDEN', 'STAFF', 'ALUMNI', 'STUDENT', 'MEMBER'];
 
   const count = await this.countDocuments();
@@ -109,6 +109,63 @@ AccessSchema.statics.seedDefaults = async function() {
         }
       }));
       await this.insertMany(reqEntries);
+    }
+
+    // Ensure feedback permissions exist
+    const feedbackCount = await this.countDocuments({ page: 'feedback' });
+    if (feedbackCount === 0) {
+      const feedbackEntries = roles.map(role => ({
+        page: 'feedback',
+        role,
+        permissions: (role === 'ADMIN' || role === 'WARDEN') ? {
+          fullAccess: true,
+          view: true,
+          create: true,
+          update: true,
+          delete: true,
+          noAccess: false
+        } : {
+          fullAccess: false,
+          view: true,
+          create: true,
+          update: true,
+          delete: false,
+          noAccess: false
+        }
+      }));
+      await this.insertMany(feedbackEntries);
+    }
+
+    // Ensure job_openings permissions exist
+    const jobCount = await this.countDocuments({ page: 'job_openings' });
+    if (jobCount === 0) {
+      const jobEntries = roles.map(role => ({
+        page: 'job_openings',
+        role,
+        permissions: (role === 'ADMIN' || role === 'WARDEN') ? {
+          fullAccess: true,
+          view: true,
+          create: true,
+          update: true,
+          delete: true,
+          noAccess: false
+        } : (role === 'STUDENT' || role === 'STAFF') ? {
+          fullAccess: false,
+          view: true,
+          create: false,
+          update: false,
+          delete: false,
+          noAccess: false
+        } : {
+          fullAccess: false,
+          view: true,
+          create: true,
+          update: true,
+          delete: true,
+          noAccess: false
+        }
+      }));
+      await this.insertMany(jobEntries);
     }
 
     return; // Already initialized

@@ -34,7 +34,9 @@ import {
   QrCodeScanner as QrCodeScannerIcon,
   CloudQueue as CloudQueueIcon,
   CloudUpload as CloudUploadIcon,
-  Close as CloseIcon
+  Close as CloseIcon,
+  RateReview as FeedbackIcon,
+  Work as WorkIcon
 } from '@mui/icons-material';
 import NotFound from '../pages/common/NotFound';
 
@@ -46,6 +48,11 @@ const DashboardLayout = () => {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
+  const [customHeader, setCustomHeader] = useState(null);
+
+  useEffect(() => {
+    setCustomHeader(null);
+  }, [location.pathname]);
 
   const getPageTitle = () => {
     const path = location.pathname;
@@ -58,6 +65,11 @@ const DashboardLayout = () => {
     // Events / Calendar page check
     if (path === '/events') {
       return 'Event Calendar';
+    }
+
+    // Gallery page check
+    if (path.startsWith('/gallery')) {
+      return 'Gallery';
     }
 
     // Drive Links page check
@@ -83,6 +95,16 @@ const DashboardLayout = () => {
     // Request Upload page check
     if (path.startsWith('/request-upload')) {
       return 'Share Media';
+    }
+
+    // Job Openings page check
+    if (path.startsWith('/job-openings')) {
+      return 'Job Openings';
+    }
+
+    // Feedback page check
+    if (path.startsWith('/feedback')) {
+      return 'Feedback';
     }
 
     // Default formatting logic
@@ -117,6 +139,8 @@ const DashboardLayout = () => {
     GalleryIcon: <GalleryIcon />,
     CloudQueueIcon: <CloudQueueIcon />,
     CloudUploadIcon: <CloudUploadIcon />,
+    WorkIcon: <WorkIcon />,
+    FeedbackIcon: <FeedbackIcon />,
     ProfileIcon: <ProfileIcon />,
     QrCodeIcon: <QrCodeScannerIcon />,
     AdminIcon: <AdminIcon />
@@ -132,10 +156,11 @@ const DashboardLayout = () => {
       const res = await API.get('/access/navigation');
       if (res.data?.success && Array.isArray(res.data?.data)) {
         const items = [...res.data.data];
-        const profileIdx = items.findIndex(i => i.id === 'profile' || i.path === '/profile');
-        if (profileIdx > 0) {
-          const [profileItem] = items.splice(profileIdx, 1);
-          items.unshift(profileItem);
+        // Ensure Overview is the first tab in the sidebar
+        const overviewIdx = items.findIndex(i => i.id === 'overview' || i.path === '/dashboard');
+        if (overviewIdx > 0) {
+          const [overviewItem] = items.splice(overviewIdx, 1);
+          items.unshift(overviewItem);
         }
         setNavItems(items);
       }
@@ -166,6 +191,8 @@ const DashboardLayout = () => {
     if (pathname.startsWith('/gallery')) return 'gallery';
     if (pathname.startsWith('/drive-links')) return 'drive_links';
     if (pathname.startsWith('/request-upload')) return 'request_upload';
+    if (pathname.startsWith('/job-openings')) return 'job_openings';
+    if (pathname.startsWith('/feedback')) return 'feedback';
     if (pathname.startsWith('/profile')) return 'profile';
     if (pathname.startsWith('/qr-scan-count')) return 'qr_scan_count';
     if (pathname === '/access-control') return 'access_control';
@@ -294,7 +321,7 @@ const DashboardLayout = () => {
         }}
       >
         <Toolbar sx={{ justifyContent: 'space-between' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1 }}>
             <IconButton
               color="inherit"
               aria-label="open drawer"
@@ -305,7 +332,9 @@ const DashboardLayout = () => {
               <MenuIcon />
             </IconButton>
 
-            {location.pathname.startsWith('/events/') && location.pathname !== '/events/new' ? (
+            {customHeader ? (
+              customHeader
+            ) : location.pathname.startsWith('/events/') && location.pathname !== '/events/new' ? (
               <Button
                 startIcon={<ArrowBackIcon sx={{ fontSize: 18 }} />}
                 onClick={() => navigate('/events')}
@@ -506,7 +535,7 @@ const DashboardLayout = () => {
           p: { xs: 1.5, sm: 2.5, md: 3 },
           width: { xs: '100%', md: `calc(100% - ${drawerWidth}px)` },
           maxWidth: { xs: '100vw', md: '100%' },
-          overflowX: 'hidden',
+          overflowX: 'clip',
           boxSizing: 'border-box',
           mt: { xs: 7, sm: 8 } // spacing for fixed Appbar
         }}
@@ -516,7 +545,7 @@ const DashboardLayout = () => {
             <CircularProgress sx={{ color: '#0088ff' }} size={36} />
           </Box>
         ) : isPageAllowed ? (
-          <Outlet />
+          <Outlet context={{ customHeader, setCustomHeader }} />
         ) : (
           <NotFound
             message="Access Denied"

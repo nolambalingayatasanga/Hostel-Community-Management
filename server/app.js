@@ -89,6 +89,8 @@ const crmRoutes = require("./routes/crmRoutes");
 const accessRoutes = require("./routes/accessRoutes");
 const driveLinkRoutes = require("./routes/driveLinkRoutes");
 const uploadRequestRoutes = require("./routes/uploadRequestRoutes");
+const feedbackRoutes = require("./routes/feedbackRoutes");
+const jobRoutes = require("./routes/jobRoutes");
 
 // Mount auth/core routes first — login must never depend on QR packages
 app.use("/api/auth", authLimiter, authRoutes);
@@ -97,6 +99,8 @@ app.use("/api/events", eventRoutes);
 app.use("/api/gallery", galleryRoutes);
 app.use("/api/drive-links", driveLinkRoutes);
 app.use("/api/upload-requests", uploadRequestRoutes);
+app.use("/api/jobs", jobRoutes);
+app.use("/api/feedback", feedbackRoutes);
 app.use("/api/crm", crmRoutes);
 app.use("/api/access", accessRoutes);
 

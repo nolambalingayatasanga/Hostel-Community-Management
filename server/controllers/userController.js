@@ -956,6 +956,30 @@ exports.adminCreateUser = async (req, res, next) => {
             }
           });
         }
+
+        // If mapped from MEMBER role and assigned role is Student or Alumni, upgrade role to ALUMNI
+        if (['STUDENT', 'ALUMNI'].includes(assignedRole) && existingMember.role === 'MEMBER') {
+          existingMember.role = 'ALUMNI';
+        }
+
+        if (req.body.education && typeof req.body.education === 'object') {
+          if (!existingMember.education) existingMember.education = {};
+          ['college', 'course', 'startYear', 'endYear'].forEach(k => {
+            if ((existingMember.education[k] === undefined || existingMember.education[k] === null || existingMember.education[k] === '') && req.body.education[k]) {
+              existingMember.education[k] = req.body.education[k];
+            }
+          });
+        }
+        if (req.body.college && (!existingMember.education?.college)) {
+          if (!existingMember.education) existingMember.education = {};
+          existingMember.education.college = req.body.college.trim();
+        }
+        if (req.body.endYear && (!existingMember.education?.endYear)) {
+          if (!existingMember.education) existingMember.education = {};
+          const gradYear = parseInt(req.body.endYear, 10);
+          if (!isNaN(gradYear)) existingMember.education.endYear = gradYear;
+        }
+
         existingMember.updatedBy = req.user._id;
         await existingMember.save();
 
