@@ -2477,7 +2477,12 @@ function EventHeaderActions({ portalNode, canCreate, onOpenCreate }) {
   if (!canCreate || !onOpenCreate) return null;
 
   const actionButton = (
-    <Stack direction="row" spacing={1} alignItems="center">
+    <Stack
+      direction="row"
+      spacing={1}
+      alignItems="center"
+      sx={{ display: { xs: 'flex', md: 'none' } }}
+    >
       <Button
         variant="contained"
         startIcon={<AddRoundedIcon sx={{ fontSize: { xs: 16, sm: 18 } }} />}
@@ -2518,7 +2523,7 @@ export default function EventList() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
-  const canManage = ["ADMIN", "WARDEN"].includes(user?.role);
+  const canManage = ["ADMINISTRATOR", "ADMIN", "WARDEN"].includes(user?.role);
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));

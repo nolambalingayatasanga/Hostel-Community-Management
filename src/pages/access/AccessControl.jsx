@@ -1,17 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { Box, Alert, CircularProgress, Typography } from '@mui/material';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Box, Alert } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import API from '../../api';
-import AccessPageHeader from './components/AccessPageHeader';
-import AccessHeaderActions from './components/AccessHeaderActions';
-import AccessConfigurationSelector from './components/AccessConfigurationSelector';
-import ActivePrivilegesCard from './components/ActivePrivilegesCard';
-import PermissionMatrix from './components/PermissionMatrix';
+
+import {
+  AccessPageHeader,
+  AccessHeaderActions,
+  AccessConfigurationSelector,
+  ActivePrivilegesCard,
+  PermissionMatrix,
+  AccessControlSkeleton
+} from '../../components/AccessControl/index.js';
+
 import {
   PAGE_DEFINITIONS,
   ROLE_DEFINITIONS,
-  DEFAULT_PERMISSIONS,
-  ACCESS_COLORS
+  DEFAULT_PERMISSIONS
 } from './data/accessControlData';
 
 const AccessControl = () => {
@@ -33,7 +37,7 @@ const AccessControl = () => {
     }
   }, []);
 
-  const fetchUserTabs = async () => {
+  const fetchUserTabs = useCallback(async () => {
     try {
       setLoadingUserTabs(true);
       const res = await API.get('/access/user-tabs');
@@ -45,11 +49,10 @@ const AccessControl = () => {
     } finally {
       setLoadingUserTabs(false);
     }
-  };
+  }, []);
 
-  const fetchMatrix = async () => {
+  const fetchMatrix = useCallback(async () => {
     try {
-      setLoading(true);
       const res = await API.get('/access/matrix');
       if (res.data?.success && res.data?.data?.matrix) {
         setMatrix(res.data.data.matrix);
@@ -58,15 +61,17 @@ const AccessControl = () => {
     } catch (err) {
       console.error('Failed to load access matrix:', err);
       enqueueSnackbar('Failed to load access control permissions', { variant: 'error' });
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [enqueueSnackbar]);
 
   useEffect(() => {
-    fetchMatrix();
-    fetchUserTabs();
-  }, []);
+    const loadData = async () => {
+      setLoading(true);
+      await Promise.allSettled([fetchMatrix(), fetchUserTabs()]);
+      setLoading(false);
+    };
+    loadData();
+  }, [fetchMatrix, fetchUserTabs]);
 
   const currentPermissions = matrix[selectedPage]?.[selectedRole] || DEFAULT_PERMISSIONS;
   const selectedPageData = PAGE_DEFINITIONS.find((p) => p.id === selectedPage);
@@ -137,7 +142,14 @@ const AccessControl = () => {
       return true;
     }
     const nameLower = tabSlug || '';
-    if (nameLower === 'admin' || nameLower === 'warden' || nameLower === 'chairperson' || nameLower === 'inquiry' || tabId === 'dropped' || tabId === 'all') {
+    if (
+      nameLower === 'admin' ||
+      nameLower === 'warden' ||
+      nameLower === 'chairperson' ||
+      nameLower === 'inquiry' ||
+      tabId === 'dropped' ||
+      tabId === 'all'
+    ) {
       return false;
     }
     if (nameLower === 'staff') {
@@ -231,14 +243,7 @@ const AccessControl = () => {
   };
 
   if (loading) {
-    return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-        <CircularProgress sx={{ color: ACCESS_COLORS.primaryAlt }} size={42} />
-        <Typography variant="body2" sx={{ mt: 2, color: ACCESS_COLORS.muted, fontWeight: 500 }}>
-          Loading Access Control permissions...
-        </Typography>
-      </Box>
-    );
+    return <AccessControlSkeleton />;
   }
 
   return (

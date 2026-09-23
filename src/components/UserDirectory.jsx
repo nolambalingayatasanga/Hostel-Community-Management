@@ -51,8 +51,8 @@ const UserDirectory = ({ directoryRole, title }) => {
   const { user: currentUser } = useAuth();
   const navigate = useNavigate();
 
-  const isAdmin = currentUser?.role === 'ADMIN';
-  const isAdminOrWarden = ['ADMIN', 'WARDEN'].includes(currentUser?.role);
+  const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role === 'ADMINISTRATOR';
+  const isAdminOrWarden = ['ADMIN', 'ADMINISTRATOR', 'WARDEN'].includes(currentUser?.role);
 
   // Users and Pagination State
   const [users, setUsers] = useState([]);

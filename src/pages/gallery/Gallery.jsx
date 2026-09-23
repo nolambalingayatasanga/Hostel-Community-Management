@@ -621,7 +621,18 @@ const Gallery = () => {
     const rawFiles = Array.from(e.target.files);
     if (!rawFiles || rawFiles.length === 0) return;
 
+    let duplicateCount = 0;
     const validFiles = [];
+
+    // Helper to check if a file is already in an array
+    const isDuplicateOf = (file, list) =>
+      list.some(
+        (existing) =>
+          existing.name === file.name &&
+          existing.size === file.size &&
+          existing.lastModified === file.lastModified
+      );
+
     for (const file of rawFiles) {
       const isVideo = file.type.startsWith('video/') || file.name.match(/\.(mp4|webm|mov|ogg)$/i);
       const isImage = file.type.startsWith('image/');
@@ -630,13 +641,27 @@ const Gallery = () => {
         enqueueSnackbar(`"${file.name}" is not a valid image or video.`, { variant: 'error' });
         continue;
       }
+
+      // Check if duplicate of already selected files OR within the newly selected batch
+      if (isDuplicateOf(file, selectedFiles) || isDuplicateOf(file, validFiles)) {
+        duplicateCount++;
+        continue;
+      }
+
       validFiles.push(file);
     }
 
+    if (duplicateCount > 0) {
+      enqueueSnackbar(
+        `${duplicateCount} duplicate file${duplicateCount > 1 ? 's were' : ' was'} skipped.`,
+        { variant: 'info' }
+      );
+    }
+
     if (validFiles.length > 0) {
-      setSelectedFiles(prev => [...prev, ...validFiles]);
-      const newPreviews = validFiles.map(file => URL.createObjectURL(file));
-      setFilePreviews(prev => [...prev, ...newPreviews]);
+      setSelectedFiles((prev) => [...prev, ...validFiles]);
+      const newPreviews = validFiles.map((file) => URL.createObjectURL(file));
+      setFilePreviews((prev) => [...prev, ...newPreviews]);
     }
 
     // Reset input value so same files can be re-selected if needed
@@ -1812,29 +1837,31 @@ const Gallery = () => {
         PaperProps={{
           sx: {
             backgroundColor: '#ffffff',
-            borderRadius: '12px',
-            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.1)',
-            overflow: 'hidden'
+            borderRadius: { xs: '16px', sm: '20px' },
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)',
+            overflow: 'hidden',
+            m: { xs: 2, sm: 3 },
+            maxHeight: { xs: 'calc(100% - 32px)', sm: 'calc(100% - 64px)' }
           }
         }}
       >
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 3, pt: 3, pb: 1 }}>
-          <Typography variant="h6" sx={{ fontWeight: 800, color: '#1E293B', letterSpacing: '-0.02em' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: { xs: 2.5, sm: 3 }, pt: { xs: 2.5, sm: 3 }, pb: 1 }}>
+          <Typography variant="h6" sx={{ fontWeight: 800, color: '#1E293B', letterSpacing: '-0.02em', fontSize: { xs: '1.1rem', sm: '1.25rem' } }}>
             Upload Media
           </Typography>
           <IconButton
             onClick={() => setUploadOpen(false)}
             size="small"
-            sx={{ bgcolor: '#F1F5F9' }}
+            sx={{ bgcolor: '#F1F5F9', '&:hover': { bgcolor: '#E2E8F0' } }}
           >
             <CloseIcon fontSize="small" />
           </IconButton>
         </Box>
 
         <form onSubmit={handleUploadSubmit}>
-          <DialogContent sx={{ px: 3, py: 2 }}>
+          <DialogContent sx={{ px: { xs: 2.5, sm: 3 }, py: 1.5 }}>
             {/* Target Folder Selector */}
-            <FormControl fullWidth sx={{ mb: 2.5 }} size="small">
+            <FormControl fullWidth sx={{ mb: 2 }} size="small">
               <InputLabel id="upload-folder-select-label">Destination Folder</InputLabel>
               <Select
                 labelId="upload-folder-select-label"
@@ -1864,17 +1891,17 @@ const Gallery = () => {
             <Box
               sx={{
                 display: 'block',
-                border: '2px dashed #D0D5DD',
+                border: selectedFiles.length > 0 ? '1.5px solid #BFDBFE' : '2px dashed #D0D5DD',
                 borderRadius: '16px',
-                p: 3.5,
+                p: { xs: 2.5, sm: 3 },
                 textAlign: 'center',
-                backgroundColor: '#F8FAFC',
-                mb: 2,
+                backgroundColor: selectedFiles.length > 0 ? '#F0F7FF' : '#F8FAFC',
+                mb: 1.5,
                 position: 'relative',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease-in-out',
                 '&:hover': {
-                  backgroundColor: 'rgba(0, 136, 255, 0.02)',
+                  backgroundColor: selectedFiles.length > 0 ? '#E0F2FE' : 'rgba(0, 136, 255, 0.02)',
                   borderColor: '#0088ff',
                   '& .upload-icon-box': {
                     transform: 'scale(1.05) translateY(-2px)',
@@ -1893,98 +1920,81 @@ const Gallery = () => {
                 onChange={handleFileChange}
               />
 
-              {filePreviews.length > 0 ? (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {selectedFiles.length > 0 ? (
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 0.5 }}>
+                  {/* Icon Badge */}
                   <Box
                     sx={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))',
-                      gap: 1.5,
-                      maxHeight: '240px',
-                      overflowY: 'auto',
-                      p: 1,
-                      border: '1px solid #E2E8F0',
-                      borderRadius: '12px',
-                      backgroundColor: '#F8FAFC'
+                      width: 48,
+                      height: 48,
+                      borderRadius: '50%',
+                      bgcolor: '#DBEAFE',
+                      color: '#2563EB',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      mb: 1.2,
+                      boxShadow: '0 4px 12px rgba(37, 99, 235, 0.12)'
                     }}
                   >
-                    {selectedFiles.map((file, idx) => {
-                      const isVideo = file.type.startsWith('video/') || file.name.match(/\.(mp4|webm|ogg|mov)$/i);
-                      return (
-                        <Box
-                          key={idx}
-                          sx={{
-                            position: 'relative',
-                            width: '100%',
-                            paddingBottom: '100%',
-                            borderRadius: '8px',
-                            overflow: 'hidden',
-                            bgcolor: '#000',
-                            border: '1px solid #E2E8F0'
-                          }}
-                        >
-                          {isVideo ? (
-                            <video
-                              src={filePreviews[idx]}
-                              style={{
-                                position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                width: '100%',
-                                height: '100%',
-                                objectFit: 'cover'
-                              }}
-                            />
-                          ) : (
-                            <img
-                              src={filePreviews[idx]}
-                              alt={`preview-${idx}`}
-                              style={{
-                                position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                width: '100%',
-                                height: '100%',
-                                objectFit: 'cover'
-                              }}
-                            />
-                          )}
-                          <IconButton
-                            size="small"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleRemoveFileAt(idx);
-                            }}
-                            sx={{
-                              position: 'absolute',
-                              top: 4,
-                              right: 4,
-                              color: '#fff',
-                              backgroundColor: 'rgba(0,0,0,0.6)',
-                              p: 0.5,
-                              '&:hover': { backgroundColor: 'rgba(0,0,0,0.9)' }
-                            }}
-                          >
-                            <CloseIcon sx={{ fontSize: 13 }} />
-                          </IconButton>
-                        </Box>
-                      );
-                    })}
+                    <CollectionsIcon sx={{ fontSize: 26 }} />
                   </Box>
 
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569' }}>
-                      Selected {selectedFiles.length} 
-                    </Typography>
+                  {/* Title & Count */}
+                  <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0F172A', lineHeight: 1.25 }}>
+                    {selectedFiles.length} {selectedFiles.length === 1 ? 'file' : 'files'} selected
+                  </Typography>
+
+                  {/* Size info */}
+                  <Typography variant="body2" sx={{ color: '#64748B', fontWeight: 500, mt: 0.4, fontSize: '0.82rem' }}>
+                    Total size: {(selectedFiles.reduce((acc, f) => acc + (f.size || 0), 0) / (1024 * 1024)).toFixed(1)} MB
+                  </Typography>
+
+                  {/* Actions (Add More / Clear) */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 1.8 }}>
                     <Button
-                      variant="text"
-                      startIcon={<AddIcon />}
+                      variant="outlined"
                       size="small"
+                      startIcon={<AddIcon sx={{ fontSize: '15px !important' }} />}
                       component="span"
-                      sx={{ textTransform: 'none', fontWeight: 600 }}
+                      sx={{
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        fontSize: '0.8rem',
+                        borderRadius: '20px',
+                        py: 0.4,
+                        px: 1.8,
+                        color: '#0088ff',
+                        borderColor: '#93C5FD',
+                        bgcolor: '#FFFFFF',
+                        '&:hover': { bgcolor: '#EFF6FF', borderColor: '#0088ff' }
+                      }}
                     >
                       Add more
+                    </Button>
+
+                    <Button
+                      variant="text"
+                      size="small"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setSelectedFiles([]);
+                        filePreviews.forEach((url) => URL.revokeObjectURL(url));
+                        setFilePreviews([]);
+                      }}
+                      sx={{
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        fontSize: '0.8rem',
+                        color: '#EF4444',
+                        borderRadius: '20px',
+                        py: 0.4,
+                        px: 1.5,
+                        '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.08)' }
+                      }}
+                    >
+                      Remove all
                     </Button>
                   </Box>
                 </Box>
@@ -1993,34 +2003,32 @@ const Gallery = () => {
                   <Box
                     className="upload-icon-box"
                     sx={{
-                      width: 52,
-                      height: 52,
+                      width: 48,
+                      height: 48,
                       borderRadius: '50%',
                       bgcolor: '#F1F5F9',
                       color: '#475569',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      mb: 1.5,
+                      mb: 1.2,
                       transition: 'all 0.2s ease'
                     }}
                   >
-                    <UploadIcon sx={{ fontSize: 26 }} />
+                    <UploadIcon sx={{ fontSize: 24 }} />
                   </Box>
-                  <Typography variant="body1" sx={{ fontWeight: 600, color: '#334155', mb: 0.5 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#334155', mb: 0.3 }}>
                     Click to select multiple files
                   </Typography>
-                  <Typography variant="caption" sx={{ color: '#64748B', display: 'block' }}>
-                    Images & Videos • Unlimited file size • Any number of files
+                  <Typography variant="caption" sx={{ color: '#94A3B8' }}>
+                    Supports photos and videos
                   </Typography>
                 </Box>
               )}
             </Box>
-
-      
           </DialogContent>
 
-          <DialogActions sx={{ p: 3, display: 'flex', gap: 1.5 }}>
+          <DialogActions sx={{ px: { xs: 2.5, sm: 3 }, pb: { xs: 2.5, sm: 3 }, pt: 1, display: 'flex', gap: 1.5 }}>
             <Button
               onClick={() => setUploadOpen(false)}
               color="inherit"
@@ -2038,7 +2046,7 @@ const Gallery = () => {
                 textTransform: 'none',
                 borderRadius: '10px',
                 px: 3,
-                py: 1,
+                py: 0.9,
                 '&:hover': { background: '#0077ee' }
               }}
             >

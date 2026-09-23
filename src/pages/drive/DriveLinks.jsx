@@ -95,7 +95,7 @@ export default function DriveLinks() {
   const fileInputRef = useRef(null);
   const quickThumbnailInputRef = useRef(null);
 
-  const isAdmin = user?.role === 'ADMIN';
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'ADMINISTRATOR';
   const hasFullAccess = isAdmin || canCreate('drive_links');
 
   const [links, setLinks] = useState([]);

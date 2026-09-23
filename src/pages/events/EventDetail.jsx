@@ -3086,14 +3086,9 @@ function ManageMediaDialog({
               />
               <CloudUploadIcon sx={{ fontSize: 36, color: "#7C3AED", mb: 1 }} />
               <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#334155", mb: 0.5 }}>
-                Click to Select and Upload Photos & Videos
-              </Typography>
-              <Typography variant="caption" sx={{ color: "#64748B", display: "block" }}>
-               Any number of  Images & Videos can be uploaded
+                Click to  Upload Photos & Videos
               </Typography>
             </Box>
-
-           
           </>
         )}
 

@@ -32,6 +32,11 @@ const ProtectedRoute = ({ allowedRoles }) => {
     return <Navigate to="/login" replace />;
   }
 
+  // ADMINISTRATOR role has all access to every page and control by default
+  if (user.role === 'ADMINISTRATOR') {
+    return <Outlet />;
+  }
+
   // If user role is not allowed for this route
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return (

@@ -7,6 +7,13 @@ const GalleryPhoto = require('../models/GalleryPhoto');
 const GalleryFolder = require('../models/GalleryFolder');
 const Event = require('../models/Event');
 const PasswordResetActivity = require('../models/PasswordResetActivity');
+const UploadRequest = require('../models/UploadRequest');
+const JobOpening = require('../models/JobOpening');
+const JobApplication = require('../models/JobApplication');
+const Organization = require('../models/Organization');
+const DriveLink = require('../models/DriveLink');
+const LoginQrLink = require('../models/LoginQrLink');
+const Feedback = require('../models/Feedback');
 const { deleteFromS3, uploadBufferToS3 } = require('../middleware/s3UploadMiddleware');
 const { sanitizeUser } = require('../middleware/authMiddleware');
 const { logAuditEvent, extractClientInfo } = require('../utils/auditLogger');
@@ -129,7 +136,7 @@ exports.getUsers = async (req, res, next) => {
 
     // Student privacy filter on backend
     if (req.user?.role === 'STUDENT' && !role) {
-      query.role = { $nin: ['ADMIN', 'WARDEN'] };
+      query.role = { $nin: ['ADMIN', 'ADMINISTRATOR', 'WARDEN'] };
     }
 
     // 2. Direct Filters
@@ -164,6 +171,8 @@ exports.getUsers = async (req, res, next) => {
           query.role = 'WARDEN';
         } else if (groupNameLower === 'admin') {
           query.role = 'ADMIN';
+        } else if (groupNameLower === 'administrator' || groupNameLower === 'administrators') {
+          query.role = 'ADMINISTRATOR';
         } else if (groupNameLower === 'members') {
           query.role = 'MEMBER';
         } else {
@@ -613,7 +622,7 @@ exports.uploadProfilePhoto = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please upload an image file.' });
     }
 
-    const targetUserId = (req.params.id && ['ADMIN', 'WARDEN'].includes(req.user.role))
+    const targetUserId = (req.params.id && ['ADMIN', 'ADMINISTRATOR', 'WARDEN'].includes(req.user.role))
       ? req.params.id
       : req.user._id;
 
@@ -675,7 +684,7 @@ exports.uploadResume = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please select a resume file to upload.' });
     }
 
-    const targetUserId = (req.params.id && ['ADMIN', 'WARDEN'].includes(req.user.role))
+    const targetUserId = (req.params.id && ['ADMIN', 'ADMINISTRATOR', 'WARDEN'].includes(req.user.role))
       ? req.params.id
       : req.user._id;
 
@@ -744,7 +753,7 @@ exports.uploadResume = async (req, res, next) => {
  */
 exports.deleteResume = async (req, res, next) => {
   try {
-    const targetUserId = (req.params.id && ['ADMIN', 'WARDEN'].includes(req.user.role))
+    const targetUserId = (req.params.id && ['ADMIN', 'ADMINISTRATOR', 'WARDEN'].includes(req.user.role))
       ? req.params.id
       : req.user._id;
 
@@ -863,10 +872,6 @@ exports.transitionToAlumni = async (req, res, next) => {
   }
 };
 
-/* =========================================
-   ADMINISTRATOR ACTIONS (restricted)
-   ========================================= */
-
 /**
  * Admin creates any user account
  */
@@ -899,8 +904,8 @@ exports.adminCreateUser = async (req, res, next) => {
 
     const assignedRole = (role || 'MEMBER').toUpperCase();
 
-    // Security check: If request is by a WARDEN, they cannot create ADMIN or WARDEN accounts
-    if ((req.user.role === 'WARDEN' || req.user.role === 'CHAIRPERSON') && ['ADMIN', 'WARDEN', 'CHAIRPERSON'].includes(assignedRole)) {
+    // Security check: If request is by a WARDEN, they cannot create ADMIN, ADMINISTRATOR or WARDEN accounts
+    if ((req.user.role === 'WARDEN' || req.user.role === 'CHAIRPERSON') && ['ADMIN', 'ADMINISTRATOR', 'WARDEN', 'CHAIRPERSON'].includes(assignedRole)) {
       return res.status(403).json({
         success: false,
         message: 'Wardens do not have permission to create Admin or Warden accounts.'
@@ -1085,7 +1090,7 @@ exports.adminUpdateUser = async (req, res, next) => {
     }
 
     // Security check: If request is by a WARDEN, they cannot edit ADMIN or WARDEN users
-    if ((req.user.role === 'WARDEN' || req.user.role === 'CHAIRPERSON') && ['ADMIN', 'WARDEN', 'CHAIRPERSON'].includes(user.role)) {
+    if ((req.user.role === 'WARDEN' || req.user.role === 'CHAIRPERSON') && ['ADMIN', 'ADMINISTRATOR', 'WARDEN', 'CHAIRPERSON'].includes(user.role)) {
       return res.status(403).json({
         success: false,
         message: 'Wardens do not have permission to edit Admin or Warden accounts.'
@@ -1093,7 +1098,7 @@ exports.adminUpdateUser = async (req, res, next) => {
     }
 
     // Security check: If request is by a WARDEN, they cannot set anyone's role to ADMIN or WARDEN
-    if ((req.user.role === 'WARDEN' || req.user.role === 'CHAIRPERSON') && updates.role && ['ADMIN', 'WARDEN', 'CHAIRPERSON'].includes(updates.role.toUpperCase())) {
+    if ((req.user.role === 'WARDEN' || req.user.role === 'CHAIRPERSON') && updates.role && ['ADMIN', 'ADMINISTRATOR', 'WARDEN', 'CHAIRPERSON'].includes(updates.role.toUpperCase())) {
       return res.status(403).json({
         success: false,
         message: 'Wardens do not have permission to set user roles to Admin or Warden.'
@@ -1139,7 +1144,7 @@ exports.adminUpdateUser = async (req, res, next) => {
     // Handle Role update
     if (updates.role !== undefined) {
       const normalizedRole = String(updates.role).toUpperCase().trim();
-      const validRoles = ['ADMIN', 'WARDEN', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'];
+      const validRoles = ['ADMIN', 'ADMINISTRATOR', 'WARDEN', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'];
       if (validRoles.includes(normalizedRole)) {
         user.role = normalizedRole;
       }
@@ -1349,10 +1354,10 @@ exports.adminUpdateUserStatus = async (req, res, next) => {
     }
 
     // Security check: If request is by a WARDEN, they cannot change status of ADMIN or WARDEN accounts
-    if ((req.user.role === 'WARDEN' || req.user.role === 'CHAIRPERSON') && ['ADMIN', 'WARDEN', 'CHAIRPERSON'].includes(user.role)) {
+    if ((req.user.role === 'WARDEN' || req.user.role === 'CHAIRPERSON') && ['ADMIN', 'ADMINISTRATOR', 'WARDEN', 'CHAIRPERSON'].includes(user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Wardens do not have permission to change status of Admin or Warden accounts.'
+        message: "Don't have permission to change status"
       });
     }
 
@@ -1385,7 +1390,7 @@ exports.adminDeleteUser = async (req, res, next) => {
     }
 
     // Security check: If request is by a WARDEN, they cannot delete ADMIN or WARDEN accounts
-    if ((req.user.role === 'WARDEN' || req.user.role === 'CHAIRPERSON') && ['ADMIN', 'WARDEN', 'CHAIRPERSON'].includes(user.role)) {
+    if ((req.user.role === 'WARDEN' || req.user.role === 'CHAIRPERSON') && ['ADMIN', 'ADMINISTRATOR', 'WARDEN', 'CHAIRPERSON'].includes(user.role)) {
       return res.status(403).json({
         success: false,
         message: 'Wardens do not have permission to delete Admin or Warden accounts.'
@@ -1476,50 +1481,262 @@ exports.adminTransitionStudent = async (req, res, next) => {
   }
 };
 
+// Shared helper to check dashboard access
+const hasDashboardAccess = (user) => ['ADMIN', 'ADMINISTRATOR', 'WARDEN'].includes(user?.role);
+
 /**
- * Get dashboard stats and aggregation charts (ADMIN/WARDEN only)
+ * 1. Community & Directory Overview Stats
  */
-exports.getDashboardStats = async (req, res, next) => {
+exports.getDashboardCommunityStats = async (req, res, next) => {
   try {
-    if (!['ADMIN', 'WARDEN'].includes(req.user?.role)) {
+    if (!hasDashboardAccess(req.user)) {
       return res.status(403).json({
         success: false,
-        message: 'Only ADMIN and WARDEN users can access dashboard statistics.'
+        message: 'Only ADMIN, ADMINISTRATOR, and WARDEN users can access dashboard statistics.'
       });
     }
 
     const defaultProfilePhoto = (await getDefaultProfilePhoto()).url;
-    const currentDate = new Date();
-    const startOfCurrentMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-    const sixMonthsAgo = new Date(currentDate.getFullYear(), currentDate.getMonth() - 5, 1);
+    const notDropped = { isDropped: { $ne: true } };
 
-    // 1. Basic Counts
-    const totalStudents = await User.countDocuments({ role: 'STUDENT' });
-    const totalAlumni = await User.countDocuments({ role: 'ALUMNI' });
-    const totalMembers = await User.countDocuments({ role: 'MEMBER' });
-    const totalStaff = await User.countDocuments({ role: 'STAFF' });
-    const totalWardens = await User.countDocuments({ role: 'WARDEN' });
-    const totalAdmins = await User.countDocuments({ role: 'ADMIN' });
-    const totalUsers = await User.countDocuments();
-    
+    const [
+      totalStudents,
+      totalAlumni,
+      totalMembers,
+      totalStaff,
+      totalWardens,
+      totalAdmins,
+      totalAdministrators,
+      totalUsers,
+      droppedTotal,
+      droppedStudents,
+      droppedAlumni,
+      droppedMembers,
+      rolesDistribution,
+      membersByStatus,
+      profileCompleteness
+    ] = await Promise.all([
+      User.countDocuments({ role: 'STUDENT', ...notDropped }),
+      User.countDocuments({ role: 'ALUMNI', ...notDropped }),
+      User.countDocuments({ role: 'MEMBER', ...notDropped }),
+      User.countDocuments({ role: 'STAFF', ...notDropped }),
+      User.countDocuments({ role: 'WARDEN', ...notDropped }),
+      User.countDocuments({ role: 'ADMIN', ...notDropped }),
+      User.countDocuments({ role: 'ADMINISTRATOR', ...notDropped }),
+      User.countDocuments(notDropped),
+      User.countDocuments({ isDropped: true }),
+      User.countDocuments({ role: 'STUDENT', isDropped: true }),
+      User.countDocuments({ role: 'ALUMNI', isDropped: true }),
+      User.countDocuments({ role: 'MEMBER', isDropped: true }),
+      User.aggregate([
+        { $match: notDropped },
+        { $group: { _id: '$role', value: { $sum: 1 } } }
+      ]),
+      User.aggregate([
+        { $match: notDropped },
+        {
+          $group: {
+            _id: { $ifNull: ['$accountStatus', 'ACTIVE'] },
+            value: { $sum: 1 }
+          }
+        }
+      ]),
+      User.aggregate([
+        { $match: notDropped },
+        {
+          $group: {
+            _id: null,
+            totalProfiles: { $sum: 1 },
+            phone: {
+              $sum: { $cond: [{ $ne: [{ $ifNull: ['$phone', ''] }, ''] }, 1, 0] }
+            },
+            email: {
+              $sum: { $cond: [{ $ne: [{ $ifNull: ['$email', ''] }, ''] }, 1, 0] }
+            },
+            address: {
+              $sum: {
+                $cond: [
+                  {
+                    $or: [
+                      { $ne: [{ $ifNull: ['$address.street', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$address.city', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$address.district', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$address.pincode', ''] }, ''] }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            },
+            education: {
+              $sum: {
+                $cond: [
+                  {
+                    $or: [
+                      { $ne: [{ $ifNull: ['$education.college', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$education.course', ''] }, ''] }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            },
+            employment: {
+              $sum: {
+                $cond: [
+                  {
+                    $or: [
+                      { $ne: [{ $ifNull: ['$employment.occupation', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$employment.organization', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$employment.industry', ''] }, ''] }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            },
+            profilePhoto: {
+              $sum: {
+                $cond: [
+                  { $ne: [{ $ifNull: ['$profilePhoto.url', ''] }, defaultProfilePhoto] },
+                  1,
+                  0
+                ]
+              }
+            },
+            social: {
+              $sum: {
+                $cond: [
+                  {
+                    $or: [
+                      { $ne: [{ $ifNull: ['$channels.instagram', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$channels.linkedin', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$channels.whatsapp', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$channels.portfolio', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$channels.github', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$channels.behance', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$channels.resume.url', ''] }, ''] }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            },
+            completeProfiles: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $ne: [{ $ifNull: ['$phone', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$email', ''] }, ''] },
+                      {
+                        $or: [
+                          { $ne: [{ $ifNull: ['$address.city', ''] }, ''] },
+                          { $ne: [{ $ifNull: ['$education.college', ''] }, ''] }
+                        ]
+                      }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            }
+          }
+        }
+      ])
+    ]);
+
+    const profileTotals = profileCompleteness[0] || {};
+    const profileStats = {
+      total: profileTotals.totalProfiles || 0,
+      complete: profileTotals.completeProfiles || 0,
+      dimensions: [
+        { label: 'Phone', value: profileTotals.phone || 0 },
+        { label: 'Email', value: profileTotals.email || 0 },
+        { label: 'Address', value: profileTotals.address || 0 },
+        { label: 'Education', value: profileTotals.education || 0 },
+        { label: 'Employment', value: profileTotals.employment || 0 },
+        { label: 'Social', value: profileTotals.social || 0 },
+        { label: 'Profile Photo', value: profileTotals.profilePhoto || 0 }
+      ],
+      completePercent: profileTotals.totalProfiles
+        ? Math.round((profileTotals.completeProfiles / profileTotals.totalProfiles) * 100)
+        : 0
+    };
+
+    res.status(200).json({
+      success: true,
+      data: {
+        counts: {
+          students: totalStudents,
+          alumni: totalAlumni,
+          members: totalMembers,
+          staff: totalStaff,
+          wardens: totalWardens,
+          chairpersons: totalWardens,
+          admins: totalAdmins,
+          administrators: totalAdministrators,
+          droppedTotal,
+          droppedStudents,
+          droppedAlumni,
+          droppedMembers,
+          total: totalUsers
+        },
+        charts: {
+          rolesDistribution,
+          accountStatusDistribution: membersByStatus
+        },
+        profileStats
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * 2. Events & Activities Stats
+ */
+exports.getDashboardEventStats = async (req, res, next) => {
+  try {
+    if (!hasDashboardAccess(req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only ADMIN, ADMINISTRATOR, and WARDEN users can access dashboard statistics.'
+      });
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const upcomingEvents = await Event.countDocuments({ eventDate: { $gte: today } });
-    const totalEvents = await Event.countDocuments();
-    const pastEvents = await Event.countDocuments({ eventDate: { $lt: today } });
+    const currentDate = new Date();
+    const sixMonthsAgo = new Date(currentDate.getFullYear(), currentDate.getMonth() - 5, 1);
 
-    const eventTrendByMonth = await Event.aggregate([
-      { $match: { eventDate: { $gte: sixMonthsAgo } } },
-      {
-        $group: {
-          _id: {
-            year: { $year: '$eventDate' },
-            month: { $month: '$eventDate' }
-          },
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { '_id.year': 1, '_id.month': 1 } }
+    const [upcomingEventsCount, totalEvents, pastEvents, eventTrendByMonth, upcomingList] = await Promise.all([
+      Event.countDocuments({ eventDate: { $gte: today } }),
+      Event.countDocuments(),
+      Event.countDocuments({ eventDate: { $lt: today } }),
+      Event.aggregate([
+        { $match: { eventDate: { $gte: sixMonthsAgo } } },
+        {
+          $group: {
+            _id: {
+              year: { $year: '$eventDate' },
+              month: { $month: '$eventDate' }
+            },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { '_id.year': 1, '_id.month': 1 } }
+      ]),
+      Event.find({ eventDate: { $gte: today } })
+        .sort({ eventDate: 1 })
+        .limit(4)
+        .select('title eventDate startDate location coverImage')
     ]);
 
     const formattedEventTrend = Array.from({ length: 6 }).map((_, index) => {
@@ -1536,241 +1753,72 @@ exports.getDashboardStats = async (req, res, next) => {
       };
     });
 
-    // 2. Recent Registrations
-    const recentUsers = await User.find()
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .select('name email role profilePhoto createdAt');
-
-    // 3. Chart aggregations
-    // Users by Role
-    const rolesDistribution = await User.aggregate([
-      { $group: { _id: '$role', value: { $sum: 1 } } }
-    ]);
-
-    // Students by College
-    const studentsByCollege = await User.aggregate([
-      { $match: { role: 'STUDENT', 'education.college': { $ne: null, $ne: '' } } },
-      { $group: { _id: '$education.college', count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 5 }
-    ]);
-
-    // Students by Course
-    const studentsByCourse = await User.aggregate([
-      { $match: { role: 'STUDENT', 'education.course': { $ne: null, $ne: '' } } },
-      { $group: { _id: '$education.course', count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 5 }
-    ]);
-
-    // Alumni by Occupation
-    const alumniByOccupation = await User.aggregate([
-      { $match: { role: 'ALUMNI', 'employment.occupation': { $ne: null, $ne: '' } } },
-      { $group: { _id: '$employment.occupation', count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 5 }
-    ]);
-
-    // Alumni by Company
-    const alumniByCompany = await User.aggregate([
-      { $match: { role: 'ALUMNI', 'employment.organization': { $ne: null, $ne: '' } } },
-      { $group: { _id: '$employment.organization', count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 5 }
-    ]);
-
-    const membersByStatus = await User.aggregate([
-      { $group: { _id: '$accountStatus', value: { $sum: 1 } } }
-    ]);
-
-    // Users by Location (State)
-    const locationDistribution = await User.aggregate([
-      { $match: { 'addresses.current.state': { $ne: null, $ne: '' } } },
-      { $group: { _id: '$addresses.current.state', count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 5 }
-    ]);
-
-    // Age Distribution
-    const currentYear = new Date().getFullYear();
-    const ageBuckets = await User.aggregate([
-      { $match: { dateOfBirth: { $exists: true, $ne: null } } },
-      {
-        $project: {
-          age: {
-            $subtract: [
-              currentYear,
-              { $year: '$dateOfBirth' }
-            ]
-          }
-        }
-      },
-      {
-        $bucket: {
-          groupBy: '$age',
-          boundaries: [0, 18, 26, 36, 51, 120],
-          default: 'Other',
-          output: {
-            count: { $sum: 1 }
-          }
-        }
+    res.status(200).json({
+      success: true,
+      data: {
+        eventStats: {
+          total: totalEvents,
+          upcoming: upcomingEventsCount,
+          past: pastEvents,
+          trend: formattedEventTrend
+        },
+        upcomingEvents: upcomingList
       }
-    ]);
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
-    // Format age buckets for frontend chart readability
-    const ageNames = {
-      0: 'Under 18',
-      18: '18-25',
-      26: '26-35',
-      36: '36-50',
-      51: '50+'
-    };
-    
-    const formattedAgeDistribution = ageBuckets.map(bucket => ({
-      name: ageNames[bucket._id] || 'Other',
-      count: bucket.count
-    }));
+/**
+ * 3. Media Management & Gallery Stats
+ */
+exports.getDashboardGalleryStats = async (req, res, next) => {
+  try {
+    if (!hasDashboardAccess(req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only ADMIN, ADMINISTRATOR, and WARDEN users can access dashboard statistics.'
+      });
+    }
 
-    // 4. Profile Completeness & completion trends
-    const profileCompleteness = await User.aggregate([
-      {
-        $group: {
-          _id: null,
-          totalProfiles: { $sum: 1 },
-          phone: {
-            $sum: { $cond: [{ $ne: [{ $ifNull: ['$phone', ''] }, ''] }, 1, 0] }
-          },
-          email: {
-            $sum: { $cond: [{ $ne: [{ $ifNull: ['$email', ''] }, ''] }, 1, 0] }
-          },
-          address: {
-            $sum: {
-              $cond: [
-                {
-                  $or: [
-                    { $ne: [{ $ifNull: ['$address.street', ''] }, ''] },
-                    { $ne: [{ $ifNull: ['$address.city', ''] }, ''] },
-                    { $ne: [{ $ifNull: ['$address.district', ''] }, ''] },
-                    { $ne: [{ $ifNull: ['$address.pincode', ''] }, ''] }
-                  ]
-                },
-                1,
-                0
-              ]
-            }
-          },
-          education: {
-            $sum: {
-              $cond: [
-                {
-                  $or: [
-                    { $ne: [{ $ifNull: ['$education.college', ''] }, ''] },
-                    { $ne: [{ $ifNull: ['$education.course', ''] }, ''] }
-                  ]
-                },
-                1,
-                0
-              ]
-            }
-          },
-          employment: {
-            $sum: {
-              $cond: [
-                {
-                  $or: [
-                    { $ne: [{ $ifNull: ['$employment.occupation', ''] }, ''] },
-                    { $ne: [{ $ifNull: ['$employment.organization', ''] }, ''] },
-                    { $ne: [{ $ifNull: ['$employment.industry', ''] }, ''] }
-                  ]
-                },
-                1,
-                0
-              ]
-            }
-          },
-          profilePhoto: {
-            $sum: {
-              $cond: [
-                { $ne: [{ $ifNull: ['$profilePhoto.url', ''] }, defaultProfilePhoto] },
-                1,
-                0
-              ]
-            }
-          },
-          social: {
-            $sum: {
-              $cond: [
-                {
-                  $or: [
-                    { $ne: [{ $ifNull: ['$channels.instagram', ''] }, ''] },
-                    { $ne: [{ $ifNull: ['$channels.linkedin', ''] }, ''] },
-                    { $ne: [{ $ifNull: ['$channels.whatsapp', ''] }, ''] },
-                    { $ne: [{ $ifNull: ['$channels.portfolio', ''] }, ''] },
-                    { $ne: [{ $ifNull: ['$channels.github', ''] }, ''] },
-                    { $ne: [{ $ifNull: ['$channels.behance', ''] }, ''] },
-                    { $ne: [{ $ifNull: ['$channels.resume.url', ''] }, ''] }
-                  ]
-                },
-                1,
-                0
-              ]
-            }
-          },
-          completeProfiles: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $ne: [{ $ifNull: ['$phone', ''] }, ''] },
-                    { $ne: [{ $ifNull: ['$email', ''] }, ''] },
-                    {
-                      $or: [
-                        { $ne: [{ $ifNull: ['$address.city', ''] }, ''] },
-                        { $ne: [{ $ifNull: ['$education.college', ''] }, ''] }
-                      ]
-                    }
-                  ]
-                },
-                1,
-                0
-              ]
-            }
-          }
-        }
-      }
-    ]);
+    const currentDate = new Date();
+    const sixMonthsAgo = new Date(currentDate.getFullYear(), currentDate.getMonth() - 5, 1);
 
-    // 5. Gallery overview (photo/video counts, uploads, folders)
-    const [totalGalleryPhotos, totalGalleryFolders, mediaTypeDistribution] = await Promise.all([
+    const [
+      totalGalleryPhotos,
+      totalGalleryFolders,
+      uploadsByMonth,
+      uploadRequestsPending,
+      uploadRequestsApproved,
+      uploadRequestsRejected,
+      uploadRequestsTotal
+    ] = await Promise.all([
       GalleryPhoto.countDocuments(),
       GalleryFolder.countDocuments(),
       GalleryPhoto.aggregate([
-        { $group: { _id: '$resourceType', count: { $sum: 1 } } },
-        { $project: { name: '$_id', value: '$count' } },
-        { $sort: { value: -1 } }
-      ])
-    ]);
-
-    const uploadsByMonth = await GalleryPhoto.aggregate([
-      { $match: { createdAt: { $gte: sixMonthsAgo } } },
-      {
-        $group: {
-          _id: {
-            year: { $year: '$createdAt' },
-            month: { $month: '$createdAt' }
-          },
-          photos: { $sum: 1 }
-        }
-      },
-      { $sort: { '_id.year': 1, '_id.month': 1 } }
+        { $match: { createdAt: { $gte: sixMonthsAgo } } },
+        {
+          $group: {
+            _id: {
+              year: { $year: '$createdAt' },
+              month: { $month: '$createdAt' }
+            },
+            photos: { $sum: 1 }
+          }
+        },
+        { $sort: { '_id.year': 1, '_id.month': 1 } }
+      ]),
+      UploadRequest.countDocuments({ status: 'PENDING' }).catch(() => 0),
+      UploadRequest.countDocuments({ status: 'APPROVED' }).catch(() => 0),
+      UploadRequest.countDocuments({ status: 'REJECTED' }).catch(() => 0),
+      UploadRequest.countDocuments().catch(() => 0)
     ]);
 
     const monthKeys = Array.from({ length: 6 }).map((_, index) => {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - (5 - index), 1);
       return {
         period: date.toLocaleString('en-US', { month: 'short' }),
-        date,
         year: date.getFullYear(),
         month: date.getMonth() + 1
       };
@@ -1786,37 +1834,474 @@ exports.getDashboardStats = async (req, res, next) => {
       };
     });
 
-    const profileTotals = profileCompleteness[0] || {};
-
-    // 5. Password Reset Statistics (Email sent/failed & OTP vs Redirect Link usage)
-    const [
-      emailsSentSuccess,
-      emailsSentFailed,
-      otpUsageCount,
-      linkUsageCount
-    ] = await Promise.all([
-      PasswordResetActivity.countDocuments({ type: 'EMAIL_SENT' }),
-      PasswordResetActivity.countDocuments({ type: 'EMAIL_FAILED' }),
-      PasswordResetActivity.countDocuments({ type: 'PASSWORD_RESET_OTP' }),
-      PasswordResetActivity.countDocuments({ type: 'PASSWORD_RESET_LINK' })
-    ]);
-
-    const passwordResetStats = {
-      emails: {
-        successful: emailsSentSuccess,
-        failed: emailsSentFailed,
-        total: emailsSentSuccess + emailsSentFailed
-      },
-      usage: {
-        otp: otpUsageCount,
-        redirectLink: linkUsageCount,
-        total: otpUsageCount + linkUsageCount
+    res.status(200).json({
+      success: true,
+      data: {
+        galleryStats: {
+          totalPhotos: totalGalleryPhotos,
+          totalFolders: totalGalleryFolders,
+          uploadsByMonth: galleryMonthlyUploads
+        },
+        uploadRequestStats: {
+          total: uploadRequestsTotal,
+          pending: uploadRequestsPending,
+          approved: uploadRequestsApproved,
+          rejected: uploadRequestsRejected
+        }
       }
-    };
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * 4. Careers & Job Openings Stats
+ */
+exports.getDashboardJobStats = async (req, res, next) => {
+  try {
+    if (!hasDashboardAccess(req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only ADMIN, ADMINISTRATOR, and WARDEN users can access dashboard statistics.'
+      });
+    }
+
+    const [jobsActive, jobsClosed, jobsTotal, jobAppsTotal, organizationsTotal] = await Promise.all([
+      JobOpening.countDocuments({ status: 'Active' }).catch(() => 0),
+      JobOpening.countDocuments({ status: 'Closed' }).catch(() => 0),
+      JobOpening.countDocuments().catch(() => 0),
+      JobApplication.countDocuments().catch(() => 0),
+      Organization.countDocuments().catch(() => 0)
+    ]);
 
     res.status(200).json({
       success: true,
       data: {
+        jobStats: {
+          total: jobsTotal,
+          active: jobsActive,
+          closed: jobsClosed,
+          totalApplications: jobAppsTotal,
+          totalOrganizations: organizationsTotal
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * 5. QR Portal Engagement & Drive Links Stats
+ */
+exports.getDashboardQrStats = async (req, res, next) => {
+  try {
+    if (!hasDashboardAccess(req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only ADMIN, ADMINISTRATOR, and WARDEN users can access dashboard statistics.'
+      });
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const [loginQrDoc, driveLinksTotal] = await Promise.all([
+      LoginQrLink.findOne().catch(() => null),
+      DriveLink.countDocuments().catch(() => 0)
+    ]);
+
+    const qrDevices = loginQrDoc?.devices || [];
+    const todayQrDevices = qrDevices.filter(d => d.timestamp && new Date(d.timestamp) >= today);
+    const todayScans = todayQrDevices.filter(d => d.accessType === 'qr').length;
+    const todayClicks = todayQrDevices.filter(d => d.accessType === 'direct').length;
+    const uniqueDevices = new Set(qrDevices.map(d => `${d.ip || ''}_${d.browser || ''}_${d.os || ''}`)).size;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        qrStats: {
+          scanCount: loginQrDoc?.scanCount || 0,
+          clickCount: loginQrDoc?.clickCount || 0,
+          todayScans,
+          todayClicks,
+          todayActivity: todayScans + todayClicks,
+          uniqueDeviceCount: uniqueDevices
+        },
+        driveStats: {
+          total: driveLinksTotal
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * 6. Platform Security & User Inquiries Stats
+ */
+exports.getDashboardSecurityStats = async (req, res, next) => {
+  try {
+    if (!hasDashboardAccess(req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only ADMIN, ADMINISTRATOR, and WARDEN users can access dashboard statistics.'
+      });
+    }
+
+    const [
+      emailsSentSuccess,
+      emailsSentFailed,
+      otpUsageCount,
+      linkUsageCount,
+      feedbackPending,
+      feedbackResolved,
+      feedbackTotal
+    ] = await Promise.all([
+      PasswordResetActivity.countDocuments({ type: 'EMAIL_SENT' }).catch(() => 0),
+      PasswordResetActivity.countDocuments({ type: 'EMAIL_FAILED' }).catch(() => 0),
+      PasswordResetActivity.countDocuments({ type: 'PASSWORD_RESET_OTP' }).catch(() => 0),
+      PasswordResetActivity.countDocuments({ type: 'PASSWORD_RESET_LINK' }).catch(() => 0),
+      Feedback.countDocuments({ status: 'Pending' }).catch(() => 0),
+      Feedback.countDocuments({ status: 'Resolved' }).catch(() => 0),
+      Feedback.countDocuments().catch(() => 0)
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        passwordResetStats: {
+          emails: {
+            successful: emailsSentSuccess,
+            failed: emailsSentFailed,
+            total: emailsSentSuccess + emailsSentFailed
+          },
+          usage: {
+            otp: otpUsageCount,
+            redirectLink: linkUsageCount,
+            total: otpUsageCount + linkUsageCount
+          }
+        },
+        feedbackStats: {
+          total: feedbackTotal,
+          pending: feedbackPending,
+          resolved: feedbackResolved
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * 7. Recent Member Registrations
+ */
+exports.getDashboardRecentRegistrations = async (req, res, next) => {
+  try {
+    if (!hasDashboardAccess(req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only ADMIN, ADMINISTRATOR, and WARDEN users can access dashboard statistics.'
+      });
+    }
+
+    const notDropped = { isDropped: { $ne: true } };
+    const recentUsers = await User.find(notDropped)
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select('name email role profilePhoto createdAt');
+
+    res.status(200).json({
+      success: true,
+      data: {
+        recentUsers
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Legacy combined dashboard endpoint (Backward-Compatible)
+ */
+exports.getDashboardStats = async (req, res, next) => {
+  try {
+    if (!hasDashboardAccess(req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only ADMIN, ADMINISTRATOR, and WARDEN users can access dashboard statistics.'
+      });
+    }
+
+    const defaultProfilePhoto = (await getDefaultProfilePhoto()).url;
+    const currentDate = new Date();
+    const sixMonthsAgo = new Date(currentDate.getFullYear(), currentDate.getMonth() - 5, 1);
+    const notDropped = { isDropped: { $ne: true } };
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const [
+      totalStudents,
+      totalAlumni,
+      totalMembers,
+      totalStaff,
+      totalWardens,
+      totalAdmins,
+      totalAdministrators,
+      totalUsers,
+      droppedTotal,
+      droppedStudents,
+      droppedAlumni,
+      droppedMembers,
+      upcomingEvents,
+      totalEvents,
+      pastEvents,
+      eventTrendByMonth,
+      recentUsers,
+      rolesDistribution,
+      membersByStatus,
+      profileCompleteness,
+      totalGalleryPhotos,
+      totalGalleryFolders,
+      uploadsByMonth,
+      emailsSentSuccess,
+      emailsSentFailed,
+      otpUsageCount,
+      linkUsageCount,
+      uploadRequestsPending,
+      uploadRequestsApproved,
+      uploadRequestsRejected,
+      uploadRequestsTotal,
+      jobsActive,
+      jobsClosed,
+      jobsTotal,
+      jobAppsTotal,
+      organizationsTotal,
+      driveLinksTotal,
+      loginQrDoc,
+      feedbackPending,
+      feedbackResolved,
+      feedbackTotal
+    ] = await Promise.all([
+      User.countDocuments({ role: 'STUDENT', ...notDropped }),
+      User.countDocuments({ role: 'ALUMNI', ...notDropped }),
+      User.countDocuments({ role: 'MEMBER', ...notDropped }),
+      User.countDocuments({ role: 'STAFF', ...notDropped }),
+      User.countDocuments({ role: 'WARDEN', ...notDropped }),
+      User.countDocuments({ role: 'ADMIN', ...notDropped }),
+      User.countDocuments({ role: 'ADMINISTRATOR', ...notDropped }),
+      User.countDocuments(notDropped),
+      User.countDocuments({ isDropped: true }),
+      User.countDocuments({ role: 'STUDENT', isDropped: true }),
+      User.countDocuments({ role: 'ALUMNI', isDropped: true }),
+      User.countDocuments({ role: 'MEMBER', isDropped: true }),
+      Event.countDocuments({ eventDate: { $gte: today } }),
+      Event.countDocuments(),
+      Event.countDocuments({ eventDate: { $lt: today } }),
+      Event.aggregate([
+        { $match: { eventDate: { $gte: sixMonthsAgo } } },
+        {
+          $group: {
+            _id: { year: { $year: '$eventDate' }, month: { $month: '$eventDate' } },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { '_id.year': 1, '_id.month': 1 } }
+      ]),
+      User.find(notDropped).sort({ createdAt: -1 }).limit(5).select('name email role profilePhoto createdAt'),
+      User.aggregate([{ $match: notDropped }, { $group: { _id: '$role', value: { $sum: 1 } } }]),
+      User.aggregate([{ $match: notDropped }, { $group: { _id: { $ifNull: ['$accountStatus', 'ACTIVE'] }, value: { $sum: 1 } } }]),
+      User.aggregate([
+        { $match: notDropped },
+        {
+          $group: {
+            _id: null,
+            totalProfiles: { $sum: 1 },
+            phone: { $sum: { $cond: [{ $ne: [{ $ifNull: ['$phone', ''] }, ''] }, 1, 0] } },
+            email: { $sum: { $cond: [{ $ne: [{ $ifNull: ['$email', ''] }, ''] }, 1, 0] } },
+            address: {
+              $sum: {
+                $cond: [
+                  {
+                    $or: [
+                      { $ne: [{ $ifNull: ['$address.street', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$address.city', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$address.district', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$address.pincode', ''] }, ''] }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            },
+            education: {
+              $sum: {
+                $cond: [
+                  {
+                    $or: [
+                      { $ne: [{ $ifNull: ['$education.college', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$education.course', ''] }, ''] }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            },
+            employment: {
+              $sum: {
+                $cond: [
+                  {
+                    $or: [
+                      { $ne: [{ $ifNull: ['$employment.occupation', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$employment.organization', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$employment.industry', ''] }, ''] }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            },
+            profilePhoto: {
+              $sum: {
+                $cond: [{ $ne: [{ $ifNull: ['$profilePhoto.url', ''] }, defaultProfilePhoto] }, 1, 0]
+              }
+            },
+            social: {
+              $sum: {
+                $cond: [
+                  {
+                    $or: [
+                      { $ne: [{ $ifNull: ['$channels.instagram', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$channels.linkedin', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$channels.whatsapp', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$channels.portfolio', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$channels.github', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$channels.behance', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$channels.resume.url', ''] }, ''] }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            },
+            completeProfiles: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $ne: [{ $ifNull: ['$phone', ''] }, ''] },
+                      { $ne: [{ $ifNull: ['$email', ''] }, ''] },
+                      {
+                        $or: [
+                          { $ne: [{ $ifNull: ['$address.city', ''] }, ''] },
+                          { $ne: [{ $ifNull: ['$education.college', ''] }, ''] }
+                        ]
+                      }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            }
+          }
+        }
+      ]),
+      GalleryPhoto.countDocuments(),
+      GalleryFolder.countDocuments(),
+      GalleryPhoto.aggregate([
+        { $match: { createdAt: { $gte: sixMonthsAgo } } },
+        {
+          $group: {
+            _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } },
+            photos: { $sum: 1 }
+          }
+        },
+        { $sort: { '_id.year': 1, '_id.month': 1 } }
+      ]),
+      PasswordResetActivity.countDocuments({ type: 'EMAIL_SENT' }),
+      PasswordResetActivity.countDocuments({ type: 'EMAIL_FAILED' }),
+      PasswordResetActivity.countDocuments({ type: 'PASSWORD_RESET_OTP' }),
+      PasswordResetActivity.countDocuments({ type: 'PASSWORD_RESET_LINK' }),
+      UploadRequest.countDocuments({ status: 'PENDING' }).catch(() => 0),
+      UploadRequest.countDocuments({ status: 'APPROVED' }).catch(() => 0),
+      UploadRequest.countDocuments({ status: 'REJECTED' }).catch(() => 0),
+      UploadRequest.countDocuments().catch(() => 0),
+      JobOpening.countDocuments({ status: 'Active' }).catch(() => 0),
+      JobOpening.countDocuments({ status: 'Closed' }).catch(() => 0),
+      JobOpening.countDocuments().catch(() => 0),
+      JobApplication.countDocuments().catch(() => 0),
+      Organization.countDocuments().catch(() => 0),
+      DriveLink.countDocuments().catch(() => 0),
+      LoginQrLink.findOne().catch(() => null),
+      Feedback.countDocuments({ status: 'Pending' }).catch(() => 0),
+      Feedback.countDocuments({ status: 'Resolved' }).catch(() => 0),
+      Feedback.countDocuments().catch(() => 0)
+    ]);
+
+    const formattedEventTrend = Array.from({ length: 6 }).map((_, index) => {
+      const dt = new Date(currentDate.getFullYear(), currentDate.getMonth() - (5 - index), 1);
+      const keyYear = dt.getFullYear();
+      const keyMonth = dt.getMonth() + 1;
+      const found = eventTrendByMonth.find(item => item._id.year === keyYear && item._id.month === keyMonth);
+      return { period: dt.toLocaleString('en-US', { month: 'short' }), events: found?.count || 0 };
+    });
+
+    const monthKeys = Array.from({ length: 6 }).map((_, index) => {
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - (5 - index), 1);
+      return { period: date.toLocaleString('en-US', { month: 'short' }), year: date.getFullYear(), month: date.getMonth() + 1 };
+    });
+
+    const galleryMonthlyUploads = monthKeys.map(({ period, year, month }) => {
+      const found = uploadsByMonth.find(item => item._id.year === year && item._id.month === month);
+      return { period, uploads: found?.photos || 0 };
+    });
+
+    const qrDevices = loginQrDoc?.devices || [];
+    const todayQrDevices = qrDevices.filter(d => d.timestamp && new Date(d.timestamp) >= today);
+    const todayScans = todayQrDevices.filter(d => d.accessType === 'qr').length;
+    const todayClicks = todayQrDevices.filter(d => d.accessType === 'direct').length;
+    const uniqueDevices = new Set(qrDevices.map(d => `${d.ip || ''}_${d.browser || ''}_${d.os || ''}`)).size;
+    const profileTotals = profileCompleteness[0] || {};
+
+    res.status(200).json({
+      success: true,
+      data: {
+        uploadRequestStats: {
+          total: uploadRequestsTotal,
+          pending: uploadRequestsPending,
+          approved: uploadRequestsApproved,
+          rejected: uploadRequestsRejected
+        },
+        jobStats: {
+          total: jobsTotal,
+          active: jobsActive,
+          closed: jobsClosed,
+          totalApplications: jobAppsTotal,
+          totalOrganizations: organizationsTotal
+        },
+        driveStats: { total: driveLinksTotal },
+        qrStats: {
+          scanCount: loginQrDoc?.scanCount || 0,
+          clickCount: loginQrDoc?.clickCount || 0,
+          todayScans,
+          todayClicks,
+          todayActivity: todayScans + todayClicks,
+          uniqueDeviceCount: uniqueDevices
+        },
+        feedbackStats: {
+          total: feedbackTotal,
+          pending: feedbackPending,
+          resolved: feedbackResolved
+        },
         counts: {
           students: totalStudents,
           alumni: totalAlumni,
@@ -1825,6 +2310,11 @@ exports.getDashboardStats = async (req, res, next) => {
           wardens: totalWardens,
           chairpersons: totalWardens,
           admins: totalAdmins,
+          administrators: totalAdministrators,
+          droppedTotal,
+          droppedStudents,
+          droppedAlumni,
+          droppedMembers,
           total: totalUsers,
           upcomingEvents,
           totalEvents,
@@ -1856,18 +2346,22 @@ exports.getDashboardStats = async (req, res, next) => {
         galleryStats: {
           totalPhotos: totalGalleryPhotos,
           totalFolders: totalGalleryFolders,
-          uploadsByMonth: galleryMonthlyUploads,
-          mediaTypeDistribution
+          uploadsByMonth: galleryMonthlyUploads
         },
-        passwordResetStats,
+        passwordResetStats: {
+          emails: {
+            successful: emailsSentSuccess,
+            failed: emailsSentFailed,
+            total: emailsSentSuccess + emailsSentFailed
+          },
+          usage: {
+            otp: otpUsageCount,
+            redirectLink: linkUsageCount,
+            total: otpUsageCount + linkUsageCount
+          }
+        },
         charts: {
           rolesDistribution,
-          studentsByCollege,
-          studentsByCourse,
-          alumniByOccupation,
-          alumniByCompany,
-          locationDistribution,
-          ageDistribution: formattedAgeDistribution,
           accountStatusDistribution: membersByStatus,
           eventTrend: formattedEventTrend,
           galleryUploadsByMonth: galleryMonthlyUploads

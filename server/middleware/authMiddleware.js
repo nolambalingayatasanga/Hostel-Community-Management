@@ -101,6 +101,10 @@ const protect = async (req, res, next) => {
  */
 const restrictTo = (...roles) => {
   return (req, res, next) => {
+    // ADMINISTRATOR has all access to every page and control by default!
+    if (req.user && req.user.role === 'ADMINISTRATOR') {
+      return next();
+    }
     if (!req.user || !roles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
@@ -130,7 +134,7 @@ const sanitizeUser = (targetUser, currentUser, options = {}) => {
     currentUser._id.toString() === target._id.toString()
   );
   const isAdminOrWarden = Boolean(
-    currentUser && ['ADMIN', 'WARDEN'].includes(currentUser.role)
+    currentUser && ['ADMIN', 'ADMINISTRATOR', 'WARDEN'].includes(currentUser.role)
   );
 
   // Always remove internal password & token secrets
@@ -183,7 +187,7 @@ const sanitizeUser = (targetUser, currentUser, options = {}) => {
   }
 
   // If viewer is self or admin in direct profile view, they are authorized to see full details
-  const isAdmin = Boolean(currentUser && currentUser.role === 'ADMIN');
+  const isAdmin = Boolean(currentUser && ['ADMIN', 'ADMINISTRATOR'].includes(currentUser.role));
   if (isSelf || isAdmin) {
     return target;
   }

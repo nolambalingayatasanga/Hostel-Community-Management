@@ -170,7 +170,7 @@ const DirectorySearchBar = React.memo(function DirectorySearchBar({
 export default function DirectoryList() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const isAdminOrWarden = ["ADMIN", "WARDEN"].includes(user?.role);
+  const isAdminOrWarden = ["ADMINISTRATOR", "ADMIN", "WARDEN"].includes(user?.role);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
@@ -613,7 +613,7 @@ export default function DirectoryList() {
     if (permittedTabs && Array.isArray(permittedTabs)) {
       list = fullList.filter(tab => permittedTabs.includes(String(tab._id)));
     } else {
-      const isAdmin = ["ADMIN", "WARDEN"].includes(user?.role);
+      const isAdmin = ["ADMINISTRATOR", "ADMIN", "WARDEN"].includes(user?.role);
       list = isAdmin
         ? fullList
         : fullList.filter(tab => {

@@ -369,7 +369,7 @@ const DashboardLayout = () => {
                   color: '#0F172A',
                   letterSpacing: '-0.01em',
                   display: 'block',
-                  maxWidth: { xs: 140, sm: 'none' },
+                  maxWidth: { xs: 220, sm: 'none' },
                   overflow: 'hidden',
                   textOverflow: 'ellipsis'
                 }}

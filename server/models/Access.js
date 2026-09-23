@@ -9,7 +9,7 @@ const AccessSchema = new mongoose.Schema({
   role: {
     type: String,
     required: true,
-    enum: ['ADMIN', 'WARDEN', 'STAFF', 'ALUMNI', 'STUDENT', 'MEMBER']
+    enum: ['ADMIN', 'ADMINISTRATOR', 'WARDEN', 'STAFF', 'ALUMNI', 'STUDENT', 'MEMBER']
   },
   permissions: {
     fullAccess: { type: Boolean, default: false },
@@ -32,10 +32,28 @@ AccessSchema.index({ page: 1, role: 1 }, { unique: true });
 // Standard default permissions seeder
 AccessSchema.statics.seedDefaults = async function() {
   const pages = ['overview', 'users', 'events', 'gallery', 'drive_links', 'request_upload', 'job_openings', 'feedback', 'profile', 'qr_scan_count', 'access_control'];
-  const roles = ['ADMIN', 'WARDEN', 'STAFF', 'ALUMNI', 'STUDENT', 'MEMBER'];
+  const roles = ['ADMIN', 'ADMINISTRATOR', 'WARDEN', 'STAFF', 'ALUMNI', 'STUDENT', 'MEMBER'];
 
   const count = await this.countDocuments();
   if (count > 0) {
+    // Ensure ADMINISTRATOR has full access seeded for all pages
+    const adminDocCount = await this.countDocuments({ role: 'ADMINISTRATOR' });
+    if (adminDocCount === 0) {
+      const adminEntries = pages.map(page => ({
+        page,
+        role: 'ADMINISTRATOR',
+        permissions: {
+          fullAccess: true,
+          view: true,
+          create: true,
+          update: true,
+          delete: true,
+          noAccess: false
+        }
+      }));
+      await this.insertMany(adminEntries);
+    }
+
     // Ensure qr_scan_count permissions exist if table was already seeded
     const qrCount = await this.countDocuments({ page: 'qr_scan_count' });
     if (qrCount === 0) {
@@ -180,7 +198,7 @@ AccessSchema.statics.seedDefaults = async function() {
         defaultEntries.push({
           page,
           role,
-          permissions: role === 'ADMIN' ? {
+          permissions: (role === 'ADMIN' || role === 'ADMINISTRATOR') ? {
             fullAccess: true,
             view: true,
             create: true,
@@ -199,7 +217,7 @@ AccessSchema.statics.seedDefaults = async function() {
         continue;
       }
 
-      const isAdminOrWarden = role === 'ADMIN' || role === 'WARDEN';
+      const isAdminOrWarden = role === 'ADMIN' || role === 'ADMINISTRATOR' || role === 'WARDEN';
 
       if (isAdminOrWarden) {
         // Admin & Warden have Full Access on all pages

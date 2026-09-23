@@ -37,7 +37,7 @@ const MemberInfoSchema = new mongoose.Schema({
 const UserSchema = new mongoose.Schema({
   role: {
     type: String,
-    enum: ['ADMIN', 'WARDEN', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'],
+    enum: ['ADMIN', 'ADMINISTRATOR', 'WARDEN', 'MEMBER', 'STAFF', 'STUDENT', 'ALUMNI'],
     required: true
   },
   accountStatus: {

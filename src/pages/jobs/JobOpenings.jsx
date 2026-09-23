@@ -260,7 +260,7 @@ export default function JobOpenings() {
   const { user } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   // Role permissions:
   // 1. Except student, anyone can create organization and post openings
@@ -813,13 +813,13 @@ export default function JobOpenings() {
         maxWidth: '100%',
         boxSizing: 'border-box',
         height: {
-          xs: 'calc(100vh - 80px)',
-          sm: 'calc(100vh - 100px)',
+          xs: 'auto',
           md: 'calc(100vh - 116px)'
         },
         display: 'flex',
         flexDirection: 'column',
-        overflow: 'hidden'
+        overflow: { xs: 'visible', md: 'hidden' },
+        pb: { xs: 4, md: 0 }
       }}
     >
       {/* ── Top Page Header ── */}
@@ -836,16 +836,14 @@ export default function JobOpenings() {
         }}
       >
         <Box sx={{ minWidth: 0 }}>
-          <Typography variant="h5" sx={{ fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 1.25 }}>
-            <WorkIcon sx={{ color: '#0088ff', fontSize: 28 }} />
+          <Typography variant="h5" sx={{ fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 1.25, fontSize: { xs: '20px', sm: '24px' } }}>
+            <WorkIcon sx={{ color: '#0088ff', fontSize: { xs: 24, sm: 28 } }} />
             Job Openings & Careers
           </Typography>
-          <Typography variant="body2" sx={{ color: '#64748B', mt: 0.25 }}>
-            Discover career opportunities, explore companies, and apply for roles directly.
-          </Typography>
+      
         </Box>
 
-        <Stack direction="row" spacing={1.25} alignItems="center" sx={{ flexShrink: 0, ml: { sm: 'auto' } }}>
+        <Stack direction="row" spacing={1.25} alignItems="center" sx={{ flexShrink: 0, ml: { sm: 'auto' }, width: { xs: '100%', sm: 'auto' } }}>
           {/* Organization Profile setup for eligible users */}
           {canCreateOrganization && (
             <Button
@@ -858,10 +856,12 @@ export default function JobOpenings() {
                 py: 0.9,
                 textTransform: 'none',
                 fontWeight: 700,
-                fontSize: '13.5px',
+                fontSize: { xs: '12.5px', sm: '13.5px' },
                 borderColor: '#CBD5E1',
                 color: '#334155',
                 bgcolor: '#FFFFFF',
+                flex: { xs: 1, sm: 'none' },
+                whiteSpace: 'nowrap',
                 '&:hover': { bgcolor: '#F8FAFC', borderColor: '#94A3B8' }
               }}
             >
@@ -877,14 +877,15 @@ export default function JobOpenings() {
               onClick={() => handleOpenPostJob()}
               sx={{
                 borderRadius: '10px',
-                px: 2.5,
+                px: { xs: 2, sm: 2.5 },
                 py: 0.9,
                 textTransform: 'none',
                 fontWeight: 700,
-                fontSize: '13.5px',
+                fontSize: { xs: '12.5px', sm: '13.5px' },
                 bgcolor: '#0088ff',
                 boxShadow: '0 2px 8px rgba(0, 136, 255, 0.25)',
                 whiteSpace: 'nowrap',
+                flex: { xs: 1, sm: 'none' },
                 '&:hover': { bgcolor: '#0077ee', boxShadow: 'none' }
               }}
             >
@@ -895,14 +896,23 @@ export default function JobOpenings() {
       </Box>
 
       {/* ── Sub Navigation Tabs ── */}
-      <Box sx={{ borderBottom: 1, borderColor: '#E2E8F0', mb: 1.5, flexShrink: 0 }}>
+      <Box sx={{ borderBottom: 1, borderColor: '#E2E8F0', mb: 1.5, flexShrink: 0, maxWidth: '100%' }}>
         <Tabs
           value={activeTab}
           onChange={(e, val) => { setActiveTab(val); setPage(0); }}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
           sx={{
             minHeight: 42,
+            maxWidth: '100%',
             '& .MuiTabs-indicator': { bgcolor: '#0088ff', height: 3, borderRadius: '3px' },
-            '& .MuiTab-root': { textTransform: 'none', fontWeight: 700, fontSize: '13.5px', minHeight: 42, py: 0.75, whiteSpace: 'nowrap' }
+            '& .MuiTab-root': { textTransform: 'none', fontWeight: 700, fontSize: '13.5px', minHeight: 42, py: 0.75, whiteSpace: 'nowrap' },
+            '& .MuiTabs-scrollButtons': {
+              color: '#64748B',
+              width: 28,
+              '&.Mui-disabled': { opacity: 0.25 }
+            }
           }}
         >
           <Tab
@@ -948,7 +958,7 @@ export default function JobOpenings() {
         </Tabs>
       </Box>
 
-      {/* ── TAB 1 & TAB 2: EXPLORE OPENINGS & APPLICATIONS CLOSED (Table View) ── */}
+      {/* ── TAB 1 & TAB 2: EXPLORE OPENINGS & APPLICATIONS CLOSED (Table View on Desktop / Cards on Mobile) ── */}
       {(activeTab === 'explore' || activeTab === 'closed') && (
         <Paper
           elevation={0}
@@ -959,7 +969,7 @@ export default function JobOpenings() {
             borderRadius: '16px',
             border: '1px solid #E2E8F0',
             boxShadow: '0 4px 20px -4px rgba(15, 23, 42, 0.05)',
-            overflow: 'hidden',
+            overflow: { xs: 'visible', md: 'hidden' },
             display: 'flex',
             flexDirection: 'column',
             bgcolor: '#FFFFFF'
@@ -1075,280 +1085,297 @@ export default function JobOpenings() {
             </Stack>
           </Box>
 
-          {/* Table Content */}
-          <TableContainer
-            sx={{
-              flex: 1,
-              minHeight: 0,
-              overflowY: 'auto',
-              overflowX: 'auto',
-              bgcolor: '#FFFFFF',
-              WebkitOverflowScrolling: 'touch'
-            }}
-          >
-            <Table stickyHeader sx={{ minWidth: 1100 }}>
-              <TableHead>
-                <TableRow sx={{ bgcolor: '#F8FAFC' }}>
-                  <TableCell sx={{ py: 1.75, px: 2, fontWeight: 700, fontSize: '13px', color: '#64748B', bgcolor: '#F8FAFC', width: 50, borderBottom: '1px solid #EEF2F6', zIndex: 2, whiteSpace: 'nowrap' }}>
-                    #
-                  </TableCell>
-                  <TableCell sx={{ py: 1.75, px: 2, fontWeight: 700, fontSize: '13px', color: '#64748B', bgcolor: '#F8FAFC', minWidth: 190, borderBottom: '1px solid #EEF2F6', zIndex: 2, whiteSpace: 'nowrap' }}>
-                    Company / Organization
-                  </TableCell>
-                  <TableCell sx={{ py: 1.75, px: 2, fontWeight: 700, fontSize: '13px', color: '#64748B', bgcolor: '#F8FAFC', minWidth: 190, borderBottom: '1px solid #EEF2F6', zIndex: 2, whiteSpace: 'nowrap' }}>
-                    Job Role & Type
-                  </TableCell>
-                  <TableCell sx={{ py: 1.75, px: 2, fontWeight: 700, fontSize: '13px', color: '#64748B', bgcolor: '#F8FAFC', minWidth: 140, borderBottom: '1px solid #EEF2F6', zIndex: 2, whiteSpace: 'nowrap' }}>
-                    Location
-                  </TableCell>
-                  <TableCell sx={{ py: 1.75, px: 2, fontWeight: 700, fontSize: '13px', color: '#64748B', bgcolor: '#F8FAFC', minWidth: 150, borderBottom: '1px solid #EEF2F6', zIndex: 2, whiteSpace: 'nowrap' }}>
-                    Experience & Education
-                  </TableCell>
-                  <TableCell sx={{ py: 1.75, px: 2, fontWeight: 700, fontSize: '13px', color: '#64748B', bgcolor: '#F8FAFC', minWidth: 130, borderBottom: '1px solid #EEF2F6', zIndex: 2, whiteSpace: 'nowrap' }}>
-                    Salary Range
-                  </TableCell>
-                  <TableCell sx={{ py: 1.75, px: 2, fontWeight: 700, fontSize: '13px', color: '#64748B', bgcolor: '#F8FAFC', minWidth: 130, borderBottom: '1px solid #EEF2F6', zIndex: 2, whiteSpace: 'nowrap' }}>
-                    Interview Mode
-                  </TableCell>
-                  <TableCell sx={{ py: 1.75, px: 2, fontWeight: 700, fontSize: '13px', color: '#64748B', bgcolor: '#F8FAFC', minWidth: 130, borderBottom: '1px solid #EEF2F6', textAlign: 'center', zIndex: 2, whiteSpace: 'nowrap' }}>
-                    People Applied
-                  </TableCell>
-                  <TableCell sx={{ py: 1.75, px: 2, fontWeight: 700, fontSize: '13px', color: '#64748B', bgcolor: '#F8FAFC', minWidth: 80, borderBottom: '1px solid #EEF2F6', textAlign: 'center', zIndex: 2, whiteSpace: 'nowrap' }}>
-                    Openings
-                  </TableCell>
-                  <TableCell sx={{ py: 1.75, px: 2, fontWeight: 700, fontSize: '13px', color: '#64748B', bgcolor: '#F8FAFC', minWidth: 180, borderBottom: '1px solid #EEF2F6', textAlign: 'right', zIndex: 2, whiteSpace: 'nowrap' }}>
-                    Action
-                  </TableCell>
-                </TableRow>
-              </TableHead>
-
-              <TableBody>
-                {loading ? (
-                  <TableRow>
-                    <TableCell colSpan={10} sx={{ py: 8, textAlign: 'center' }}>
-                      <CircularProgress size={36} sx={{ color: '#0088ff' }} />
-                    </TableCell>
-                  </TableRow>
-                ) : paginatedJobs.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={10} sx={{ py: 8, textAlign: 'center' }}>
-                      <WorkIcon sx={{ fontSize: 44, color: '#94A3B8', mb: 1, opacity: 0.6 }} />
-                      <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1E293B' }}>
-                        {activeTab === 'closed' ? 'No closed applications found' : 'No job openings found'}
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#64748B', mt: 0.5 }}>
-                        {searchQuery || jobTypeFilter !== 'All'
-                          ? 'Try clearing the search query or filter.'
-                          : activeTab === 'closed'
-                            ? 'No job openings have been closed yet.'
-                            : 'No active job opportunities posted yet. Check back soon!'}
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  paginatedJobs.map((job, idx) => {
+          {/* Content: Mobile Cards Feed (< md) OR Desktop Table (>= md) */}
+          {isMobile ? (
+            <Box
+              sx={{
+                flex: 1,
+                minHeight: 0,
+                overflowY: { xs: 'visible', md: 'auto' },
+                bgcolor: '#F8FAFC',
+                p: { xs: 1.5, sm: 2 }
+              }}
+            >
+              {loading ? (
+                <Box sx={{ py: 8, textAlign: 'center', bgcolor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
+                  <CircularProgress size={36} sx={{ color: '#0088ff', mb: 1.5 }} />
+                  <Typography variant="body2" sx={{ color: '#64748B', fontWeight: 600 }}>
+                    Loading job opportunities...
+                  </Typography>
+                </Box>
+              ) : paginatedJobs.length === 0 ? (
+                <Box sx={{ py: 8, px: 2, textAlign: 'center', bgcolor: '#FFFFFF', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
+                  <WorkIcon sx={{ fontSize: 44, color: '#94A3B8', mb: 1, opacity: 0.6 }} />
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1E293B' }}>
+                    {activeTab === 'closed' ? 'No closed applications found' : 'No job openings found'}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#64748B', mt: 0.5 }}>
+                    {searchQuery || jobTypeFilter !== 'All'
+                      ? 'Try clearing your search query or filter.'
+                      : activeTab === 'closed'
+                        ? 'No job openings have been closed yet.'
+                        : 'No active job opportunities posted yet. Check back soon!'}
+                  </Typography>
+                </Box>
+              ) : (
+                <Stack spacing={2}>
+                  {paginatedJobs.map((job) => {
                     const isCreator = String(job.createdBy?._id || job.createdBy) === String(user?._id || user?.id);
-                    const rowNumber = page * rowsPerPage + idx + 1;
 
                     return (
-                      <TableRow
+                      <Card
                         key={job._id}
-                        hover
+                        elevation={0}
                         sx={{
+                          borderRadius: '16px',
+                          border: '1px solid #E2E8F0',
                           bgcolor: '#FFFFFF',
-                          transition: 'background-color 0.15s ease',
-                          '&:last-child td, &:last-child th': { border: 0 }
+                          boxShadow: '0 2px 8px -2px rgba(15, 23, 42, 0.05)',
+                          p: 2,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 1.5
                         }}
                       >
-                        {/* # */}
-                        <TableCell sx={{ py: 1.5, px: 2, fontSize: '13px', color: '#64748B', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                          {rowNumber}
-                        </TableCell>
-
-                        {/* Company / Organization */}
-                        <TableCell sx={{ py: 1.5, px: 2, whiteSpace: 'nowrap' }}>
-                          <Stack direction="row" spacing={1.25} alignItems="center">
+                        {/* 1. Header: Avatar + Company + Job Type */}
+                        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
+                          <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0, flex: 1 }}>
                             <Avatar
                               src={job.organization?.logo?.url || ''}
-                              sx={{ width: 36, height: 36, bgcolor: '#EFF6FF', color: '#0088ff', fontSize: '13px', fontWeight: 700, border: '1px solid #E2E8F0' }}
+                              sx={{
+                                width: 44,
+                                height: 44,
+                                bgcolor: '#EFF6FF',
+                                color: '#0088ff',
+                                fontSize: '16px',
+                                fontWeight: 700,
+                                border: '1px solid #DBEAFE',
+                                borderRadius: '12px',
+                                flexShrink: 0
+                              }}
                             >
-                              {job.organization?.name?.charAt(0) || <BusinessIcon sx={{ fontSize: 18 }} />}
+                              {job.organization?.name?.charAt(0) || <BusinessIcon sx={{ fontSize: 22 }} />}
                             </Avatar>
-                            <Box sx={{ minWidth: 0 }}>
-                              <Typography variant="body2" sx={{ fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap' }}>
+                            <Box sx={{ minWidth: 0, flex: 1 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 700, color: '#0F172A', lineHeight: 1.25 }} noWrap>
                                 {job.organization?.name || 'Company'}
                               </Typography>
-                              <Typography variant="caption" sx={{ color: '#64748B', display: 'block' }}>
+                              <Typography variant="caption" sx={{ color: '#64748B', display: 'block', fontSize: '11.5px', mt: 0.25 }} noWrap>
                                 {job.organization?.industry || 'Industry'}
                               </Typography>
                             </Box>
                           </Stack>
-                        </TableCell>
 
-                        {/* Job Role & Type */}
-                        <TableCell sx={{ py: 1.5, px: 2, whiteSpace: 'nowrap' }}>
-                          <Box>
-                            <Typography
-                              variant="body2"
-                              onClick={() => { setViewingJob(job); setViewDialogOpen(true); }}
-                              sx={{ fontWeight: 700, color: '#0088ff', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-                            >
-                              {job.jobRole}
-                            </Typography>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5, flexShrink: 0 }}>
                             <Chip
                               label={job.jobType}
                               size="small"
                               sx={{
-                                height: 20,
-                                fontSize: '10.5px',
+                                height: 22,
+                                fontSize: '11px',
                                 fontWeight: 700,
-                                mt: 0.5,
                                 bgcolor: job.jobType === 'Full-time' ? '#ECFDF5' : job.jobType === 'Internship' ? '#F5F3FF' : '#EFF6FF',
-                                color: job.jobType === 'Full-time' ? '#059669' : job.jobType === 'Internship' ? '#7C3AED' : '#2563EB'
+                                color: job.jobType === 'Full-time' ? '#059669' : job.jobType === 'Internship' ? '#7C3AED' : '#2563EB',
+                                borderRadius: '6px'
                               }}
                             />
-                          </Box>
-                        </TableCell>
-
-                        {/* Location */}
-                        <TableCell sx={{ py: 1.5, px: 2, whiteSpace: 'nowrap' }}>
-                          <Typography variant="body2" sx={{ color: '#334155', display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '13px' }}>
-                            <LocationIcon sx={{ fontSize: 15, color: '#64748B' }} />
-                            {job.location}
-                          </Typography>
-                        </TableCell>
-
-                        {/* Experience & Edu */}
-                        <TableCell sx={{ py: 1.5, px: 2, whiteSpace: 'nowrap' }}>
-                          <Typography variant="body2" sx={{ color: '#0F172A', fontWeight: 600, fontSize: '12.5px' }}>
-                            {job.experienceYears}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: '#64748B', display: 'block', maxWidth: 160, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                            {job.educationQualification || 'Any Graduate'}
-                          </Typography>
-                        </TableCell>
-
-                        {/* Salary */}
-                        <TableCell sx={{ py: 1.5, px: 2, whiteSpace: 'nowrap' }}>
-                          <Typography variant="body2" sx={{ fontWeight: 700, color: '#16A34A', fontSize: '13px' }}>
-                            {job.salaryRange}
-                          </Typography>
-                        </TableCell>
-
-                        {/* Interview Mode */}
-                        <TableCell sx={{ py: 1.5, px: 2, whiteSpace: 'nowrap' }}>
-                          <Chip
-                            icon={job.interviewMode === 'Online' ? <OnlineInterviewIcon sx={{ fontSize: '13px !important' }} /> : <InPersonIcon sx={{ fontSize: '13px !important' }} />}
-                            label={job.interviewMode || 'Online'}
-                            size="small"
-                            sx={{ height: 22, fontSize: '11px', fontWeight: 600, bgcolor: job.interviewMode === 'Online' ? '#EFF6FF' : '#FEF3C7', color: job.interviewMode === 'Online' ? '#1D4ED8' : '#B45309' }}
-                          />
-                        </TableCell>
-
-                        {/* People Applied Count */}
-                        <TableCell sx={{ py: 1.5, px: 2, textAlign: 'center', whiteSpace: 'nowrap' }}>
-                          <Chip
-                            icon={<ApplicantsIcon sx={{ fontSize: '14px !important' }} />}
-                            label={`${job.applicantsCount || 0} applied`}
-                            size="small"
-                            sx={{
-                              height: 24,
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              bgcolor: (job.applicantsCount || 0) > 0 ? '#EFF6FF' : '#F8FAFC',
-                              color: (job.applicantsCount || 0) > 0 ? '#1D4ED8' : '#64748B',
-                              border: '1px solid',
-                              borderColor: (job.applicantsCount || 0) > 0 ? '#BFDBFE' : '#E2E8F0'
-                            }}
-                          />
-                        </TableCell>
-
-                        {/* Openings Count */}
-                        <TableCell sx={{ py: 1.5, px: 2, textAlign: 'center', whiteSpace: 'nowrap' }}>
-                          <Typography variant="body2" sx={{ fontWeight: 700, color: '#475569' }}>
-                            {job.openingsCount}
-                          </Typography>
-                        </TableCell>
-
-                        {/* Action Buttons */}
-                        <TableCell sx={{ py: 1.5, px: 2, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                          <Stack direction="row" spacing={0.75} justifyContent="flex-end" alignItems="center">
-                            {/* View Details */}
-                            <Tooltip title="View job description & details">
-                              <IconButton
+                            {job.status === 'Closed' && (
+                              <Chip
+                                label="Closed"
                                 size="small"
-                                onClick={() => { setViewingJob(job); setViewDialogOpen(true); }}
-                                sx={{ color: '#64748B', '&:hover': { color: '#0088ff', bgcolor: '#F0F9FF' } }}
-                              >
-                                <ViewIcon sx={{ fontSize: 18 }} />
-                              </IconButton>
-                            </Tooltip>
-
-                            {/* Creator or Admin controls */}
-                            {(isCreator || isAdmin) && (
-                              <>
-                                <Tooltip title={`View applicants (${job.applicantsCount || 0})`}>
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => handleOpenApplicants(job)}
-                                    sx={{ color: '#0088ff', '&:hover': { bgcolor: '#EFF6FF' } }}
-                                  >
-                                    <Badge badgeContent={job.applicantsCount || 0} color="primary">
-                                      <ApplicantsIcon sx={{ fontSize: 18 }} />
-                                    </Badge>
-                                  </IconButton>
-                                </Tooltip>
-
-                                {/* Toggle Open / Closed Status */}
-                                <Tooltip title={job.status === 'Closed' ? 'Reopen job applications' : 'Close applications'}>
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => handleToggleJobStatus(job)}
-                                    sx={{
-                                      color: job.status === 'Closed' ? '#16A34A' : '#D97706',
-                                      '&:hover': { bgcolor: job.status === 'Closed' ? '#F0FDF4' : '#FFFBEB' }
-                                    }}
-                                  >
-                                    {job.status === 'Closed' ? <RefreshIcon sx={{ fontSize: 17 }} /> : <CloseIcon sx={{ fontSize: 17 }} />}
-                                  </IconButton>
-                                </Tooltip>
-
-                                <Tooltip title="Edit job opening">
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => handleOpenPostJob(job)}
-                                    sx={{ color: '#64748B', '&:hover': { bgcolor: '#F1F5F9' } }}
-                                  >
-                                    <EditIcon sx={{ fontSize: 16 }} />
-                                  </IconButton>
-                                </Tooltip>
-
-                                <Tooltip title="Delete job opening">
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => handleOpenDeleteJob(job)}
-                                    sx={{ color: '#EF4444', '&:hover': { bgcolor: '#FEF2F2' } }}
-                                  >
-                                    <DeleteIcon sx={{ fontSize: 18 }} />
-                                  </IconButton>
-                                </Tooltip>
-                              </>
+                                sx={{ height: 20, fontSize: '10.5px', fontWeight: 700, bgcolor: '#FEE2E2', color: '#B91C1C', borderRadius: '5px' }}
+                              />
                             )}
+                          </Box>
+                        </Box>
 
-                            {/* Apply Button or Closed Status */}
+                        {/* 2. Job Title */}
+                        <Box>
+                          <Typography
+                            variant="subtitle1"
+                            onClick={() => { setViewingJob(job); setViewDialogOpen(true); }}
+                            sx={{
+                              fontWeight: 800,
+                              color: '#0F172A',
+                              fontSize: '15.5px',
+                              cursor: 'pointer',
+                              lineHeight: 1.3,
+                              '&:hover': { color: '#0088ff', textDecoration: 'underline' }
+                            }}
+                          >
+                            {job.jobRole}
+                          </Typography>
+                        </Box>
+
+                        {/* 3. Key Specifications Pill Grid */}
+                        <Box
+                          sx={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(2, 1fr)',
+                            gap: 1,
+                            bgcolor: '#F8FAFC',
+                            p: 1.25,
+                            borderRadius: '10px',
+                            border: '1px solid #F1F5F9'
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+                            <LocationIcon sx={{ fontSize: 16, color: '#64748B', flexShrink: 0 }} />
+                            <Typography variant="caption" sx={{ color: '#334155', fontWeight: 600, fontSize: '12px' }} noWrap>
+                              {job.location}
+                            </Typography>
+                          </Box>
+
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+                            <MoneyIcon sx={{ fontSize: 16, color: '#16A34A', flexShrink: 0 }} />
+                            <Typography variant="caption" sx={{ color: '#16A34A', fontWeight: 700, fontSize: '12px' }} noWrap>
+                              {job.salaryRange}
+                            </Typography>
+                          </Box>
+
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+                            <ExperienceIcon sx={{ fontSize: 15, color: '#64748B', flexShrink: 0 }} />
+                            <Typography variant="caption" sx={{ color: '#475569', fontWeight: 600, fontSize: '11.5px' }} noWrap>
+                              {job.experienceYears}
+                            </Typography>
+                          </Box>
+
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+                            {job.interviewMode === 'Online' ? (
+                              <OnlineInterviewIcon sx={{ fontSize: 15, color: '#2563EB', flexShrink: 0 }} />
+                            ) : (
+                              <InPersonIcon sx={{ fontSize: 15, color: '#D97706', flexShrink: 0 }} />
+                            )}
+                            <Typography variant="caption" sx={{ color: '#475569', fontWeight: 600, fontSize: '11.5px' }} noWrap>
+                              {job.interviewMode || 'Online'}
+                            </Typography>
+                          </Box>
+                        </Box>
+
+                        {/* 4. Education & Counts */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
+                          <Typography variant="caption" sx={{ color: '#64748B', maxWidth: 180 }} noWrap>
+                            🎓 {job.educationQualification || 'Any Graduate'}
+                          </Typography>
+
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Chip
+                              icon={<ApplicantsIcon sx={{ fontSize: '13px !important' }} />}
+                              label={`${job.applicantsCount || 0} applied`}
+                              size="small"
+                              sx={{
+                                height: 22,
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                bgcolor: (job.applicantsCount || 0) > 0 ? '#EFF6FF' : '#F1F5F9',
+                                color: (job.applicantsCount || 0) > 0 ? '#1D4ED8' : '#64748B'
+                              }}
+                            />
+                            <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700 }}>
+                              {job.openingsCount} {job.openingsCount === 1 ? 'pos' : 'positions'}
+                            </Typography>
+                          </Stack>
+                        </Box>
+
+                        {/* 5. Footer Actions */}
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 1,
+                            pt: 1.25,
+                            borderTop: '1px solid #F1F5F9'
+                          }}
+                        >
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<ViewIcon sx={{ fontSize: 16 }} />}
+                            onClick={() => { setViewingJob(job); setViewDialogOpen(true); }}
+                            sx={{
+                              borderRadius: '8px',
+                              px: 1.5,
+                              py: 0.6,
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              textTransform: 'none',
+                              color: '#334155',
+                              borderColor: '#CBD5E1',
+                              bgcolor: '#FFFFFF',
+                              '&:hover': { bgcolor: '#F8FAFC', borderColor: '#94A3B8' }
+                            }}
+                          >
+                            Details
+                          </Button>
+
+                          {/* Creator / Admin quick icons */}
+                          {(isCreator || isAdmin) && (
+                            <Stack direction="row" spacing={0.75} alignItems="center">
+                              <Tooltip title={`Applicants (${job.applicantsCount || 0})`}>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleOpenApplicants(job)}
+                                  sx={{ color: '#0088ff', bgcolor: '#EFF6FF', p: 0.75, borderRadius: '8px' }}
+                                >
+                                  <Badge badgeContent={job.applicantsCount || 0} color="primary">
+                                    <ApplicantsIcon sx={{ fontSize: 17 }} />
+                                  </Badge>
+                                </IconButton>
+                              </Tooltip>
+
+                              <Tooltip title={job.status === 'Closed' ? 'Reopen' : 'Close'}>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleToggleJobStatus(job)}
+                                  sx={{
+                                    color: job.status === 'Closed' ? '#16A34A' : '#D97706',
+                                    bgcolor: job.status === 'Closed' ? '#F0FDF4' : '#FFFBEB',
+                                    p: 0.75,
+                                    borderRadius: '8px'
+                                  }}
+                                >
+                                  {job.status === 'Closed' ? <RefreshIcon sx={{ fontSize: 17 }} /> : <CloseIcon sx={{ fontSize: 17 }} />}
+                                </IconButton>
+                              </Tooltip>
+
+                              <Tooltip title="Edit">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleOpenPostJob(job)}
+                                  sx={{ color: '#64748B', bgcolor: '#F1F5F9', p: 0.75, borderRadius: '8px' }}
+                                >
+                                  <EditIcon sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </Tooltip>
+
+                              <Tooltip title="Delete">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleOpenDeleteJob(job)}
+                                  sx={{ color: '#EF4444', bgcolor: '#FEF2F2', p: 0.75, borderRadius: '8px' }}
+                                >
+                                  <DeleteIcon sx={{ fontSize: 17 }} />
+                                </IconButton>
+                              </Tooltip>
+                            </Stack>
+                          )}
+
+                          {/* Apply / Status Button */}
+                          <Box sx={{ ml: 'auto' }}>
                             {job.status === 'Closed' ? (
                               job.hasApplied ? (
                                 <Chip
                                   icon={<AppliedCheckIcon sx={{ fontSize: '14px !important', color: '#059669 !important' }} />}
                                   label="Applied"
                                   size="small"
-                                  sx={{ height: 28, px: 0.5, bgcolor: '#ECFDF5', color: '#059669', fontWeight: 700, fontSize: '11.5px', whiteSpace: 'nowrap' }}
+                                  sx={{ height: 32, px: 1, bgcolor: '#ECFDF5', color: '#059669', fontWeight: 700, fontSize: '12px' }}
                                 />
                               ) : (
                                 <Chip
                                   label="Closed"
                                   size="small"
-                                  sx={{ height: 28, px: 1, bgcolor: '#F1F5F9', color: '#64748B', fontWeight: 700, fontSize: '11.5px', border: '1px solid #E2E8F0', whiteSpace: 'nowrap' }}
+                                  sx={{ height: 32, px: 1.25, bgcolor: '#F1F5F9', color: '#64748B', fontWeight: 700, fontSize: '12px' }}
                                 />
                               )
                             ) : job.hasApplied ? (
@@ -1356,7 +1383,7 @@ export default function JobOpenings() {
                                 icon={<AppliedCheckIcon sx={{ fontSize: '14px !important', color: '#059669 !important' }} />}
                                 label="Applied"
                                 size="small"
-                                sx={{ height: 28, px: 0.5, bgcolor: '#ECFDF5', color: '#059669', fontWeight: 700, fontSize: '11.5px', whiteSpace: 'nowrap' }}
+                                sx={{ height: 32, px: 1, bgcolor: '#ECFDF5', color: '#059669', fontWeight: 700, fontSize: '12px' }}
                               />
                             ) : canApplyForJobs ? (
                               <Button
@@ -1364,35 +1391,344 @@ export default function JobOpenings() {
                                 size="small"
                                 onClick={() => handleOpenApply(job)}
                                 sx={{
-                                  borderRadius: '8px',
-                                  px: 1.75,
-                                  py: 0.4,
-                                  fontSize: '12px',
+                                  borderRadius: '9px',
+                                  px: 2.25,
+                                  py: 0.65,
+                                  fontSize: '12.5px',
                                   fontWeight: 700,
                                   textTransform: 'none',
                                   bgcolor: '#0088ff',
-                                  boxShadow: 'none',
+                                  boxShadow: '0 2px 8px rgba(0, 136, 255, 0.25)',
                                   whiteSpace: 'nowrap',
                                   '&:hover': { bgcolor: '#0077ee', boxShadow: 'none' }
                                 }}
                               >
-                                Apply
+                                Apply Now
                               </Button>
                             ) : null}
-                          </Stack>
-                        </TableCell>
-                      </TableRow>
+                          </Box>
+                        </Box>
+                      </Card>
                     );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                  })}
+                </Stack>
+              )}
+            </Box>
+          ) : (
+            <TableContainer
+              sx={{
+                flex: 1,
+                minHeight: 0,
+                overflowY: 'auto',
+                overflowX: 'auto',
+                bgcolor: '#FFFFFF',
+                WebkitOverflowScrolling: 'touch'
+              }}
+            >
+              <Table stickyHeader sx={{ minWidth: 1100 }}>
+                <TableHead>
+                  <TableRow sx={{ bgcolor: '#F8FAFC' }}>
+                    <TableCell sx={{ py: 1.75, px: 2, fontWeight: 700, fontSize: '13px', color: '#64748B', bgcolor: '#F8FAFC', width: 50, borderBottom: '1px solid #EEF2F6', zIndex: 2, whiteSpace: 'nowrap' }}>
+                      #
+                    </TableCell>
+                    <TableCell sx={{ py: 1.75, px: 2, fontWeight: 700, fontSize: '13px', color: '#64748B', bgcolor: '#F8FAFC', minWidth: 190, borderBottom: '1px solid #EEF2F6', zIndex: 2, whiteSpace: 'nowrap' }}>
+                      Company / Organization
+                    </TableCell>
+                    <TableCell sx={{ py: 1.75, px: 2, fontWeight: 700, fontSize: '13px', color: '#64748B', bgcolor: '#F8FAFC', minWidth: 190, borderBottom: '1px solid #EEF2F6', zIndex: 2, whiteSpace: 'nowrap' }}>
+                      Job Role & Type
+                    </TableCell>
+                    <TableCell sx={{ py: 1.75, px: 2, fontWeight: 700, fontSize: '13px', color: '#64748B', bgcolor: '#F8FAFC', minWidth: 140, borderBottom: '1px solid #EEF2F6', zIndex: 2, whiteSpace: 'nowrap' }}>
+                      Location
+                    </TableCell>
+                    <TableCell sx={{ py: 1.75, px: 2, fontWeight: 700, fontSize: '13px', color: '#64748B', bgcolor: '#F8FAFC', minWidth: 150, borderBottom: '1px solid #EEF2F6', zIndex: 2, whiteSpace: 'nowrap' }}>
+                      Experience & Education
+                    </TableCell>
+                    <TableCell sx={{ py: 1.75, px: 2, fontWeight: 700, fontSize: '13px', color: '#64748B', bgcolor: '#F8FAFC', minWidth: 130, borderBottom: '1px solid #EEF2F6', zIndex: 2, whiteSpace: 'nowrap' }}>
+                      Salary Range
+                    </TableCell>
+                    <TableCell sx={{ py: 1.75, px: 2, fontWeight: 700, fontSize: '13px', color: '#64748B', bgcolor: '#F8FAFC', minWidth: 130, borderBottom: '1px solid #EEF2F6', zIndex: 2, whiteSpace: 'nowrap' }}>
+                      Interview Mode
+                    </TableCell>
+                    <TableCell sx={{ py: 1.75, px: 2, fontWeight: 700, fontSize: '13px', color: '#64748B', bgcolor: '#F8FAFC', minWidth: 130, borderBottom: '1px solid #EEF2F6', textAlign: 'center', zIndex: 2, whiteSpace: 'nowrap' }}>
+                      People Applied
+                    </TableCell>
+                    <TableCell sx={{ py: 1.75, px: 2, fontWeight: 700, fontSize: '13px', color: '#64748B', bgcolor: '#F8FAFC', minWidth: 80, borderBottom: '1px solid #EEF2F6', textAlign: 'center', zIndex: 2, whiteSpace: 'nowrap' }}>
+                      Openings
+                    </TableCell>
+                    <TableCell sx={{ py: 1.75, px: 2, fontWeight: 700, fontSize: '13px', color: '#64748B', bgcolor: '#F8FAFC', minWidth: 180, borderBottom: '1px solid #EEF2F6', textAlign: 'right', zIndex: 2, whiteSpace: 'nowrap' }}>
+                      Action
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
+
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={10} sx={{ py: 8, textAlign: 'center' }}>
+                        <CircularProgress size={36} sx={{ color: '#0088ff' }} />
+                      </TableCell>
+                    </TableRow>
+                  ) : paginatedJobs.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={10} sx={{ py: 8, textAlign: 'center' }}>
+                        <WorkIcon sx={{ fontSize: 44, color: '#94A3B8', mb: 1, opacity: 0.6 }} />
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1E293B' }}>
+                          {activeTab === 'closed' ? 'No closed applications found' : 'No job openings found'}
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#64748B', mt: 0.5 }}>
+                          {searchQuery || jobTypeFilter !== 'All' ? '' : activeTab === 'closed' ? 'No job openings have been closed yet.' : 'No active job opportunities posted yet. Check back soon!'}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    paginatedJobs.map((job, idx) => {
+                      const isCreator = String(job.createdBy?._id || job.createdBy) === String(user?._id || user?.id);
+                      const rowNumber = page * rowsPerPage + idx + 1;
+
+                      return (
+                        <TableRow
+                          key={job._id}
+                          hover
+                          sx={{
+                            bgcolor: '#FFFFFF',
+                            transition: 'background-color 0.15s ease',
+                            '&:last-child td, &:last-child th': { border: 0 }
+                          }}
+                        >
+                          {/* # */}
+                          <TableCell sx={{ py: 1.5, px: 2, fontSize: '13px', color: '#64748B', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                            {rowNumber}
+                          </TableCell>
+
+                          {/* Company / Organization */}
+                          <TableCell sx={{ py: 1.5, px: 2, whiteSpace: 'nowrap' }}>
+                            <Stack direction="row" spacing={1.25} alignItems="center">
+                              <Avatar
+                                src={job.organization?.logo?.url || ''}
+                                sx={{ width: 36, height: 36, bgcolor: '#EFF6FF', color: '#0088ff', fontSize: '13px', fontWeight: 700, border: '1px solid #E2E8F0' }}
+                              >
+                                {job.organization?.name?.charAt(0) || <BusinessIcon sx={{ fontSize: 18 }} />}
+                              </Avatar>
+                              <Box sx={{ minWidth: 0 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap' }}>
+                                  {job.organization?.name || 'Company'}
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: '#64748B', display: 'block' }}>
+                                  {job.organization?.industry || 'Industry'}
+                                </Typography>
+                              </Box>
+                            </Stack>
+                          </TableCell>
+
+                          {/* Job Role & Type */}
+                          <TableCell sx={{ py: 1.5, px: 2, whiteSpace: 'nowrap' }}>
+                            <Box>
+                              <Typography
+                                variant="body2"
+                                onClick={() => { setViewingJob(job); setViewDialogOpen(true); }}
+                                sx={{ fontWeight: 700, color: '#0088ff', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                              >
+                                {job.jobRole}
+                              </Typography>
+                              <Chip
+                                label={job.jobType}
+                                size="small"
+                                sx={{
+                                  height: 20,
+                                  fontSize: '10.5px',
+                                  fontWeight: 700,
+                                  mt: 0.5,
+                                  bgcolor: job.jobType === 'Full-time' ? '#ECFDF5' : job.jobType === 'Internship' ? '#F5F3FF' : '#EFF6FF',
+                                  color: job.jobType === 'Full-time' ? '#059669' : job.jobType === 'Internship' ? '#7C3AED' : '#2563EB'
+                                }}
+                              />
+                            </Box>
+                          </TableCell>
+
+                          {/* Location */}
+                          <TableCell sx={{ py: 1.5, px: 2, whiteSpace: 'nowrap' }}>
+                            <Typography variant="body2" sx={{ color: '#334155', display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '13px' }}>
+                              <LocationIcon sx={{ fontSize: 15, color: '#64748B' }} />
+                              {job.location}
+                            </Typography>
+                          </TableCell>
+
+                          {/* Experience & Edu */}
+                          <TableCell sx={{ py: 1.5, px: 2, whiteSpace: 'nowrap' }}>
+                            <Typography variant="body2" sx={{ color: '#0F172A', fontWeight: 600, fontSize: '12.5px' }}>
+                              {job.experienceYears}
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: '#64748B', display: 'block', maxWidth: 160, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                              {job.educationQualification || 'Any Graduate'}
+                            </Typography>
+                          </TableCell>
+
+                          {/* Salary */}
+                          <TableCell sx={{ py: 1.5, px: 2, whiteSpace: 'nowrap' }}>
+                            <Typography variant="body2" sx={{ fontWeight: 700, color: '#16A34A', fontSize: '13px' }}>
+                              {job.salaryRange}
+                            </Typography>
+                          </TableCell>
+
+                          {/* Interview Mode */}
+                          <TableCell sx={{ py: 1.5, px: 2, whiteSpace: 'nowrap' }}>
+                            <Chip
+                              icon={job.interviewMode === 'Online' ? <OnlineInterviewIcon sx={{ fontSize: '13px !important' }} /> : <InPersonIcon sx={{ fontSize: '13px !important' }} />}
+                              label={job.interviewMode || 'Online'}
+                              size="small"
+                              sx={{ height: 22, fontSize: '11px', fontWeight: 600, bgcolor: job.interviewMode === 'Online' ? '#EFF6FF' : '#FEF3C7', color: job.interviewMode === 'Online' ? '#1D4ED8' : '#B45309' }}
+                            />
+                          </TableCell>
+
+                          {/* People Applied Count */}
+                          <TableCell sx={{ py: 1.5, px: 2, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                            <Chip
+                              icon={<ApplicantsIcon sx={{ fontSize: '14px !important' }} />}
+                              label={`${job.applicantsCount || 0} applied`}
+                              size="small"
+                              sx={{
+                                height: 24,
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                bgcolor: (job.applicantsCount || 0) > 0 ? '#EFF6FF' : '#F8FAFC',
+                                color: (job.applicantsCount || 0) > 0 ? '#1D4ED8' : '#64748B',
+                                border: '1px solid',
+                                borderColor: (job.applicantsCount || 0) > 0 ? '#BFDBFE' : '#E2E8F0'
+                              }}
+                            />
+                          </TableCell>
+
+                          {/* Openings Count */}
+                          <TableCell sx={{ py: 1.5, px: 2, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                            <Typography variant="body2" sx={{ fontWeight: 700, color: '#475569' }}>
+                              {job.openingsCount}
+                            </Typography>
+                          </TableCell>
+
+                          {/* Action Buttons */}
+                          <TableCell sx={{ py: 1.5, px: 2, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            <Stack direction="row" spacing={0.75} justifyContent="flex-end" alignItems="center">
+                              {/* View Details */}
+                              <Tooltip title="View job description & details">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => { setViewingJob(job); setViewDialogOpen(true); }}
+                                  sx={{ color: '#64748B', '&:hover': { color: '#0088ff', bgcolor: '#F0F9FF' } }}
+                                >
+                                  <ViewIcon sx={{ fontSize: 18 }} />
+                                </IconButton>
+                              </Tooltip>
+
+                              {/* Creator or Admin controls */}
+                              {(isCreator || isAdmin) && (
+                                <>
+                                  <Tooltip title={`View applicants (${job.applicantsCount || 0})`}>
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleOpenApplicants(job)}
+                                      sx={{ color: '#0088ff', '&:hover': { bgcolor: '#EFF6FF' } }}
+                                    >
+                                      <Badge badgeContent={job.applicantsCount || 0} color="primary">
+                                        <ApplicantsIcon sx={{ fontSize: 18 }} />
+                                      </Badge>
+                                    </IconButton>
+                                  </Tooltip>
+
+                                  {/* Toggle Open / Closed Status */}
+                                  <Tooltip title={job.status === 'Closed' ? 'Reopen job applications' : 'Close applications'}>
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleToggleJobStatus(job)}
+                                      sx={{
+                                        color: job.status === 'Closed' ? '#16A34A' : '#D97706',
+                                        '&:hover': { bgcolor: job.status === 'Closed' ? '#F0FDF4' : '#FFFBEB' }
+                                      }}
+                                    >
+                                      {job.status === 'Closed' ? <RefreshIcon sx={{ fontSize: 17 }} /> : <CloseIcon sx={{ fontSize: 17 }} />}
+                                    </IconButton>
+                                  </Tooltip>
+
+                                  <Tooltip title="Edit job opening">
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleOpenPostJob(job)}
+                                      sx={{ color: '#64748B', '&:hover': { bgcolor: '#F1F5F9' } }}
+                                    >
+                                      <EditIcon sx={{ fontSize: 16 }} />
+                                    </IconButton>
+                                  </Tooltip>
+
+                                  <Tooltip title="Delete job opening">
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleOpenDeleteJob(job)}
+                                      sx={{ color: '#EF4444', '&:hover': { bgcolor: '#FEF2F2' } }}
+                                    >
+                                      <DeleteIcon sx={{ fontSize: 18 }} />
+                                    </IconButton>
+                                  </Tooltip>
+                                </>
+                              )}
+
+                              {/* Apply Button or Closed Status */}
+                              {job.status === 'Closed' ? (
+                                job.hasApplied ? (
+                                  <Chip
+                                    icon={<AppliedCheckIcon sx={{ fontSize: '14px !important', color: '#059669 !important' }} />}
+                                    label="Applied"
+                                    size="small"
+                                    sx={{ height: 28, px: 0.5, bgcolor: '#ECFDF5', color: '#059669', fontWeight: 700, fontSize: '11.5px', whiteSpace: 'nowrap' }}
+                                  />
+                                ) : (
+                                  <Chip
+                                    label="Closed"
+                                    size="small"
+                                    sx={{ height: 28, px: 1, bgcolor: '#F1F5F9', color: '#64748B', fontWeight: 700, fontSize: '11.5px', border: '1px solid #E2E8F0', whiteSpace: 'nowrap' }}
+                                  />
+                                )
+                              ) : job.hasApplied ? (
+                                <Chip
+                                  icon={<AppliedCheckIcon sx={{ fontSize: '14px !important', color: '#059669 !important' }} />}
+                                  label="Applied"
+                                  size="small"
+                                  sx={{ height: 28, px: 0.5, bgcolor: '#ECFDF5', color: '#059669', fontWeight: 700, fontSize: '11.5px', whiteSpace: 'nowrap' }}
+                                />
+                              ) : canApplyForJobs ? (
+                                <Button
+                                  variant="contained"
+                                  size="small"
+                                  onClick={() => handleOpenApply(job)}
+                                  sx={{
+                                    borderRadius: '8px',
+                                    px: 1.75,
+                                    py: 0.4,
+                                    fontSize: '12px',
+                                    fontWeight: 700,
+                                    textTransform: 'none',
+                                    bgcolor: '#0088ff',
+                                    boxShadow: 'none',
+                                    whiteSpace: 'nowrap',
+                                    '&:hover': { bgcolor: '#0077ee', boxShadow: 'none' }
+                                  }}
+                                >
+                                  Apply
+                                </Button>
+                              ) : null}
+                            </Stack>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
 
           {/* Pagination Footer */}
           <Box
             sx={{
-              p: 2,
+              p: { xs: 1.5, sm: 2 },
               borderTop: '1px solid #EEF2F6',
               bgcolor: '#FFFFFF',
               display: 'flex',
@@ -1403,7 +1739,7 @@ export default function JobOpenings() {
               flexShrink: 0
             }}
           >
-            <Stack direction="row" spacing={1} alignItems="center">
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ width: { xs: '100%', sm: 'auto' }, justifyContent: { xs: 'space-between', sm: 'flex-start' } }}>
               <Typography variant="body2" sx={{ fontSize: '13px', color: '#64748B' }}>
                 Rows per page:
               </Typography>
@@ -1429,7 +1765,7 @@ export default function JobOpenings() {
               </Select>
             </Stack>
 
-            <Stack direction="row" spacing={1.5} alignItems="center">
+            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ width: { xs: '100%', sm: 'auto' }, justifyContent: { xs: 'space-between', sm: 'flex-end' } }}>
               <Typography variant="body2" sx={{ fontSize: '13px', color: '#64748B' }}>
                 {filteredJobs.length === 0
                   ? '0 of 0'
@@ -1602,7 +1938,16 @@ export default function JobOpenings() {
           }}
         >
           {/* Organization Profile Card */}
-          <Box sx={{ p: 2.5, mb: 3, borderRadius: '14px', border: '1px solid #E2E8F0', bgcolor: '#F8FAFC' }}>
+          <Box
+            sx={{
+              display: { xs: 'none', sm: 'block' },
+              p: 2.5,
+              mb: 3,
+              borderRadius: '14px',
+              border: '1px solid #E2E8F0',
+              bgcolor: '#F8FAFC'
+            }}
+          >
             <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2}>
               <Stack direction="row" spacing={2} alignItems="center">
                 <Avatar
@@ -1630,7 +1975,13 @@ export default function JobOpenings() {
                 variant="outlined"
                 startIcon={<EditIcon />}
                 onClick={handleOpenOrgDialog}
-                sx={{ textTransform: 'none', fontWeight: 600, borderRadius: '8px', borderColor: '#CBD5E1' }}
+                sx={{
+                  display: { xs: 'none', sm: 'inline-flex' },
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  borderRadius: '8px',
+                  borderColor: '#CBD5E1'
+                }}
               >
                 Edit Company Profile
               </Button>

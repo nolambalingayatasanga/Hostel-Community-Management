@@ -15,7 +15,7 @@ const ALL_PAGES = [
   { id: 'access_control', text: 'Access Control', path: '/access-control', icon: 'AdminIcon' }
 ];
 
-const ROLES_ORDER = ['ADMIN', 'WARDEN', 'STAFF', 'ALUMNI', 'STUDENT', 'MEMBER'];
+const ROLES_ORDER = ['ADMINISTRATOR', 'ADMIN', 'WARDEN', 'STAFF', 'ALUMNI', 'STUDENT', 'MEMBER'];
 
 /**
  * GET /api/access/user-tabs
@@ -50,7 +50,7 @@ exports.getMyUserTabsAccess = async (req, res) => {
       { id: 'dropped', name: 'Dropped' }
     ];
 
-    if (userRole === 'ADMIN' || userRole === 'CHAIRPERSON' || userRole === 'WARDEN') {
+    if (userRole === 'ADMINISTRATOR' || userRole === 'ADMIN' || userRole === 'CHAIRPERSON' || userRole === 'WARDEN') {
       return res.status(200).json({
         success: true,
         data: allTabs.map(t => t.id)
@@ -103,7 +103,7 @@ exports.getMyPermissions = async (req, res) => {
 
     await Access.seedDefaults();
 
-    if (userRole === 'ADMIN') {
+    if (userRole === 'ADMIN' || userRole === 'ADMINISTRATOR') {
       const fullPerms = {};
       ALL_PAGES.forEach(p => {
         fullPerms[p.id] = {
@@ -203,17 +203,25 @@ exports.getNavigation = async (req, res) => {
       }
     });
 
+    // ADMINISTRATOR has all access to every page by default!
+    if (userRole === 'ADMINISTRATOR') {
+      return res.status(200).json({
+        success: true,
+        data: ALL_PAGES
+      });
+    }
+
     // Filter pages based on role permissions
     const accessibleTabs = ALL_PAGES.filter(pageItem => {
-      // QR Scan Count is strictly ADMIN only
+      // QR Scan Count is strictly ADMIN & ADMINISTRATOR only
       if (pageItem.id === 'qr_scan_count') {
-        return userRole === 'ADMIN';
+        return userRole === 'ADMIN' || userRole === 'ADMINISTRATOR';
       }
 
       const perms = pagePermMap[pageItem.id];
       if (!perms) {
         // Fallback: If ADMIN, allow; else if overview, access_control or qr_scan_count, deny
-        if (userRole === 'ADMIN' || userRole === 'CHAIRPERSON' || userRole === 'WARDEN') {
+        if (userRole === 'ADMINISTRATOR' || userRole === 'ADMIN' || userRole === 'CHAIRPERSON' || userRole === 'WARDEN') {
           return true;
         }
         return pageItem.id !== 'overview' && pageItem.id !== 'access_control' && pageItem.id !== 'qr_scan_count';

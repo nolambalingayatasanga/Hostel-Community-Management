@@ -85,6 +85,7 @@ export default function RequestUpload() {
   // Review / moderation permissions
   const pagePerms = getPagePermissions('request_upload');
   const isAdminOrReviewer = Boolean(
+    user?.role === 'ADMINISTRATOR' ||
     user?.role === 'ADMIN' ||
     user?.role === 'WARDEN' ||
     user?.role === 'CHAIRPERSON' ||
@@ -93,6 +94,7 @@ export default function RequestUpload() {
   );
 
   const canCreate = Boolean(
+    user?.role === 'ADMINISTRATOR' ||
     user?.role === 'ADMIN' ||
     user?.role === 'WARDEN' ||
     user?.role === 'CHAIRPERSON' ||
@@ -101,6 +103,7 @@ export default function RequestUpload() {
   );
 
   const canDelete = Boolean(
+    user?.role === 'ADMINISTRATOR' ||
     user?.role === 'ADMIN' ||
     user?.role === 'WARDEN' ||
     user?.role === 'CHAIRPERSON' ||
@@ -109,6 +112,7 @@ export default function RequestUpload() {
   );
 
   const hasPageAccess = Boolean(
+    user?.role === 'ADMINISTRATOR' ||
     user?.role === 'ADMIN' ||
     user?.role === 'WARDEN' ||
     user?.role === 'CHAIRPERSON' ||
@@ -822,16 +826,17 @@ export default function RequestUpload() {
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Box
         sx={{
-          height: activeTab === 'submit' ? 'auto' : '86vh',
+          height: { xs: 'auto', md: activeTab === 'submit' ? 'auto' : 'calc(100vh - 116px)' },
+          minHeight: '100%',
           bgcolor: '#F8FAFC',
           display: 'flex',
           flexDirection: 'column',
-          overflow: activeTab === 'submit' ? 'auto' : 'hidden',
-          pb: activeTab === 'submit' ? 8 : 0
+          overflow: { xs: 'visible', md: activeTab === 'submit' ? 'auto' : 'hidden' },
+          pb: { xs: 6, md: activeTab === 'submit' ? 8 : 0 }
         }}
       >
       {/* ── Page Header ── */}
-      <Box sx={{ pt: 2.5, pb: 1.5, flexShrink: 0,  }}>
+      <Box sx={{ pt: { xs: 1.5, sm: 2.5 }, pb: 1.5, flexShrink: 0 }}>
         <Container maxWidth={activeTab === 'submit' ? 'lg' : false} sx={{ px: { xs: 2, sm: 3 } }}>
           <Box
             sx={{
@@ -843,7 +848,7 @@ export default function RequestUpload() {
             }}
           >
             {isAdminOrReviewer && (
-              <Box sx={{ flexShrink: 0 }}>
+              <Box sx={{ flexShrink: 0, display: { xs: 'none', sm: 'block' } }}>
                 <Typography variant="h5" sx={{ fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 1.5 }}>
                   <CloudUploadIcon sx={{ color: '#0088ff', fontSize: 32 }} />
                     Media Management
@@ -1964,7 +1969,7 @@ export default function RequestUpload() {
             minHeight: 0,
             px: { xs: 1.5, sm: 2.5, md: 3 },
             py: { xs: 1.5, sm: 2 },
-            overflow: 'hidden'
+            overflow: { xs: 'visible', md: 'hidden' }
           }}
         >
           <UploadRequestsTable
@@ -2056,7 +2061,7 @@ export default function RequestUpload() {
             minHeight: 0,
             px: { xs: 1.5, sm: 2.5, md: 3 },
             py: { xs: 1.5, sm: 2 },
-            overflow: 'hidden'
+            overflow: { xs: 'visible', md: 'hidden' }
           }}
         >
           <UploadRequestsTable

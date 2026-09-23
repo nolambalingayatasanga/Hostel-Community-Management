@@ -294,7 +294,7 @@ export default function LeadCell({
 
   const { user } = useAuth();
   const currentViewerRole = user?.role;
-  const isViewerAdmin = currentViewerRole === "ADMIN";
+  const isViewerAdmin = currentViewerRole === "ADMIN" || currentViewerRole === "ADMINISTRATOR";
   const isViewerWarden = currentViewerRole === "WARDEN";
   const canEditRole = isViewerAdmin || isViewerWarden;
 
@@ -890,8 +890,10 @@ export default function LeadCell({
       );
     }
 
-    const allowedRoles = (isViewerAdmin || isViewerWarden)
-      ? ["ADMIN", "WARDEN", "MEMBER", "STAFF", "STUDENT", "ALUMNI"]
+    const allowedRoles = isViewerAdmin
+      ? ["ADMINISTRATOR", "ADMIN", "WARDEN", "MEMBER", "STAFF", "STUDENT", "ALUMNI"]
+      : isViewerWarden
+      ? ["WARDEN", "MEMBER", "STAFF", "STUDENT", "ALUMNI"]
       : ["MEMBER", "STAFF", "STUDENT", "ALUMNI"];
 
     const currentRoleUpper = (row.role || "").toUpperCase();

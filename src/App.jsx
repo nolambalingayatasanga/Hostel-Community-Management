@@ -132,14 +132,14 @@ function App() {
                       </Route>
 
                       {/* Admin & Warden Routes */}
-                      <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'WARDEN']} />}>
+                      <Route element={<ProtectedRoute allowedRoles={['ADMINISTRATOR', 'ADMIN', 'WARDEN']} />}>
                         <Route element={<DashboardLayout />}>
                           <Route path="/admin/users" element={<UserManagement />} />
                         </Route>
                       </Route>
 
                       {/* Admin Only Routes */}
-                      <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+                      <Route element={<ProtectedRoute allowedRoles={['ADMINISTRATOR', 'ADMIN']} />}>
                         <Route element={<DashboardLayout />}>
                           <Route path="/qr-scan-count" element={<QrScanCount />} />
                         </Route>

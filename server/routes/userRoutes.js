@@ -9,6 +9,10 @@ const router = express.Router();
 router.use(protect);
 
 // Self endpoints
+router.get('/profile', (req, res, next) => {
+  req.params.id = req.user._id;
+  return userController.getUser(req, res, next);
+});
 router.patch('/profile', userController.updateOwnProfile);
 router.post('/profile/photo', s3UploadMiddleware('profilePhoto'), userController.uploadProfilePhoto);
 router.post('/profile/resume', s3UploadMiddleware('resume'), userController.uploadResume);
@@ -24,7 +28,7 @@ const allowSelfOrRoles = (...roles) => (req, res, next) => {
     return res.status(401).json({ success: false, message: 'Please log in to get access.' });
   }
   const isSelf = req.params.id && req.user._id && String(req.user._id) === String(req.params.id);
-  const hasRole = roles.includes(req.user.role);
+  const hasRole = roles.includes(req.user.role) || req.user.role === 'ADMINISTRATOR';
   if (isSelf || hasRole) {
     return next();
   }
@@ -48,8 +52,15 @@ router.delete('/:id', restrictTo('ADMIN', 'WARDEN'), userController.adminDeleteU
 // Admin audit logs
 router.get('/:id/audit-logs', restrictTo('ADMIN'), userController.getUserAuditLogs);
 
-// Directories (accessible by all authenticated users, sanitized inside userController)
-router.get('/dashboard/stats', userController.getDashboardStats);
+// Dashboard Overview Micro-Thread Routes (Restricted to ADMIN, ADMINISTRATOR, WARDEN)
+router.get('/dashboard/community', restrictTo('ADMIN', 'WARDEN'), userController.getDashboardCommunityStats);
+router.get('/dashboard/events', restrictTo('ADMIN', 'WARDEN'), userController.getDashboardEventStats);
+router.get('/dashboard/gallery', restrictTo('ADMIN', 'WARDEN'), userController.getDashboardGalleryStats);
+router.get('/dashboard/jobs', restrictTo('ADMIN', 'WARDEN'), userController.getDashboardJobStats);
+router.get('/dashboard/qr', restrictTo('ADMIN', 'WARDEN'), userController.getDashboardQrStats);
+router.get('/dashboard/security', restrictTo('ADMIN', 'WARDEN'), userController.getDashboardSecurityStats);
+router.get('/dashboard/recent', restrictTo('ADMIN', 'WARDEN'), userController.getDashboardRecentRegistrations);
+router.get('/dashboard/stats', restrictTo('ADMIN', 'WARDEN'), userController.getDashboardStats);
 router.get('/', userController.getUsers);
 router.get('/:id', userController.getUser);
 

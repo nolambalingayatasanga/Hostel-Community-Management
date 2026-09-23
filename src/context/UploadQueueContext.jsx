@@ -420,6 +420,7 @@ export function UploadQueueProvider({ children }) {
     (files, { destinationType, destinationId = null, destinationName = '' }) => {
       const validItems = [];
       const rejectedFiles = [];
+      let skippedDuplicates = 0;
 
       for (const file of Array.from(files)) {
         const isVideo = file.type.startsWith('video/') || file.name.match(/\.(mp4|webm|mov|ogg)$/i);
@@ -430,6 +431,25 @@ export function UploadQueueProvider({ children }) {
             name: file.name,
             reason: 'Unsupported format. Please select image or video files.',
           });
+          continue;
+        }
+
+        // Check if duplicate of an existing pending/uploading file for the same destination
+        const isAlreadyQueued = queueRef.current.some(
+          (item) =>
+            (item.status === 'pending' || item.status === 'uploading') &&
+            item.name === file.name &&
+            item.size === file.size &&
+            String(item.destinationId || '') === String(destinationId || '')
+        );
+
+        // Check if duplicate within the current batch
+        const isDuplicateInBatch = validItems.some(
+          (item) => item.name === file.name && item.size === file.size
+        );
+
+        if (isAlreadyQueued || isDuplicateInBatch) {
+          skippedDuplicates++;
           continue;
         }
 
@@ -462,6 +482,13 @@ export function UploadQueueProvider({ children }) {
         rejectedFiles.forEach((rej) => {
           enqueueSnackbar(`"${rej.name}": ${rej.reason}`, { variant: 'warning' });
         });
+      }
+
+      if (skippedDuplicates > 0) {
+        enqueueSnackbar(
+          `${skippedDuplicates} duplicate file${skippedDuplicates > 1 ? 's were' : ' was'} skipped from upload queue.`,
+          { variant: 'info' }
+        );
       }
 
       if (validItems.length > 0) {
