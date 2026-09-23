@@ -71,6 +71,7 @@ const ResetPassword = () => {
         const { token: jwtToken, data } = res.data;
         localStorage.setItem('token', jwtToken);
         localStorage.setItem('user', JSON.stringify(data.user));
+        localStorage.setItem('session_login_time', Date.now().toString());
         updateUser(data.user);
         setTimeout(() => navigate('/profile'), 2000);
       }

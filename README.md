@@ -61,7 +61,7 @@ PORT=5000
 MONGO_URI=mongodb://127.0.0.1:27017/hostel-community
 
 JWT_SECRET=some_super_secret_jwt_key_12345
-JWT_EXPIRES_IN=7d
+JWT_EXPIRES_IN=24h
 
 # Cloudinary Credentials (leave empty to fallback to local placeholder assets)
 CLOUDINARY_CLOUD_NAME=

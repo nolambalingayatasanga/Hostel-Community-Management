@@ -23,6 +23,15 @@ const protect = async (req, res, next) => {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default_hostel_secret_jwt_key_987654321');
 
+    // Strict 24-hour session expiration check (86400 seconds)
+    const currentTimeSec = Math.floor(Date.now() / 1000);
+    if (decoded.iat && (currentTimeSec - decoded.iat > 24 * 60 * 60)) {
+      return res.status(401).json({
+        success: false,
+        message: 'Your session has expired (24-hour limit reached). Please log in again.'
+      });
+    }
+
     // Check if user still exists
     const currentUser = await User.findById(decoded.id);
     if (!currentUser) {

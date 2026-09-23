@@ -27,13 +27,26 @@ API.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-      const message = error.response.data?.message || '';
-      // If unauthorized due to token issue, log out user
-      if (message.includes('expired') || message.includes('token') || message.includes('logged in')) {
+      const message = (error.response.data?.message || '').toLowerCase();
+      // If unauthorized due to token issue or session expiration, log out user
+      if (
+        error.response.status === 401 ||
+        message.includes('expired') ||
+        message.includes('token') ||
+        message.includes('logged in') ||
+        message.includes('session')
+      ) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        // Force reload page to redirect to login
-        window.location.href = '/login';
+        localStorage.removeItem('session_login_time');
+        sessionStorage.removeItem('session_tracked_pages');
+        
+        // Redirect to login if currently on a protected route
+        const publicPaths = ['/login', '/register', '/forgot-password', '/reset-password'];
+        const isPublicPath = typeof window !== 'undefined' && publicPaths.some(p => window.location.pathname.startsWith(p));
+        if (!isPublicPath && typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
       }
     }
     return Promise.reject(error);

@@ -5308,3 +5308,4 @@ export default function EventDetail() {
     </Container>
   );
 }
+

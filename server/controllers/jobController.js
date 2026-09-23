@@ -247,16 +247,19 @@ exports.getJobOpenings = async (req, res) => {
       ];
     }
 
-    let jobs = await JobOpening.find(query)
-      .populate('organization')
-      .populate('createdBy', 'name email role profilePhoto')
-      .sort({ createdAt: -1 });
+    const [rawJobs, userApplications] = await Promise.all([
+      JobOpening.find(query)
+        .populate('organization')
+        .populate('createdBy', 'name email role profilePhoto')
+        .sort({ createdAt: -1 })
+        .lean(),
+      JobApplication.find({ applicant: req.user._id }).select('job status').lean()
+    ]);
 
     // Auto-close jobs whose applicationDeadline has passed
     const now = new Date();
     const bulkOps = [];
-    jobs = jobs.map(job => {
-      const jobObj = job.toObject();
+    const jobs = rawJobs.map(jobObj => {
       if (jobObj.applicationDeadline && new Date(jobObj.applicationDeadline) < now && jobObj.status !== 'Closed') {
         jobObj.status = 'Closed';
         bulkOps.push({ updateOne: { filter: { _id: jobObj._id }, update: { $set: { status: 'Closed' } } } });
@@ -268,7 +271,6 @@ exports.getJobOpenings = async (req, res) => {
     }
 
     // Mark whether current user has already applied to each job
-    const userApplications = await JobApplication.find({ applicant: req.user._id }).select('job status');
     const appliedJobMap = {};
     userApplications.forEach(app => {
       appliedJobMap[app.job.toString()] = app.status;

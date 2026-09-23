@@ -128,6 +128,8 @@ const JobOpeningSchema = new mongoose.Schema({
 });
 
 JobOpeningSchema.index({ organization: 1, status: 1 });
+JobOpeningSchema.index({ status: 1, createdAt: -1 });
+JobOpeningSchema.index({ createdAt: -1 });
 JobOpeningSchema.index({ jobRole: 'text', location: 'text', description: 'text' });
 
 module.exports = mongoose.model('JobOpening', JobOpeningSchema);

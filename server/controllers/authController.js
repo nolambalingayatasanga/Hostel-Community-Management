@@ -7,10 +7,10 @@ const { extractClientInfo, logAuditEvent } = require('../utils/auditLogger');
 const { getDefaultProfilePhoto } = require('../utils/defaultProfilePhoto');
 const { verifyEmailDeliverability, validateEmailSyntaxAndDomain } = require('../utils/emailValidator');
 
-// Helper to sign JWT token
+// Helper to sign JWT token (24 hours session limit)
 const signToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET || 'default_hostel_secret_jwt_key_987654321', {
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d'
+    expiresIn: process.env.JWT_EXPIRES_IN || '24h'
   });
 };
 
