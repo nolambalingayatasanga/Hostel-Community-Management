@@ -4,7 +4,7 @@ const AccessSchema = new mongoose.Schema({
   page: {
     type: String,
     required: true,
-    enum: ['overview', 'users', 'events', 'gallery', 'drive_links', 'request_upload', 'job_openings', 'feedback', 'profile', 'qr_scan_count', 'access_control']
+    enum: ['overview', 'users', 'events', 'gallery', 'drive_links', 'request_upload', 'job_openings', 'feedback', 'profile', 'qr_scan_count', 'access_control', 'projects', 'facilities', 'enquiry', 'organizations']
   },
   role: {
     type: String,
@@ -31,7 +31,7 @@ AccessSchema.index({ page: 1, role: 1 }, { unique: true });
 
 // Standard default permissions seeder
 AccessSchema.statics.seedDefaults = async function() {
-  const pages = ['overview', 'users', 'events', 'gallery', 'drive_links', 'request_upload', 'job_openings', 'feedback', 'profile', 'qr_scan_count', 'access_control'];
+  const pages = ['overview', 'users', 'events', 'gallery', 'drive_links', 'request_upload', 'job_openings', 'feedback', 'profile', 'qr_scan_count', 'access_control', 'projects', 'facilities', 'enquiry', 'organizations'];
   const roles = ['ADMIN', 'ADMINISTRATOR', 'WARDEN', 'STAFF', 'ALUMNI', 'STUDENT', 'MEMBER'];
 
   const count = await this.countDocuments();
@@ -52,6 +52,106 @@ AccessSchema.statics.seedDefaults = async function() {
         }
       }));
       await this.insertMany(adminEntries);
+    }
+
+    // Ensure projects permissions exist
+    const projectsCount = await this.countDocuments({ page: 'projects' });
+    if (projectsCount === 0) {
+      const projectEntries = roles.map(role => ({
+        page: 'projects',
+        role,
+        permissions: (role === 'ADMIN' || role === 'ADMINISTRATOR' || role === 'WARDEN') ? {
+          fullAccess: true,
+          view: true,
+          create: true,
+          update: true,
+          delete: true,
+          noAccess: false
+        } : {
+          fullAccess: false,
+          view: true,
+          create: true,
+          update: true,
+          delete: true,
+          noAccess: false
+        }
+      }));
+      await this.insertMany(projectEntries);
+    }
+
+    // Ensure facilities permissions exist
+    const facilitiesCount = await this.countDocuments({ page: 'facilities' });
+    if (facilitiesCount === 0) {
+      const facilityEntries = roles.map(role => ({
+        page: 'facilities',
+        role,
+        permissions: (role === 'ADMIN' || role === 'ADMINISTRATOR' || role === 'WARDEN') ? {
+          fullAccess: true,
+          view: true,
+          create: true,
+          update: true,
+          delete: true,
+          noAccess: false
+        } : {
+          fullAccess: false,
+          view: true,
+          create: false,
+          update: false,
+          delete: false,
+          noAccess: false
+        }
+      }));
+      await this.insertMany(facilityEntries);
+    }
+
+    // Ensure enquiry permissions exist
+    const enquiryCount = await this.countDocuments({ page: 'enquiry' });
+    if (enquiryCount === 0) {
+      const enquiryEntries = roles.map(role => ({
+        page: 'enquiry',
+        role,
+        permissions: (role === 'ADMIN' || role === 'ADMINISTRATOR' || role === 'WARDEN') ? {
+          fullAccess: true,
+          view: true,
+          create: true,
+          update: true,
+          delete: true,
+          noAccess: false
+        } : {
+          fullAccess: false,
+          view: true,
+          create: true,
+          update: false,
+          delete: false,
+          noAccess: false
+        }
+      }));
+      await this.insertMany(enquiryEntries);
+    }
+
+    // Ensure organizations permissions exist
+    const organizationsCount = await this.countDocuments({ page: 'organizations' });
+    if (organizationsCount === 0) {
+      const orgEntries = roles.map(role => ({
+        page: 'organizations',
+        role,
+        permissions: (role === 'ADMIN' || role === 'ADMINISTRATOR') ? {
+          fullAccess: true,
+          view: true,
+          create: true,
+          update: true,
+          delete: true,
+          noAccess: false
+        } : {
+          fullAccess: false,
+          view: false,
+          create: false,
+          update: false,
+          delete: false,
+          noAccess: true
+        }
+      }));
+      await this.insertMany(orgEntries);
     }
 
     // Ensure qr_scan_count permissions exist if table was already seeded

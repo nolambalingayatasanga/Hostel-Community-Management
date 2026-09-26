@@ -3,12 +3,19 @@ const multer = require('multer');
 // Configure memory storage (for legacy routes still using buffer)
 const storage = multer.memoryStorage();
 
-// File filter: accept image and video formats
+// File filter: accept image, video, and document formats
 const fileFilter = (req, file, cb) => {
-  if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
+  if (
+    file.mimetype.startsWith('image/') ||
+    file.mimetype.startsWith('video/') ||
+    file.mimetype === 'application/pdf' ||
+    file.mimetype.includes('document') ||
+    file.mimetype.includes('msword') ||
+    file.mimetype.includes('officedocument')
+  ) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file type! Please upload only images or videos.'), false);
+    cb(new Error('Invalid file type! Please upload only images, videos, or documents.'), false);
   }
 };
 

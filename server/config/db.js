@@ -1,9 +1,13 @@
 const mongoose = require('mongoose');
 
-const connectDB = async () => {
-  try {
-    const conn = await mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/hostel-community');
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
+const connectDB = async (retries = 5, delay = 3000) => {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const conn = await mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/hostel-community', {
+        serverSelectionTimeoutMS: 10000,
+        connectTimeoutMS: 10000
+      });
+      console.log(`MongoDB Connected: ${conn.connection.host}`);
     
     // Auto-seed missing schema fields into CustomField collection
     try {
@@ -150,9 +154,44 @@ const connectDB = async () => {
       console.error('Error cleaning up empty string emails:', err);
     }
 
-  } catch (error) {
-    console.error(`Database connection error: ${error.message}`);
-    process.exit(1);
+    // Seed default hostel organizations and backfill non-members to default organization
+    try {
+      const HostelOrganization = require('../models/HostelOrganization');
+      await HostelOrganization.seedDefaults();
+
+      const defaultOrg = 'Kambi sidrammana boys Hostel - Basaveshwara nagar';
+      const User = require('../models/User');
+      const backfillRes = await User.updateMany(
+        {
+          role: { $ne: 'MEMBER' },
+          $or: [
+            { hostelLocation: { $exists: false } },
+            { hostelLocation: '' },
+            { hostelLocation: null },
+            { organization: { $exists: false } },
+            { organization: '' },
+            { organization: null }
+          ]
+        },
+        { $set: { hostelLocation: defaultOrg, organization: defaultOrg } }
+      );
+      if (backfillRes.modifiedCount > 0) {
+        console.log(`✓ Backfilled ${backfillRes.modifiedCount} user(s) with default hostel organization: "${defaultOrg}"`);
+      }
+    } catch (orgErr) {
+      console.error('Error seeding hostel organizations or updating users:', orgErr);
+    }
+
+      return conn;
+    } catch (error) {
+      console.error(`Database connection attempt ${attempt}/${retries} failed: ${error.message}`);
+      if (attempt === retries) {
+        console.error('All database connection attempts exhausted.');
+        process.exit(1);
+      }
+      console.log(`Retrying database connection in ${delay / 1000}s...`);
+      await new Promise((res) => setTimeout(res, delay));
+    }
   }
 };
 

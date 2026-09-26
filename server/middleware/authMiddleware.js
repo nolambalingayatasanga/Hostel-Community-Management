@@ -232,8 +232,31 @@ const sanitizeUser = (targetUser, currentUser, options = {}) => {
   return target;
 };
 
+/**
+ * Optional protect - populates req.user if a valid token is present, but doesn't block unauthenticated requests
+ */
+const optionalProtect = async (req, res, next) => {
+  try {
+    let token;
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
+    if (token) {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default_hostel_secret_jwt_key_987654321');
+      const currentUser = await User.findById(decoded.id);
+      if (currentUser && currentUser.accountStatus === 'ACTIVE' && !currentUser.isDropped) {
+        req.user = currentUser;
+      }
+    }
+  } catch (err) {
+    // Proceed as unauthenticated guest
+  }
+  next();
+};
+
 module.exports = {
   protect,
+  optionalProtect,
   restrictTo,
   sanitizeUser
 };

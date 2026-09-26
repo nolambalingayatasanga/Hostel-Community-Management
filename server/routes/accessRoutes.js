@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const accessController = require('../controllers/accessController');
-const { protect, restrictTo } = require('../middleware/authMiddleware');
+const { protect, optionalProtect, restrictTo } = require('../middleware/authMiddleware');
 
-// Get current user's accessible navigation items
-router.get('/navigation', protect, accessController.getNavigation);
+// Get current user's accessible navigation items (supports public guests)
+router.get('/navigation', optionalProtect, accessController.getNavigation);
 router.get('/my-permissions', protect, accessController.getMyPermissions);
 
 // Users page sub-tabs endpoints

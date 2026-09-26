@@ -21,8 +21,9 @@ import {
   ContentPaste as ContentPasteIcon
 } from '@mui/icons-material';
 import ForgotPasswordIllustration from '../../components/auth/ForgotPasswordIllustration';
+import AuthVideoPanel from '../../components/auth/AuthVideoPanel';
 
-const ForgotPassword = () => {
+const ForgotPassword = ({ isCardOnly = false, onSwitchMode }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { enqueueSnackbar } = useSnackbar();
@@ -308,72 +309,25 @@ const ForgotPassword = () => {
     }
   };
 
-  return (
+  const rightPanel = (
     <Box
       sx={{
+        flex: 1,
+        width: { xs: '100%', md: '30%' },
+        minWidth: { md: '30%' },
+        maxWidth: { md: '30%' },
         height: '100vh',
         maxHeight: '100vh',
-        width: '100vw',
-        maxWidth: '100vw',
+        overflowY: 'auto',
+        bgcolor: '#FFFFFF',
         display: 'flex',
-        flexDirection: { xs: 'column', md: 'row' },
-        overflow: 'hidden',
-        fontFamily: '"Outfit", "Inter", sans-serif'
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        px: { xs: 3, sm: 4, md: 3, lg: 4 },
+        py: { xs: 3, sm: 4, md: 4 }
       }}
     >
-      {/* ─── LEFT PANEL — Single Static Background Image (60%) without any text ─── */}
-      <Box
-        sx={{
-          display: { xs: 'none', md: 'flex' },
-          width: '60%',
-          minWidth: '60%',
-          maxWidth: '60%',
-          height: '100vh',
-          maxHeight: '100vh',
-          position: 'relative',
-          overflow: 'hidden',
-          flexShrink: 0,
-          bgcolor: '#0A1224'
-        }}
-      >
-        <Box
-          component="img"
-          src="/assets/ksh-login-bg.jpg"
-          alt="Hostel Campus"
-          sx={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            maxWidth: '100%',
-            maxHeight: '100%',
-            objectFit: 'cover',
-            objectPosition: 'center',
-            display: 'block'
-          }}
-        />
-      </Box>
-
-      {/* ─── RIGHT PANEL — Forgot Password Multi-Step Area (40%) ─── */}
-      <Box
-        sx={{
-          flex: 1,
-          width: { xs: '100%', md: '40%' },
-          minWidth: { md: '40%' },
-          maxWidth: { md: '40%' },
-          height: '100vh',
-          maxHeight: '100vh',
-          overflowY: 'auto',
-          bgcolor: '#FFFFFF',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          px: { xs: 3, sm: 6, lg: 8 },
-          py: { xs: 4, sm: 5 }
-        }}
-      >
         {/* ─── Content Card (no border, no shadow) ─── */}
         <Box
           sx={{
@@ -592,7 +546,13 @@ const ForgotPassword = () => {
               <Box sx={{ textAlign: 'center' }}>
                 <Link
                   component={RouterLink}
-                  to="/login"
+                  to="/auth?auth=login"
+                  onClick={(e) => {
+                    if (onSwitchMode) {
+                      e.preventDefault();
+                      onSwitchMode('login');
+                    }
+                  }}
                   sx={{
                     color: '#1877F2',
                     fontWeight: 700,
@@ -1145,7 +1105,13 @@ const ForgotPassword = () => {
               <Button
                 fullWidth
                 component={RouterLink}
-                to="/login"
+                to="/auth?auth=login"
+                onClick={(e) => {
+                  if (onSwitchMode) {
+                    e.preventDefault();
+                    onSwitchMode('login');
+                  }
+                }}
                 sx={{
                   py: 1.4,
                   borderRadius: '14px',
@@ -1165,6 +1131,27 @@ const ForgotPassword = () => {
           )}
         </Box>
       </Box>
+  );
+
+  if (isCardOnly) {
+    return rightPanel;
+  }
+
+  return (
+    <Box
+      sx={{
+        height: '100vh',
+        maxHeight: '100vh',
+        width: '100vw',
+        maxWidth: '100vw',
+        display: 'flex',
+        flexDirection: { xs: 'column', md: 'row' },
+        overflow: 'hidden',
+        fontFamily: '"Outfit", "Inter", sans-serif'
+      }}
+    >
+      <AuthVideoPanel />
+      {rightPanel}
     </Box>
   );
 };

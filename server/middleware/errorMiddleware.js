@@ -37,8 +37,7 @@ const errorHandler = (err, req, res, next) => {
   if (err.name === "MulterError") {
     statusCode = 400;
     if (err.code === "LIMIT_FILE_SIZE") {
-      message =
-        "File size is too large! Maximum video limit is 99 MB and image limit is 9.8 MB.";
+      message = "File size is too large for upload.";
     } else if (err.code === "LIMIT_FILE_COUNT") {
       message =
         "Too many files uploaded at once. Maximum 10 files allowed per upload.";

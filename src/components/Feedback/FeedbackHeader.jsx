@@ -32,18 +32,7 @@ export default function FeedbackHeader({ onAddFeedback }) {
           Feedback & Suggestions
         </Typography>
 
-        {/* Subtitle - Hidden on mobile viewports per design requirements */}
-        <Typography
-          variant="body2"
-          sx={{
-            color: '#64748B',
-            mt: 0.5,
-            display: { xs: 'none', sm: 'block' },
-            fontSize: { sm: '13px', md: '14px' }
-          }}
-        >
-          Share your thoughts, suggestions, or concerns directly with the Kambi Connect Team.
-        </Typography>
+ 
       </Box>
 
       <Stack

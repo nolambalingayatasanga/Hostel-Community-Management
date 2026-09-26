@@ -146,7 +146,12 @@ exports.getMetadata = async (req, res, next) => {
       ? customFields
       : customFields.filter(f => (f.slug || '').toLowerCase() !== 'logindetails');
 
-    const statusGroups = await StatusGroup.find({}).populate({
+    // Delete legacy Inquiry status group from DB if it exists so it doesn't appear in Users tabs
+    await StatusGroup.deleteMany({ name: { $in: [/^inquiry$/i, /^enquiry$/i] } }).catch(() => {});
+
+    const statusGroups = await StatusGroup.find({
+      name: { $nin: [/^inquiry$/i, /^enquiry$/i] }
+    }).populate({
       path: 'statuses',
       options: { sort: { order: 1 } }
     }).sort({ order: 1 });

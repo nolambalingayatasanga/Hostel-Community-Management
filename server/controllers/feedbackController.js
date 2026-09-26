@@ -23,9 +23,12 @@ exports.getFeedbacks = async (req, res) => {
 
     const query = {};
 
-    if (!isStaff) {
-      // Regular user can only see their own feedback
-      query.user = user._id;
+    if (!user) {
+      // Public guest can see accepted feedbacks
+      query.status = 'accepted';
+    } else if (!isStaff) {
+      // Regular user can see their own feedback or accepted feedbacks
+      query.$or = [{ user: user._id }, { status: 'accepted' }];
     } else {
       // Admin/Warden can filter by status if provided
       if (status && (status === 'pending' || status === 'accepted')) {

@@ -91,6 +91,10 @@ const driveLinkRoutes = require("./routes/driveLinkRoutes");
 const uploadRequestRoutes = require("./routes/uploadRequestRoutes");
 const feedbackRoutes = require("./routes/feedbackRoutes");
 const jobRoutes = require("./routes/jobRoutes");
+const projectRoutes = require("./routes/projectRoutes");
+const facilityRoutes = require("./routes/facilityRoutes");
+const enquiryRoutes = require("./routes/enquiryRoutes");
+const hostelOrganizationRoutes = require("./routes/hostelOrganizationRoutes");
 
 // Mount auth/core routes first — login must never depend on QR packages
 app.use("/api/auth", authLimiter, authRoutes);
@@ -103,6 +107,10 @@ app.use("/api/jobs", jobRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/crm", crmRoutes);
 app.use("/api/access", accessRoutes);
+app.use("/api/projects", projectRoutes);
+app.use("/api/facilities", facilityRoutes);
+app.use("/api/enquiries", enquiryRoutes);
+app.use("/api/organizations", hostelOrganizationRoutes);
 
 // QR routes are optional; a missing dep must not take down login
 try {

@@ -36,7 +36,8 @@ export const INTERNAL_SLUGS = {
   BUSINESS_NAME: "employment.businessName",
   BUSINESS_TYPE: "employment.businessType",
   RELATIVE_NAME: "relativeName",
-  CHANNELS: "channels"
+  CHANNELS: "channels",
+  HOSTEL_LOCATION: "hostelLocation"
 };
 
 export const DEFAULT_COLUMN_SLUGS = [
@@ -120,6 +121,7 @@ export const columnWidth = (field) => {
   if (slug.includes("businesstype") || slug.includes("business_type")) return 220;
   if (slug.includes("employmentstatus") || slug.includes("employment_status") || slug === "employment") return 180;
   if (slug.includes("occupation") || name.includes("occupation")) return 200;
+  if (slug === "hostellocation" || name.includes("hostel location")) return 280;
   if (slug.includes("organization") || name.includes("organization") || slug.includes("institution")) return 220;
   if (slug.includes("industry") || name.includes("industry")) return 190;
   if (slug.includes("worklocation") || slug.includes("work_location") || name.includes("work location")) return 190;
@@ -154,6 +156,7 @@ export const getColumnDisplayName = (field) => {
   if (slug === "locallanguagedetails" || slug === "local_language_details") return "Kanada Overview";
   if (slug === "slno" || slug === "sl_no") return "Slot No.";
   if (slug === "registrationnumber" || slug === "registration_number") return "Reg No.";
+  if (slug === "hostellocation" || name === "hostellocation") return "Hostel Location";
   if (slug === "employment.employmentstatus" || slug === "employmentstatus" || slug === "employment_status" || slug.includes("employmentstatus")) return "Employment";
   return field.name || "";
 };
@@ -352,7 +355,11 @@ export const toRow = (lead) => {
 
     // Login Details (Admin only)
     loginDetails: lead.lastLoginDetails || null,
-    logindetails: lead.lastLoginDetails || null
+    logindetails: lead.lastLoginDetails || null,
+
+    // Hostel Location / Organization
+    hostelLocation: lead.hostelLocation || lead.organization || "",
+    hostellocation: lead.hostelLocation || lead.organization || ""
   };
 };
 

@@ -17,15 +17,6 @@ import {
 } from "@mui/icons-material";
 import debounce from "lodash/debounce";
 
-// Clean message bubble icon matching the reference design
-const ChatIcon = (props) => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    <path d="M8 9h8" strokeWidth="2" strokeLinecap="round" />
-    <path d="M8 13h5" strokeWidth="2" strokeLinecap="round" />
-  </svg>
-);
-
 const BehanceIcon = (props) => (
   <SvgIcon {...props} viewBox="0 0 24 24">
     <path
@@ -35,7 +26,7 @@ const BehanceIcon = (props) => (
   </SvgIcon>
 );
 
-import { INTERNAL_SLUGS, leadFieldValue, formatLeadDate, formatLeadDateTime, isFieldNonEditable } from "./leadHelpers";
+import { INTERNAL_SLUGS, leadFieldValue, formatLeadDate, isFieldNonEditable } from "./leadHelpers";
 import { useAuth } from "../../context/AuthContext";
 
 const inputSx = {
@@ -271,7 +262,6 @@ export default function LeadCell({
     </Box>
   );
 
-  const isInternal = field.isInternal;
   const isName = field.slug === INTERNAL_SLUGS.NAME || (field.slug || "").toLowerCase() === "name";
   const isEmail = field.slug === INTERNAL_SLUGS.EMAIL || (field.slug || "").toLowerCase() === "email";
   const isPhone = field.slug === INTERNAL_SLUGS.PHONE || (field.slug || "").toLowerCase() === "phone";
@@ -288,9 +278,19 @@ export default function LeadCell({
     (field.name || "").toLowerCase() === "age" ||
     (field.name || "").toLowerCase() === "date of birth";
   const isJoiningDate = (field.slug || "").toLowerCase().includes("joiningdate") || (field.slug || "").toLowerCase().includes("registereddate");
+  const isRelativeName =
+    field.slug === INTERNAL_SLUGS.RELATIVE_NAME ||
+    (field.slug || "").toLowerCase() === "relativename" ||
+    (field.slug || "").toLowerCase() === "relative_name" ||
+    (field.slug || "").toLowerCase() === "relation" ||
+    (field.name || "").toLowerCase() === "relative name" ||
+    (field.name || "").toLowerCase() === "relation";
   const isChannels = field.slug === INTERNAL_SLUGS.CHANNELS || (field.slug || "").toLowerCase() === "channels";
-  const isRelativeName = field.slug === INTERNAL_SLUGS.RELATIVE_NAME || (field.slug || "").toLowerCase() === "relativename" || (field.slug || "").toLowerCase() === "relation";
   const isLoginDetails = (field.slug || "").toLowerCase() === "logindetails";
+  const isHostelLocation =
+    field.slug === "hostelLocation" ||
+    (field.slug || "").toLowerCase() === "hostellocation" ||
+    (field.name || "").toLowerCase() === "hostel location";
 
   const { user } = useAuth();
   const currentViewerRole = user?.role;
@@ -423,7 +423,7 @@ export default function LeadCell({
             mt: 0.25,
           }}
         >
-          {Boolean(row.raw?.isDobMasked || row.raw?.privacySettings?.maskDob)
+          {(row.raw?.isDobMasked || row.raw?.privacySettings?.maskDob)
             ? "••••••••••"
             : (row.dob || row.dateOfBirth || (row.raw?.dob ? formatLeadDate(row.raw.dob) : (row.raw?.dateOfBirth ? formatLeadDate(row.raw.dateOfBirth) : "Date of Birth")))}
         </Typography>
@@ -841,6 +841,151 @@ export default function LeadCell({
   }
 
 
+  // ── Hostel Location Column: DROPDOWN ONLY (dynamic options from Organizations page) ──
+  if (isHostelLocation) {
+    const rawVal =
+      row.hostelLocation ||
+      row.hostellocation ||
+      row.raw?.hostelLocation ||
+      row.raw?.organization ||
+      "";
+
+    const orgOptions = meta?.organizations || [];
+    const optionNames =
+      orgOptions.length > 0
+        ? orgOptions.map((o) => (typeof o === "string" ? o : o.name)).filter(Boolean)
+        : [
+            "Kambi sidrammana boys Hostel - Basaveshwara nagar",
+            "Kambi sidrammana boys Hostel - Bashyam circle nagar",
+            "Kambi sidrammana Girls Hostel -Rajaji nagar",
+            "Sri Siddaramanna Boys Hostel - Tumkuru",
+            "GM Siddaramanna Girls Hostel - Tumkuru",
+          ];
+
+    const allOptions =
+      rawVal && !optionNames.includes(rawVal) ? [rawVal, ...optionNames] : optionNames;
+
+    // Non-admin view: Read-only locked cell
+    if (!isViewerAdmin) {
+      return wrap(
+        <Box
+          sx={readSx(false, true)}
+          title={rawVal ? `${rawVal} (Managed by Admin)` : "No Hostel Location Assigned"}
+        >
+          <Typography
+            variant="body2"
+            sx={{
+              flex: 1,
+              minWidth: 0,
+              color: rawVal ? "#344054" : "#98A2B3",
+              fontWeight: 500,
+              fontSize: "0.85rem",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {rawVal || "—"}
+          </Typography>
+        </Box>
+      );
+    }
+
+    // Admin view: DROPDOWN ONLY
+    return wrap(
+      <Select
+        fullWidth
+        size="small"
+        value={rawVal || ""}
+        onChange={(e) => {
+          const newVal = e.target.value;
+          onChangeRef(row.id, "hostelLocation", newVal);
+          onChangeRef(row.id, "organization", newVal);
+        }}
+        displayEmpty
+        renderValue={(selected) => {
+          if (!selected) {
+            return (
+              <Typography sx={{ color: "#98A2B3", fontSize: "0.82rem", fontStyle: "italic" }}>
+                Select Hostel Location
+              </Typography>
+            );
+          }
+          return (
+            <Typography
+              sx={{
+                color: "#101828",
+                fontSize: "0.84rem",
+                fontWeight: 500,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                width: "100%",
+              }}
+              title={selected}
+            >
+              {selected}
+            </Typography>
+          );
+        }}
+        sx={{
+          borderRadius: "8px",
+          backgroundColor: "#FFFFFF",
+          height: 38,
+          minHeight: 38,
+          "& .MuiOutlinedInput-notchedOutline": { borderColor: "#EAECF0" },
+          "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#0088FF" },
+          "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "#0088FF" },
+          "& .MuiSelect-select": {
+            py: 0.75,
+            px: 1.25,
+            display: "flex",
+            alignItems: "center",
+            fontSize: "0.84rem",
+            width: "100%",
+            boxSizing: "border-box",
+          },
+          "& .MuiSvgIcon-root": {
+            fontSize: 20,
+            color: "#667085",
+            right: 8,
+          },
+        }}
+        MenuProps={{
+          PaperProps: {
+            sx: {
+              maxHeight: 300,
+              borderRadius: "10px",
+              boxShadow: "0 10px 25px rgba(0,0,0,0.12)",
+              border: "1px solid #EAECF0",
+              mt: 0.5,
+            },
+          },
+        }}
+      >
+        <MenuItem value="" disabled sx={{ fontSize: "0.85rem", color: "#98A2B3" }}>
+          <em>Select Hostel Location</em>
+        </MenuItem>
+        {allOptions.map((name) => (
+          <MenuItem
+            key={name}
+            value={name}
+            sx={{
+              fontSize: "0.84rem",
+              py: 1,
+              whiteSpace: "normal",
+              fontWeight: name === rawVal ? 600 : 400,
+              color: name === rawVal ? "#0088FF" : "#1E293B",
+              bgcolor: name === rawVal ? "#F0F7FF" : "transparent",
+            }}
+          >
+            {name}
+          </MenuItem>
+        ))}
+      </Select>
+    );
+  }
+
   // 4. Default Read View for other columns
   if (!isEditing) {
     const shown = displayValue();
@@ -998,6 +1143,9 @@ export default function LeadCell({
       onSave={(newVal) => {
         if (isDob) {
           return onChangeRef(row.id, "dob", newVal || null);
+        }
+        if (isRelativeName) {
+          return onChangeRef(row.id, "relativeName", newVal);
         }
         if (hasSlug) {
           return onChangeRef(row.id, field.slug, newVal);

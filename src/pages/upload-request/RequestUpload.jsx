@@ -1139,7 +1139,7 @@ export default function RequestUpload() {
             <Grid container spacing={3} alignItems="flex-start">
               {/* Left Column: Form Details (Scrollable Cards) */}
               <Grid
-                size={{ xs: 12, md: 8 }}
+                size={{ xs: 12, md: 7 }}
                 sx={{
                   maxHeight: { md: 'calc(100vh - 210px)' },
                   overflowY: { md: 'auto' },
@@ -1161,29 +1161,23 @@ export default function RequestUpload() {
                   }
                 }}
               >
-                {/* Step 1: Destination Selection */}
-                <Card sx={{ borderRadius: '16px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', border: '1px solid #E2E8F0', mb: 3 }}>
-                  <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0F172A', mb:2 }}>
-                      1. Choose Destination Page
-                    </Typography>
-            
-
-                    {/* Mobile View: 3 Tabs in same row */}
+                {/* Step 1: Destination Selection (Simple 3 Tabs) */}
+                <Card sx={{ borderRadius: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', border: '1px solid #E2E8F0', mb: 1.5 }}>
+                  <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                     <Box
                       sx={{
-                        display: { xs: 'flex', sm: 'none' },
+                        display: 'flex',
                         bgcolor: '#F1F5F9',
                         p: 0.5,
-                        borderRadius: '12px',
+                        borderRadius: '10px',
                         gap: 0.75,
-                        width: '100%',
+                        width: '100%'
                       }}
                     >
                       {[
-                        { id: 'gallery', label: 'Gallery', icon: <GalleryIcon sx={{ fontSize: 17 }} />, color: '#0088ff' },
-                        { id: 'drive_links', label: 'Drive', icon: <DriveIcon sx={{ fontSize: 17 }} />, color: '#10b981' },
-                        { id: 'events', label: 'Events', icon: <EventIcon sx={{ fontSize: 17 }} />, color: '#8b5cf6' },
+                        { id: 'gallery', label: 'Gallery', icon: <GalleryIcon sx={{ fontSize: 18 }} />, color: '#0088ff' },
+                        { id: 'events', label: 'Events', icon: <EventIcon sx={{ fontSize: 18 }} />, color: '#8b5cf6' },
+                        { id: 'drive_links', label: 'Drive', icon: <DriveIcon sx={{ fontSize: 18 }} />, color: '#10b981' }
                       ].map((tab) => {
                         const isSelected = targetCategory === tab.id;
                         return (
@@ -1192,20 +1186,23 @@ export default function RequestUpload() {
                             onClick={() => setTargetCategory(tab.id)}
                             sx={{
                               flex: 1,
-                              py: 1.1,
-                              px: 0.5,
-                              borderRadius: '9px',
+                              py: 0.9,
+                              px: 1.5,
+                              borderRadius: '8px',
                               bgcolor: isSelected ? '#FFFFFF' : 'transparent',
                               color: isSelected ? tab.color : '#64748B',
                               fontWeight: isSelected ? 800 : 600,
-                              fontSize: '13px',
+                              fontSize: '13.5px',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              gap: 0.6,
-                              boxShadow: isSelected ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                              gap: 0.75,
+                              boxShadow: isSelected ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                               border: isSelected ? `1.5px solid ${tab.color}` : '1.5px solid transparent',
                               transition: 'all 0.15s ease',
+                              '&:hover': {
+                                bgcolor: isSelected ? '#FFFFFF' : 'rgba(255,255,255,0.6)'
+                              }
                             }}
                           >
                             {tab.icon}
@@ -1214,189 +1211,111 @@ export default function RequestUpload() {
                         );
                       })}
                     </Box>
-
-                    {/* Desktop View: 3 Cards */}
-                    <Grid container spacing={2} sx={{ display: { xs: 'none', sm: 'flex' } }}>
-                      {/* Gallery Card */}
-                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <Paper
-                          onClick={() => setTargetCategory('gallery')}
-                          elevation={0}
-                          sx={{
-                            p: 2,
-                            borderRadius: '12px',
-                            cursor: 'pointer',
-                            border: targetCategory === 'gallery' ? '2px solid #0088ff' : '1px solid #E2E8F0',
-                            bgcolor: targetCategory === 'gallery' ? 'rgba(0,136,255,0.04)' : '#FFFFFF',
-                            transition: 'all 0.2s ease',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            textAlign: 'center',
-                            '&:hover': { borderColor: '#0088ff', transform: 'translateY(-2px)' }
-                          }}
-                        >
-                          <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: 'rgba(0,136,255,0.1)', color: '#0088ff', display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
-                            <GalleryIcon />
-                          </Box>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0F172A' }}>
-                            Gallery
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: '#64748B', mt: 0.5 }}>
-                            Share your Memories like photos & Videos for Gallery
-                          </Typography>
-                        </Paper>
-                      </Grid>
-
-             
-
-                      {/* Events Card */}
-                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <Paper
-                          onClick={() => setTargetCategory('events')}
-                          elevation={0}
-                          sx={{
-                            p: 2,
-                            borderRadius: '12px',
-                            cursor: 'pointer',
-                            border: targetCategory === 'events' ? '2px solid #8b5cf6' : '1px solid #E2E8F0',
-                            bgcolor: targetCategory === 'events' ? 'rgba(139,92,246,0.04)' : '#FFFFFF',
-                            transition: 'all 0.2s ease',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            textAlign: 'center',
-                            '&:hover': { borderColor: '#8b5cf6', transform: 'translateY(-2px)' }
-                          }}
-                        >
-                          <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: 'rgba(139,92,246,0.1)', color: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
-                            <EventIcon />
-                          </Box>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0F172A' }}>
-                            Events
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: '#64748B', mt: 0.5 }}>
-                            Share for New Events or Contribute to Existing Events
-                          </Typography>
-                        </Paper>
-                      </Grid>
-
-                               {/* Drive Links Card */}
-                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <Paper
-                          onClick={() => setTargetCategory('drive_links')}
-                          elevation={0}
-                          sx={{
-                            p: 2,
-                            borderRadius: '12px',
-                            cursor: 'pointer',
-                            border: targetCategory === 'drive_links' ? '2px solid #10b981' : '1px solid #E2E8F0',
-                            bgcolor: targetCategory === 'drive_links' ? 'rgba(16,185,129,0.04)' : '#FFFFFF',
-                            transition: 'all 0.2s ease',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            textAlign: 'center',
-                            '&:hover': { borderColor: '#10b981', transform: 'translateY(-2px)' }
-                          }}
-                        >
-                          <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: 'rgba(16,185,129,0.1)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
-                            <DriveIcon />
-                          </Box>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0F172A' }}>
-                            Drive
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: '#64748B', mt: 0.5 }}>
-                            Share your Memories albums & folder in Google Drive links
-                          </Typography>
-                        </Paper>
-                      </Grid>
-                    </Grid>
                   </CardContent>
                 </Card>
 
-                {/* Step 2: Information & Details Form */}
-                <Card sx={{ borderRadius: '16px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', border: '1px solid #E2E8F0', mb: 3 }}>
-                  <CardContent sx={{ p: 3 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0F172A', mb: 2 }}>
+                {/* Step 2: Information & Details Form (Compact with External Labels) */}
+                <Card sx={{ borderRadius: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', border: '1px solid #E2E8F0', mb: 1.5 }}>
+                  <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0F172A', mb: 2, fontSize: '0.92rem' }}>
                       2. Memory & Asset Details
                     </Typography>
 
-                    <TextField
-                      fullWidth
-                      label="Title / Memory Name"
-                      placeholder="e.g., Annual Sports Meet 2026, Hostel Freshers Celebration"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      required
-                      sx={{ mb: 2.5 }}
-                    />
+                    {/* Title */}
+                    <Box sx={{ mb: 1.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#334155', mb: 0.75, fontSize: '13px' }}>
+                        Title  <span style={{ color: '#EF4444' }}>*</span>
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        placeholder="e.g. Annual Sports Meet 2026"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        required
+                      />
+                    </Box>
 
-                    <TextField
-                      fullWidth
-                      label="Description / Context (Optional)"
-                      placeholder="Share background, participants, or highlights about this memory..."
-                      multiline
-                      rows={3}
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      sx={{ mb: 2.5 }}
-                    />
+                    {/* Description */}
+                    <Box sx={{ mb: 1.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#334155', mb: 0.75, fontSize: '13px' }}>
+                        Description <span style={{ color: '#64748B', fontWeight: 500, fontSize: '12px' }}>(Optional)</span>
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        placeholder="Brief background or highlights about this memory..."
+                        multiline
+                        rows={2}
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                      />
+                    </Box>
 
                     {/* Category: GALLERY */}
                     {targetCategory === 'gallery' && (
-                      <TextField
-                        select
-                        fullWidth
-                        label="Destination Gallery Album (Optional)"
-                        value={selectedFolder}
-                        onChange={(e) => setSelectedFolder(e.target.value)}
-                        helperText="Assign to a specific album folder, or leave blank to put in main gallery"
-                        sx={{ mb: 2.5 }}
-                      >
-                        <MenuItem value="">Main Gallery (Root)</MenuItem>
-                        {folders.map((f) => (
-                          <MenuItem key={f._id} value={f._id}>
-                            📁 {f.name}
-                          </MenuItem>
-                        ))}
-                      </TextField>
+                      <Box sx={{ mb: 0 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#334155', mb: 0.75, fontSize: '13px' }}>
+Gallery Album <span style={{ color: '#64748B', fontWeight: 500, fontSize: '12px' }}>(Optional)</span>
+                        </Typography>
+                        <TextField
+                          select
+                          fullWidth
+                          size="small"
+                          value={selectedFolder}
+                          onChange={(e) => setSelectedFolder(e.target.value)}
+                        >
+                          <MenuItem value="">Main Gallery (Root)</MenuItem>
+                          {folders.map((f) => (
+                            <MenuItem key={f._id} value={f._id}>
+                              📁 {f.name}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      </Box>
                     )}
 
                     {/* Category: DRIVE LINKS */}
                     {targetCategory === 'drive_links' && (
-                      <Grid container spacing={2}>
+                      <Grid container spacing={1.5}>
                         <Grid size={{ xs: 12 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#334155', mb: 0.75, fontSize: '13px' }}>
+                            Google Drive Folder URL <span style={{ color: '#EF4444' }}>*</span>
+                          </Typography>
                           <TextField
                             fullWidth
-                            label="Google Drive Folder URL"
+                            size="small"
                             placeholder="https://drive.google.com/drive/folders/..."
                             value={driveUrl}
                             onChange={(e) => setDriveUrl(e.target.value)}
                             required
-                            helperText="Paste the public Google Drive folder link "
-                            sx={{ mb: 1 }}
                           />
                         </Grid>
                         <Grid size={{ xs: 12, sm: 6 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#334155', mb: 0.75, fontSize: '13px' }}>
+                            Date of Event <span style={{ color: '#EF4444' }}>*</span>
+                          </Typography>
                           <DatePicker
-                            label="Date of Event *"
                             format="DD/MM/YYYY"
                             value={driveEventDate ? dayjs(driveEventDate) : null}
                             onChange={(newValue) => setDriveEventDate(newValue && newValue.isValid() ? newValue.format('YYYY-MM-DD') : '')}
                             slotProps={{
                               textField: {
                                 fullWidth: true,
+                                size: 'small',
                                 required: true
                               }
                             }}
                           />
                         </Grid>
                         <Grid size={{ xs: 12, sm: 6 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#334155', mb: 0.75, fontSize: '13px' }}>
+                            Category
+                          </Typography>
                           <TextField
                             select
                             fullWidth
-                            label="Category"
+                            size="small"
                             value={driveCategory}
                             onChange={(e) => setDriveCategory(e.target.value)}
                           >
@@ -1410,12 +1329,13 @@ export default function RequestUpload() {
 
                     {/* Category: EVENTS */}
                     {targetCategory === 'events' && (
-                      <Box sx={{ mb: 2.5 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#334155', mb: 1 }}>
+                      <Box sx={{ mb: 0 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#334155', mb: 0.75, fontSize: '13px' }}>
                           Contribution Mode
                         </Typography>
-                        <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+                        <Stack direction="row" spacing={1} sx={{ mb: 1.5 }}>
                           <Chip
+                            size="small"
                             label="Contribute to Existing Event"
                             color={eventContributionType === 'existing' ? 'primary' : 'default'}
                             variant={eventContributionType === 'existing' ? 'filled' : 'outlined'}
@@ -1423,6 +1343,7 @@ export default function RequestUpload() {
                             sx={{ fontWeight: 700, cursor: 'pointer' }}
                           />
                           <Chip
+                            size="small"
                             label="Propose New Event"
                             color={eventContributionType === 'new' ? 'primary' : 'default'}
                             variant={eventContributionType === 'new' ? 'filled' : 'outlined'}
@@ -1435,42 +1356,47 @@ export default function RequestUpload() {
                         </Stack>
 
                         {eventContributionType === 'existing' && (
-                          <TextField
-                            select
-                            fullWidth
-                            label="Select Existing Event"
-                            required
-                            value={selectedEventId}
-                            onChange={(e) => {
-                              const evId = e.target.value;
-                              setSelectedEventId(evId);
-                              const found = eventsList.find((ev) => ev._id === evId);
-                              if (found) {
-                                setTitle(found.title);
-                                setEventDate(found.startDate || found.eventDate ? dayjs(found.startDate || found.eventDate).format('YYYY-MM-DD') : '');
-                                setStartTime(found.startTime || '09:00');
-                                setEndTime(found.endTime || '17:00');
-                                setEventLocation(found.location || '');
-                                setLocationUrl(found.locationUrl || '');
-                              }
-                            }}
-                            helperText="Media will be reviewed and published directly into this event's media details & gallery folder"
-                            sx={{ mb: 1 }}
-                          >
-                            <MenuItem value="" disabled>-- Choose an Event --</MenuItem>
-                            {eventsList.map((ev) => (
-                              <MenuItem key={ev._id} value={ev._id}>
-                                📅 {ev.title} {ev.startDate || ev.eventDate ? `(${dayjs(ev.startDate || ev.eventDate).format('DD MMM YYYY')})` : ''}
-                              </MenuItem>
-                            ))}
-                          </TextField>
+                          <Box>
+                            <Typography variant="body2" sx={{ fontWeight: 600, color: '#334155', mb: 0.75, fontSize: '13px' }}>
+                              Select Existing Event <span style={{ color: '#EF4444' }}>*</span>
+                            </Typography>
+                            <TextField
+                              select
+                              fullWidth
+                              size="small"
+                              required
+                              value={selectedEventId}
+                              onChange={(e) => {
+                                const evId = e.target.value;
+                                setSelectedEventId(evId);
+                                const found = eventsList.find((ev) => ev._id === evId);
+                                if (found) {
+                                  setTitle(found.title);
+                                  setEventDate(found.startDate || found.eventDate ? dayjs(found.startDate || found.eventDate).format('YYYY-MM-DD') : '');
+                                  setStartTime(found.startTime || '09:00');
+                                  setEndTime(found.endTime || '17:00');
+                                  setEventLocation(found.location || '');
+                                  locationUrl && setLocationUrl(found.locationUrl || '');
+                                }
+                              }}
+                            >
+                              <MenuItem value="" disabled>-- Choose an Event --</MenuItem>
+                              {eventsList.map((ev) => (
+                                <MenuItem key={ev._id} value={ev._id}>
+                                  📅 {ev.title} {ev.startDate || ev.eventDate ? `(${dayjs(ev.startDate || ev.eventDate).format('DD MMM YYYY')})` : ''}
+                                </MenuItem>
+                              ))}
+                            </TextField>
+                          </Box>
                         )}
 
                         {eventContributionType === 'new' && (
-                          <Grid container spacing={2}>
+                          <Grid container spacing={1.5}>
                             <Grid size={{ xs: 12, sm: 4 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600, color: '#334155', mb: 0.75, fontSize: '13px' }}>
+                                Event Date <span style={{ color: '#EF4444' }}>*</span>
+                              </Typography>
                               <DatePicker
-                                label="Event Date"
                                 format="DD/MM/YYYY"
                                 required
                                 value={eventDate ? dayjs(eventDate) : null}
@@ -1478,42 +1404,52 @@ export default function RequestUpload() {
                                 slotProps={{
                                   textField: {
                                     fullWidth: true,
+                                    size: 'small',
                                     required: true
                                   }
                                 }}
                               />
                             </Grid>
                             <Grid size={{ xs: 12, sm: 4 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600, color: '#334155', mb: 0.75, fontSize: '13px' }}>
+                                Start Time <span style={{ color: '#EF4444' }}>*</span>
+                              </Typography>
                               <TimePicker
-                                label="Start Time"
                                 required
                                 value={startTime ? dayjs(`2000-01-01T${startTime}`) : null}
                                 onChange={(newValue) => setStartTime(newValue && newValue.isValid() ? newValue.format('HH:mm') : '')}
                                 slotProps={{
                                   textField: {
                                     fullWidth: true,
+                                    size: 'small',
                                     required: true
                                   }
                                 }}
                               />
                             </Grid>
                             <Grid size={{ xs: 12, sm: 4 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600, color: '#334155', mb: 0.75, fontSize: '13px' }}>
+                                End Time <span style={{ color: '#EF4444' }}>*</span>
+                              </Typography>
                               <TimePicker
-                                label="End Time *"
                                 value={endTime ? dayjs(`2000-01-01T${endTime}`) : null}
                                 onChange={(newValue) => setEndTime(newValue && newValue.isValid() ? newValue.format('HH:mm') : '')}
                                 slotProps={{
                                   textField: {
                                     fullWidth: true,
+                                    size: 'small',
                                     required: true
                                   }
                                 }}
                               />
                             </Grid>
                             <Grid size={{ xs: 12, sm: 6 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600, color: '#334155', mb: 0.75, fontSize: '13px' }}>
+                                Event Location / Venue <span style={{ color: '#EF4444' }}>*</span>
+                              </Typography>
                               <TextField
                                 fullWidth
-                                label="Event Location / Venue"
+                                size="small"
                                 placeholder="Hostel Auditorium, Main Ground..."
                                 value={eventLocation}
                                 onChange={(e) => setEventLocation(e.target.value)}
@@ -1521,9 +1457,12 @@ export default function RequestUpload() {
                               />
                             </Grid>
                             <Grid size={{ xs: 12, sm: 6 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600, color: '#334155', mb: 0.75, fontSize: '13px' }}>
+                                Google Maps URL <span style={{ color: '#64748B', fontWeight: 500, fontSize: '12px' }}>(Optional)</span>
+                              </Typography>
                               <TextField
                                 fullWidth
-                                label="Google Maps Location URL (Optional)"
+                                size="small"
                                 placeholder="https://maps.app.goo.gl/..."
                                 value={locationUrl}
                                 onChange={(e) => setLocationUrl(e.target.value)}
@@ -1535,27 +1474,46 @@ export default function RequestUpload() {
                     )}
                   </CardContent>
                 </Card>
+              </Grid>
 
-                {/* Step 3: Media Upload Dropzone (Hidden for Google Drive Links) */}
+              {/* Right Column: Upload Cards & Actions (Fixed/Sticky) */}
+              <Grid
+                size={{ xs: 12, md: 5 }}
+                sx={{
+                  position: { md: 'sticky' },
+                  top: { md: 24 },
+                  alignSelf: { md: 'flex-start' },
+                  maxHeight: { md: 'calc(100vh - 210px)' },
+                  overflowY: { md: 'auto' },
+                  scrollbarWidth: 'thin',
+                  scrollbarColor: '#CBD5E1 transparent',
+                  '&::-webkit-scrollbar': {
+                    width: '4px'
+                  },
+                  '&::-webkit-scrollbar-thumb': {
+                    backgroundColor: '#CBD5E1',
+                    borderRadius: '4px'
+                  }
+                }}
+              >
+                {/* Step 3: Media Upload Dropzone (for Gallery & Events) */}
                 {targetCategory !== 'drive_links' && (
-                  <Card sx={{ borderRadius: '16px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', border: '1px solid #E2E8F0', mb: 3 }}>
-                    <CardContent sx={{ p: 3 }}>
+                  <Card sx={{ borderRadius: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', border: '1px solid #E2E8F0', mb: 1.5 }}>
+                    <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0F172A' }}>
-                          3. Upload Media Assets {targetCategory === 'gallery' ? '(Required)' : '(Optional)'}
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0F172A', fontSize: '0.92rem' }}>
+                          Upload Media Assets {targetCategory === 'gallery' ? '(Required)' : '(Optional)'}
                         </Typography>
-                 
                       </Box>
-             
 
                       {/* Dropzone Box */}
                       <Box
                         onClick={() => fileInputRef.current?.click()}
                         sx={{
-                          border: '2px dashed #0088ff',
-                          borderRadius: '16px',
+                          border: '1.5px dashed #0088ff',
+                          borderRadius: '12px',
                           bgcolor: 'rgba(0,136,255,0.02)',
-                          p: { xs: 3, sm: 4 },
+                          p: { xs: 2, sm: 2.25 },
                           textAlign: 'center',
                           cursor: 'pointer',
                           transition: 'all 0.2s ease',
@@ -1573,19 +1531,21 @@ export default function RequestUpload() {
                           style={{ display: 'none' }}
                           onChange={handleMediaFilesSelected}
                         />
-                        <Box sx={{ width: 48, height: 48, borderRadius: '50%', bgcolor: 'rgba(0,136,255,0.1)', color: '#0088ff', display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 1.5 }}>
-                          {uploadingFiles ? <CircularProgress size={24} sx={{ color: '#0088ff' }} /> : <CloudUploadIcon fontSize="medium" />}
+                        <Box sx={{ width: 40, height: 40, borderRadius: '50%', bgcolor: 'rgba(0,136,255,0.1)', color: '#0088ff', display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 1 }}>
+                          {uploadingFiles ? <CircularProgress size={20} sx={{ color: '#0088ff' }} /> : <CloudUploadIcon sx={{ fontSize: 22 }} />}
                         </Box>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0F172A' }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0F172A', fontSize: '13px' }}>
                           {uploadingFiles ? 'Uploading assets...' : 'Click to select or drag and drop photos & videos'}
                         </Typography>
                       </Box>
 
                       {/* Uploaded Media Grid */}
                       {uploadedMedia.length > 0 && (
-                        <Box sx={{ mt: 3 }}>
+                        <Box sx={{ mt: 2 }}>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                          
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: '#475569' }}>
+                              {uploadedMedia.length} asset{uploadedMedia.length > 1 ? 's' : ''} uploaded
+                            </Typography>
                             {uploadedMedia.length > 1 && (
                               <Button
                                 size="small"
@@ -1598,14 +1558,14 @@ export default function RequestUpload() {
                             )}
                           </Box>
 
-                          <Grid container spacing={2}>
+                          <Grid container spacing={1.5}>
                             {uploadedMedia.map((item, idx) => (
-                              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={idx}>
+                              <Grid size={{ xs: 6 }} key={idx}>
                                 <Paper
                                   elevation={0}
                                   sx={{
                                     position: 'relative',
-                                    borderRadius: '14px',
+                                    borderRadius: '12px',
                                     overflow: 'hidden',
                                     border: '1px solid #E2E8F0',
                                     bgcolor: '#0F172A',
@@ -1616,7 +1576,7 @@ export default function RequestUpload() {
                                     transition: 'all 0.2s ease',
                                     '&:hover': {
                                       transform: 'translateY(-2px)',
-                                      boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                                      boxShadow: '0 6px 18px rgba(0,0,0,0.12)',
                                       borderColor: '#CBD5E1',
                                       '& .media-preview-img': {
                                         transform: 'scale(1.04)'
@@ -1662,8 +1622,8 @@ export default function RequestUpload() {
                                         <Box
                                           sx={{
                                             position: 'absolute',
-                                            width: 40,
-                                            height: 40,
+                                            width: 32,
+                                            height: 32,
                                             borderRadius: '50%',
                                             bgcolor: 'rgba(255, 255, 255, 0.92)',
                                             display: 'flex',
@@ -1674,7 +1634,7 @@ export default function RequestUpload() {
                                             zIndex: 2
                                           }}
                                         >
-                                          <PlayIcon sx={{ fontSize: 22, ml: 0.2 }} />
+                                          <PlayIcon sx={{ fontSize: 18, ml: 0.2 }} />
                                         </Box>
                                       </Box>
                                     ) : (
@@ -1697,30 +1657,30 @@ export default function RequestUpload() {
                                     <Box
                                       sx={{
                                         position: 'absolute',
-                                        top: 8,
-                                        left: 8,
+                                        top: 6,
+                                        left: 6,
                                         bgcolor: 'rgba(15, 23, 42, 0.65)',
                                         backdropFilter: 'blur(6px)',
                                         color: '#FFFFFF',
-                                        borderRadius: '6px',
-                                        px: 1,
-                                        py: 0.35,
+                                        borderRadius: '5px',
+                                        px: 0.75,
+                                        py: 0.25,
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: 0.5,
-                                        fontSize: '11px',
+                                        fontSize: '10.5px',
                                         fontWeight: 600,
                                         zIndex: 2
                                       }}
                                     >
                                       {item.resourceType === 'video' ? (
                                         <>
-                                          <VideoIcon sx={{ fontSize: 13 }} />
+                                          <VideoIcon sx={{ fontSize: 12 }} />
                                           <span>Video</span>
                                         </>
                                       ) : (
                                         <>
-                                          <ImageIcon sx={{ fontSize: 13 }} />
+                                          <ImageIcon sx={{ fontSize: 12 }} />
                                           <span>Photo</span>
                                         </>
                                       )}
@@ -1736,13 +1696,13 @@ export default function RequestUpload() {
                                       title="Remove asset"
                                       sx={{
                                         position: 'absolute',
-                                        top: 8,
-                                        right: 8,
+                                        top: 6,
+                                        right: 6,
                                         bgcolor: 'rgba(15, 23, 42, 0.65)',
                                         backdropFilter: 'blur(6px)',
                                         color: '#FFFFFF',
-                                        width: 28,
-                                        height: 28,
+                                        width: 24,
+                                        height: 24,
                                         zIndex: 3,
                                         transition: 'all 0.15s ease',
                                         '&:hover': {
@@ -1752,7 +1712,7 @@ export default function RequestUpload() {
                                         }
                                       }}
                                     >
-                                      <DeleteIcon sx={{ fontSize: 15 }} />
+                                      <DeleteIcon sx={{ fontSize: 13 }} />
                                     </IconButton>
 
                                     {/* Bottom Info Bar Overlay with Filename and Size */}
@@ -1763,20 +1723,20 @@ export default function RequestUpload() {
                                         left: 0,
                                         right: 0,
                                         background: 'linear-gradient(to top, rgba(15, 23, 42, 0.88) 0%, rgba(15, 23, 42, 0.45) 60%, transparent 100%)',
-                                        pt: 3,
-                                        pb: 1,
-                                        px: 1.25,
+                                        pt: 2.5,
+                                        pb: 0.75,
+                                        px: 1,
                                         zIndex: 2,
                                         display: 'flex',
                                         justifyContent: 'space-between',
                                         alignItems: 'flex-end',
-                                        gap: 1
+                                        gap: 0.5
                                       }}
                                     >
                                       <Typography
                                         sx={{
                                           color: '#FFFFFF',
-                                          fontSize: '12px',
+                                          fontSize: '11px',
                                           fontWeight: 600,
                                           lineHeight: 1.2,
                                           whiteSpace: 'nowrap',
@@ -1791,7 +1751,7 @@ export default function RequestUpload() {
                                       <Typography
                                         sx={{
                                           color: 'rgba(255, 255, 255, 0.75)',
-                                          fontSize: '11px',
+                                          fontSize: '10px',
                                           fontWeight: 500,
                                           whiteSpace: 'nowrap',
                                           flexShrink: 0
@@ -1810,41 +1770,17 @@ export default function RequestUpload() {
                     </CardContent>
                   </Card>
                 )}
-              </Grid>
 
-              {/* Right Column: Submission Info & Cover/Thumbnail Helper (Fixed/Sticky) */}
-              <Grid
-                size={{ xs: 12, md: 4 }}
-                sx={{
-                  position: { md: 'sticky' },
-                  top: { md: 24 },
-                  alignSelf: { md: 'flex-start' },
-                  maxHeight: { md: 'calc(100vh - 210px)' },
-                  overflowY: { md: 'auto' },
-                  scrollbarWidth: 'thin',
-                  scrollbarColor: '#CBD5E1 transparent',
-                  '&::-webkit-scrollbar': {
-                    width: '4px'
-                  },
-                  '&::-webkit-scrollbar-thumb': {
-                    backgroundColor: '#CBD5E1',
-                    borderRadius: '4px'
-                  }
-                }}
-              >
                 {/* Specific thumbnail preview for Drive Links */}
                 {targetCategory === 'drive_links' && (
-                  <Card sx={{ borderRadius: '16px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', border: '1px solid #E2E8F0', mb: 3 }}>
-                    <CardContent sx={{ p: 2.5 }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0F172A', mb: 1 }}>
+                  <Card sx={{ borderRadius: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', border: '1px solid #E2E8F0', mb: 1.5 }}>
+                    <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0F172A', mb: 1.5, fontSize: '0.92rem' }}>
                         Drive Album Cover Thumbnail
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: '#64748B', display: 'block', mb: 2 }}>
-                        Set a custom thumbnail photo to represent this album.
                       </Typography>
 
                       {driveThumbnail ? (
-                        <Box sx={{ position: 'relative', borderRadius: '12px', overflow: 'hidden', height: 160, mb: 2 }}>
+                        <Box sx={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', height: 140, mb: 1.5 }}>
                           <Box
                             component="img"
                             src={driveThumbnail}
@@ -1863,21 +1799,21 @@ export default function RequestUpload() {
                         <Box
                           onClick={() => thumbInputRef.current?.click()}
                           sx={{
-                            border: '2px dashed #CBD5E1',
-                            borderRadius: '12px',
-                            p: 3,
+                            border: '1.5px dashed #CBD5E1',
+                            borderRadius: '10px',
+                            p: 2,
                             textAlign: 'center',
                             cursor: 'pointer',
-                            mb: 2,
+                            mb: 1.5,
                             '&:hover': { borderColor: '#10b981', bgcolor: 'rgba(16,185,129,0.02)' }
                           }}
                         >
                           <input type="file" accept="image/*" ref={thumbInputRef} style={{ display: 'none' }} onChange={handleThumbnailSelected} />
                           {uploadingThumb ? (
-                            <CircularProgress size={24} sx={{ color: '#10b981' }} />
+                            <CircularProgress size={20} sx={{ color: '#10b981' }} />
                           ) : (
                             <>
-                              <PhotoCameraIcon sx={{ color: '#64748B', mb: 0.5 }} />
+                              <PhotoCameraIcon sx={{ color: '#64748B', mb: 0.5, fontSize: 22 }} />
                               <Typography variant="caption" sx={{ display: 'block', fontWeight: 600, color: '#334155' }}>
                                 Click to upload cover image
                               </Typography>
@@ -1906,20 +1842,14 @@ export default function RequestUpload() {
                   </Card>
                 )}
 
-
                 {/* Moderation Workflow Notice */}
-                <Card sx={{ borderRadius: '16px', bgcolor: '#F0F9FF', border: '1px solid #BAE6FD', mb: 3 }}>
-                  <CardContent sx={{ p: 2.5 }}>
-                    <Stack direction="row" spacing={1.5} alignItems="flex-start">
-                      <InfoIcon sx={{ color: '#0284C7', mt: 0.25 }} />
-                      <Box>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0369A1' }}>
-                          Review & Approval Policy
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: '#0C4A6E', display: 'block', mt: 0.5, lineHeight: 1.5 }}>
-                          All submissions are reviewed by the administration team to preserve community standards. Once approved, your memories will instantly appear on the public Gallery, Drive Links, or Events pages!
-                        </Typography>
-                      </Box>
+                <Card sx={{ borderRadius: '12px', bgcolor: '#F0F9FF', border: '1px solid #BAE6FD', mb: 2 }}>
+                  <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                    <Stack direction="row" spacing={1.25} alignItems="center">
+                      <InfoIcon sx={{ color: '#0284C7', fontSize: 20 }} />
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0369A1', fontSize: '13px' }}>
+                        Review & Approval Policy
+                      </Typography>
                     </Stack>
                   </CardContent>
                 </Card>
@@ -1931,21 +1861,21 @@ export default function RequestUpload() {
                   variant="contained"
                   disabled={submitting || uploadingFiles || uploadingThumb || uploadingCover}
                   sx={{
-                    py: 1.5,
-                    borderRadius: '12px',
+                    py: 1.25,
+                    borderRadius: '10px',
                     fontWeight: 700,
-                    fontSize: '15px',
+                    fontSize: '14.5px',
                     textTransform: 'none',
                     background: 'linear-gradient(135deg, #0088ff 0%, #0066cc 100%)',
-                    boxShadow: '0 4px 14px rgba(0, 136, 255, 0.3)',
+                    boxShadow: '0 4px 14px rgba(0, 136, 255, 0.25)',
                     '&:hover': {
                       background: 'linear-gradient(135deg, #0077ee 0%, #0055bb 100%)',
-                      boxShadow: '0 6px 18px rgba(0, 136, 255, 0.4)'
+                      boxShadow: '0 6px 18px rgba(0, 136, 255, 0.35)'
                     }
                   }}
                 >
                   {submitting ? (
-                    <CircularProgress size={22} sx={{ color: '#fff' }} />
+                    <CircularProgress size={20} sx={{ color: '#fff' }} />
                   ) : (
                     'Submit for Review'
                   )}

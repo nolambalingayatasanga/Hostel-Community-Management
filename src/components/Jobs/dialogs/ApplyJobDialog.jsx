@@ -154,7 +154,7 @@ export default function ApplyJobDialog({
                 Upload Resume / CV {applyingJob?.resumeRequired && <span style={{ color: '#EF4444' }}>*</span>}
               </Typography>
               <Typography variant="caption" sx={{ color: '#64748B', display: 'block', mb: 1.5 }}>
-                PDF, DOCX, or Image formats up to 20MB.
+                PDF, DOCX, or Image formats.
               </Typography>
 
               <Stack direction="row" spacing={1.5} alignItems="center">

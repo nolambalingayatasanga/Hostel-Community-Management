@@ -93,6 +93,7 @@ exports.getUsers = async (req, res, next) => {
     const course = req.query.course || filters.course;
     const occupation = req.query.occupation || filters.occupation;
     const organization = req.query.organization || filters.organization;
+    const hostelLocation = req.query.hostelLocation || req.query.hostelOrganization || filters.hostelLocation || filters.hostelOrganization;
     const city = req.query.city || filters.city;
     const state = req.query.state || filters.state;
     const pincode = req.query.pincode || filters.pincode;
@@ -120,6 +121,8 @@ exports.getUsers = async (req, res, next) => {
         { 'education.course': searchRegex },
         { 'employment.occupation': searchRegex },
         { 'employment.organization': searchRegex },
+        { hostelLocation: searchRegex },
+        { organization: searchRegex },
         { 'relation.relatedPersonName': searchRegex },
         { 'relation.relationshipType': searchRegex },
         { 'address.street': searchRegex },
@@ -189,7 +192,29 @@ exports.getUsers = async (req, res, next) => {
     
     // Employment text matches
     if (occupation) query['employment.occupation'] = { $regex: occupation.trim(), $options: 'i' };
-    if (organization) query['employment.organization'] = { $regex: organization.trim(), $options: 'i' };
+    if (organization && !hostelLocation) query['employment.organization'] = { $regex: organization.trim(), $options: 'i' };
+
+    // Hostel Location / Organization Filter
+    if (hostelLocation && hostelLocation.trim() && hostelLocation !== 'ALL') {
+      if (!query.$and) query.$and = [];
+      query.$and.push({
+        $or: [
+          { hostelLocation: { $regex: hostelLocation.trim(), $options: 'i' } },
+          { organization: { $regex: hostelLocation.trim(), $options: 'i' } }
+        ]
+      });
+    }
+
+    // Scoping for future multi-organization isolation (ready for toggle)
+    if (req.user && !['ADMIN', 'ADMINISTRATOR'].includes(req.user.role) && req.user.restrictToOwnOrganization && req.user.hostelLocation) {
+      if (!query.$and) query.$and = [];
+      query.$and.push({
+        $or: [
+          { hostelLocation: req.user.hostelLocation },
+          { organization: req.user.hostelLocation }
+        ]
+      });
+    }
 
     // Location Filters (Address)
     if (city) query['address.city'] = { $regex: city.trim(), $options: 'i' };
@@ -341,7 +366,9 @@ exports.getUsers = async (req, res, next) => {
     }
 
     // Compute status group counts dynamically based on search/date filters
-    const groups = await StatusGroup.find({});
+    const groups = await StatusGroup.find({
+      name: { $nin: [/^inquiry$/i, /^enquiry$/i] }
+    });
     const statusGroupsCount = {};
     for (const g of groups) {
       const gQuery = { ...baseQuery };
@@ -445,7 +472,7 @@ exports.updateOwnProfile = async (req, res, next) => {
   try {
     const userId = req.user._id;
 
-    // Separate security fields. Users CANNOT modify their own role, status or system details.
+    // Separate security fields. Users CANNOT modify their own role, status, hostel location or system details.
     const {
       role,
       status,
@@ -455,12 +482,20 @@ exports.updateOwnProfile = async (req, res, next) => {
       phone,
       createdAt,
       joiningDate,
+      hostelLocation,
+      organization,
       ...profileData
     } = req.body;
 
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Only Admin or Administrator can change their own organization if desired
+    if (['ADMIN', 'ADMINISTRATOR'].includes(req.user.role)) {
+      if (hostelLocation !== undefined) user.hostelLocation = hostelLocation;
+      if (organization !== undefined) user.organization = organization;
     }
 
     // 1. Check unique email constraint if non-empty email is changing; if empty/null, unset it
@@ -1103,6 +1138,17 @@ exports.adminUpdateUser = async (req, res, next) => {
         success: false,
         message: 'Wardens do not have permission to set user roles to Admin or Warden.'
       });
+    }
+
+    // Only ADMIN or ADMINISTRATOR can change a user's hostelLocation or organization
+    if (updates.hostelLocation !== undefined || updates.organization !== undefined) {
+      if (['ADMIN', 'ADMINISTRATOR'].includes(req.user.role)) {
+        const orgVal = (updates.hostelLocation !== undefined ? updates.hostelLocation : updates.organization) || '';
+        user.hostelLocation = orgVal.trim();
+        user.organization = orgVal.trim();
+      }
+      delete updates.hostelLocation;
+      delete updates.organization;
     }
 
     // Admin password modification check
@@ -2704,3 +2750,4 @@ exports.trackPageView = async (req, res, next) => {
     return res.status(200).json({ success: false, error: error.message });
   }
 };
+

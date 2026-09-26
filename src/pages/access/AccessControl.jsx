@@ -146,9 +146,10 @@ const AccessControl = () => {
       nameLower === 'admin' ||
       nameLower === 'warden' ||
       nameLower === 'chairperson' ||
-      nameLower === 'inquiry' ||
       tabId === 'dropped' ||
-      tabId === 'all'
+      tabId === 'all' ||
+      tabId === 'enquiry' ||
+      nameLower === 'enquiry'
     ) {
       return false;
     }

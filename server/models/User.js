@@ -102,6 +102,16 @@ const UserSchema = new mongoose.Schema({
     trim: true,
     set: v => (v && typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined)
   },
+  hostelLocation: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  organization: {
+    type: String,
+    trim: true,
+    default: ''
+  },
   localLanguageDetails: {
     type: String,
     trim: true
@@ -292,5 +302,7 @@ UserSchema.index({ 'employment.occupation': 1 });
 UserSchema.index({ 'employment.organization': 1 });
 UserSchema.index({ 'memberInfo.registrationNo': 1 }, { sparse: true });
 UserSchema.index({ registrationNumber: 1 }, { sparse: true });
+UserSchema.index({ hostelLocation: 1 });
+UserSchema.index({ organization: 1 });
 
 module.exports = mongoose.model('User', UserSchema);

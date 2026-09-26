@@ -19,6 +19,7 @@ import {
   Avatar,
   Skeleton,
   Checkbox,
+  FormControl,
   useTheme,
   useMediaQuery,
 } from "@mui/material";
@@ -30,6 +31,7 @@ import {
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
   Close as CloseIcon,
+  Apartment as ApartmentIcon,
 } from "@mui/icons-material";
 
 import {
@@ -50,9 +52,11 @@ import { columnWidth, toRow, formatLeadDate, leadFieldValue, getColumnDisplayNam
 import API from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import CustomDateRangePicker from "../../components/CustomDateRangePicker";
+import EnquiryManagementView from "../../components/enquiry/EnquiryManagementView";
 
 const ALL_TAB = "all";
 const DROPPED_TAB = "dropped";
+const ENQUIRY_TAB = "enquiry";
 
 const DirectorySearchBar = React.memo(function DirectorySearchBar({
   initialValue = "",
@@ -314,6 +318,29 @@ export default function DirectoryList() {
   const [joinDateMin, setJoinDateMin] = useState(initialStartDateParam);
   const [joinDateMax, setJoinDateMax] = useState(initialEndDateParam);
 
+  // Organization Filter state
+  const [organizationsList, setOrganizationsList] = useState([]);
+  const [selectedOrganization, setSelectedOrganization] = useState(searchParams.get("organization") || "ALL");
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchOrgs = () => {
+      API.get('/organizations')
+        .then(res => {
+          if (isMounted && res.data?.success && Array.isArray(res.data?.data)) {
+            setOrganizationsList(res.data.data);
+          }
+        })
+        .catch(() => {});
+    };
+    fetchOrgs();
+    window.addEventListener('focus', fetchOrgs);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('focus', fetchOrgs);
+    };
+  }, []);
+
   // Initialize tab layouts directly from backend MongoDB database
   useEffect(() => {
     const backendLayouts = tabLayoutsQuery.data || meta.data?.tableLayouts || [];
@@ -365,8 +392,11 @@ export default function DirectoryList() {
       next.joinDateMax = joinDateMax;
       next.endDate = joinDateMax;
     }
+    if (selectedOrganization && selectedOrganization !== 'ALL') {
+      next.hostelLocation = selectedOrganization;
+    }
     return next;
-  }, [activeTabId, joinDateMin, joinDateMax]);
+  }, [activeTabId, joinDateMin, joinDateMax, selectedOrganization]);
 
   const queryParams = useMemo(
     () => ({
@@ -374,13 +404,15 @@ export default function DirectoryList() {
       limit: pageSize,
       filters: JSON.stringify(filters),
       searchQuery: appliedSearch || undefined,
+      hostelLocation: selectedOrganization && selectedOrganization !== 'ALL' ? selectedOrganization : undefined,
     }),
-    [page, pageSize, filters, appliedSearch],
+    [page, pageSize, filters, appliedSearch, selectedOrganization],
   );
 
   const isTabReady = Boolean(
     meta.data &&
-    activeTabId && (
+    activeTabId &&
+    activeTabId !== ENQUIRY_TAB && (
       userSwitchedTabRef.current ||
       activeTabId !== ALL_TAB ||
       (meta.data.statusGroups || []).length === 0
@@ -478,8 +510,26 @@ export default function DirectoryList() {
       }
     }
 
+    // Add Hostel Location column for all tabs EXCEPT Members tab
+    const isMembersTab = activeTabId === ALL_TAB;
+    if (!isMembersTab) {
+      const hasHostelLocation = others.some((f) => (f.slug || "").toLowerCase() === "hostellocation");
+      if (!hasHostelLocation) {
+        others.push({
+          _id: "internal_hostellocation",
+          name: "Hostel Location",
+          slug: "hostelLocation",
+          type: "select",
+          options: (organizationsList || []).map((o) => o.name),
+          isInternal: true,
+          order: 9,
+          isVisible: true,
+        });
+      }
+    }
+
     return [...defaults, ...others];
-  }, [meta.data?.customFields, user?.role]);
+  }, [meta.data?.customFields, user?.role, activeTabId, organizationsList]);
 
   const columns = useMemo(() => {
     const activeHidden = tabHiddenCols[activeTabId] || getStoredTabHiddenCols(user?._id, activeTabId) || [];
@@ -513,6 +563,10 @@ export default function DirectoryList() {
     let finalOther = otherCols;
     if (!isUserAdmin) {
       finalOther = finalOther.filter((f) => (f.slug || "").toLowerCase() !== "logindetails");
+    }
+    // Strictly exclude Hostel Location column from the Members tab
+    if (activeTabId === ALL_TAB) {
+      finalOther = finalOther.filter((f) => (f.slug || "").toLowerCase() !== "hostellocation");
     }
 
     const ordered = [...fixedCols, ...finalOther];
@@ -602,11 +656,16 @@ export default function DirectoryList() {
     if (!meta.data?.statusGroups) {
       return [];
     }
-    const groups = meta.data.statusGroups || [];
+    const rawGroups = meta.data.statusGroups || [];
+    // Ensure Inquiry / Enquiry tab is never rendered inside the Users directory
+    const groups = rawGroups.filter(
+      (g) => g.name?.toLowerCase() !== 'inquiry' && g.name?.toLowerCase() !== 'enquiry'
+    );
     const fullList = [
       { _id: ALL_TAB, name: "Members" },
       ...groups,
-      { _id: DROPPED_TAB, name: "Dropped" }
+      { _id: DROPPED_TAB, name: "Dropped" },
+      { _id: ENQUIRY_TAB, name: "Enquiry" }
     ];
 
     let list;
@@ -720,7 +779,10 @@ export default function DirectoryList() {
     const paramEnd = searchParams.get("endDate") || searchParams.get("to") || null;
     if (paramStart !== joinDateMin) setJoinDateMin(paramStart);
     if (paramEnd !== joinDateMax) setJoinDateMax(paramEnd);
-  }, [searchParams, allStatusGroups, activeTabId, page, appliedSearch, joinDateMin, joinDateMax, resolveTabParamToId]);
+
+    const paramOrg = searchParams.get("organization") || "ALL";
+    if (paramOrg !== selectedOrganization) setSelectedOrganization(paramOrg);
+  }, [searchParams, allStatusGroups, activeTabId, page, appliedSearch, joinDateMin, joinDateMax, selectedOrganization, resolveTabParamToId]);
 
   // Sync pagination to URL
   useEffect(() => {
@@ -921,6 +983,11 @@ export default function DirectoryList() {
           },
         };
       }
+    } else if (lowerKey === "hostellocation" || lowerKey === "organization") {
+      updateData = {
+        hostelLocation: value,
+        organization: value,
+      };
     } else {
       updateData = { [key]: value };
     }
@@ -970,8 +1037,9 @@ export default function DirectoryList() {
     return {
       statuses,
       statusById: new Map(statuses.map((s) => [String(s._id), s])),
+      organizations: organizationsList || [],
     };
-  }, [meta.data?.statuses]);
+  }, [meta.data?.statuses, organizationsList]);
 
   const showSkeleton = isTabSwitching || (isLoading && rows.length === 0) || (isFetching && isTabSwitching);
   const busy = isLoading || meta.isLoading || isTabSwitching;
@@ -1099,8 +1167,12 @@ export default function DirectoryList() {
           </DragDropContext>
         </Stack>
 
-        {/* Date, Search, Actions Filter Bar */}
-        <Stack
+        {activeTabId === ENQUIRY_TAB ? (
+          <EnquiryManagementView />
+        ) : (
+          <>
+            {/* Date, Search, Actions Filter Bar */}
+            <Stack
           direction="row"
           spacing={{ xs: 1, sm: 2 }}
           sx={{
@@ -1135,6 +1207,76 @@ export default function DirectoryList() {
               }
             }}
           />
+
+          {/* Organization / Hostel Location Filter Dropdown */}
+          <FormControl size="small" sx={{ minWidth: 200, flexShrink: 0 }}>
+            <Select
+              value={selectedOrganization}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedOrganization(val);
+                setPage(1);
+                const nextParams = new URLSearchParams(searchParams);
+                if (val && val !== 'ALL') {
+                  nextParams.set('organization', val);
+                } else {
+                  nextParams.delete('organization');
+                }
+                setSearchParams(nextParams);
+              }}
+              displayEmpty
+              renderValue={(selected) => {
+                if (!selected || selected === 'ALL') {
+                  return (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, color: '#475467', fontWeight: 500, fontSize: '13px' }}>
+                      <ApartmentIcon sx={{ fontSize: 17, color: '#98A2B3' }} />
+                      All Organizations
+                    </Box>
+                  );
+                }
+                return (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, color: '#0F172A', fontWeight: 600, fontSize: '13px' }}>
+                    <ApartmentIcon sx={{ fontSize: 17, color: '#0088FF' }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 170 }}>
+                      {selected}
+                    </span>
+                  </Box>
+                );
+              }}
+              sx={{
+                borderRadius: '8px',
+                height: 38,
+                bgcolor: '#FFFFFF',
+                '& .MuiOutlinedInput-notchedOutline': {
+                  borderColor: '#D0D5DD'
+                },
+                '&:hover .MuiOutlinedInput-notchedOutline': {
+                  borderColor: '#98A2B3'
+                },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                  borderColor: '#0088FF'
+                }
+              }}
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    maxHeight: 280,
+                    borderRadius: '10px',
+                    boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)'
+                  }
+                }
+              }}
+            >
+              <MenuItem value="ALL" sx={{ fontSize: '13px', fontWeight: 600 }}>
+                All Organizations
+              </MenuItem>
+              {organizationsList.map((org) => (
+                <MenuItem key={org._id || org.name} value={org.name} sx={{ fontSize: '13px' }}>
+                  {org.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
 
           {/* Search Bar with Zero Typing Delay & Loading Indicator */}
           <DirectorySearchBar
@@ -1677,7 +1819,10 @@ export default function DirectoryList() {
                         {scrollableColumns.map((col) => {
                           const cellId = `${row.id}-${col._id}`;
                           const isEditing = editingCell === cellId;
-                          const cellDisabled = !isAdminOrWarden && !isOwnRow;
+                          const isHostelLocationCol = (col.slug || "").toLowerCase() === "hostellocation";
+                          const cellDisabled = isHostelLocationCol
+                            ? !(user?.role === "ADMIN" || user?.role === "ADMINISTRATOR")
+                            : (!isAdminOrWarden && !isOwnRow);
                           return (
                             <LeadCell
                               key={col._id}
@@ -1819,6 +1964,8 @@ export default function DirectoryList() {
             </IconButton>
           </Box>
         </Box>
+        </>
+      )}
       </Card>
 
 

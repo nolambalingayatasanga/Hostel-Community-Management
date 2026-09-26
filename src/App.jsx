@@ -19,6 +19,7 @@ import ProtectedRoute from './routes/ProtectedRoute';
 import DashboardLayout from './layouts/DashboardLayout';
 
 // Auth Pages
+import AuthPage from './pages/auth/AuthPage';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import ForgotPassword from './pages/auth/ForgotPassword';
@@ -38,6 +39,11 @@ import DriveLinks from './pages/drive/DriveLinks';
 import RequestUpload from './pages/upload-request/RequestUpload';
 import JobOpenings from './pages/jobs/JobOpenings';
 import Feedback from './pages/feedback/Feedback';
+import Projects from './pages/projects/Projects';
+import ProjectDetail from './pages/projects/ProjectDetail';
+import Facilities from './pages/facilities/Facilities';
+import Enquiry from './pages/enquiry/Enquiry';
+import Organizations from './pages/organizations/Organizations';
 
 // Admin Page
 import UserManagement from './pages/admin/UserManagement';
@@ -99,9 +105,10 @@ function App() {
                     <RouteTracker />
                     <Routes>
                       {/* Public Authentication Routes */}
-                      <Route path="/login" element={<Login />} />
-                      <Route path="/register" element={<Register />} />
-                      <Route path="/forgot-password" element={<ForgotPassword />} />
+                      <Route path="/auth" element={<AuthPage />} />
+                      <Route path="/login" element={<AuthPage initialMode="login" />} />
+                      <Route path="/register" element={<AuthPage initialMode="register" />} />
+                      <Route path="/forgot-password" element={<AuthPage initialMode="forgot-password" />} />
                       <Route path="/reset-password/:token" element={<ResetPassword />} />
 
                       {/* Profile Completion - Protected but without dashboard layout */}
@@ -109,40 +116,31 @@ function App() {
                         <Route path="/complete-profile" element={<CompleteProfile />} />
                       </Route>
 
-                      {/* Main Portal Routes - Protected and with sidebar layout */}
-                      <Route element={<ProtectedRoute />}>
-                        <Route element={<DashboardLayout />}>
-                          <Route path="/dashboard" element={<Dashboard />} />
-                          <Route path="/profile" element={<Profile />} />
-                          <Route path="/profile/:id" element={<Profile />} />
-                          
-                          {/* Unified Directory Route */}
-                          <Route path="/users" element={<DirectoryList />} />
-                          <Route path="/members" element={<Navigate to="/users" replace />} />
-                          
-                          <Route path="/events" element={<EventList />} />
-                          <Route path="/events/:id" element={<EventDetail />} />
-                          <Route path="/gallery" element={<Gallery />} />
-                          <Route path="/drive-links" element={<DriveLinks />} />
-                          <Route path="/request-upload" element={<RequestUpload />} />
-                          <Route path="/job-openings" element={<JobOpenings />} />
-                          <Route path="/feedback" element={<Feedback />} />
-                          <Route path="/access-control" element={<AccessControl />} />
-                        </Route>
-                      </Route>
-
-                      {/* Admin & Warden Routes */}
-                      <Route element={<ProtectedRoute allowedRoles={['ADMINISTRATOR', 'ADMIN', 'WARDEN']} />}>
-                        <Route element={<DashboardLayout />}>
-                          <Route path="/admin/users" element={<UserManagement />} />
-                        </Route>
-                      </Route>
-
-                      {/* Admin Only Routes */}
-                      <Route element={<ProtectedRoute allowedRoles={['ADMINISTRATOR', 'ADMIN']} />}>
-                        <Route element={<DashboardLayout />}>
-                          <Route path="/qr-scan-count" element={<QrScanCount />} />
-                        </Route>
+                      {/* Main Portal Routes with unified Dashboard Layout */}
+                      <Route element={<DashboardLayout />}>
+                        <Route path="/dashboard" element={<Dashboard />} />
+                        <Route path="/profile" element={<Profile />} />
+                        <Route path="/profile/:id" element={<Profile />} />
+                        
+                        {/* Unified Directory Route */}
+                        <Route path="/users" element={<DirectoryList />} />
+                        <Route path="/members" element={<Navigate to="/users" replace />} />
+                        
+                        <Route path="/events" element={<EventList />} />
+                        <Route path="/events/:id" element={<EventDetail />} />
+                        <Route path="/gallery" element={<Gallery />} />
+                        <Route path="/drive-links" element={<DriveLinks />} />
+                        <Route path="/projects" element={<Projects />} />
+                        <Route path="/projects/:id" element={<ProjectDetail />} />
+                        <Route path="/request-upload" element={<RequestUpload />} />
+                        <Route path="/job-openings" element={<JobOpenings />} />
+                        <Route path="/facilities" element={<Facilities />} />
+                        <Route path="/enquiry" element={<Enquiry />} />
+                        <Route path="/organizations" element={<Organizations />} />
+                        <Route path="/feedback" element={<Feedback />} />
+                        <Route path="/qr-scan-count" element={<QrScanCount />} />
+                        <Route path="/access-control" element={<AccessControl />} />
+                        <Route path="/admin/users" element={<UserManagement />} />
                       </Route>
 
                       {/* Public QR tracking: domain/{code}?r=qr → count scan, then login */}

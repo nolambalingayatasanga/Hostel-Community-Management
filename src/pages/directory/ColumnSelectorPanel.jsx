@@ -225,24 +225,7 @@ export default function ColumnSelectorPanel({
             {/* Section 1: Fixed Default Columns (NON-DRAGGABLE, NON-DROPPABLE) */}
             {shownFixed.length > 0 && (
               <Box sx={{ mb: 2 }}>
-                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", py: 1 }}>
-                  <Typography variant="caption" sx={{ fontWeight: 700, color: "#475467", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                    Default Columns ({shownFixed.length})
-                  </Typography>
-                  <Chip
-                    icon={<LockIcon sx={{ fontSize: "12px !important", color: "#667085 !important" }} />}
-                    label="Fixed • Not Draggable"
-                    size="small"
-                    sx={{
-                      height: 20,
-                      fontSize: "0.65rem",
-                      fontWeight: 600,
-                      backgroundColor: "#F2F4F7",
-                      color: "#475467",
-                      borderRadius: "4px"
-                    }}
-                  />
-                </Box>
+           
                 <Stack spacing={0.5}>
                   {shownFixed.map((field) => (
                     <Stack
@@ -296,14 +279,7 @@ export default function ColumnSelectorPanel({
 
             {/* Section 2: Other Remaining Columns (DRAGGABLE & DROPABLE TO REORDER) */}
             <Box>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", py: 1 }}>
-                <Typography variant="caption" sx={{ fontWeight: 700, color: "#475467", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                  Other Columns ({shownOthers.length})
-                </Typography>
-                <Typography variant="caption" sx={{ color: "#98A2B3", fontSize: "0.7rem" }}>
-                  Drag ⁝⁝ to reorder
-                </Typography>
-              </Box>
+          
 
               <DragDropContext onDragEnd={handleOtherDragEnd}>
                 <Droppable droppableId="other-columns-droppable">

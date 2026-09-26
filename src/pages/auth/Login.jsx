@@ -26,9 +26,10 @@ import {
   PersonAddOutlined
 } from '@mui/icons-material';
 import AuthImageSlideshow from '../../components/auth/AuthImageSlideshow';
+import AuthVideoPanel from '../../components/auth/AuthVideoPanel';
 import ProfileIconImg from '../../assets/ProfileIcon.jpeg';
 
-const Login = () => {
+const Login = ({ isCardOnly = false, onSwitchMode }) => {
   const { login } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
   const navigate = useNavigate();
@@ -129,95 +130,27 @@ const Login = () => {
     }
   };
 
-  return (
+  const rightPanel = (
     <Box
       sx={{
+        flex: 1,
+        width: { xs: '100%', md: '30%' },
+        minWidth: { md: '30%' },
+        maxWidth: { md: '30%' },
         minHeight: { xs: '100dvh', md: '100vh' },
         height: { xs: '100dvh', md: '100vh' },
         maxHeight: { xs: '100dvh', md: '100vh' },
-        width: '100vw',
-        maxWidth: '100vw',
+        overflowY: 'auto',
+        bgcolor: '#FFFFFF',
         display: 'flex',
-        flexDirection: { xs: 'column', md: 'row' },
-        overflow: 'hidden',
-        fontFamily: '"Outfit", "Inter", sans-serif',
-        bgcolor: '#FFFFFF'
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        px: { xs: 3, sm: 4, md: 3, lg: 4 },
+        py: { xs: 2, sm: 3, md: 4 },
+        boxSizing: 'border-box'
       }}
     >
-      {/* ─── LEFT PANEL — Single Static Background Image (60%) ─── */}
-      {/* 
-        NOTE: Auto media slider commented out for now; will be re-enabled later.
-        <Box
-          sx={{
-            display: { xs: 'none', md: 'flex' },
-            width: '60%',
-            minWidth: '60%',
-            maxWidth: '60%',
-            height: '100vh',
-            maxHeight: '100vh',
-            position: 'relative',
-            overflow: 'hidden',
-            flexShrink: 0
-          }}
-        >
-          <AuthImageSlideshow />
-        </Box>
-      */}
-      <Box
-        sx={{
-          display: { xs: 'none', md: 'flex' },
-          width: '60%',
-          minWidth: '60%',
-          maxWidth: '60%',
-          height: '100vh',
-          maxHeight: '100vh',
-          position: 'relative',
-          overflow: 'hidden',
-          flexShrink: 0,
-          bgcolor: '#0A1224'
-        }}
-      >
-        {/* <AuthImageSlideshow /> */}
-        <Box
-          component="img"
-          src="/assets/ksh-login-bg.jpg"
-          alt="Hostel Campus"
-          sx={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            maxWidth: '100%',
-            maxHeight: '100%',
-            objectFit: 'cover',
-            objectPosition: 'center',
-            display: 'block'
-          }}
-        />
-      </Box>
-
-      {/* ─── RIGHT PANEL — Full 40% Width Available (No outer shadow/border-radius) ─── */}
-      <Box
-        sx={{
-          flex: 1,
-          width: { xs: '100%', md: '40%' },
-          minWidth: { md: '40%' },
-          maxWidth: { md: '40%' },
-          minHeight: { xs: '100dvh', md: '100vh' },
-          height: { xs: '100dvh', md: '100vh' },
-          maxHeight: { xs: '100dvh', md: '100vh' },
-          overflowY: { xs: 'auto', md: 'auto' },
-          bgcolor: '#FFFFFF',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          px: { xs: 3, sm: 4, md: 6, lg: 7 },
-          py: { xs: 2, sm: 3, md: 5 },
-          boxSizing: 'border-box'
-        }}
-      >
         <Box sx={{ width: '100%', maxWidth: 440, my: 'auto' }}>
           {/* Top Center Avatar */}
           <Box sx={{ display: 'flex', justifyContent: 'center', mb: { xs: 1.25, sm: 1.5, md: 2 } }}>
@@ -457,7 +390,13 @@ const Login = () => {
               />
               <Link
                 component={RouterLink}
-                to="/forgot-password"
+                to="/auth?auth=forgot-password"
+                onClick={(e) => {
+                  if (onSwitchMode) {
+                    e.preventDefault();
+                    onSwitchMode('forgot-password');
+                  }
+                }}
                 sx={{
                   color: '#2563EB',
                   fontWeight: 600,
@@ -525,7 +464,13 @@ const Login = () => {
           <Button
             fullWidth
             component={RouterLink}
-            to="/register"
+            to="/auth?auth=register"
+            onClick={(e) => {
+              if (onSwitchMode) {
+                e.preventDefault();
+                onSwitchMode('register');
+              }
+            }}
             variant="outlined"
             startIcon={<PersonAddOutlined sx={{ fontSize: '20px !important' }} />}
             sx={{
@@ -546,10 +491,31 @@ const Login = () => {
           >
             Create an Account
           </Button>
-
-
         </Box>
       </Box>
+  );
+
+  if (isCardOnly) {
+    return rightPanel;
+  }
+
+  return (
+    <Box
+      sx={{
+        minHeight: { xs: '100dvh', md: '100vh' },
+        height: { xs: '100dvh', md: '100vh' },
+        maxHeight: { xs: '100dvh', md: '100vh' },
+        width: '100vw',
+        maxWidth: '100vw',
+        display: 'flex',
+        flexDirection: { xs: 'column', md: 'row' },
+        overflow: 'hidden',
+        fontFamily: '"Outfit", "Inter", sans-serif',
+        bgcolor: '#FFFFFF'
+      }}
+    >
+      <AuthVideoPanel />
+      {rightPanel}
     </Box>
   );
 };

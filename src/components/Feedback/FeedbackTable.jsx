@@ -177,11 +177,7 @@ export default function FeedbackTable({
                 <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1E293B' }}>
                   No feedbacks found
                 </Typography>
-                <Typography variant="body2" sx={{ color: '#64748B', mt: 0.5 }}>
-                  {searchQuery || statusFilter !== 'all'
-                    ? 'Try clearing the search query or status filter.'
-                    : 'No feedback submissions available.'}
-                </Typography>
+          
               </TableCell>
             </TableRow>
           ) : (

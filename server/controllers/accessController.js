@@ -6,10 +6,14 @@ const ALL_PAGES = [
   { id: 'profile', text: 'Profile', path: '/profile', icon: 'ProfileIcon' },
   { id: 'users', text: 'Users', path: '/users', icon: 'PeopleIcon' },
   { id: 'events', text: 'Events', path: '/events', icon: 'EventIcon' },
-  { id: 'gallery', text: 'Gallery', path: '/gallery', icon: 'GalleryIcon' },
+  { id: 'gallery', text: 'Gallery', icon: 'GalleryIcon', path: '/gallery' },
   { id: 'drive_links', text: 'Drive Links', path: '/drive-links', icon: 'CloudQueueIcon' },
+  { id: 'projects', text: 'Projects', path: '/projects', icon: 'CodeIcon' },
   { id: 'request_upload', text: 'Share Media', path: '/request-upload', icon: 'CloudUploadIcon' },
   { id: 'job_openings', text: 'Job Openings', path: '/job-openings', icon: 'WorkIcon' },
+  { id: 'facilities', text: 'Facilities', path: '/facilities', icon: 'ApartmentIcon' },
+  { id: 'enquiry', text: 'Enquiry', path: '/enquiry', icon: 'QuestionAnswerIcon' },
+  { id: 'organizations', text: 'Organizations', path: '/organizations', icon: 'DomainIcon' },
   { id: 'feedback', text: 'Feedback', path: '/feedback', icon: 'FeedbackIcon' },
   { id: 'qr_scan_count', text: 'QR Scan Count', path: '/qr-scan-count', icon: 'QrCodeIcon' },
   { id: 'access_control', text: 'Access Control', path: '/access-control', icon: 'AdminIcon' }
@@ -19,15 +23,24 @@ const ROLES_ORDER = ['ADMINISTRATOR', 'ADMIN', 'WARDEN', 'STAFF', 'ALUMNI', 'STU
 
 /**
  * GET /api/access/user-tabs
- * Returns all dynamic tabs in the Users page from DB
+ * Returns all dynamic tabs in the Users page from DB (excluding any Inquiry status group tab)
  */
 exports.getUserTabs = async (req, res) => {
   try {
-    const groups = await StatusGroup.find({}).sort({ order: 1 });
+    // Delete any legacy Inquiry/Enquiry status group so it does not show as a tab in Users
+    await StatusGroup.deleteMany({ name: { $in: [/^inquiry$/i, /^enquiry$/i] } }).catch(() => {});
+
+    const groups = await StatusGroup.find({
+      name: { $nin: [/^inquiry$/i, /^enquiry$/i] }
+    }).sort({ order: 1 });
+
     const tabs = [
       { id: 'all', name: 'Members', isSystem: true },
-      ...groups.map(g => ({ id: String(g._id), name: g.name, slug: g.name.toLowerCase(), isGroup: true })),
-      { id: 'dropped', name: 'Dropped', isSystem: true }
+      ...groups
+        .filter(g => g.name.toLowerCase() !== 'inquiry' && g.name.toLowerCase() !== 'enquiry')
+        .map(g => ({ id: String(g._id), name: g.name, slug: g.name.toLowerCase(), isGroup: true })),
+      { id: 'dropped', name: 'Dropped', isSystem: true },
+      { id: 'enquiry', name: 'Enquiry', isSystem: true, slug: 'enquiry' }
     ];
     return res.status(200).json({ success: true, data: tabs });
   } catch (error) {
@@ -43,11 +56,17 @@ exports.getUserTabs = async (req, res) => {
 exports.getMyUserTabsAccess = async (req, res) => {
   try {
     const userRole = req.user?.role;
-    const groups = await StatusGroup.find({}).sort({ order: 1 });
+    const groups = await StatusGroup.find({
+      name: { $nin: [/^inquiry$/i, /^enquiry$/i] }
+    }).sort({ order: 1 });
+
     const allTabs = [
       { id: 'all', name: 'Members' },
-      ...groups.map(g => ({ id: String(g._id), name: g.name, slug: g.name.toLowerCase() })),
-      { id: 'dropped', name: 'Dropped' }
+      ...groups
+        .filter(g => g.name.toLowerCase() !== 'inquiry' && g.name.toLowerCase() !== 'enquiry')
+        .map(g => ({ id: String(g._id), name: g.name, slug: g.name.toLowerCase() })),
+      { id: 'dropped', name: 'Dropped' },
+      { id: 'enquiry', name: 'Enquiry', slug: 'enquiry' }
     ];
 
     if (userRole === 'ADMINISTRATOR' || userRole === 'ADMIN' || userRole === 'CHAIRPERSON' || userRole === 'WARDEN') {
@@ -71,7 +90,7 @@ exports.getMyUserTabsAccess = async (req, res) => {
       }
       // Defaults for non-admins if not yet configured
       const nameLower = tab.name.toLowerCase();
-      if (nameLower === 'admin' || nameLower === 'warden' || nameLower === 'chairperson' || nameLower === 'inquiry' || tab.id === 'dropped' || tab.id === 'all') {
+      if (nameLower === 'admin' || nameLower === 'warden' || nameLower === 'chairperson' || tab.id === 'dropped' || tab.id === 'all' || tab.id === 'enquiry') {
         return false;
       }
       if (nameLower === 'staff') {
@@ -154,9 +173,9 @@ exports.getMyPermissions = async (req, res) => {
         def = { fullAccess: false, view: true, create: true, update: false, delete: true, noAccess: false };
       } else if (p.id === 'profile') {
         def = { fullAccess: false, view: true, create: false, update: true, delete: false, noAccess: false };
-      } else if (p.id === 'events' || p.id === 'users' || p.id === 'drive_links') {
+      } else if (p.id === 'events' || p.id === 'users' || p.id === 'drive_links' || p.id === 'facilities' || p.id === 'enquiry' || p.id === 'feedback') {
         def = { fullAccess: false, view: true, create: false, update: false, delete: false, noAccess: false };
-      } else if (p.id === 'request_upload') {
+      } else if (p.id === 'request_upload' || p.id === 'projects') {
         def = { fullAccess: false, view: true, create: true, update: false, delete: false, noAccess: false };
       }
       permsMap[p.id] = def;
@@ -178,17 +197,32 @@ exports.getMyPermissions = async (req, res) => {
 
 /**
  * GET /api/access/navigation
- * Returns the permitted sidebar navigation items for the current logged-in user's role
+ * Returns the permitted sidebar navigation items for the current logged-in user's role,
+ * or the public pages for guests. The master ordering is strictly maintained for all users.
  */
 exports.getNavigation = async (req, res) => {
   try {
     const userRole = req.user?.role;
+
+    // For unauthenticated guests, return standard community sidebar tabs in master sequence (excluding admin tabs: overview, qr_scan_count, access_control)
     if (!userRole) {
-      return res.status(401).json({ success: false, message: 'User role not identified' });
+      const guestTabs = ALL_PAGES.filter(p => !['overview', 'qr_scan_count', 'access_control'].includes(p.id));
+      return res.status(200).json({
+        success: true,
+        data: guestTabs
+      });
     }
 
     // Ensure default permissions exist
     await Access.seedDefaults();
+
+    // ADMINISTRATOR and ADMIN have access to all pages in the exact master sequence
+    if (userRole === 'ADMINISTRATOR' || userRole === 'ADMIN') {
+      return res.status(200).json({
+        success: true,
+        data: ALL_PAGES
+      });
+    }
 
     // Map role alias if needed (CHAIRPERSON <-> WARDEN)
     const roleToQuery = (userRole === 'CHAIRPERSON') ? ['CHAIRPERSON', 'WARDEN'] : [userRole];
@@ -203,25 +237,21 @@ exports.getNavigation = async (req, res) => {
       }
     });
 
-    // ADMINISTRATOR has all access to every page by default!
-    if (userRole === 'ADMINISTRATOR') {
-      return res.status(200).json({
-        success: true,
-        data: ALL_PAGES
-      });
-    }
-
-    // Filter pages based on role permissions
+    // Filter pages based on role permissions, preserving the exact ALL_PAGES master sequence
     const accessibleTabs = ALL_PAGES.filter(pageItem => {
+      // Public pages are always accessible to all users
+      if (['facilities', 'enquiry', 'feedback'].includes(pageItem.id)) {
+        return true;
+      }
+
       // QR Scan Count is strictly ADMIN & ADMINISTRATOR only
       if (pageItem.id === 'qr_scan_count') {
-        return userRole === 'ADMIN' || userRole === 'ADMINISTRATOR';
+        return false;
       }
 
       const perms = pagePermMap[pageItem.id];
       if (!perms) {
-        // Fallback: If ADMIN, allow; else if overview, access_control or qr_scan_count, deny
-        if (userRole === 'ADMINISTRATOR' || userRole === 'ADMIN' || userRole === 'CHAIRPERSON' || userRole === 'WARDEN') {
+        if (userRole === 'CHAIRPERSON' || userRole === 'WARDEN') {
           return true;
         }
         return pageItem.id !== 'overview' && pageItem.id !== 'access_control' && pageItem.id !== 'qr_scan_count';

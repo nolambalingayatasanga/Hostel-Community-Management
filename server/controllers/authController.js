@@ -52,8 +52,12 @@ exports.register = async (req, res, next) => {
       course,
       startYear,
       endYear,
-      privacySettings
+      privacySettings,
+      hostelLocation,
+      organization
     } = req.body;
+
+    const selectedHostelOrg = (hostelLocation || organization || '').trim();
 
     // Validate mandatory common fields
     if (!name || !email || !phone || !password || !role) {
@@ -279,6 +283,11 @@ exports.register = async (req, res, next) => {
           existingMember.profilePhoto = defaultPhoto;
         }
 
+        if (selectedHostelOrg && (!existingMember.hostelLocation || !existingMember.hostelLocation.trim())) {
+          existingMember.hostelLocation = selectedHostelOrg;
+          existingMember.organization = selectedHostelOrg;
+        }
+
         // If the user registers through Student / Alumni role and this phone number is present in members list,
         // log him as an ALUMNI role from MEMBER (keeping all memberInfo and registration details intact)
         const isStudentOrAlumniSignup = role && ['STUDENT', 'ALUMNI'].includes(role.toUpperCase());
@@ -444,6 +453,7 @@ exports.register = async (req, res, next) => {
       ...(calculatedAge !== null && { age: calculatedAge }),
       passwordHash: password, // Pre-save hook hashes this
       role: finalRole,
+      ...(selectedHostelOrg && { hostelLocation: selectedHostelOrg, organization: selectedHostelOrg }),
       ...(Object.keys(educationData).length > 0 && { education: educationData }),
       accountStatus: 'ACTIVE', // Active status upon registration
       lastLoginAt: Date.now(),

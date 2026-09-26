@@ -1,14 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../middleware/authMiddleware');
+const { protect, optionalProtect } = require('../middleware/authMiddleware');
 const feedbackController = require('../controllers/feedbackController');
 
-// All feedback routes require authentication
+// Public route to view feedback
+router.get('/', optionalProtect, feedbackController.getFeedbacks);
+
+// Protected feedback operations require login
 router.use(protect);
 
-router.route('/')
-  .get(feedbackController.getFeedbacks)
-  .post(feedbackController.createFeedback);
+router.post('/', feedbackController.createFeedback);
 
 router.route('/:id')
   .put(feedbackController.updateFeedback)
