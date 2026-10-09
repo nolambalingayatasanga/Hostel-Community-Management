@@ -398,7 +398,7 @@ const DashboardLayout = () => {
             <ListItemText
               primary={
                 <Typography sx={{ fontSize: '13.5px', fontWeight: 600 }}>
-                  Sign Out
+                  Log Out
                 </Typography>
               }
             />
@@ -628,7 +628,7 @@ const DashboardLayout = () => {
                     <Box sx={{ width: 32, height: 32, borderRadius: '8px', bgcolor: 'rgba(244, 63, 94, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f43f5e' }}>
                       <LogoutIcon sx={{ fontSize: 18 }} />
                     </Box>
-                    <Typography sx={{ fontSize: '13.5px', fontWeight: 600 }}>Sign Out</Typography>
+                    <Typography sx={{ fontSize: '13.5px', fontWeight: 600 }}>Log Out</Typography>
                   </MenuItem>
                 </Menu>
               </>
