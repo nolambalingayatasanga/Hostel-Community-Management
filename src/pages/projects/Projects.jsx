@@ -559,7 +559,7 @@ export default function Projects() {
           bgcolor: '#FFFFFF',
           borderRadius: { xs: '16px', md: '20px' },
           border: '1px solid #E2E8F0',
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.02)',
+          boxShadow: 'none',
           p: { xs: 2.5, sm: 2, md: 2 },
           mb: 3,
           position: 'relative',
@@ -579,13 +579,13 @@ export default function Projects() {
               width: { xs: 48, sm: 56 },
               height: { xs: 48, sm: 56 },
               borderRadius: '16px',
-              bgcolor: '#DBEAFE',
-              color: '#1D4ED8',
+              bgcolor: 'rgba(0, 136, 255, 0.1)',
+              color: '#0088ff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
-              boxShadow: '0 4px 12px rgba(29, 78, 216, 0.12)'
+              boxShadow: 'none'
             }}
           >
             <RocketIcon sx={{ fontSize: { xs: 28, sm: 32 } }} />
@@ -680,7 +680,7 @@ export default function Projects() {
               startIcon={<AddIcon />}
               onClick={handleOpenCreate}
               sx={{
-                bgcolor: '#0088FF',
+                bgcolor: '#0088ff',
                 color: '#FFFFFF',
                 textTransform: 'none',
                 fontWeight: 700,
@@ -688,11 +688,12 @@ export default function Projects() {
                 px: 2.75,
                 py: 1.15,
                 fontSize: '14px',
-                boxShadow: '0 4px 14px rgba(0, 136, 255, 0.35)',
+                boxShadow: 'none',
                 whiteSpace: 'nowrap',
+                transition: 'all 0.15s ease',
                 '&:hover': {
-                  bgcolor: '#0070D2',
-                  boxShadow: '0 6px 18px rgba(0, 136, 255, 0.45)'
+                  bgcolor: '#0077ee',
+                  boxShadow: 'none'
                 }
               }}
             >
@@ -708,7 +709,7 @@ export default function Projects() {
           bgcolor: '#FFFFFF',
           borderRadius: '16px',
           border: '1px solid #E2E8F0',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
+          boxShadow: 'none',
           p: { xs: 1.25, sm: 1.5 },
           mb: 3,
           display: 'flex',
@@ -753,14 +754,14 @@ export default function Projects() {
                   fontSize: '13px',
                   fontWeight: isSelected ? 700 : 600,
                   transition: 'all 0.18s ease',
-                  bgcolor: isSelected ? '#0088FF' : '#F8FAFC',
+                  bgcolor: isSelected ? '#0088ff' : '#F8FAFC',
                   color: isSelected ? '#FFFFFF' : '#334155',
-                  border: isSelected ? '1px solid #0088FF' : '1px solid #E2E8F0',
-                  boxShadow: isSelected ? '0 2px 8px rgba(0, 136, 255, 0.28)' : 'none',
+                  border: isSelected ? '1px solid #0088ff' : '1px solid #E2E8F0',
+                  boxShadow: 'none',
                   '&:hover': {
-                    bgcolor: isSelected ? '#0088FF' : '#EFF6FF',
-                    borderColor: isSelected ? '#0088FF' : '#BFDBFE',
-                    color: isSelected ? '#FFFFFF' : '#0088FF'
+                    bgcolor: isSelected ? '#0088ff' : '#EFF6FF',
+                    borderColor: isSelected ? '#0088ff' : '#BFDBFE',
+                    color: isSelected ? '#FFFFFF' : '#0088ff'
                   }
                 }}
               >
@@ -789,15 +790,15 @@ export default function Projects() {
                   whiteSpace: 'nowrap',
                   fontSize: '13px',
                   fontWeight: isSelected ? 700 : 600,
-                  transition: 'all 0.18s ease',
-                  bgcolor: isSelected ? '#0088FF' : '#F8FAFC',
+                  transition: 'all 0.15s ease',
+                  bgcolor: isSelected ? '#0088ff' : '#F8FAFC',
                   color: isSelected ? '#FFFFFF' : '#334155',
-                  border: isSelected ? '1px solid #0088FF' : '1px solid #E2E8F0',
-                  boxShadow: isSelected ? '0 2px 8px rgba(0, 136, 255, 0.28)' : 'none',
+                  border: isSelected ? '1px solid #0088ff' : '1px solid #E2E8F0',
+                  boxShadow: 'none',
                   '&:hover': {
-                    bgcolor: isSelected ? '#0088FF' : '#EFF6FF',
-                    borderColor: isSelected ? '#0088FF' : '#BFDBFE',
-                    color: isSelected ? '#FFFFFF' : '#0088FF'
+                    bgcolor: isSelected ? '#0088ff' : '#EFF6FF',
+                    borderColor: isSelected ? '#0088ff' : '#BFDBFE',
+                    color: isSelected ? '#FFFFFF' : '#0088ff'
                   }
                 }}
               >
@@ -925,15 +926,15 @@ export default function Projects() {
                     flexDirection: 'column',
                     borderRadius: '14px',
                     border: '1px solid #E2E8F0',
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+                    boxShadow: 'none',
                     bgcolor: '#FFFFFF',
                     overflow: 'hidden',
-                    transition: 'all 0.2s ease-in-out',
+                    transition: 'border-color 0.2s ease, transform 0.2s ease',
                     height: '100%',
                     cursor: 'pointer',
                     '&:hover': {
-                      boxShadow: '0 10px 24px rgba(0,0,0,0.08)',
-                      borderColor: '#BFDBFE',
+                      boxShadow: 'none',
+                      borderColor: 'rgba(0, 136, 255, 0.45)',
                       transform: 'translateY(-2px)'
                     }
                   }}
@@ -1781,7 +1782,7 @@ export default function Projects() {
               variant="contained"
               disabled={saving}
               sx={{
-                bgcolor: '#0088FF',
+                bgcolor: '#0088ff',
                 color: '#FFFFFF',
                 textTransform: 'none',
                 fontWeight: 700,
@@ -1789,8 +1790,9 @@ export default function Projects() {
                 px: 3,
                 py: 1,
                 fontSize: '14px',
-                boxShadow: '0 4px 14px rgba(0, 136, 255, 0.35)',
-                '&:hover': { bgcolor: '#0070D2' }
+                boxShadow: 'none',
+                transition: 'all 0.15s ease',
+                '&:hover': { bgcolor: '#0077ee', boxShadow: 'none' }
               }}
             >
               {saving ? <CircularProgress size={20} color="inherit" /> : editingProject ? 'Save Changes' : 'Publish Project'}
@@ -1809,7 +1811,8 @@ export default function Projects() {
           sx: {
             borderRadius: '18px',
             p: 1,
-            boxShadow: '0 20px 40px rgba(0,0,0,0.12)'
+            boxShadow: 'none',
+            border: '1px solid rgba(226, 232, 240, 0.85)'
           }
         }}
       >
@@ -1873,7 +1876,8 @@ export default function Projects() {
           sx: {
             borderRadius: '18px',
             p: 1,
-            boxShadow: '0 20px 40px rgba(0,0,0,0.1)'
+            boxShadow: 'none',
+            border: '1px solid rgba(226, 232, 240, 0.85)'
           }
         }}
       >
@@ -2055,7 +2059,8 @@ export default function Projects() {
           sx: {
             borderRadius: '18px',
             p: 1,
-            boxShadow: '0 20px 40px rgba(0,0,0,0.12)'
+            boxShadow: 'none',
+            border: '1px solid rgba(226, 232, 240, 0.85)'
           }
         }}
       >

@@ -51,30 +51,66 @@ export default function JobToolbar({
         <Chip
           label={`All (${stats?.total || 0})`}
           onClick={() => onFilterChange('All')}
-          color={jobTypeFilter === 'All' ? 'primary' : 'default'}
-          variant={jobTypeFilter === 'All' ? 'filled' : 'outlined'}
-          sx={{ fontWeight: 600, borderRadius: '8px', cursor: 'pointer' }}
+          sx={{
+            fontWeight: 700,
+            borderRadius: '10px',
+            cursor: 'pointer',
+            fontFamily: '"Outfit", sans-serif',
+            bgcolor: jobTypeFilter === 'All' ? '#0088ff' : '#F1F5F9',
+            color: jobTypeFilter === 'All' ? '#FFFFFF' : '#475569',
+            boxShadow: 'none',
+            '&:hover': {
+              bgcolor: jobTypeFilter === 'All' ? '#0077ee' : '#E2E8F0'
+            }
+          }}
         />
         <Chip
           label={`Full-time (${stats?.fullTime || 0})`}
           onClick={() => onFilterChange('Full-time')}
-          color={jobTypeFilter === 'Full-time' ? 'primary' : 'default'}
-          variant={jobTypeFilter === 'Full-time' ? 'filled' : 'outlined'}
-          sx={{ fontWeight: 600, borderRadius: '8px', cursor: 'pointer' }}
+          sx={{
+            fontWeight: 700,
+            borderRadius: '10px',
+            cursor: 'pointer',
+            fontFamily: '"Outfit", sans-serif',
+            bgcolor: jobTypeFilter === 'Full-time' ? '#0088ff' : '#F1F5F9',
+            color: jobTypeFilter === 'Full-time' ? '#FFFFFF' : '#475569',
+            boxShadow: 'none',
+            '&:hover': {
+              bgcolor: jobTypeFilter === 'Full-time' ? '#0077ee' : '#E2E8F0'
+            }
+          }}
         />
         <Chip
           label={`Internship (${stats?.internship || 0})`}
           onClick={() => onFilterChange('Internship')}
-          color={jobTypeFilter === 'Internship' ? 'secondary' : 'default'}
-          variant={jobTypeFilter === 'Internship' ? 'filled' : 'outlined'}
-          sx={{ fontWeight: 600, borderRadius: '8px', cursor: 'pointer' }}
+          sx={{
+            fontWeight: 700,
+            borderRadius: '10px',
+            cursor: 'pointer',
+            fontFamily: '"Outfit", sans-serif',
+            bgcolor: jobTypeFilter === 'Internship' ? '#6366f1' : '#F1F5F9',
+            color: jobTypeFilter === 'Internship' ? '#FFFFFF' : '#475569',
+            boxShadow: 'none',
+            '&:hover': {
+              bgcolor: jobTypeFilter === 'Internship' ? '#4f46e5' : '#E2E8F0'
+            }
+          }}
         />
         <Chip
           label={`Hybrid (${stats?.hybrid || 0})`}
           onClick={() => onFilterChange('Hybrid')}
-          color={jobTypeFilter === 'Hybrid' ? 'info' : 'default'}
-          variant={jobTypeFilter === 'Hybrid' ? 'filled' : 'outlined'}
-          sx={{ fontWeight: 600, borderRadius: '8px', cursor: 'pointer' }}
+          sx={{
+            fontWeight: 700,
+            borderRadius: '10px',
+            cursor: 'pointer',
+            fontFamily: '"Outfit", sans-serif',
+            bgcolor: jobTypeFilter === 'Hybrid' ? '#0ea5e9' : '#F1F5F9',
+            color: jobTypeFilter === 'Hybrid' ? '#FFFFFF' : '#475569',
+            boxShadow: 'none',
+            '&:hover': {
+              bgcolor: jobTypeFilter === 'Hybrid' ? '#0284c7' : '#E2E8F0'
+            }
+          }}
         />
       </Stack>
 
@@ -122,7 +158,7 @@ export default function JobToolbar({
               color: '#64748B',
               p: 0.9,
               flexShrink: 0,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+              boxShadow: 'none',
               transition: 'all 0.15s ease',
               '&:hover': { bgcolor: '#F8FAFC', color: '#1E293B', borderColor: '#CBD5E1' }
             }}

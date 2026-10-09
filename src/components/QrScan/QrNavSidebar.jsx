@@ -29,7 +29,7 @@ export default function QrNavSidebar({
       sx={{
         borderRadius: '18px',
         border: '1px solid #E2E8F0',
-        boxShadow: '0 2px 12px rgba(0,0,0,0.03)',
+        boxShadow: 'none',
         bgcolor: '#FFFFFF',
         p: { xs: 1.25, md: 2 }
       }}
@@ -41,12 +41,12 @@ export default function QrNavSidebar({
             width: 40,
             height: 40,
             borderRadius: '12px',
-            background: 'linear-gradient(135deg, #0284C7 0%, #0369A1 100%)',
+            bgcolor: '#0088ff',
             color: '#FFFFFF',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)'
+            boxShadow: 'none'
           }}
         >
           <QrScannerIcon sx={{ fontSize: 22 }} />
@@ -93,10 +93,10 @@ export default function QrNavSidebar({
               color: '#0F172A'
             },
             '&.Mui-selected': {
-              bgcolor: '#EFF8FF',
-              color: '#0284C7',
+              bgcolor: 'rgba(0, 136, 255, 0.08)',
+              color: '#0088ff',
               fontWeight: 800,
-              boxShadow: '0 1px 4px rgba(2, 132, 199, 0.08)'
+              boxShadow: 'none'
             }
           }
         }}

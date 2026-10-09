@@ -48,7 +48,7 @@ export default function QrActivityLogsTab({
   filteredDevices
 }) {
   return (
-    <Card sx={{ borderRadius: '18px', border: '1px solid #E2E8F0', boxShadow: '0 2px 10px rgba(0,0,0,0.02)', bgcolor: '#FFFFFF', overflow: 'hidden' }}>
+    <Card sx={{ borderRadius: '18px', border: '1px solid #E2E8F0', boxShadow: 'none', bgcolor: '#FFFFFF', overflow: 'hidden' }}>
       {/* Header */}
       <Box sx={{ p: { xs: 2, sm: 2.5 }, borderBottom: '1px solid #F1F5F9' }}>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
@@ -148,7 +148,7 @@ export default function QrActivityLogsTab({
                   fontWeight: 700,
                   fontSize: '0.8rem',
                   px: 1.75,
-                  boxShadow: '0 2px 8px rgba(239, 68, 68, 0.25)'
+                  boxShadow: 'none'
                 }}
               >
                 Delete Selected ({selectedIds.length})
@@ -212,8 +212,8 @@ export default function QrActivityLogsTab({
                     selected={isSelected}
                     sx={{
                       '&:last-child td, &:last-child th': { border: 0 },
-                      '&.Mui-selected': { bgcolor: '#EFF8FF' },
-                      '&.Mui-selected:hover': { bgcolor: '#E0F2FE' }
+                      '&.Mui-selected': { bgcolor: 'rgba(0, 136, 255, 0.08)' },
+                      '&.Mui-selected:hover': { bgcolor: 'rgba(0, 136, 255, 0.12)' }
                     }}
                   >
                     <TableCell padding="checkbox" sx={{ pl: 2 }}>
@@ -246,9 +246,9 @@ export default function QrActivityLogsTab({
                         sx={{
                           fontWeight: 700,
                           fontSize: '0.72rem',
-                          bgcolor: isQr ? '#EFF8FF' : '#F0FDF4',
-                          color: isQr ? '#0284C7' : '#16A34A',
-                          border: `1px solid ${isQr ? '#BAE6FD' : '#BBF7D0'}`,
+                          bgcolor: isQr ? 'rgba(0, 136, 255, 0.08)' : '#F0FDF4',
+                          color: isQr ? '#0088ff' : '#16A34A',
+                          border: `1px solid ${isQr ? 'rgba(0, 136, 255, 0.2)' : '#BBF7D0'}`,
                           height: 22
                         }}
                       />

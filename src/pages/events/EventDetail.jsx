@@ -98,7 +98,7 @@ const EVENT_COLORS = [
   { label: "Vibrant Orange", value: "#ea580c" },
   { label: "Crimson Red", value: "#dc2626" },
   { label: "Amber Gold", value: "#d97706" },
-  { label: "Sky Cyan", value: "#0284c7" },
+  { label: "Electric Blue", value: "#0088ff" },
   { label: "Hot Pink", value: "#db2777" },
   { label: "Deep Indigo", value: "#4f46e5" },
   { label: "Slate Gray", value: "#475569" },
@@ -4239,7 +4239,7 @@ function EventQuickSummaryCard({ event, allImagesList, avgRating, sx = {} }) {
     statusColor = "#B45309";
   } else if (!today.isBefore(startDayStart) && !today.isAfter(endDayStart)) {
     statusLabel = "Ongoing Event";
-    statusBg = "#EFF6FF";
+    statusBg = "rgba(2, 132, 199, 0.08)";
     statusColor = "#0088ff";
   } else if (startDayStart.isAfter(today)) {
     const daysDiff = startDayStart.diff(today, "day");
@@ -4266,9 +4266,9 @@ function EventQuickSummaryCard({ event, allImagesList, avgRating, sx = {} }) {
   return (
     <Card
       sx={{
-        borderRadius: "12px",
-        border: "1px solid #EAECF0",
-        boxShadow: "none",
+        borderRadius: "16px",
+        border: "1px solid rgba(226, 232, 240, 0.85)",
+        boxShadow: "0 1px 3px 0 rgba(15, 23, 42, 0.04)",
         bgcolor: "#FFFFFF",
         p: 2.5,
         mb: 3,

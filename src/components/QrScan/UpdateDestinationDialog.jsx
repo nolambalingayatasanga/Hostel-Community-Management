@@ -32,12 +32,12 @@ export default function UpdateDestinationDialog({
       maxWidth="sm"
       fullWidth
       slotProps={{
-        paper: { sx: { borderRadius: '18px' } }
+        paper: { sx: { borderRadius: '18px', boxShadow: 'none' } }
       }}
     >
       <form onSubmit={onSubmit}>
         <DialogTitle sx={{ fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 1 }}>
-          <EditIcon sx={{ color: '#0284C7' }} />
+          <EditIcon sx={{ color: '#0088ff' }} />
           Update Destination Link
         </DialogTitle>
         <DialogContent dividers sx={{ p: 2.5 }}>
@@ -90,11 +90,13 @@ export default function UpdateDestinationDialog({
             variant="contained"
             disabled={updatingLink}
             sx={{
-              bgcolor: '#0284C7',
+              bgcolor: '#0088ff',
+              color: '#FFFFFF',
+              boxShadow: 'none',
               textTransform: 'none',
               fontWeight: 700,
               px: 3,
-              '&:hover': { bgcolor: '#0369A1' }
+              '&:hover': { bgcolor: '#0077ee', boxShadow: 'none' }
             }}
           >
             {updatingLink ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : 'Save & Update Link'}

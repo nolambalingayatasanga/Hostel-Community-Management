@@ -325,9 +325,10 @@ export default function DriveLinks() {
       <Box
         sx={{
           width: '100%',
-          borderRadius:"14px",
-          background: 'linear-gradient(135deg, #EBF4FF 0%, #DBEAFE 55%, #EDE9FE 100%)',
-   
+          borderRadius: "16px",
+          background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.08) 0%, rgba(99, 102, 241, 0.08) 55%, rgba(56, 189, 248, 0.06) 100%)',
+          border: '1px solid rgba(226, 232, 240, 0.85)',
+          boxShadow: 'none',
           px: { xs: 2.5, sm: 4, md: 5 },
           py: { xs: 2.5, sm: 3, md: 3.5 },
           display: 'flex',
@@ -338,8 +339,8 @@ export default function DriveLinks() {
         }}
       >
         {/* Decorative background icon */}
-        <Box sx={{ position: 'absolute', right: { xs: -30, sm: 16, md: 60 }, top: '50%', transform: 'translateY(-50%)', opacity: 0.15, pointerEvents: 'none' }}>
-          <CloudUploadIcon sx={{ fontSize: { xs: 100, sm: 120, md: 140 }, color: '#3B82F6' }} />
+        <Box sx={{ position: 'absolute', right: { xs: -30, sm: 16, md: 60 }, top: '50%', transform: 'translateY(-50%)', opacity: 0.12, pointerEvents: 'none' }}>
+          <CloudUploadIcon sx={{ fontSize: { xs: 100, sm: 120, md: 140 }, color: '#0088ff' }} />
         </Box>
 
         {/* Left: logo + title */}
@@ -348,6 +349,7 @@ export default function DriveLinks() {
             sx={{
               width: { xs: 48, sm: 56 }, height: { xs: 48, sm: 56 },
               borderRadius: '14px', bgcolor: '#FFFFFF',
+              border: '1px solid rgba(226, 232, 240, 0.85)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               boxShadow: 'none', flexShrink: 0, p: 0.8
             }}
@@ -355,11 +357,11 @@ export default function DriveLinks() {
             <GoogleDriveLogo size={34} />
           </Box>
           <Box>
-            <Typography variant="h5" sx={{ fontWeight: 800, color: '#1E3A5F', fontSize: { xs: '1.2rem', sm: '1.5rem', md: '1.75rem' }, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+            <Typography variant="h5" sx={{ fontWeight: 800, fontFamily: '"Outfit", sans-serif', color: '#0F172A', fontSize: { xs: '1.2rem', sm: '1.5rem', md: '1.75rem' }, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
               Drive Links
             </Typography>
-            <Typography variant="body2" sx={{ color: '#4B6A8A', fontWeight: 500, fontSize: { xs: 12, sm: 13 } }}>
-              Access event photos & videos resources with ease
+            <Typography variant="body2" sx={{ color: '#64748B', fontWeight: 500, fontSize: { xs: 12, sm: 13 } }}>
+              Access event photos & video archives with ease
             </Typography>
           </Box>
         </Stack>
@@ -371,10 +373,22 @@ export default function DriveLinks() {
             startIcon={<AddIcon />}
             onClick={handleOpenCreate}
             sx={{
-              bgcolor: '#2563EB', color: '#FFFFFF', textTransform: 'none', fontWeight: 700,
-              borderRadius: '10px', px: { xs: 2, sm: 2.5 }, py: 1, fontSize: { xs: 12, sm: 13 },
-              boxShadow: '0 4px 14px rgba(37,99,235,0.35)', flexShrink: 0, zIndex: 1,
-              '&:hover': { bgcolor: '#1D4ED8', boxShadow: '0 6px 18px rgba(37,99,235,0.45)' }
+              backgroundColor: '#0088ff',
+              color: '#FFFFFF',
+              textTransform: 'none',
+              fontWeight: 700,
+              borderRadius: '10px',
+              px: { xs: 2, sm: 2.5 },
+              py: 1,
+              fontSize: { xs: 12.5, sm: 13.5 },
+              boxShadow: 'none',
+              flexShrink: 0,
+              zIndex: 1,
+              transition: 'all 0.15s ease',
+              '&:hover': {
+                backgroundColor: '#0077ee',
+                boxShadow: 'none'
+              }
             }}
           >
             <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Add Drive Link</Box>
@@ -386,10 +400,22 @@ export default function DriveLinks() {
             startIcon={<CloudUploadIcon />}
             onClick={() => navigate('/request-upload?tab=submit&category=drive_links')}
             sx={{
-              bgcolor: '#2563EB', color: '#FFFFFF', textTransform: 'none', fontWeight: 700,
-              borderRadius: '10px', px: { xs: 2, sm: 2.5 }, py: 1, fontSize: { xs: 12, sm: 13 },
-              boxShadow: '0 4px 14px rgba(37,99,235,0.35)', flexShrink: 0, zIndex: 1,
-              '&:hover': { bgcolor: '#1D4ED8', boxShadow: '0 6px 18px rgba(37,99,235,0.45)' }
+              backgroundColor: '#0088ff',
+              color: '#FFFFFF',
+              textTransform: 'none',
+              fontWeight: 700,
+              borderRadius: '10px',
+              px: { xs: 2, sm: 2.5 },
+              py: 1,
+              fontSize: { xs: 12.5, sm: 13.5 },
+              boxShadow: 'none',
+              flexShrink: 0,
+              zIndex: 1,
+              transition: 'all 0.15s ease',
+              '&:hover': {
+                backgroundColor: '#0077ee',
+                boxShadow: 'none'
+              }
             }}
           >
             <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Upload Drive</Box>
@@ -469,8 +495,8 @@ export default function DriveLinks() {
                 transition: 'all 0.15s ease',
                 '&.Mui-selected': {
                   bgcolor: '#FFFFFF',
-                  color: '#2563EB',
-                  boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
+                  color: '#0088ff',
+                  boxShadow: 'none'
                 }
               }}
             />
@@ -491,8 +517,8 @@ export default function DriveLinks() {
                             height: 18,
                             fontSize: '10.5px',
                             fontWeight: 700,
-                            bgcolor: selectedCategory === cat ? 'rgba(37, 99, 235, 0.12)' : '#E2E8F0',
-                            color: selectedCategory === cat ? '#2563EB' : '#64748B',
+                            bgcolor: selectedCategory === cat ? 'rgba(0, 136, 255, 0.12)' : '#E2E8F0',
+                            color: selectedCategory === cat ? '#0088ff' : '#64748B',
                             transition: 'all 0.15s ease'
                           }}
                         />
@@ -511,8 +537,8 @@ export default function DriveLinks() {
                     transition: 'all 0.15s ease',
                     '&.Mui-selected': {
                       bgcolor: '#FFFFFF',
-                      color: '#2563EB',
-                      boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
+                      color: '#0088ff',
+                      boxShadow: 'none'
                     }
                   }}
                 />
@@ -590,8 +616,8 @@ export default function DriveLinks() {
                       overflow: 'hidden',
                       transition: 'all 0.22s ease-in-out',
                       '&:hover': {
-                        boxShadow: '0 12px 32px rgba(0,0,0,0.09)',
-                        borderColor: '#C7D7F0',
+                        boxShadow: 'none',
+                        borderColor: '#0088ff',
                         transform: 'translateY(-3px)'
                       }
                     }}
@@ -626,7 +652,7 @@ export default function DriveLinks() {
                           flexShrink: 0
                         }}
                       >
-                        <Box sx={{ width: 48, height: 48, borderRadius: '12px', bgcolor: '#FFFFFF', boxShadow: '0 2px 8px rgba(37,99,235,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 0.6 }}>
+                        <Box sx={{ width: 48, height: 48, borderRadius: '12px', bgcolor: '#FFFFFF', boxShadow: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 0.6 }}>
                           <GoogleDriveLogo size={28} />
                         </Box>
                       </Box>
@@ -692,7 +718,7 @@ export default function DriveLinks() {
                           startIcon={<GoogleDriveLogo size={15} />}
                           endIcon={<OpenInNewIcon sx={{ fontSize: 13 }} />}
                           sx={{
-                            bgcolor: '#2563EB',
+                            bgcolor: '#0088ff',
                             color: '#FFFFFF',
                             textTransform: 'none',
                             fontWeight: 700,
@@ -703,7 +729,7 @@ export default function DriveLinks() {
                             px: 1,
                             whiteSpace: 'nowrap',
                             minWidth: 0,
-                            '&:hover': { bgcolor: '#1D4ED8', boxShadow: 'none' }
+                            '&:hover': { bgcolor: '#0077ee', boxShadow: 'none' }
                           }}
                         >
                           Open in Google Drive
@@ -736,7 +762,7 @@ export default function DriveLinks() {
 
       {/* ── Admin Context Menu ── */}
       <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={handleMenuClose}
-        PaperProps={{ sx: { borderRadius: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', minWidth: 160 } }}>
+        PaperProps={{ sx: { borderRadius: '12px', boxShadow: 'none', minWidth: 160 } }}>
         <MenuItem onClick={() => handleOpenEdit(activeItemForMenu)}>
           <ListItemIcon><EditIcon fontSize="small" sx={{ color: '#2563EB' }} /></ListItemIcon>
           <ListItemText primary="Edit Drive" primaryTypographyProps={{ fontSize: 13.5, fontWeight: 600 }} />
@@ -900,11 +926,11 @@ export default function DriveLinks() {
                   height: 44,
                   borderRadius: '12px',
                   bgcolor: '#FFFFFF',
-                  color: '#2563EB',
+                  color: '#0088ff',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: '0 2px 8px rgba(37,99,235,0.15)'
+                  boxShadow: 'none'
                 }}
               >
                 <CloudUploadIcon sx={{ fontSize: 24 }} />
@@ -923,7 +949,7 @@ export default function DriveLinks() {
         <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setQuickThumbDialogOpen(false)} disabled={savingQuickThumb} sx={{ textTransform: 'none', fontWeight: 600 }}>Cancel</Button>
           <Button variant="contained" onClick={handleSaveQuickThumbnail} disabled={savingQuickThumb}
-            sx={{ bgcolor: '#2563EB', textTransform: 'none', fontWeight: 700, px: 2.5, '&:hover': { bgcolor: '#1D4ED8' } }}>
+            sx={{ bgcolor: '#0088ff', color: '#FFFFFF', boxShadow: 'none', textTransform: 'none', fontWeight: 700, px: 2.5, '&:hover': { bgcolor: '#0077ee', boxShadow: 'none' } }}>
             {savingQuickThumb ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : 'Save Thumbnail'}
           </Button>
         </DialogActions>
@@ -1127,11 +1153,11 @@ export default function DriveLinks() {
                       height: 44,
                       borderRadius: '12px',
                       bgcolor: '#FFFFFF',
-                      color: '#2563EB',
+                      color: '#0088ff',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      boxShadow: '0 2px 8px rgba(37,99,235,0.15)'
+                      boxShadow: 'none'
                     }}
                   >
                     <CloudUploadIcon sx={{ fontSize: 24 }} />

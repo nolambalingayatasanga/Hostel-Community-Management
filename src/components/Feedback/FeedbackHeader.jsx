@@ -56,8 +56,9 @@ export default function FeedbackHeader({ onAddFeedback }) {
             fontWeight: 700,
             fontSize: { xs: '12px', sm: '13.5px' },
             bgcolor: '#0088ff',
-            boxShadow: '0 2px 8px rgba(0, 136, 255, 0.25)',
+            boxShadow: 'none',
             whiteSpace: 'nowrap',
+            transition: 'all 0.15s ease',
             '&:hover': { bgcolor: '#0077ee', boxShadow: 'none' }
           }}
         >

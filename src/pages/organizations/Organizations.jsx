@@ -232,14 +232,16 @@ export default function Organizations() {
             startIcon={<AddIcon />}
             onClick={handleOpenAdd}
             sx={{
-              bgcolor: '#0088FF',
-              fontWeight: 600,
+              bgcolor: '#0088ff',
+              color: '#FFFFFF',
+              fontWeight: 700,
               textTransform: 'none',
               borderRadius: '10px',
               px: 2.5,
               py: 1,
-              boxShadow: '0 4px 12px rgba(0, 136, 255, 0.25)',
-              '&:hover': { bgcolor: '#0077E6' }
+              boxShadow: 'none',
+              transition: 'all 0.15s ease',
+              '&:hover': { bgcolor: '#0077ee', boxShadow: 'none' }
             }}
           >
             Add Organization
@@ -307,7 +309,7 @@ export default function Organizations() {
       </Box>
 
       {/* Main Table Card */}
-      <Card sx={{ borderRadius: '14px', border: '1px solid #EAECF0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+      <Card sx={{ borderRadius: '14px', border: '1px solid #EAECF0', boxShadow: 'none', overflow: 'hidden' }}>
         {/* Table Toolbar */}
         <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #EAECF0' }}>
           <TextField

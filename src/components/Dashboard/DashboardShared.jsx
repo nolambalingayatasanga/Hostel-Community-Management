@@ -15,11 +15,11 @@ import {
   ArrowForward as ArrowIcon
 } from '@mui/icons-material';
 
-export const COLORS = ['#005BEA', '#00C2A8', '#7C3AED', '#F59E0B', '#0EA5E9', '#F43F5E', '#10B981', '#F97316'];
+export const COLORS = ['#0088ff', '#6366f1', '#10b981', '#f59e0b', '#38bdf8', '#8b5cf6', '#f43f5e', '#14b8a6'];
 export const DASHBOARD_BG = '#F8FAFC';
 
 /**
- * BottomWave: Subtle background SVG wave
+ * BottomWave: Subtle background SVG wave with modern gradient
  */
 export const BottomWave = ({ color }) => (
   <svg
@@ -30,7 +30,7 @@ export const BottomWave = ({ color }) => (
       bottom: 0,
       left: 0,
       width: '100%',
-      height: '44px',
+      height: '46px',
       pointerEvents: 'none',
       zIndex: 0
     }}
@@ -38,7 +38,7 @@ export const BottomWave = ({ color }) => (
     <path
       d="M0,40 C150,110 350,-20 500,50 L500,120 L0,120 Z"
       fill={color}
-      opacity="0.12"
+      opacity="0.1"
     />
   </svg>
 );
@@ -52,8 +52,8 @@ export const OverviewCard = ({
   value,
   subtitle,
   icon,
-  color = '#0284C7',
-  bgLight = '#EFF8FF',
+  color = '#0088ff',
+  bgLight = 'rgba(0, 136, 255, 0.08)',
   rightIcon = null,
   height = 175,
   badge = null,
@@ -66,8 +66,8 @@ export const OverviewCard = ({
       onClick={onClick}
       sx={{
         borderRadius: { xs: '14px', sm: '18px' },
-        border: '1px solid #EBF0F5',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
+        border: '1px solid rgba(226, 232, 240, 0.85)',
+        boxShadow: 'none',
         bgcolor: '#FFFFFF',
         position: 'relative',
         overflow: 'hidden',
@@ -77,14 +77,12 @@ export const OverviewCard = ({
         justifyContent: 'space-between',
         cursor: onClick ? 'pointer' : 'default',
         userSelect: 'none',
-        transition: 'all 0.2s ease',
-        ...(onClick && {
-          '&:hover': {
-            transform: 'translateY(-2px)',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.06)',
-            borderColor: color
-          }
-        })
+        transition: 'border-color 0.2s ease, transform 0.2s ease',
+        '&:hover': {
+          transform: 'translateY(-2px)',
+          boxShadow: 'none',
+          borderColor: 'rgba(0, 136, 255, 0.45)'
+        }
       }}
     >
       <Box sx={{ p: { xs: 1.75, sm: 2.5 }, position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
@@ -93,8 +91,8 @@ export const OverviewCard = ({
           <Stack direction="row" spacing={{ xs: 1, sm: 1.5 }} sx={{ alignItems: 'center', minWidth: 0, flex: 1 }}>
             <Box
               sx={{
-                width: { xs: 34, sm: 42 },
-                height: { xs: 34, sm: 42 },
+                width: { xs: 36, sm: 44 },
+                height: { xs: 36, sm: 44 },
                 borderRadius: { xs: '10px', sm: '12px' },
                 bgcolor: bgLight,
                 color: color,
@@ -102,8 +100,9 @@ export const OverviewCard = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
+                boxShadow: 'none',
                 '& .MuiSvgIcon-root': {
-                  fontSize: { xs: 18, sm: 22 }
+                  fontSize: { xs: 19, sm: 23 }
                 }
               }}
             >
@@ -114,9 +113,9 @@ export const OverviewCard = ({
               sx={{
                 fontWeight: 800,
                 color: '#475569',
-                letterSpacing: '0.05em',
+                letterSpacing: '0.06em',
                 textTransform: 'uppercase',
-                fontSize: { xs: '0.68rem', sm: '0.75rem' },
+                fontSize: { xs: '0.68rem', sm: '0.74rem' },
                 lineHeight: 1.2
               }}
             >
@@ -126,8 +125,8 @@ export const OverviewCard = ({
 
           <Box
             sx={{
-              width: { xs: 24, sm: 28 },
-              height: { xs: 24, sm: 28 },
+              width: { xs: 26, sm: 30 },
+              height: { xs: 26, sm: 30 },
               borderRadius: '8px',
               bgcolor: bgLight,
               color: color,
@@ -138,7 +137,7 @@ export const OverviewCard = ({
               ml: 1
             }}
           >
-            {rightIcon || <TrendingUpIcon sx={{ fontSize: { xs: 14, sm: 16 } }} />}
+            {rightIcon || <TrendingUpIcon sx={{ fontSize: { xs: 15, sm: 17 } }} />}
           </Box>
         </Stack>
 
@@ -148,11 +147,12 @@ export const OverviewCard = ({
             <Typography
               variant="h3"
               sx={{
-                fontWeight: 900,
+                fontWeight: 800,
+                fontFamily: '"Outfit", sans-serif',
                 color: '#0F172A',
                 lineHeight: 1,
-                fontSize: { xs: '1.45rem', sm: '1.85rem', md: '2.1rem' },
-                letterSpacing: '-0.02em'
+                fontSize: { xs: '1.5rem', sm: '1.95rem', md: '2.2rem' },
+                letterSpacing: '-0.03em'
               }}
             >
               {value}
@@ -166,7 +166,7 @@ export const OverviewCard = ({
                 color: '#64748B',
                 fontWeight: 500,
                 mt: 0.75,
-                fontSize: '0.85rem'
+                fontSize: '0.84rem'
               }}
             >
               {subtitle}
@@ -197,26 +197,26 @@ export const SectionHeader = ({
       justifyContent: 'space-between',
       alignItems: 'center',
       gap: 1.5,
-      mb: { xs: 1.25, sm: 2 },
-      mt: { xs: 0.5, sm: 1 }
+      mb: { xs: 1.5, sm: 2.25 },
+      mt: { xs: 1, sm: 1.5 }
     }}
   >
     <Stack direction="row" spacing={{ xs: 1, sm: 1.25 }} sx={{ alignItems: 'center', minWidth: 0, flex: 1, flexWrap: 'nowrap' }}>
       <Box
         sx={{
-          width: { xs: 28, sm: 36 },
-          height: { xs: 28, sm: 36 },
+          width: { xs: 30, sm: 38 },
+          height: { xs: 30, sm: 38 },
           borderRadius: { xs: '8px', sm: '10px' },
-          bgcolor: '#FFFFFF',
-          border: '1px solid #E2E8F0',
-          color: '#2563EB',
+          bgcolor: 'rgba(0, 136, 255, 0.08)',
+          border: '1px solid rgba(0, 136, 255, 0.2)',
+          color: '#0088ff',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+          boxShadow: 'none',
           flexShrink: 0,
           '& .MuiSvgIcon-root': {
-            fontSize: { xs: 16, sm: 20 }
+            fontSize: { xs: 17, sm: 21 }
           }
         }}
       >
@@ -226,10 +226,11 @@ export const SectionHeader = ({
         variant="h6"
         sx={{
           fontWeight: 800,
+          fontFamily: '"Outfit", sans-serif',
           color: '#0F172A',
-          fontSize: { xs: '0.84rem', sm: '1.02rem', md: '1.15rem' },
+          fontSize: { xs: '0.9rem', sm: '1.08rem', md: '1.2rem' },
           lineHeight: 1.25,
-          letterSpacing: '-0.01em',
+          letterSpacing: '-0.02em',
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis'
@@ -249,18 +250,21 @@ export const SectionHeader = ({
           display: { xs: 'none', sm: 'inline-flex' },
           textTransform: 'none',
           fontWeight: 700,
-          fontSize: '0.8rem',
-          color: '#2563EB',
-          bgcolor: '#EFF6FF',
-          border: '1px solid #DBEAFE',
-          borderRadius: '8px',
-          px: 1.5,
-          py: 0.45,
+          fontSize: '0.82rem',
+          color: '#0088ff',
+          bgcolor: 'rgba(0, 136, 255, 0.08)',
+          border: '1px solid rgba(0, 136, 255, 0.25)',
+          borderRadius: '10px',
+          px: 1.75,
+          py: 0.55,
           flexShrink: 0,
           whiteSpace: 'nowrap',
+          boxShadow: 'none',
+          transition: 'all 0.15s ease',
           '&:hover': {
-            bgcolor: '#DBEAFE',
-            borderColor: '#BFDBFE'
+            bgcolor: 'rgba(0, 136, 255, 0.15)',
+            borderColor: '#0088ff',
+            boxShadow: 'none'
           }
         }}
       >
@@ -278,10 +282,15 @@ export const ChartCard = ({ title, icon, children, chartHeight = 280, action = n
     sx={{
       borderRadius: '18px',
       bgcolor: '#FFFFFF',
-      border: '1px solid #EBF0F5',
-      boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
-      p: { xs: 1.5, sm: 2.5 },
-      overflow: 'hidden'
+      border: '1px solid rgba(226, 232, 240, 0.85)',
+      boxShadow: 'none',
+      p: { xs: 1.75, sm: 2.5 },
+      overflow: 'hidden',
+      transition: 'border-color 0.2s ease',
+      '&:hover': {
+        borderColor: 'rgba(0, 136, 255, 0.45)',
+        boxShadow: 'none'
+      }
     }}
   >
     <Box
@@ -291,25 +300,26 @@ export const ChartCard = ({ title, icon, children, chartHeight = 280, action = n
         justifyContent: 'space-between',
         alignItems: { xs: 'flex-start', sm: 'center' },
         gap: 1.25,
-        mb: { xs: 1.25, sm: 2 }
+        mb: { xs: 1.5, sm: 2 }
       }}
     >
       <Typography
         variant="subtitle1"
         sx={{
-          fontWeight: 800,
+          fontWeight: 700,
+          fontFamily: '"Outfit", sans-serif',
           display: 'flex',
           alignItems: 'center',
           gap: 1,
           color: '#0F172A',
-          fontSize: { xs: '0.84rem', sm: '0.95rem' }
+          fontSize: { xs: '0.88rem', sm: '1rem' }
         }}
       >
         {icon} {title}
       </Typography>
       {action && <Box sx={{ flexShrink: 0, width: { xs: '100%', sm: 'auto' } }}>{action}</Box>}
     </Box>
-    <Divider sx={{ mb: 2, borderColor: '#F1F5F9' }} />
+    <Divider sx={{ mb: 2, borderColor: 'rgba(226, 232, 240, 0.8)' }} />
     <Box sx={{ width: '100%', height: chartHeight, minWidth: 0, position: 'relative' }}>
       {children}
     </Box>

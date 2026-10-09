@@ -925,7 +925,7 @@ export default function RequestUpload() {
                       color: '#64748B',
                       whiteSpace: 'nowrap',
                       flexShrink: 0,
-                      '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#2563EB', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }
+                      '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#0088ff', boxShadow: 'none' }
                     }}
                   />
                   <Tab
@@ -961,7 +961,7 @@ export default function RequestUpload() {
                       color: '#64748B',
                       whiteSpace: 'nowrap',
                       flexShrink: 0,
-                      '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#f59e0b', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }
+                      '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#f59e0b', boxShadow: 'none' }
                     }}
                   />
                   <Tab
@@ -997,7 +997,7 @@ export default function RequestUpload() {
                       color: '#64748B',
                       whiteSpace: 'nowrap',
                       flexShrink: 0,
-                      '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#10b981', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }
+                      '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#10b981', boxShadow: 'none' }
                     }}
                   />
                   <Tab
@@ -1033,7 +1033,7 @@ export default function RequestUpload() {
                       color: '#64748B',
                       whiteSpace: 'nowrap',
                       flexShrink: 0,
-                      '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#ef4444', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }
+                      '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#ef4444', boxShadow: 'none' }
                     }}
                   />
                 </Tabs>
@@ -1088,7 +1088,7 @@ export default function RequestUpload() {
                       color: '#64748B',
                       whiteSpace: 'nowrap',
                       flexShrink: 0,
-                      '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#0088ff', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }
+                      '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#0088ff', boxShadow: 'none' }
                     }}
                   />
                   <Tab
@@ -1122,7 +1122,7 @@ export default function RequestUpload() {
                       color: '#64748B',
                       whiteSpace: 'nowrap',
                       flexShrink: 0,
-                      '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#0088ff', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }
+                      '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#0088ff', boxShadow: 'none' }
                     }}
                   />
                 </Tabs>
@@ -1162,7 +1162,7 @@ export default function RequestUpload() {
                 }}
               >
                 {/* Step 1: Destination Selection (Simple 3 Tabs) */}
-                <Card sx={{ borderRadius: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', border: '1px solid #E2E8F0', mb: 1.5 }}>
+                <Card sx={{ borderRadius: '14px', boxShadow: 'none', border: '1px solid #E2E8F0', mb: 1.5 }}>
                   <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                     <Box
                       sx={{
@@ -1197,7 +1197,7 @@ export default function RequestUpload() {
                               alignItems: 'center',
                               justifyContent: 'center',
                               gap: 0.75,
-                              boxShadow: isSelected ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                              boxShadow: 'none',
                               border: isSelected ? `1.5px solid ${tab.color}` : '1.5px solid transparent',
                               transition: 'all 0.15s ease',
                               '&:hover': {
@@ -1215,7 +1215,7 @@ export default function RequestUpload() {
                 </Card>
 
                 {/* Step 2: Information & Details Form (Compact with External Labels) */}
-                <Card sx={{ borderRadius: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', border: '1px solid #E2E8F0', mb: 1.5 }}>
+                <Card sx={{ borderRadius: '14px', boxShadow: 'none', border: '1px solid #E2E8F0', mb: 1.5 }}>
                   <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0F172A', mb: 2, fontSize: '0.92rem' }}>
                       2. Memory & Asset Details
@@ -1498,7 +1498,7 @@ Gallery Album <span style={{ color: '#64748B', fontWeight: 500, fontSize: '12px'
               >
                 {/* Step 3: Media Upload Dropzone (for Gallery & Events) */}
                 {targetCategory !== 'drive_links' && (
-                  <Card sx={{ borderRadius: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', border: '1px solid #E2E8F0', mb: 1.5 }}>
+                  <Card sx={{ borderRadius: '14px', boxShadow: 'none', border: '1px solid #E2E8F0', mb: 1.5 }}>
                     <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                         <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0F172A', fontSize: '0.92rem' }}>
@@ -1572,11 +1572,11 @@ Gallery Album <span style={{ color: '#64748B', fontWeight: 500, fontSize: '12px'
                                     aspectRatio: '16/10',
                                     display: 'flex',
                                     flexDirection: 'column',
-                                    boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                                    boxShadow: 'none',
                                     transition: 'all 0.2s ease',
                                     '&:hover': {
                                       transform: 'translateY(-2px)',
-                                      boxShadow: '0 6px 18px rgba(0,0,0,0.12)',
+                                      boxShadow: 'none',
                                       borderColor: '#CBD5E1',
                                       '& .media-preview-img': {
                                         transform: 'scale(1.04)'
@@ -1629,7 +1629,7 @@ Gallery Album <span style={{ color: '#64748B', fontWeight: 500, fontSize: '12px'
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
+                                            boxShadow: 'none',
                                             color: '#0F172A',
                                             zIndex: 2
                                           }}
@@ -1773,7 +1773,7 @@ Gallery Album <span style={{ color: '#64748B', fontWeight: 500, fontSize: '12px'
 
                 {/* Specific thumbnail preview for Drive Links */}
                 {targetCategory === 'drive_links' && (
-                  <Card sx={{ borderRadius: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', border: '1px solid #E2E8F0', mb: 1.5 }}>
+                  <Card sx={{ borderRadius: '14px', boxShadow: 'none', border: '1px solid #E2E8F0', mb: 1.5 }}>
                     <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0F172A', mb: 1.5, fontSize: '0.92rem' }}>
                         Drive Album Cover Thumbnail
@@ -1866,11 +1866,13 @@ Gallery Album <span style={{ color: '#64748B', fontWeight: 500, fontSize: '12px'
                     fontWeight: 700,
                     fontSize: '14.5px',
                     textTransform: 'none',
-                    background: 'linear-gradient(135deg, #0088ff 0%, #0066cc 100%)',
-                    boxShadow: '0 4px 14px rgba(0, 136, 255, 0.25)',
+                    backgroundColor: '#0088ff',
+                    color: '#FFFFFF',
+                    boxShadow: 'none',
+                    transition: 'all 0.15s ease',
                     '&:hover': {
-                      background: 'linear-gradient(135deg, #0077ee 0%, #0055bb 100%)',
-                      boxShadow: '0 6px 18px rgba(0, 136, 255, 0.35)'
+                      backgroundColor: '#0077ee',
+                      boxShadow: 'none'
                     }
                   }}
                 >
@@ -2155,7 +2157,7 @@ Gallery Album <span style={{ color: '#64748B', fontWeight: 500, fontSize: '12px'
           sx: {
             borderRadius: '20px',
             overflow: 'hidden',
-            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+            boxShadow: 'none',
             bgcolor: '#FFFFFF',
             p: 2.5
           }

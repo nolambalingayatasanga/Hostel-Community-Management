@@ -145,22 +145,23 @@ const DirectorySearchBar = React.memo(function DirectorySearchBar({
         startIcon={isSearching ? <CircularProgress size={14} color="inherit" /> : null}
         sx={{
           height: { xs: "36px", sm: "40px" },
-          borderRadius: "8px",
+          borderRadius: "10px",
           px: { xs: 1.5, sm: 2 },
           fontSize: { xs: "12px", sm: "13.5px" },
-          fontWeight: 600,
+          fontWeight: 700,
           textTransform: "none",
-          bgcolor: "#0088ff",
+          backgroundColor: "#0088ff",
           color: "#fff",
           boxShadow: "none",
           whiteSpace: "nowrap",
           flexShrink: 0,
+          transition: "all 0.15s ease",
           "&:hover": {
-            bgcolor: "#0077ee",
+            backgroundColor: "#0077ee",
             boxShadow: "none"
           },
           "&.Mui-disabled": {
-            bgcolor: "rgba(0, 136, 255, 0.6)",
+            bgcolor: "rgba(0, 136, 255, 0.5)",
             color: "#fff"
           }
         }}
@@ -1122,8 +1123,9 @@ export default function DirectoryList() {
                                   bottom: -12,
                                   left: 0,
                                   right: 0,
-                                  height: 2.5,
-                                  backgroundColor: "#0088FF",
+                                  height: 3,
+                                  borderRadius: "3px 3px 0 0",
+                                  backgroundColor: "#0088ff",
                                 },
                               }),
                               ...dragProvided.draggableProps.style,
@@ -1149,8 +1151,8 @@ export default function DirectoryList() {
                             <Typography
                               variant="body2"
                               sx={{
-                                fontWeight: isActive ? 600 : 500,
-                                color: isActive ? "#0088FF" : "#475467",
+                                fontWeight: isActive ? 700 : 500,
+                                color: isActive ? "#0088ff" : "#475467",
                               }}
                             >
                               {group.name}
@@ -1178,7 +1180,7 @@ export default function DirectoryList() {
           sx={{
             px: { xs: 1.5, sm: 3 },
             py: { xs: 1.25, sm: 2 },
-            borderBottom: "1px solid #EAECF0",
+            borderBottom: "1px solid rgba(226, 232, 240, 0.85)",
             alignItems: "center",
             overflowX: "auto",
             flexWrap: "nowrap",
@@ -1236,7 +1238,7 @@ export default function DirectoryList() {
                 }
                 return (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, color: '#0F172A', fontWeight: 600, fontSize: '13px' }}>
-                    <ApartmentIcon sx={{ fontSize: 17, color: '#0088FF' }} />
+                    <ApartmentIcon sx={{ fontSize: 17, color: '#0088ff' }} />
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 170 }}>
                       {selected}
                     </span>
@@ -1244,25 +1246,27 @@ export default function DirectoryList() {
                 );
               }}
               sx={{
-                borderRadius: '8px',
+                borderRadius: '10px',
                 height: 38,
                 bgcolor: '#FFFFFF',
+                boxShadow: 'none',
                 '& .MuiOutlinedInput-notchedOutline': {
-                  borderColor: '#D0D5DD'
+                  borderColor: 'rgba(203, 213, 225, 0.8)'
                 },
                 '&:hover .MuiOutlinedInput-notchedOutline': {
-                  borderColor: '#98A2B3'
+                  borderColor: '#0088ff'
                 },
                 '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                  borderColor: '#0088FF'
+                  borderColor: '#0088ff'
                 }
               }}
               MenuProps={{
                 PaperProps: {
                   sx: {
                     maxHeight: 280,
-                    borderRadius: '10px',
-                    boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)'
+                    borderRadius: '12px',
+                    boxShadow: 'none',
+                    border: '1px solid rgba(226, 232, 240, 0.85)'
                   }
                 }
               }}
@@ -1290,15 +1294,17 @@ export default function DirectoryList() {
             onClick={() => setColumnsOpen(true)}
             size="small"
             sx={{
-              borderRadius: "8px",
-              borderColor: "#D0D5DD",
-              color: "#344054",
+              borderRadius: "10px",
+              border: "1px solid rgba(203, 213, 225, 0.8)",
+              color: "#475569",
               flexShrink: 0,
               width: { xs: 36, sm: 40 },
               height: { xs: 36, sm: 40 },
               textTransform: "none",
               fontWeight: 600,
-              "&:hover": { borderColor: "#D0D5DD", backgroundColor: "#F9FAFB" }
+              boxShadow: "none",
+              transition: "all 0.15s ease",
+              "&:hover": { borderColor: "#0088ff", color: "#0088ff", backgroundColor: "rgba(0, 136, 255, 0.05)" }
             }}
           >
             <SettingsIcon sx={{ fontSize: { xs: 18, sm: 20 } }} />
@@ -1314,11 +1320,11 @@ export default function DirectoryList() {
                   disabled={dropLoading}
                   sx={{
                     height: "40px",
-                    borderRadius: "8px",
-                    backgroundColor: "#039855",
+                    borderRadius: "10px",
+                    backgroundColor: "#10b981",
                     color: "#FFFFFF",
                     textTransform: "none",
-                    fontWeight: 600,
+                    fontWeight: 700,
                     fontSize: "14px",
                     boxShadow: "none",
                     px: 2.5,
@@ -1326,7 +1332,7 @@ export default function DirectoryList() {
                     display: "inline-flex",
                     alignItems: "center",
                     flexShrink: 0,
-                    "&:hover": { backgroundColor: "#027A48", boxShadow: "none" }
+                    "&:hover": { backgroundColor: "#059669", boxShadow: "none" }
                   }}
                 >
                   {dropLoading ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : "Restore Contacts"}
@@ -1338,11 +1344,11 @@ export default function DirectoryList() {
                   disabled={dropLoading}
                   sx={{
                     height: "40px",
-                    borderRadius: "8px",
-                    backgroundColor: "#D92D20",
+                    borderRadius: "10px",
+                    backgroundColor: "#f43f5e",
                     color: "#FFFFFF",
                     textTransform: "none",
-                    fontWeight: 600,
+                    fontWeight: 700,
                     fontSize: "14px",
                     boxShadow: "none",
                     px: 2.5,
@@ -1350,7 +1356,7 @@ export default function DirectoryList() {
                     display: "inline-flex",
                     alignItems: "center",
                     flexShrink: 0,
-                    "&:hover": { backgroundColor: "#B42318", boxShadow: "none" }
+                    "&:hover": { backgroundColor: "#e11d48", boxShadow: "none" }
                   }}
                 >
                   {dropLoading ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : `Drop ${selectedIds.size}`}
@@ -1365,7 +1371,7 @@ export default function DirectoryList() {
           {showSkeleton ? (
             <Skeleton variant="rounded" width={75} height={24} sx={{ borderRadius: "6px", mr: 1 }} />
           ) : (
-            <Typography variant="body2" sx={{ color: "#475467", fontWeight: 600, mr: 1, whiteSpace: "nowrap", flexShrink: 0 }}>
+            <Typography variant="body2" sx={{ color: "#64748b", fontWeight: 600, mr: 1, whiteSpace: "nowrap", flexShrink: 0 }}>
               {totalLeads} results
             </Typography>
           )}
@@ -1378,9 +1384,9 @@ export default function DirectoryList() {
               onClick={handleExport}
               sx={{
                 height: "40px",
-                borderRadius: "8px",
-                borderColor: "#D0D5DD",
-                color: "#344054",
+                borderRadius: "10px",
+                borderColor: "rgba(203, 213, 225, 0.8)",
+                color: "#475569",
                 textTransform: "none",
                 fontWeight: 600,
                 fontSize: "14px",
@@ -1389,7 +1395,9 @@ export default function DirectoryList() {
                 display: "inline-flex",
                 alignItems: "center",
                 flexShrink: 0,
-                "&:hover": { borderColor: "#D0D5DD", backgroundColor: "#F9FAFB" }
+                boxShadow: "none",
+                transition: "all 0.15s ease",
+                "&:hover": { borderColor: "#0088ff", color: "#0088ff", backgroundColor: "rgba(0, 136, 255, 0.05)", boxShadow: "none" }
               }}
             >
               Export
@@ -1404,11 +1412,11 @@ export default function DirectoryList() {
               onClick={() => setAddOpen(true)}
               sx={{
                 height: "40px",
-                borderRadius: "8px",
+                borderRadius: "10px",
                 backgroundColor: "#0088ff",
                 color: "#FFFFFF",
                 textTransform: "none",
-                fontWeight: 600,
+                fontWeight: 700,
                 fontSize: "14px",
                 boxShadow: "none",
                 px: 2.5,
@@ -1416,7 +1424,11 @@ export default function DirectoryList() {
                 display: "inline-flex",
                 alignItems: "center",
                 flexShrink: 0,
-                "&:hover": { backgroundColor: "#0077dd", boxShadow: "none" }
+                transition: "all 0.15s ease",
+                "&:hover": {
+                  backgroundColor: "#0077ee",
+                  boxShadow: "none"
+                }
               }}
             >
               Add Member
@@ -1477,7 +1489,7 @@ export default function DirectoryList() {
                     disabled={rows.length === 0}
                     sx={{
                       color: "#D0D5DD",
-                      "&.Mui-checked, &.MuiCheckbox-indeterminate": { color: "#0088FF" },
+                      "&.Mui-checked, &.MuiCheckbox-indeterminate": { color: "#0088ff" },
                       p: 0.5,
                     }}
                   />
@@ -1703,7 +1715,7 @@ export default function DirectoryList() {
                             onChange={() => handleToggleRow(row.id)}
                             sx={{
                               color: "#D0D5DD",
-                              "&.Mui-checked": { color: "#0088FF" },
+                              "&.Mui-checked": { color: "#0088ff" },
                               p: 0.5,
                             }}
                           />
@@ -1738,11 +1750,11 @@ export default function DirectoryList() {
                                 boxShadow: "none",
                                 borderRadius: "16px",
                                 p: 0.75,
-                                border: "1px solid #EAECF0",
+                                border: "1px solid rgba(226, 232, 240, 0.85)",
                                 "& .MuiTooltip-arrow": {
                                   color: "#ffffff",
                                   "&::before": {
-                                    border: "1px solid #EAECF0"
+                                    border: "1px solid rgba(226, 232, 240, 0.85)"
                                   }
                                 }
                               }
@@ -1755,7 +1767,7 @@ export default function DirectoryList() {
                                 width: 180,
                                 height: 180,
                                 borderRadius: "50%",
-                                border: "2px solid #0088FF",
+                                border: "2px solid #0088ff",
                                 fontSize: "2.4rem",
                                 fontWeight: 700,
                                 bgcolor: "#0088ff",
@@ -1778,10 +1790,11 @@ export default function DirectoryList() {
                               fontSize: "14px",
                               bgcolor: row.profilePhoto?.url ? "" : "#0088ff",
                               cursor: "pointer",
-                              transition: "all 0.2s ease",
+                              transition: "all 0.15s ease",
                               "&:hover": {
-                                transform: "scale(1.1)",
-                                boxShadow: "0 0 0 3px rgba(0, 136, 255, 0.3)"
+                                transform: "scale(1.08)",
+                                outline: "2px solid #0088ff",
+                                boxShadow: "none"
                               }
                             }}
                           >

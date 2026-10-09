@@ -426,7 +426,7 @@ export default function Facilities() {
           bgcolor: '#FFFFFF',
           borderRadius: { xs: '16px', md: '20px' },
           border: '1px solid #E2E8F0',
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.02)',
+          boxShadow: 'none',
           p: { xs: 2.5, sm: 3, md: 3.5 },
           mb: 3,
           position: 'relative',
@@ -446,13 +446,13 @@ export default function Facilities() {
               width: { xs: 48, sm: 56 },
               height: { xs: 48, sm: 56 },
               borderRadius: '16px',
-              bgcolor: '#DBEAFE',
-              border: '1px solid #BFDBFE',
+              bgcolor: 'rgba(0, 136, 255, 0.1)',
+              border: '1px solid rgba(0, 136, 255, 0.25)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#0088FF',
-              boxShadow: '0 4px 12px rgba(0, 136, 255, 0.15)',
+              color: '#0088ff',
+              boxShadow: 'none',
               flexShrink: 0
             }}
           >
@@ -525,7 +525,7 @@ export default function Facilities() {
                 startIcon={<AddIcon />}
                 onClick={handleOpenCreate}
                 sx={{
-                  bgcolor: '#0088FF',
+                  bgcolor: '#0088ff',
                   color: '#FFFFFF',
                   textTransform: 'none',
                   fontWeight: 700,
@@ -533,11 +533,12 @@ export default function Facilities() {
                   px: 2.75,
                   py: 1.1,
                   fontSize: '14px',
-                  boxShadow: '0 4px 14px rgba(0, 136, 255, 0.35)',
+                  boxShadow: 'none',
                   whiteSpace: 'nowrap',
+                  transition: 'all 0.15s ease',
                   '&:hover': {
-                    bgcolor: '#0070D2',
-                    boxShadow: '0 6px 18px rgba(0, 136, 255, 0.45)'
+                    bgcolor: '#0077ee',
+                    boxShadow: 'none'
                   }
                 }}
               >
@@ -554,7 +555,7 @@ export default function Facilities() {
           bgcolor: '#FFFFFF',
           borderRadius: '16px',
           border: '1px solid #E2E8F0',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
+          boxShadow: 'none',
           p: { xs: 1.25, sm: 1.5 },
           mb: 3,
           display: 'flex',
@@ -594,15 +595,15 @@ export default function Facilities() {
               whiteSpace: 'nowrap',
               fontSize: '13px',
               fontWeight: 700,
-              transition: 'all 0.18s ease',
-              bgcolor: selectedCategory === 'ALL' ? '#0088FF' : '#F8FAFC',
+              transition: 'all 0.15s ease',
+              bgcolor: selectedCategory === 'ALL' ? '#0088ff' : '#F8FAFC',
               color: selectedCategory === 'ALL' ? '#FFFFFF' : '#334155',
-              border: selectedCategory === 'ALL' ? '1px solid #0088FF' : '1px solid #E2E8F0',
-              boxShadow: selectedCategory === 'ALL' ? '0 2px 8px rgba(0, 136, 255, 0.28)' : 'none',
+              border: selectedCategory === 'ALL' ? '1px solid #0088ff' : '1px solid #E2E8F0',
+              boxShadow: 'none',
               '&:hover': {
-                bgcolor: selectedCategory === 'ALL' ? '#0088FF' : '#EFF6FF',
-                borderColor: selectedCategory === 'ALL' ? '#0088FF' : '#BFDBFE',
-                color: selectedCategory === 'ALL' ? '#FFFFFF' : '#0088FF'
+                bgcolor: selectedCategory === 'ALL' ? '#0088ff' : '#EFF6FF',
+                borderColor: selectedCategory === 'ALL' ? '#0088ff' : '#BFDBFE',
+                color: selectedCategory === 'ALL' ? '#FFFFFF' : '#0088ff'
               }
             }}
           >
@@ -645,15 +646,15 @@ export default function Facilities() {
                   whiteSpace: 'nowrap',
                   fontSize: '13px',
                   fontWeight: 600,
-                  transition: 'all 0.18s ease',
-                  bgcolor: isSelected ? '#0088FF' : '#F8FAFC',
+                  transition: 'all 0.15s ease',
+                  bgcolor: isSelected ? '#0088ff' : '#F8FAFC',
                   color: isSelected ? '#FFFFFF' : '#334155',
-                  border: isSelected ? '1px solid #0088FF' : '1px solid #E2E8F0',
-                  boxShadow: isSelected ? '0 2px 8px rgba(0, 136, 255, 0.28)' : 'none',
+                  border: isSelected ? '1px solid #0088ff' : '1px solid #E2E8F0',
+                  boxShadow: 'none',
                   '&:hover': {
-                    bgcolor: isSelected ? '#0088FF' : '#EFF6FF',
-                    borderColor: isSelected ? '#0088FF' : '#BFDBFE',
-                    color: isSelected ? '#FFFFFF' : '#0088FF'
+                    bgcolor: isSelected ? '#0088ff' : '#EFF6FF',
+                    borderColor: isSelected ? '#0088ff' : '#BFDBFE',
+                    color: isSelected ? '#FFFFFF' : '#0088ff'
                   }
                 }}
               >
@@ -730,7 +731,7 @@ export default function Facilities() {
               variant="contained"
               startIcon={<AddIcon />}
               onClick={handleOpenCreate}
-              sx={{ bgcolor: '#0088FF', textTransform: 'none', fontWeight: 700, borderRadius: '10px', boxShadow: '0 4px 14px rgba(0, 136, 255, 0.35)', '&:hover': { bgcolor: '#0070D2' } }}
+              sx={{ bgcolor: '#0088ff', textTransform: 'none', fontWeight: 700, borderRadius: '10px', boxShadow: 'none', '&:hover': { bgcolor: '#0077ee', boxShadow: 'none' } }}
             >
               Add New Facility
             </Button>
@@ -750,15 +751,15 @@ export default function Facilities() {
                     flexDirection: 'column',
                     borderRadius: '16px',
                     border: '1px solid #E2E8F0',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+                    boxShadow: 'none',
                     bgcolor: '#FFFFFF',
                     overflow: 'hidden',
-                    transition: 'all 0.22s ease-in-out',
+                    transition: 'border-color 0.2s ease, transform 0.2s ease',
                     height: '100%',
                     '&:hover': {
-                      boxShadow: '0 12px 28px rgba(0, 136, 255, 0.09)',
-                      borderColor: '#BFDBFE',
-                      transform: 'translateY(-3px)'
+                      boxShadow: 'none',
+                      borderColor: 'rgba(0, 136, 255, 0.45)',
+                      transform: 'translateY(-2px)'
                     }
                   }}
                 >
@@ -791,7 +792,7 @@ export default function Facilities() {
                           py: 0.45,
                           fontSize: '11px',
                           fontWeight: 700,
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                          boxShadow: 'none'
                         }}
                       >
                         {theme.icon}
@@ -807,10 +808,10 @@ export default function Facilities() {
                           onClick={() => handleOpenEdit(item)}
                           sx={{
                             bgcolor: 'rgba(255, 255, 255, 0.94)',
-                            color: '#0088FF',
+                            color: '#0088ff',
                             p: 0.6,
                             backdropFilter: 'blur(4px)',
-                            boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+                            boxShadow: 'none',
                             '&:hover': { bgcolor: '#FFFFFF', transform: 'scale(1.06)' }
                           }}
                         >
@@ -827,7 +828,7 @@ export default function Facilities() {
                             color: '#EF4444',
                             p: 0.6,
                             backdropFilter: 'blur(4px)',
-                            boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+                            boxShadow: 'none',
                             '&:hover': { bgcolor: '#FFFFFF', transform: 'scale(1.06)' }
                           }}
                         >
@@ -1062,7 +1063,7 @@ export default function Facilities() {
               type="submit"
               variant="contained"
               disabled={saving}
-              sx={{ bgcolor: '#0088FF', textTransform: 'none', fontWeight: 700, borderRadius: '8px', boxShadow: '0 4px 12px rgba(0, 136, 255, 0.3)', '&:hover': { bgcolor: '#0070D2' } }}
+              sx={{ bgcolor: '#0088ff', textTransform: 'none', fontWeight: 700, borderRadius: '8px', boxShadow: 'none', '&:hover': { bgcolor: '#0077ee', boxShadow: 'none' } }}
             >
               {saving ? <CircularProgress size={20} color="inherit" /> : editingFacility ? 'Save Changes' : 'Add Facility'}
             </Button>
@@ -1076,7 +1077,7 @@ export default function Facilities() {
         onClose={() => setCategoryModalOpen(false)}
         maxWidth="sm"
         fullWidth
-        PaperProps={{ sx: { borderRadius: '18px', p: 1 } }}
+        PaperProps={{ sx: { borderRadius: '18px', p: 1, boxShadow: 'none' } }}
       >
         <DialogTitle sx={{ fontWeight: 800, fontSize: 18, color: '#0F172A', pb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>Manage Facility Category Tabs</span>
@@ -1106,15 +1107,15 @@ export default function Facilities() {
               disabled={addingCategory || !newCategoryName.trim()}
               startIcon={<AddIcon />}
               sx={{
-                bgcolor: '#0088FF',
+                bgcolor: '#0088ff',
                 color: '#fff',
                 textTransform: 'none',
                 fontWeight: 700,
                 borderRadius: '10px',
                 px: 2.5,
                 whiteSpace: 'nowrap',
-                boxShadow: '0 4px 12px rgba(0, 136, 255, 0.3)',
-                '&:hover': { bgcolor: '#0070D2' }
+                boxShadow: 'none',
+                '&:hover': { bgcolor: '#0077ee', boxShadow: 'none' }
               }}
             >
               Add
@@ -1126,7 +1127,7 @@ export default function Facilities() {
           </Typography>
 
           {/* Categories List with Edit and Custom Delete Trigger */}
-          <Paper variant="outlined" sx={{ borderRadius: '12px', overflow: 'hidden' }}>
+          <Paper variant="outlined" sx={{ borderRadius: '12px', overflow: 'hidden', boxShadow: 'none' }}>
             <List disablePadding>
               {categories.map((cat, idx) => {
                 const theme = getCategoryTheme(cat.name);
@@ -1188,7 +1189,7 @@ export default function Facilities() {
                                 setEditingCategoryId(cat._id);
                                 setEditingCategoryName(cat.name);
                               }}
-                              sx={{ color: '#0088FF' }}
+                              sx={{ color: '#0088ff' }}
                             >
                               <EditIcon sx={{ fontSize: 16 }} />
                             </IconButton>
@@ -1213,7 +1214,7 @@ export default function Facilities() {
         </DialogContent>
 
         <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setCategoryModalOpen(false)} sx={{ textTransform: 'none', fontWeight: 700, color: '#0088FF' }}>
+          <Button onClick={() => setCategoryModalOpen(false)} sx={{ textTransform: 'none', fontWeight: 700, color: '#0088ff' }}>
             Done
           </Button>
         </DialogActions>
@@ -1275,7 +1276,8 @@ export default function Facilities() {
               borderRadius: '10px',
               fontWeight: 700,
               bgcolor: '#EF4444',
-              '&:hover': { bgcolor: '#DC2626' }
+              boxShadow: 'none',
+              '&:hover': { bgcolor: '#DC2626', boxShadow: 'none' }
             }}
           >
             {deletingCategory ? <CircularProgress size={18} color="inherit" /> : 'Delete'}
@@ -1293,7 +1295,7 @@ export default function Facilities() {
           sx: {
             borderRadius: '18px',
             p: 1,
-            boxShadow: '0 20px 40px rgba(0,0,0,0.12)'
+            boxShadow: 'none'
           }
         }}
       >

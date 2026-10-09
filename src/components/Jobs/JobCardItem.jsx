@@ -44,13 +44,19 @@ function JobCardItemComponent({
       elevation={0}
       sx={{
         borderRadius: '16px',
-        border: '1px solid #E2E8F0',
+        border: '1px solid rgba(226, 232, 240, 0.85)',
         bgcolor: '#FFFFFF',
-        boxShadow: '0 2px 8px -2px rgba(15, 23, 42, 0.05)',
-        p: 2,
+        boxShadow: 'none',
+        p: 2.25,
         display: 'flex',
         flexDirection: 'column',
-        gap: 1.5
+        gap: 1.5,
+        transition: 'border-color 0.2s ease, transform 0.2s ease',
+        '&:hover': {
+          transform: 'translateY(-2px)',
+          boxShadow: 'none',
+          borderColor: 'rgba(0, 136, 255, 0.45)'
+        }
       }}
     >
       {/* 1. Header: Avatar + Company + Job Type */}
@@ -61,12 +67,13 @@ function JobCardItemComponent({
             sx={{
               width: 44,
               height: 44,
-              bgcolor: '#EFF6FF',
+              bgcolor: 'rgba(0, 136, 255, 0.08)',
               color: '#0088ff',
               fontSize: '16px',
               fontWeight: 700,
-              border: '1px solid #DBEAFE',
+              border: '1px solid rgba(0, 136, 255, 0.2)',
               borderRadius: '12px',
+              boxShadow: 'none',
               flexShrink: 0
             }}
           >
@@ -111,12 +118,13 @@ function JobCardItemComponent({
           variant="subtitle1"
           onClick={() => onViewDetails(job)}
           sx={{
-            fontWeight: 800,
+            fontFamily: '"Outfit", sans-serif',
+            fontWeight: 700,
             color: '#0F172A',
-            fontSize: '15.5px',
+            fontSize: '16px',
             cursor: 'pointer',
             lineHeight: 1.3,
-            '&:hover': { color: '#0088ff', textDecoration: 'underline' }
+            '&:hover': { color: '#0284c7' }
           }}
         >
           {job.jobRole}
@@ -158,7 +166,7 @@ function JobCardItemComponent({
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
           {job.interviewMode === 'Online' ? (
-            <OnlineInterviewIcon sx={{ fontSize: 15, color: '#2563EB', flexShrink: 0 }} />
+            <OnlineInterviewIcon sx={{ fontSize: 15, color: '#0284c7', flexShrink: 0 }} />
           ) : (
             <InPersonIcon sx={{ fontSize: 15, color: '#D97706', flexShrink: 0 }} />
           )}
@@ -183,8 +191,9 @@ function JobCardItemComponent({
               height: 22,
               fontSize: '11px',
               fontWeight: 700,
-              bgcolor: (job.applicantsCount || 0) > 0 ? '#EFF6FF' : '#F1F5F9',
-              color: (job.applicantsCount || 0) > 0 ? '#1D4ED8' : '#64748B'
+              bgcolor: (job.applicantsCount || 0) > 0 ? 'rgba(2, 132, 199, 0.08)' : '#F1F5F9',
+              color: (job.applicantsCount || 0) > 0 ? '#0284c7' : '#64748B',
+              border: (job.applicantsCount || 0) > 0 ? '1px solid rgba(2, 132, 199, 0.2)' : 'none'
             }}
           />
           <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700 }}>
@@ -210,7 +219,7 @@ function JobCardItemComponent({
           startIcon={<ViewIcon sx={{ fontSize: 16 }} />}
           onClick={() => onViewDetails(job)}
           sx={{
-            borderRadius: '8px',
+            borderRadius: '9px',
             px: 1.5,
             py: 0.6,
             fontSize: '12px',
@@ -232,7 +241,7 @@ function JobCardItemComponent({
               <IconButton
                 size="small"
                 onClick={() => onOpenApplicants(job)}
-                sx={{ color: '#0088ff', bgcolor: '#EFF6FF', p: 0.75, borderRadius: '8px' }}
+                sx={{ color: '#0284c7', bgcolor: 'rgba(2, 132, 199, 0.08)', p: 0.75, borderRadius: '8px' }}
               >
                 <Badge badgeContent={job.applicantsCount || 0} color="primary">
                   <ApplicantsIcon sx={{ fontSize: 17 }} />
@@ -313,10 +322,15 @@ function JobCardItemComponent({
                 fontSize: '12.5px',
                 fontWeight: 700,
                 textTransform: 'none',
-                bgcolor: '#0088ff',
-                boxShadow: '0 2px 8px rgba(0, 136, 255, 0.25)',
+                backgroundColor: '#0088ff',
+                color: '#FFFFFF',
+                boxShadow: 'none',
                 whiteSpace: 'nowrap',
-                '&:hover': { bgcolor: '#0077ee', boxShadow: 'none' }
+                transition: 'all 0.15s ease',
+                '&:hover': {
+                  backgroundColor: '#0077ee',
+                  boxShadow: 'none'
+                }
               }}
             >
               Apply Now

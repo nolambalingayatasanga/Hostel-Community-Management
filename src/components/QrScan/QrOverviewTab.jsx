@@ -29,7 +29,7 @@ export default function QrOverviewTab({ data, onNavigateDrive }) {
             sx={{
               borderRadius: '18px',
               border: '1px solid #EBF0F5',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
+              boxShadow: 'none',
               bgcolor: '#FFFFFF',
               position: 'relative',
               overflow: 'hidden',
@@ -47,8 +47,8 @@ export default function QrOverviewTab({ data, onNavigateDrive }) {
                       width: { xs: 36, sm: 42 },
                       height: { xs: 36, sm: 42 },
                       borderRadius: '12px',
-                      bgcolor: '#EFF8FF',
-                      color: '#0284C7',
+                      bgcolor: 'rgba(0, 136, 255, 0.08)',
+                      color: '#0088ff',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center'
@@ -74,8 +74,8 @@ export default function QrOverviewTab({ data, onNavigateDrive }) {
                     width: 28,
                     height: 28,
                     borderRadius: '8px',
-                    bgcolor: '#F0F9FF',
-                    color: '#0284C7',
+                    bgcolor: 'rgba(0, 136, 255, 0.08)',
+                    color: '#0088ff',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center'
@@ -101,7 +101,7 @@ export default function QrOverviewTab({ data, onNavigateDrive }) {
                 </Typography>
               </Box>
             </CardContent>
-            <BottomWave color="#0284C7" />
+            <BottomWave color="#0088ff" />
           </Card>
         </Grid>
 
@@ -111,7 +111,7 @@ export default function QrOverviewTab({ data, onNavigateDrive }) {
             sx={{
               borderRadius: '18px',
               border: '1px solid #EBF0F5',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
+              boxShadow: 'none',
               bgcolor: '#FFFFFF',
               position: 'relative',
               overflow: 'hidden',
@@ -193,7 +193,7 @@ export default function QrOverviewTab({ data, onNavigateDrive }) {
             sx={{
               borderRadius: '18px',
               border: '1px solid #EBF0F5',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
+              boxShadow: 'none',
               bgcolor: '#FFFFFF',
               position: 'relative',
               overflow: 'hidden',
@@ -275,7 +275,7 @@ export default function QrOverviewTab({ data, onNavigateDrive }) {
             sx={{
               borderRadius: '18px',
               border: '1px solid #EBF0F5',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
+              boxShadow: 'none',
               bgcolor: '#FFFFFF',
               position: 'relative',
               overflow: 'hidden',
@@ -357,7 +357,7 @@ export default function QrOverviewTab({ data, onNavigateDrive }) {
             sx={{
               borderRadius: '18px',
               border: '1px solid #EBF0F5',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
+              boxShadow: 'none',
               bgcolor: '#FFFFFF',
               position: 'relative',
               overflow: 'hidden',
@@ -438,8 +438,9 @@ export default function QrOverviewTab({ data, onNavigateDrive }) {
           <Card
             sx={{
               borderRadius: '18px',
-              border: '1px solid #E0F2FE',
-              bgcolor: '#F0F9FF',
+              border: '1px solid #E2E8F0',
+              bgcolor: '#FFFFFF',
+              boxShadow: 'none',
               minHeight: { xs: 140, sm: 180 },
               display: 'flex',
               flexDirection: 'column',
@@ -453,8 +454,8 @@ export default function QrOverviewTab({ data, onNavigateDrive }) {
                     width: 36,
                     height: 36,
                     borderRadius: '10px',
-                    bgcolor: '#BAE6FD',
-                    color: '#0284C7',
+                    bgcolor: 'rgba(0, 136, 255, 0.08)',
+                    color: '#0088ff',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center'
@@ -462,7 +463,7 @@ export default function QrOverviewTab({ data, onNavigateDrive }) {
                 >
                   <LinkIcon sx={{ fontSize: 20 }} />
                 </Box>
-                <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0369A1', fontSize: '0.95rem' }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0F172A', fontSize: '0.95rem' }}>
                   Share your links
                 </Typography>
               </Stack>
@@ -474,14 +475,15 @@ export default function QrOverviewTab({ data, onNavigateDrive }) {
                 endIcon={<ArrowForwardIcon sx={{ fontSize: 16 }} />}
                 onClick={onNavigateDrive}
                 sx={{
-                  bgcolor: '#0284C7',
+                  bgcolor: '#0088ff',
+                  color: '#FFFFFF',
                   textTransform: 'none',
                   fontWeight: 700,
                   borderRadius: '10px',
                   fontSize: '0.82rem',
                   px: 2.5,
-                  boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)',
-                  '&:hover': { bgcolor: '#0369A1' }
+                  boxShadow: 'none',
+                  '&:hover': { bgcolor: '#0077ee', boxShadow: 'none' }
                 }}
               >
                 Create New Link

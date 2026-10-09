@@ -25,8 +25,8 @@ const AccessHeaderActions = ({ portalNode, saving, onResetDefaults, onSave }) =>
           boxShadow: 'none',
           transition: 'all 0.15s ease',
           '&:hover': {
-            backgroundColor: '#1465D0',
-            boxShadow: '0 6px 18px rgba(24, 119, 242, 0.45)'
+            backgroundColor: '#0077ee',
+            boxShadow: 'none'
           }
         }}
       >

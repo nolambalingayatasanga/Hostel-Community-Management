@@ -335,7 +335,7 @@ export default function UploadRequestsTable({
         bgcolor: '#FFFFFF',
         borderRadius: '16px',
         border: '1px solid #EBF0F5',
-        boxShadow: '0 2px 12px rgba(0,0,0,0.02)',
+        boxShadow: 'none',
         overflow: { xs: 'visible', md: 'hidden' }
       }}
     >
@@ -425,8 +425,8 @@ export default function UploadRequestsTable({
                     flexShrink: 0,
                     '&.Mui-selected': {
                       bgcolor: '#FFFFFF',
-                      color: '#2563EB',
-                      boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
+                      color: '#0088ff',
+                      boxShadow: 'none'
                     }
                   }}
                 />
@@ -460,17 +460,17 @@ export default function UploadRequestsTable({
                   border: '1px solid #E2E8F0',
                   color: '#64748B',
                   flexShrink: 0,
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                  boxShadow: 'none',
                   transition: 'all 0.15s ease',
                   '&:hover': {
                     bgcolor: '#F8FAFC',
                     borderColor: '#CBD5E1',
-                    color: '#2563EB'
+                    color: '#0088ff'
                   }
                 }}
               >
                 {loading ? (
-                  <CircularProgress size={16} sx={{ color: '#2563EB' }} />
+                  <CircularProgress size={16} sx={{ color: '#0088ff' }} />
                 ) : (
                   <RefreshIcon sx={{ fontSize: 19 }} />
                 )}
@@ -511,7 +511,7 @@ export default function UploadRequestsTable({
                   border: '1px solid #E2E8F0',
                   '& fieldset': { border: 'none' },
                   '&:hover': { border: '1px solid #CBD5E1' },
-                  '&.Mui-focused': { border: '1px solid #2563EB', boxShadow: '0 0 0 3px rgba(37,99,235,0.1)' }
+                  '&.Mui-focused': { border: '1px solid #0088ff', boxShadow: 'none' }
                 }
               }}
             />
@@ -587,7 +587,7 @@ export default function UploadRequestsTable({
                       borderRadius: '16px',
                       border: '1px solid #E2E8F0',
                       bgcolor: '#FFFFFF',
-                      boxShadow: '0 2px 8px -2px rgba(15, 23, 42, 0.05)',
+                      boxShadow: 'none',
                       p: 2,
                       display: 'flex',
                       flexDirection: 'column',
@@ -1239,11 +1239,11 @@ export default function UploadRequestsTable({
                               bgcolor: '#F1F5F9',
                               border: '1px solid #E2E8F0',
                               flexShrink: 0,
-                              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                              boxShadow: 'none',
                               transition: 'transform 0.15s ease, box-shadow 0.15s ease',
                               '&:hover': {
                                 transform: 'scale(1.03)',
-                                boxShadow: '0 3px 8px rgba(0,0,0,0.08)'
+                                boxShadow: 'none'
                               }
                             }}
                           >
@@ -1280,7 +1280,7 @@ export default function UploadRequestsTable({
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    boxShadow: '0 1px 4px rgba(0,0,0,0.3)'
+                                    boxShadow: 'none'
                                   }}
                                 >
                                   <PlayArrowIcon sx={{ fontSize: 15, color: '#0F172A', ml: 0.2 }} />
@@ -1443,7 +1443,7 @@ export default function UploadRequestsTable({
                                 border: '1px solid #E2E8F0',
                                 bgcolor: '#FFFFFF',
                                 color: '#64748B',
-                                boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                                boxShadow: 'none',
                                 transition: 'all 0.15s ease',
                                 '&:hover': {
                                   bgcolor: '#F8FAFC',
@@ -1473,7 +1473,7 @@ export default function UploadRequestsTable({
                                       border: '1px solid #E2E8F0',
                                       bgcolor: '#FFFFFF',
                                       color: '#059669',
-                                      boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                                      boxShadow: 'none',
                                       transition: 'all 0.15s ease',
                                       '&:hover': {
                                         bgcolor: '#ECFDF5',
@@ -1502,7 +1502,7 @@ export default function UploadRequestsTable({
                                       border: '1px solid #E2E8F0',
                                       bgcolor: '#FFFFFF',
                                       color: '#DC2626',
-                                      boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                                      boxShadow: 'none',
                                       transition: 'all 0.15s ease',
                                       '&:hover': {
                                         bgcolor: '#FEF2F2',
@@ -1531,7 +1531,7 @@ export default function UploadRequestsTable({
                                     border: '1px solid #E2E8F0',
                                     bgcolor: '#FFFFFF',
                                     color: '#64748B',
-                                    boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                                    boxShadow: 'none',
                                     transition: 'all 0.15s ease',
                                     '&:hover': {
                                       bgcolor: '#F8FAFC',
@@ -1556,7 +1556,7 @@ export default function UploadRequestsTable({
                                     border: '1px solid #E2E8F0',
                                     bgcolor: '#FFFFFF',
                                     color: '#64748B',
-                                    boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                                    boxShadow: 'none',
                                     transition: 'all 0.15s ease',
                                     '&:hover': {
                                       bgcolor: '#F8FAFC',
@@ -1583,7 +1583,7 @@ export default function UploadRequestsTable({
                                     border: '1px solid #E2E8F0',
                                     bgcolor: '#FFFFFF',
                                     color: '#DC2626',
-                                    boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                                    boxShadow: 'none',
                                     transition: 'all 0.15s ease',
                                     '&:hover': {
                                       bgcolor: '#FEF2F2',
@@ -1606,7 +1606,7 @@ export default function UploadRequestsTable({
                                     border: '1px solid #E2E8F0',
                                     bgcolor: '#FFFFFF',
                                     color: '#059669',
-                                    boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                                    boxShadow: 'none',
                                     transition: 'all 0.15s ease',
                                     '&:hover': {
                                       bgcolor: '#ECFDF5',
@@ -1630,7 +1630,7 @@ export default function UploadRequestsTable({
                                     border: '1px solid #E2E8F0',
                                     bgcolor: '#FFFFFF',
                                     color: '#DC2626',
-                                    boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                                    boxShadow: 'none',
                                     transition: 'all 0.15s ease',
                                     '&:hover': {
                                       bgcolor: '#FEF2F2',
@@ -1657,7 +1657,7 @@ export default function UploadRequestsTable({
                                   border: '1px solid #FEE2E2',
                                   bgcolor: '#FFFFFF',
                                   color: '#DC2626',
-                                  boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                                  boxShadow: 'none',
                                   transition: 'all 0.15s ease',
                                   '&:hover': {
                                     bgcolor: '#FEF2F2',
@@ -1794,15 +1794,15 @@ export default function UploadRequestsTable({
                       fontSize: '12.5px',
                       fontWeight: isActive ? 700 : 500,
                       cursor: 'pointer',
-                      bgcolor: isActive ? '#2563EB' : '#FFFFFF',
+                      bgcolor: isActive ? '#0088ff' : '#FFFFFF',
                       color: isActive ? '#FFFFFF' : '#64748B',
-                      border: isActive ? '1px solid #2563EB' : '1px solid #E2E8F0',
+                      border: isActive ? '1px solid #0088ff' : '1px solid #E2E8F0',
                       transition: 'all 0.15s ease',
-                      boxShadow: isActive ? '0 2px 6px rgba(37,99,235,0.25)' : 'none',
+                      boxShadow: 'none',
                       '&:hover': {
-                        bgcolor: isActive ? '#1D4ED8' : '#F8FAFC',
+                        bgcolor: isActive ? '#0077ee' : '#F8FAFC',
                         color: isActive ? '#FFFFFF' : '#0F172A',
-                        borderColor: isActive ? '#1D4ED8' : '#CBD5E1'
+                        borderColor: isActive ? '#0077ee' : '#CBD5E1'
                       }
                     }}
                   >

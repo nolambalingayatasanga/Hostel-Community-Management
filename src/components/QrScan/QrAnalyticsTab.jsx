@@ -34,7 +34,7 @@ export default function QrAnalyticsTab({ data }) {
             sx={{
               borderRadius: '18px',
               border: '1px solid #E2E8F0',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
+              boxShadow: 'none',
               bgcolor: '#FFFFFF',
               p: { xs: 2, sm: 3 }
             }}
@@ -45,15 +45,15 @@ export default function QrAnalyticsTab({ data }) {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 1,
-                  bgcolor: '#EFF8FF',
+                  bgcolor: 'rgba(0, 136, 255, 0.08)',
                   px: 1.5,
                   py: 0.6,
                   borderRadius: '16px',
-                  border: '1px solid #BAE6FD'
+                  border: '1px solid rgba(0, 136, 255, 0.2)'
                 }}
               >
-                <TrendingUpIcon sx={{ fontSize: 16, color: '#0284C7' }} />
-                <Typography sx={{ color: '#0284C7', fontWeight: 800, fontSize: '0.82rem' }}>
+                <TrendingUpIcon sx={{ fontSize: 16, color: '#0088ff' }} />
+                <Typography sx={{ color: '#0088ff', fontWeight: 800, fontSize: '0.82rem' }}>
                   {data?.weekScans || 100} scans this week
                 </Typography>
               </Box>
@@ -65,8 +65,8 @@ export default function QrAnalyticsTab({ data }) {
                 <AreaChart data={data?.trend || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="qrColor" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#0284C7" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#0284C7" stopOpacity={0.0} />
+                      <stop offset="5%" stopColor="#0088ff" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#0088ff" stopOpacity={0.0} />
                     </linearGradient>
                     <linearGradient id="clickColor" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#16A34A" stopOpacity={0.35} />
@@ -77,9 +77,9 @@ export default function QrAnalyticsTab({ data }) {
                   <XAxis dataKey="day" tickLine={false} axisLine={{ stroke: '#E2E8F0' }} tick={{ fill: '#64748B', fontSize: 12, fontWeight: 600 }} />
                   <YAxis tickLine={false} axisLine={{ stroke: '#E2E8F0' }} tick={{ fill: '#64748B', fontSize: 12 }} allowDecimals={false} />
                   <ChartTooltip
-                    contentStyle={{ borderRadius: 12, border: '1px solid #E2E8F0', boxShadow: '0 4px 14px rgba(0,0,0,0.08)' }}
+                    contentStyle={{ borderRadius: 12, border: '1px solid #E2E8F0', boxShadow: 'none' }}
                   />
-                  <Area type="monotone" dataKey="scans" stroke="#0284C7" strokeWidth={3} fillOpacity={1} fill="url(#qrColor)" name="QR Scans" />
+                  <Area type="monotone" dataKey="scans" stroke="#0088ff" strokeWidth={3} fillOpacity={1} fill="url(#qrColor)" name="QR Scans" />
                   <Area type="monotone" dataKey="clicks" stroke="#16A34A" strokeWidth={3} fillOpacity={1} fill="url(#clickColor)" name="Direct Clicks" />
                 </AreaChart>
               </ResponsiveContainer>
@@ -88,7 +88,7 @@ export default function QrAnalyticsTab({ data }) {
             {/* Legend */}
             <Stack direction="row" spacing={3} sx={{ justifyContent: 'center', alignItems: 'center', mt: 2 }}>
               <Stack direction="row" spacing={0.8} sx={{ alignItems: 'center' }}>
-                <DotIcon sx={{ fontSize: 14, color: '#0284C7' }} />
+                <DotIcon sx={{ fontSize: 14, color: '#0088ff' }} />
                 <Typography variant="caption" sx={{ fontWeight: 700, color: '#334155' }}>QR Scans</Typography>
               </Stack>
               <Stack direction="row" spacing={0.8} sx={{ alignItems: 'center' }}>
@@ -103,7 +103,7 @@ export default function QrAnalyticsTab({ data }) {
         <Grid size={{ xs: 12, lg: 4 }}>
           <Stack spacing={2}>
             {/* Card 1: Total Scans */}
-            <Card sx={{ borderRadius: '18px', border: '1px solid #E2E8F0', p: 2.5, bgcolor: '#FFFFFF' }}>
+            <Card sx={{ borderRadius: '18px', border: '1px solid #E2E8F0', p: 2.5, bgcolor: '#FFFFFF', boxShadow: 'none' }}>
               <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
                 <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
                   <Box
@@ -111,8 +111,8 @@ export default function QrAnalyticsTab({ data }) {
                       width: 44,
                       height: 44,
                       borderRadius: '12px',
-                      bgcolor: '#EFF8FF',
-                      color: '#0284C7',
+                      bgcolor: 'rgba(0, 136, 255, 0.08)',
+                      color: '#0088ff',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center'

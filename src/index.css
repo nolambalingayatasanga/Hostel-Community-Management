@@ -1,15 +1,44 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&family=Outfit:wght@400;500;600;700;800;900&display=swap');
+
+:root {
+  --primary: #0088ff;
+  --primary-light: #33a0ff;
+  --primary-dark: #0070d6;
+  --primary-glow: rgba(0, 136, 255, 0.15);
+  --secondary: #6366f1;
+  --bg-main: #f8fafc;
+  --bg-card: #ffffff;
+  --border-light: rgba(226, 232, 240, 0.85);
+  --border-glow: rgba(0, 136, 255, 0.3);
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --shadow-glow: none;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  box-shadow: none !important;
+}
 
 html, body {
   margin: 0;
   padding: 0;
-  background-color: #F8FAFC;
-  color: #111827;
-  font-family: "Inter", "Outfit", sans-serif;
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  font-family: "Inter", "Outfit", system-ui, -apple-system, sans-serif;
   min-height: 100vh;
   width: 100%;
   overflow-x: clip;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 #root {
@@ -18,11 +47,84 @@ html, body {
   flex-direction: column;
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: #F1F5F9; }
-::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 8px; }
-::-webkit-scrollbar-thumb:hover { background: #0088ff; }
+/* Typography Headings */
+h1, h2, h3, h4, h5, h6 {
+  font-family: "Outfit", "Inter", sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Sleek Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+  transition: background 0.2s ease;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+/* Glassmorphism & Modern Card Surfaces (Zero Shadow) */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+  border: 1px solid var(--border-light) !important;
+  box-shadow: none !important;
+}
+
+.glass-dropdown {
+  background: rgba(255, 255, 255, 0.98) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid var(--border-light) !important;
+  box-shadow: none !important;
+}
+
+.card-hover {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+.card-hover:hover {
+  transform: translateY(-2px) !important;
+  border-color: rgba(0, 136, 255, 0.45) !important;
+  box-shadow: none !important;
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #0088ff 0%, #0070d6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
+}
+
+.gradient-badge {
+  background: rgba(0, 136, 255, 0.08);
+  border: 1px solid rgba(0, 136, 255, 0.25);
+  color: #0088ff;
+}
+
+.subtle-mesh-bg {
+  background: radial-gradient(at 0% 0%, rgba(0, 136, 255, 0.04) 0px, transparent 50%),
+              radial-gradient(at 100% 0%, rgba(99, 102, 241, 0.04) 0px, transparent 50%),
+              radial-gradient(at 100% 100%, rgba(0, 136, 255, 0.03) 0px, transparent 50%),
+              #f8fafc;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
 
 /* Calendar cells — fixed equal height, overflow clipped */
 .cal-cell {
@@ -50,23 +152,24 @@ html, body {
   justify-content: space-between !important;
   min-height: unset !important;
   max-height: none !important;
-  padding: 9px 14px !important;
-  border-radius: 12px !important;
-  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.16), 0 2px 6px -1px rgba(0, 0, 0, 0.06) !important;
+  padding: 10px 16px !important;
+  border-radius: 14px !important;
+  box-shadow: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
   font-family: "Outfit", "Inter", sans-serif !important;
   font-size: 13.5px !important;
   line-height: 1.4 !important;
   font-weight: 500 !important;
   box-sizing: border-box !important;
+  backdrop-filter: blur(12px) !important;
 }
 
-/* Message container: prevent multi-row wrapping of action button, compact text */
 .SnackbarItem-message,
 .notistack-MuiContent > div:first-of-type,
 #notistack-snackbar {
   display: flex !important;
   align-items: center !important;
-  gap: 8px !important;
+  gap: 10px !important;
   flex: 1 1 auto !important;
   min-width: 0 !important;
   padding: 0 !important;
@@ -76,9 +179,8 @@ html, body {
   word-break: break-word !important;
 }
 
-/* Action button (close icon) pinned neatly to the right */
 .SnackbarItem-action {
-  margin-left: 8px !important;
+  margin-left: 10px !important;
   margin-right: -4px !important;
   padding-left: 4px !important;
   flex-shrink: 0 !important;
@@ -86,28 +188,27 @@ html, body {
   align-items: center !important;
 }
 
-/* Modern vibrant color variations */
 .notistack-MuiContent-success {
-  background-color: #059669 !important;
+  background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
   color: #FFFFFF !important;
 }
 
 .notistack-MuiContent-error {
-  background-color: #DC2626 !important;
+  background: linear-gradient(135deg, #e11d48 0%, #be123c 100%) !important;
   color: #FFFFFF !important;
 }
 
 .notistack-MuiContent-warning {
-  background-color: #D97706 !important;
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%) !important;
   color: #FFFFFF !important;
 }
 
 .notistack-MuiContent-info {
-  background-color: #2563EB !important;
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
   color: #FFFFFF !important;
 }
 
-/* ─── Mobile View (< 600px): Centered, full readable width, compact height ─── */
+/* Mobile View (< 600px) */
 @media (max-width: 600px) {
   .notistack-SnackbarContainer {
     top: 14px !important;
@@ -139,14 +240,14 @@ html, body {
     padding: 8px 12px !important;
     font-size: 13px !important;
     line-height: 1.35 !important;
-    border-radius: 10px !important;
+    border-radius: 12px !important;
   }
 
   .SnackbarItem-message,
   #notistack-snackbar {
     font-size: 13px !important;
     line-height: 1.35 !important;
-    gap: 6px !important;
+    gap: 8px !important;
   }
 
   .SnackbarItem-action {

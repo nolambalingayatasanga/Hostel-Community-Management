@@ -12,7 +12,7 @@ export default function JobNavigationTabs({
   canCreateOrganization
 }) {
   return (
-    <Box sx={{ borderBottom: 1, borderColor: '#E2E8F0', mb: 1.5, flexShrink: 0, maxWidth: '100%' }}>
+    <Box sx={{ borderBottom: '1px solid rgba(226, 232, 240, 0.8)', mb: 2, flexShrink: 0, maxWidth: '100%' }}>
       <Tabs
         value={activeTab}
         onChange={(_, val) => onTabChange(val)}
@@ -20,16 +20,27 @@ export default function JobNavigationTabs({
         scrollButtons="auto"
         allowScrollButtonsMobile
         sx={{
-          minHeight: 42,
+          minHeight: 46,
           maxWidth: '100%',
-          '& .MuiTabs-indicator': { bgcolor: '#0088ff', height: 3, borderRadius: '3px' },
+          '& .MuiTabs-indicator': {
+            backgroundColor: '#0088ff',
+            height: 3,
+            borderRadius: '3px 3px 0 0'
+          },
           '& .MuiTab-root': {
             textTransform: 'none',
-            fontWeight: 700,
-            fontSize: '13.5px',
-            minHeight: 42,
-            py: 0.75,
-            whiteSpace: 'nowrap'
+            fontFamily: '"Outfit", sans-serif',
+            fontWeight: 600,
+            fontSize: '14px',
+            minHeight: 46,
+            py: 1,
+            px: 2,
+            whiteSpace: 'nowrap',
+            color: '#64748B',
+            '&.Mui-selected': {
+              color: '#0088ff',
+              fontWeight: 700
+            }
           },
           '& .MuiTabs-scrollButtons': {
             color: '#64748B',
@@ -50,8 +61,9 @@ export default function JobNavigationTabs({
                   height: 20,
                   fontSize: '11px',
                   fontWeight: 700,
-                  bgcolor: activeTab === 'explore' ? '#0088ff' : '#E2E8F0',
-                  color: activeTab === 'explore' ? '#fff' : '#64748B'
+                  bgcolor: activeTab === 'explore' ? 'rgba(0, 136, 255, 0.12)' : '#F1F5F9',
+                  color: activeTab === 'explore' ? '#0088ff' : '#64748B',
+                  border: activeTab === 'explore' ? '1px solid rgba(0, 136, 255, 0.25)' : 'none'
                 }}
               />
             </Box>
@@ -69,8 +81,9 @@ export default function JobNavigationTabs({
                   height: 20,
                   fontSize: '11px',
                   fontWeight: 700,
-                  bgcolor: activeTab === 'closed' ? '#0088ff' : '#E2E8F0',
-                  color: activeTab === 'closed' ? '#fff' : '#64748B'
+                  bgcolor: activeTab === 'closed' ? 'rgba(0, 136, 255, 0.12)' : '#F1F5F9',
+                  color: activeTab === 'closed' ? '#0088ff' : '#64748B',
+                  border: activeTab === 'closed' ? '1px solid rgba(0, 136, 255, 0.25)' : 'none'
                 }}
               />
             </Box>
@@ -89,8 +102,9 @@ export default function JobNavigationTabs({
                     height: 20,
                     fontSize: '11px',
                     fontWeight: 700,
-                    bgcolor: activeTab === 'my-applications' ? '#0088ff' : '#E2E8F0',
-                    color: activeTab === 'my-applications' ? '#fff' : '#64748B'
+                    bgcolor: activeTab === 'my-applications' ? 'rgba(0, 136, 255, 0.12)' : '#F1F5F9',
+                    color: activeTab === 'my-applications' ? '#0088ff' : '#64748B',
+                    border: activeTab === 'my-applications' ? '1px solid rgba(0, 136, 255, 0.25)' : 'none'
                   }}
                 />
               </Box>
@@ -110,8 +124,9 @@ export default function JobNavigationTabs({
                     height: 20,
                     fontSize: '11px',
                     fontWeight: 700,
-                    bgcolor: activeTab === 'my-org' ? '#0088ff' : '#E2E8F0',
-                    color: activeTab === 'my-org' ? '#fff' : '#64748B'
+                    bgcolor: activeTab === 'my-org' ? 'rgba(0, 136, 255, 0.12)' : '#F1F5F9',
+                    color: activeTab === 'my-org' ? '#0088ff' : '#64748B',
+                    border: activeTab === 'my-org' ? '1px solid rgba(0, 136, 255, 0.25)' : 'none'
                   }}
                 />
               </Box>

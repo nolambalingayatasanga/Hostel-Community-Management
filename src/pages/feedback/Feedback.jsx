@@ -317,7 +317,7 @@ export default function Feedback() {
           minHeight: 0,
           borderRadius: '16px',
           border: '1px solid #E2E8F0',
-          boxShadow: '0 4px 20px -4px rgba(15, 23, 42, 0.05)',
+          boxShadow: 'none',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',

@@ -20,7 +20,7 @@ export const formatTime = (value) => {
 };
 
 export const DeviceIcon = ({ type }) => {
-  if (type === 'mobile') return <PhoneIcon sx={{ fontSize: 18, color: '#0284C7' }} />;
+  if (type === 'mobile') return <PhoneIcon sx={{ fontSize: 18, color: '#0088ff' }} />;
   if (type === 'tablet') return <TabletIcon sx={{ fontSize: 18, color: '#7C3AED' }} />;
   return <DesktopIcon sx={{ fontSize: 18, color: '#475467' }} />;
 };

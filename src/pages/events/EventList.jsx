@@ -69,13 +69,13 @@ dayjs.extend(isoWeek);
 const WEEK_LABELS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 const EVENT_COLORS = [
-  { label: "Ocean Blue", value: "#0088ff" },
+  { label: "Electric Blue", value: "#0284c7" },
   { label: "Royal Purple", value: "#7c3aed" },
   { label: "Emerald Green", value: "#059669" },
   { label: "Vibrant Orange", value: "#ea580c" },
   { label: "Crimson Red", value: "#dc2626" },
   { label: "Amber Gold", value: "#d97706" },
-  { label: "Sky Cyan", value: "#0284c7" },
+  { label: "Sky Cyan", value: "#38bdf8" },
   { label: "Hot Pink", value: "#db2777" },
   { label: "Deep Indigo", value: "#4f46e5" },
   { label: "Slate Gray", value: "#475569" },
@@ -101,7 +101,7 @@ function CalendarToolbar({ view, onViewChange, currentDate, onPrev, onNext, onTo
         px: { xs: 1.5, sm: 2.5 },
         pt: { xs: 1.25, sm: 1.5 },
         pb: { xs: 1.25, sm: 1.5 },
-        borderBottom: "1px solid #F1F5F9",
+        borderBottom: "1px solid rgba(226, 232, 240, 0.85)",
         bgcolor: "#fff"
       }}
     >
@@ -119,27 +119,29 @@ function CalendarToolbar({ view, onViewChange, currentDate, onPrev, onNext, onTo
           onChange={(_, v) => v && onViewChange(v)}
           size="small"
           sx={{
-            bgcolor: "#F4F4F5",
-            p: 0.25,
-            borderRadius: "8px",
+            bgcolor: "rgba(241, 245, 249, 0.85)",
+            p: 0.35,
+            borderRadius: "10px",
             width: { xs: "100%", sm: "auto" },
             display: "flex",
+            border: "1px solid rgba(226, 232, 240, 0.8)",
             "& .MuiToggleButton-root": {
               border: "none",
-              borderRadius: "6px !important",
+              borderRadius: "8px !important",
               textTransform: "none",
               flex: { xs: 1, sm: "initial" },
               px: { xs: 1.5, sm: 2 },
-              py: 0.5,
+              py: 0.55,
               fontSize: "13px",
               fontWeight: 600,
               color: "#475467",
-              "&:hover": { bgcolor: "#E4E4E7" },
+              transition: "all 0.15s ease",
+              "&:hover": { bgcolor: "rgba(0, 136, 255, 0.08)", color: "#0088ff" },
               "&.Mui-selected": {
                 bgcolor: "#0088ff",
                 color: "#fff",
                 boxShadow: "none",
-                "&:hover": { bgcolor: "#0088ff" },
+                "&:hover": { bgcolor: "#0077ee", boxShadow: "none" },
               },
             },
           }}
@@ -169,16 +171,20 @@ function CalendarToolbar({ view, onViewChange, currentDate, onPrev, onNext, onTo
                 onClick={onOpenCreate}
                 sx={{
                   display: { xs: "none", sm: "inline-flex" },
-                  bgcolor: "#0088ff",
+                  backgroundColor: "#0088ff",
                   color: "#fff",
                   fontWeight: 700,
                   fontSize: "13px",
                   textTransform: "none",
-                  borderRadius: "8px",
-                  px: 2,
-                  py: 0.65,
-                  boxShadow: "0 1px 3px rgba(0, 136, 255, 0.25)",
-                  "&:hover": { bgcolor: "#0077e6" },
+                  borderRadius: "10px",
+                  px: 2.2,
+                  py: 0.7,
+                  boxShadow: "none",
+                  transition: "all 0.15s ease",
+                  "&:hover": {
+                    backgroundColor: "#0077ee",
+                    boxShadow: "none"
+                  },
                 }}
               >
                 Add Event
@@ -613,9 +619,9 @@ function AllEventsView({
           dotColor = "#0088ff";
         } else if (!today.isBefore(startDay) && !today.isAfter(endDay)) {
           statusLabel = "Ongoing";
-          statusBg = "#EFF6FF";
-          statusColor = "#0088ff";
-          dotColor = "#0088ff";
+          statusBg = "rgba(2, 132, 199, 0.08)";
+          statusColor = "#0284c7";
+          dotColor = "#0284c7";
         } else if (endDay.isBefore(today)) {
           statusLabel = "Completed";
           statusBg = "#F3F4F6";
@@ -630,16 +636,17 @@ function AllEventsView({
             sx={{
               position: "relative",
               borderRadius: "14px",
-              border: "1px solid #EAECF0",
-              borderLeft: `4px solid ${ev.color || "#0088ff"}`,
+              border: "1px solid rgba(226, 232, 240, 0.85)",
+              borderLeft: `4px solid ${ev.color || "#0284c7"}`,
               bgcolor: "#FFFFFF",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+              boxShadow: "0 1px 3px 0 rgba(15, 23, 42, 0.04)",
               p: { xs: 1.5, sm: 2 },
-              transition: "all 0.2s ease",
+              transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
               "&:hover": {
-                boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
-                borderColor: "#D0D5DD",
-                borderLeftColor: ev.color || "#0088ff",
+                boxShadow: "0 8px 24px -4px rgba(15, 23, 42, 0.08)",
+                borderColor: "rgba(2, 132, 199, 0.35)",
+                borderLeftColor: ev.color || "#0284c7",
+                transform: "translateY(-1px)",
               },
             }}
           >
@@ -660,7 +667,7 @@ function AllEventsView({
                     width: 78,
                     minWidth: 78,
                     bgcolor: "#F8FAFC",
-                    border: "1px solid #E2E8F0",
+                    border: "1px solid rgba(226, 232, 240, 0.85)",
                     borderRadius: "12px",
                     py: 1,
                     px: 0.5,
@@ -690,6 +697,7 @@ function AllEventsView({
                     sx={{
                       fontSize: isMultiDay ? (dayNum.length > 5 ? "16px" : "19px") : "26px",
                       fontWeight: 800,
+                      fontFamily: '"Outfit", sans-serif',
                       color: "#0F172A",
                       lineHeight: 1,
                       my: 0.25,
@@ -723,10 +731,11 @@ function AllEventsView({
                       sx={{
                         fontSize: "18px",
                         fontWeight: 800,
+                        fontFamily: '"Outfit", sans-serif',
                         color: "#0F172A",
                         lineHeight: 1.25,
                         cursor: "pointer",
-                        "&:hover": { color: "#0088ff" },
+                        "&:hover": { color: "#0284c7" },
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         textOverflow: "ellipsis",

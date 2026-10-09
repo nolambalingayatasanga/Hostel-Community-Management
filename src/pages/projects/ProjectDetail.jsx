@@ -607,8 +607,9 @@ export default function ProjectDetail() {
                 textTransform: 'none',
                 py: 0.7,
                 px: 1.8,
-                boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-                '&:hover': { bgcolor: '#F8FAFC', borderColor: '#CBD5E1' }
+                boxShadow: 'none',
+                transition: 'all 0.15s ease',
+                '&:hover': { bgcolor: '#F8FAFC', borderColor: '#CBD5E1', boxShadow: 'none' }
               }}
             >
               Back to Projects
@@ -1148,9 +1149,9 @@ export default function ProjectDetail() {
                             borderRadius: '8px',
                             fontWeight: 600,
                             fontSize: '12.5px',
-                            bgcolor: '#F0F9FF',
-                            color: '#0284C7',
-                            border: '1px solid #BAE6FD',
+                            bgcolor: 'rgba(0, 136, 255, 0.08)',
+                            color: '#0088ff',
+                            border: '1px solid rgba(0, 136, 255, 0.25)',
                             py: 0.5
                           }}
                         />
@@ -1175,15 +1176,16 @@ export default function ProjectDetail() {
                           variant="contained"
                           startIcon={<OpenInNewIcon />}
                           sx={{
-                            bgcolor: '#0088FF',
+                            bgcolor: '#0088ff',
                             color: '#FFFFFF',
                             textTransform: 'none',
                             fontWeight: 700,
                             borderRadius: '10px',
                             px: 3,
                             py: 1.1,
-                            boxShadow: '0 4px 12px rgba(0, 136, 255, 0.25)',
-                            '&:hover': { bgcolor: '#0070D2' }
+                            boxShadow: 'none',
+                            transition: 'all 0.15s ease',
+                            '&:hover': { bgcolor: '#0077ee', boxShadow: 'none' }
                           }}
                         >
                           View Live Demo

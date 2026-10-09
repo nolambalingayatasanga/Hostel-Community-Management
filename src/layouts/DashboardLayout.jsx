@@ -45,7 +45,7 @@ import {
 import NotFound from '../pages/common/NotFound';
 import AuthRequired from '../pages/common/AuthRequired';
 
-const drawerWidth = 240;
+const drawerWidth = 256;
 
 const DashboardLayout = () => {
   const { user, logout } = useAuth();
@@ -62,94 +62,29 @@ const DashboardLayout = () => {
   const getPageTitle = () => {
     const path = location.pathname;
 
-    // Overview page check
-    if (path === '/dashboard') {
-      return 'Overview';
-    }
+    if (path === '/dashboard') return 'Overview Dashboard';
+    if (path === '/users' || path === '/members' || path.startsWith('/admin/users')) return 'Directory & Members';
+    if (path.startsWith('/events/') && path !== '/events/new') return 'Event Details';
+    if (path === '/events') return 'Community Events';
+    if (path.startsWith('/gallery')) return 'Photo Gallery';
+    if (path.startsWith('/drive-links')) return 'Drive & Documents';
+    if (path.startsWith('/profile')) return 'My Profile';
+    if (path.startsWith('/qr-scan-count')) return 'QR Analytics';
+    if (path === '/access-control') return 'Access & Permissions';
+    if (path.startsWith('/request-upload')) return 'Share Media';
+    if (path.startsWith('/job-openings')) return 'Career & Job Board';
+    if (path.startsWith('/projects')) return 'Showcase Projects';
+    if (path.startsWith('/facilities')) return 'Hostel Facilities';
+    if (path.startsWith('/enquiry')) return 'Enquiries & Support';
+    if (path.startsWith('/organizations')) return 'Partner Organizations';
+    if (path.startsWith('/feedback')) return 'Feedback & Ratings';
 
-    // Users directory page check
-    if (path === '/users' || path === '/members' || path.startsWith('/admin/users')) {
-      return 'Users';
-    }
-
-    // Event details page check
-    if (path.startsWith('/events/') && path !== '/events/new') {
-      return 'Event Details';
-    }
-
-    // Events / Calendar page check
-    if (path === '/events') {
-      return 'Event Calendar';
-    }
-
-    // Gallery page check
-    if (path.startsWith('/gallery')) {
-      return 'Gallery';
-    }
-
-    // Drive Links page check
-    if (path.startsWith('/drive-links')) {
-      return 'Drive Links';
-    }
-
-    // Profile page check
-    if (path.startsWith('/profile')) {
-      return 'Profile';
-    }
-
-    // QR Scan Count page check
-    if (path.startsWith('/qr-scan-count')) {
-      return 'QR Scan Count';
-    }
-
-    // Access Control page check
-    if (path === '/access-control') {
-      return 'Access Control';
-    }
-
-    // Request Upload page check
-    if (path.startsWith('/request-upload')) {
-      return 'Share Media';
-    }
-
-    // Job Openings page check
-    if (path.startsWith('/job-openings')) {
-      return 'Job Openings';
-    }
-
-    // Projects page check
-    if (path.startsWith('/projects')) {
-      return 'Projects';
-    }
-
-    // Facilities page check
-    if (path.startsWith('/facilities')) {
-      return 'Facilities';
-    }
-
-    // Enquiry page check
-    if (path.startsWith('/enquiry')) {
-      return 'Enquiries & Support';
-    }
-
-    // Organizations page check
-    if (path.startsWith('/organizations')) {
-      return 'Organizations';
-    }
-
-    // Feedback page check
-    if (path.startsWith('/feedback')) {
-      return 'Feedback';
-    }
-
-    // Default formatting logic
-    return path.substring(1).charAt(0).toUpperCase() + path.substring(2).replace('/', ' / ');
+    return path.substring(1).charAt(0).toUpperCase() + path.substring(2).replace('/', ' · ');
   };
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
-
 
   const handleMenuClose = () => {
     setAnchorEl(null);
@@ -168,28 +103,28 @@ const DashboardLayout = () => {
 
   // Icon mapping for backend navigation items
   const iconMap = {
-    DashboardIcon: <DashboardIcon />,
-    PeopleIcon: <PeopleIcon />,
-    EventIcon: <EventIcon />,
-    GalleryIcon: <GalleryIcon />,
-    CloudQueueIcon: <CloudQueueIcon />,
-    CloudUploadIcon: <CloudUploadIcon />,
-    WorkIcon: <WorkIcon />,
-    CodeIcon: <CodeIcon />,
-    ApartmentIcon: <ApartmentIcon />,
-    QuestionAnswerIcon: <QuestionAnswerIcon />,
-    DomainIcon: <DomainIcon />,
-    FeedbackIcon: <FeedbackIcon />,
-    ProfileIcon: <ProfileIcon />,
-    QrCodeIcon: <QrCodeScannerIcon />,
-    AdminIcon: <AdminIcon />
+    DashboardIcon: <DashboardIcon fontSize="small" />,
+    PeopleIcon: <PeopleIcon fontSize="small" />,
+    EventIcon: <EventIcon fontSize="small" />,
+    GalleryIcon: <GalleryIcon fontSize="small" />,
+    CloudQueueIcon: <CloudQueueIcon fontSize="small" />,
+    CloudUploadIcon: <CloudUploadIcon fontSize="small" />,
+    WorkIcon: <WorkIcon fontSize="small" />,
+    CodeIcon: <CodeIcon fontSize="small" />,
+    ApartmentIcon: <ApartmentIcon fontSize="small" />,
+    QuestionAnswerIcon: <QuestionAnswerIcon fontSize="small" />,
+    DomainIcon: <DomainIcon fontSize="small" />,
+    FeedbackIcon: <FeedbackIcon fontSize="small" />,
+    ProfileIcon: <ProfileIcon fontSize="small" />,
+    QrCodeIcon: <QrCodeScannerIcon fontSize="small" />,
+    AdminIcon: <AdminIcon fontSize="small" />
   };
 
   // Public pages that anyone can view without login
   const PUBLIC_PATHS = ['/facilities', '/enquiry', '/feedback'];
   const isPublicRoute = PUBLIC_PATHS.some(p => location.pathname === p || location.pathname.startsWith(`${p}/`));
 
-  // Default standard community tabs shown to guest visitors (overview, qr_scan_count and access_control are admin tabs)
+  // Default standard community tabs shown to guest visitors
   const DEFAULT_GUEST_NAV_ITEMS = [
     { id: 'profile', text: 'Profile', path: '/profile', icon: 'ProfileIcon' },
     { id: 'users', text: 'Users', path: '/users', icon: 'PeopleIcon' },
@@ -204,11 +139,9 @@ const DashboardLayout = () => {
     { id: 'feedback', text: 'Feedback', path: '/feedback', icon: 'FeedbackIcon' }
   ];
 
-  // State to hold dynamic navigation tabs sent by backend based on logged-in user's role
   const [navItems, setNavItems] = useState(user ? [] : DEFAULT_GUEST_NAV_ITEMS);
   const [navLoading, setNavLoading] = useState(user ? true : false);
 
-  // Fetch permitted tabs from backend
   const fetchNavigation = async () => {
     try {
       const res = await API.get('/access/navigation');
@@ -235,7 +168,6 @@ const DashboardLayout = () => {
     return () => window.removeEventListener('access_permissions_updated', onPermissionsUpdated);
   }, [user]);
 
-  // Map route path to access control page ID
   const getPageIdForPath = (pathname) => {
     if (pathname === '/dashboard') return 'overview';
     if (pathname === '/users' || pathname === '/members' || pathname.startsWith('/admin/users')) return 'users';
@@ -256,11 +188,7 @@ const DashboardLayout = () => {
   };
 
   const currentPageId = getPageIdForPath(location.pathname);
-  // An accessible page must be present in the backend-returned navItems
   const isPageAllowed = !currentPageId || navLoading || navItems.some(item => item.id === currentPageId);
-
-
-
 
   const handleNavClick = (path) => {
     navigate(path);
@@ -268,28 +196,47 @@ const DashboardLayout = () => {
   };
 
   const drawerContent = (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff', borderRight: '1px solid #e2e8f0' }}>
-
-      <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, flex: 1 }}>
-          <Avatar
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff', borderRight: '1px solid rgba(226, 232, 240, 0.85)' }}>
+      {/* Brand logo bar */}
+      <Box sx={{ p: 2.25, pb: 1.75, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Box
+          onClick={() => navigate(user ? '/dashboard' : '/facilities')}
+          sx={{ display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer', textDecoration: 'none' }}
+        >
+          <Box
             sx={{
-              width: 36,
-              height: 36,
-              bgcolor: user ? '#0088ff' : '#64748B',
-              fontSize: '14px',
-              fontWeight: 700
+              width: 38,
+              height: 38,
+              borderRadius: '11px',
+              backgroundColor: '#0088ff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#ffffff',
+              boxShadow: 'none',
+              fontWeight: 800,
+              fontSize: '18px',
+              fontFamily: '"Outfit", sans-serif'
             }}
-            src={user?.profilePhoto?.url || ''}
           >
-            {user ? (user.name?.charAt(0) || 'U') : 'G'}
-          </Avatar>
-          <Box sx={{ overflow: 'hidden' }}>
-            <Typography variant="subtitle2" noWrap sx={{ fontWeight: 'bold', color: '#1e293b' }}>
-              {user ? user.name : 'Guest Visitor'}
+            H
+          </Box>
+          <Box>
+            <Typography
+              variant="h6"
+              sx={{
+                fontSize: '16px',
+                fontWeight: 800,
+                color: '#0f172a',
+                lineHeight: 1.2,
+                fontFamily: '"Outfit", sans-serif',
+                letterSpacing: '-0.02em'
+              }}
+            >
+              Hostel<span style={{ color: '#0088ff' }}>Hub</span>
             </Typography>
-            <Typography variant="caption" sx={{ color: user ? '#0088ff' : '#64748B', fontWeight: 'bold' }}>
-              {user ? user.role : 'Public Portal'}
+            <Typography variant="caption" sx={{ color: '#94a3b8', fontSize: '11px', fontWeight: 600, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
+              Community Portal
             </Typography>
           </Box>
         </Box>
@@ -302,77 +249,163 @@ const DashboardLayout = () => {
         </IconButton>
       </Box>
 
-      <Divider sx={{ borderColor: '#f1f5f9' }} />
+      {/* User Status Card */}
+      <Box sx={{ px: 2, pb: 1.5 }}>
+        <Box
+          sx={{
+            p: 1.25,
+            borderRadius: '12px',
+            bgcolor: 'rgba(241, 245, 249, 0.65)',
+            border: '1px solid rgba(226, 232, 240, 0.75)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.25,
+            transition: 'all 0.2s ease',
+            '&:hover': {
+              bgcolor: 'rgba(241, 245, 249, 0.95)',
+              borderColor: 'rgba(0, 136, 255, 0.25)'
+            }
+          }}
+        >
+          <Avatar
+            sx={{
+              width: 34,
+              height: 34,
+              bgcolor: user ? '#0088ff' : '#64748B',
+              fontSize: '13px',
+              fontWeight: 700,
+              boxShadow: 'none'
+            }}
+            src={user?.profilePhoto?.url || ''}
+          >
+            {user ? (user.name?.charAt(0) || 'U') : 'G'}
+          </Avatar>
+          <Box sx={{ overflow: 'hidden', flex: 1, minWidth: 0 }}>
+            <Typography variant="subtitle2" noWrap sx={{ fontWeight: 700, color: '#0f172a', fontSize: '13px' }}>
+              {user ? user.name : 'Guest Visitor'}
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+              <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: user ? '#10b981' : '#94a3b8' }} />
+              <Typography variant="caption" sx={{ color: user ? '#0088ff' : '#64748B', fontWeight: 600, fontSize: '11px' }}>
+                {user ? user.role : 'Public Portal'}
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
+      </Box>
 
-      <List sx={{ px: 1, flexGrow: 1 }}>
-        {navItems.map((item) => (
-          <ListItem key={item.id || item.text} disablePadding sx={{ mb: 0 }}>
-            <ListItemButton
-              onClick={() => handleNavClick(item.path)}
-              selected={
-                location.pathname === item.path ||
-                (item.path === '/profile' && location.pathname.startsWith('/profile')) ||
-                (item.path === '/events' && location.pathname.startsWith('/events'))
-              }
-              sx={{
-                borderRadius: "10px",
-                color: '#475467',
-                '&.Mui-selected': {
-                  backgroundColor: 'rgba(0, 136, 255, 0.08)',
-                  color: '#0088ff',
+      <Divider sx={{ borderColor: 'rgba(226, 232, 240, 0.75)' }} />
+
+      {/* Nav List */}
+      <List sx={{ px: 1.5, py: 1.5, flexGrow: 1, overflowY: 'auto' }}>
+        {navItems.map((item) => {
+          const isSelected =
+            location.pathname === item.path ||
+            (item.path === '/profile' && location.pathname.startsWith('/profile')) ||
+            (item.path === '/events' && location.pathname.startsWith('/events')) ||
+            (item.path === '/projects' && location.pathname.startsWith('/projects'));
+
+          return (
+            <ListItem key={item.id || item.text} disablePadding sx={{ mb: 0.5 }}>
+              <ListItemButton
+                onClick={() => handleNavClick(item.path)}
+                selected={isSelected}
+                sx={{
+                  borderRadius: '10px',
+                  py: 1,
+                  px: 1.25,
+                  color: isSelected ? '#0088ff' : '#475569',
+                  backgroundColor: isSelected ? 'rgba(0, 136, 255, 0.08)' : 'transparent',
+                  position: 'relative',
+                  transition: 'all 0.18s ease',
                   '&:hover': {
-                    backgroundColor: 'rgba(0, 136, 255, 0.12)',
+                    backgroundColor: isSelected ? 'rgba(0, 136, 255, 0.12)' : 'rgba(241, 245, 249, 0.85)',
+                    color: isSelected ? '#0088ff' : '#0f172a',
+                    transform: 'translateX(2px)',
                   },
-                  '& .MuiListItemIcon-root': {
+                  '&.Mui-selected': {
+                    backgroundColor: 'rgba(0, 136, 255, 0.09)',
                     color: '#0088ff',
+                    fontWeight: 700,
+                    '&:hover': {
+                      backgroundColor: 'rgba(0, 136, 255, 0.14)',
+                    },
+                    '&::before': {
+                      content: '""',
+                      position: 'absolute',
+                      left: -8,
+                      top: '18%',
+                      bottom: '18%',
+                      width: 4,
+                      borderRadius: '0 4px 4px 0',
+                      backgroundColor: '#0088ff',
+                    }
                   }
-                }
-              }}
-            >
-              <ListItemIcon sx={{ minWidth: 40, color: location.pathname === item.path ? '#0088ff' : '#475467' }}>
-                {iconMap[item.icon] || <DashboardIcon />}
-              </ListItemIcon>
-              <ListItemText
-                primary={
-                  <Typography sx={{ fontSize: 14, fontWeight: location.pathname === item.path ? 600 : 500 }}>
-                    {item.id === 'request_upload' || item.text === 'Request Upload' || item.text === 'Upload Memories' ? 'Share Media' : item.text}
-                  </Typography>
-                }
-              />
-            </ListItemButton>
-          </ListItem>
-        ))}
-
-
+                }}
+              >
+                <ListItemIcon
+                  sx={{
+                    minWidth: 34,
+                    color: isSelected ? '#0088ff' : '#64748b',
+                    transition: 'color 0.15s ease',
+                  }}
+                >
+                  {iconMap[item.icon] || <DashboardIcon fontSize="small" />}
+                </ListItemIcon>
+                <ListItemText
+                  primary={
+                    <Typography
+                      sx={{
+                        fontSize: '13.5px',
+                        fontWeight: isSelected ? 700 : 500,
+                        letterSpacing: '-0.01em',
+                      }}
+                    >
+                      {item.id === 'request_upload' || item.text === 'Request Upload' || item.text === 'Upload Memories' ? 'Share Media' : item.text}
+                    </Typography>
+                  }
+                />
+              </ListItemButton>
+            </ListItem>
+          );
+        })}
       </List>
 
-      <Divider sx={{ borderColor: '#f1f5f9' }} />
+      <Divider sx={{ borderColor: 'rgba(226, 232, 240, 0.75)' }} />
 
+      {/* Drawer bottom actions */}
       {user ? (
-        <List sx={{ p: 1 }}>
-          <ListItem disablePadding>
-            <ListItemButton
-              onClick={() => {
-                setMobileOpen(false);
-                handleLogoutClick();
-              }}
-              sx={{ borderRadius: 2, color: 'error.main', '&:hover': { backgroundColor: 'rgba(244, 63, 94, 0.1)' } }}
-            >
-              <ListItemIcon sx={{ minWidth: 40, color: 'error.main' }}>
-                <LogoutIcon />
-              </ListItemIcon>
-              <ListItemText
-                primary={
-                  <Typography sx={{ fontSize: 14, fontWeight: 500 }}>
-                    Logout
-                  </Typography>
-                }
-              />
-            </ListItemButton>
-          </ListItem>
-        </List>
+        <Box sx={{ p: 1.5 }}>
+          <ListItemButton
+            onClick={() => {
+              setMobileOpen(false);
+              handleLogoutClick();
+            }}
+            sx={{
+              borderRadius: '10px',
+              py: 0.9,
+              color: '#f43f5e',
+              transition: 'all 0.15s ease',
+              '&:hover': {
+                backgroundColor: 'rgba(244, 63, 94, 0.08)',
+                color: '#e11d48'
+              }
+            }}
+          >
+            <ListItemIcon sx={{ minWidth: 34, color: 'inherit' }}>
+              <LogoutIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText
+              primary={
+                <Typography sx={{ fontSize: '13.5px', fontWeight: 600 }}>
+                  Sign Out
+                </Typography>
+              }
+            />
+          </ListItemButton>
+        </Box>
       ) : (
-        <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
           <Button
             variant="contained"
             fullWidth
@@ -381,16 +414,14 @@ const DashboardLayout = () => {
               navigate('/login', { state: { from: location.pathname } });
             }}
             sx={{
-              bgcolor: '#0088ff',
-              borderRadius: '8px',
+              borderRadius: '10px',
               textTransform: 'none',
               fontWeight: 700,
               fontSize: '13.5px',
               py: 0.9,
-              '&:hover': { bgcolor: '#0070d2' }
             }}
           >
-            Login
+            Sign In
           </Button>
           <Button
             variant="outlined"
@@ -400,14 +431,11 @@ const DashboardLayout = () => {
               navigate('/register', { state: { from: location.pathname } });
             }}
             sx={{
-              borderColor: '#0088ff',
-              color: '#0088ff',
-              borderRadius: '8px',
+              borderRadius: '10px',
               textTransform: 'none',
               fontWeight: 700,
               fontSize: '13.5px',
               py: 0.9,
-              '&:hover': { bgcolor: 'rgba(0, 136, 255, 0.05)', borderColor: '#0070d2' }
             }}
           >
             Create Account
@@ -424,14 +452,15 @@ const DashboardLayout = () => {
         sx={{
           width: { md: `calc(100% - ${drawerWidth}px)` },
           ml: { md: `${drawerWidth}px` },
-          backgroundColor: 'rgba(255, 255, 255, 0.8)',
+          backgroundColor: 'rgba(255, 255, 255, 0.88)',
           backdropFilter: 'blur(20px)',
-          borderBottom: '1px solid #e2e8f0',
+          WebkitBackdropFilter: 'blur(20px)',
+          borderBottom: '1px solid rgba(226, 232, 240, 0.85)',
           boxShadow: 'none',
-          color: '#1e293b'
+          color: '#0f172a'
         }}
       >
-        <Toolbar sx={{ justifyContent: 'space-between' }}>
+        <Toolbar sx={{ justifyContent: 'space-between', minHeight: '64px', px: { xs: 2, sm: 3 } }}>
           <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1 }}>
             <IconButton
               color="inherit"
@@ -519,8 +548,8 @@ const DashboardLayout = () => {
                       height: 34,
                       fontSize: '14px',
                       fontWeight: 700,
-                      bgcolor: '#0088FF',
-                      boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.06)'
+                      bgcolor: '#0088ff',
+                      boxShadow: 'none'
                     }}
                   >
                     {user?.name?.charAt(0) || 'U'}
@@ -536,12 +565,12 @@ const DashboardLayout = () => {
                   PaperProps={{
                     elevation: 0,
                     sx: {
-                      borderRadius: '14px',
+                      borderRadius: '16px',
                       mt: 1.25,
-                      minWidth: 200,
-                      p: '6px',
-                      border: '1px solid #E2E8F0',
-                      boxShadow: '0 12px 28px -4px rgba(15, 23, 42, 0.12), 0 4px 10px -2px rgba(15, 23, 42, 0.06)'
+                      minWidth: 220,
+                      p: '8px',
+                      border: '1px solid rgba(226, 232, 240, 0.85)',
+                      boxShadow: 'none'
                     }
                   }}
                 >
@@ -550,7 +579,7 @@ const DashboardLayout = () => {
                     <Avatar
                       src={user?.profilePhoto?.url || ''}
                       alt={user?.name || 'User'}
-                      sx={{ width: 34, height: 34, fontSize: '13px', fontWeight: 700, bgcolor: '#0088FF' }}
+                      sx={{ width: 36, height: 36, fontSize: '13px', fontWeight: 700, bgcolor: '#0088ff' }}
                     >
                       {user?.name?.charAt(0) || 'U'}
                     </Avatar>
@@ -558,53 +587,53 @@ const DashboardLayout = () => {
                       <Typography sx={{ fontSize: '13.5px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {user?.name || 'User'}
                       </Typography>
-                      <Typography sx={{ fontSize: '11px', fontWeight: 600, color: '#0088FF', bgcolor: '#F0F7FF', px: 0.75, py: 0.15, borderRadius: '4px', display: 'inline-block', mt: 0.25 }}>
+                      <Typography sx={{ fontSize: '11px', fontWeight: 600, color: '#0088ff', bgcolor: 'rgba(0, 136, 255, 0.08)', px: 1, py: 0.2, borderRadius: '6px', display: 'inline-block', mt: 0.3 }}>
                         {user?.role || 'MEMBER'}
                       </Typography>
                     </Box>
                   </Box>
 
-                  <Divider sx={{ my: 0.75, borderColor: '#F1F5F9' }} />
+                  <Divider sx={{ my: 0.75, borderColor: 'rgba(226, 232, 240, 0.8)' }} />
 
                   <MenuItem
                     onClick={handleProfileClick}
                     sx={{
-                      borderRadius: '8px',
+                      borderRadius: '10px',
                       py: 1,
                       px: 1.25,
                       gap: 1.25,
                       color: '#334155',
                       transition: 'all 0.15s ease',
-                      '&:hover': { bgcolor: '#F8FAFC', color: '#0088FF' }
+                      '&:hover': { bgcolor: 'rgba(2, 132, 199, 0.06)', color: '#0284c7' }
                     }}
                   >
-                    <Box sx={{ width: 30, height: 30, borderRadius: '6px', bgcolor: '#F0F7FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0088FF' }}>
+                    <Box sx={{ width: 32, height: 32, borderRadius: '8px', bgcolor: 'rgba(2, 132, 199, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0284c7' }}>
                       <ProfileIcon sx={{ fontSize: 18 }} />
                     </Box>
-                    <Typography sx={{ fontSize: '13.5px', fontWeight: 600 }}>Profile</Typography>
+                    <Typography sx={{ fontSize: '13.5px', fontWeight: 600 }}>My Profile</Typography>
                   </MenuItem>
 
                   <MenuItem
                     onClick={handleLogoutClick}
                     sx={{
-                      borderRadius: '8px',
+                      borderRadius: '10px',
                       py: 1,
                       px: 1.25,
                       gap: 1.25,
-                      color: '#EF4444',
+                      color: '#f43f5e',
                       transition: 'all 0.15s ease',
-                      '&:hover': { bgcolor: '#FEF2F2', color: '#DC2626' }
+                      '&:hover': { bgcolor: 'rgba(244, 63, 94, 0.06)', color: '#e11d48' }
                     }}
                   >
-                    <Box sx={{ width: 30, height: 30, borderRadius: '6px', bgcolor: '#FEF2F2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#EF4444' }}>
+                    <Box sx={{ width: 32, height: 32, borderRadius: '8px', bgcolor: 'rgba(244, 63, 94, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f43f5e' }}>
                       <LogoutIcon sx={{ fontSize: 18 }} />
                     </Box>
-                    <Typography sx={{ fontSize: '13.5px', fontWeight: 600 }}>Logout</Typography>
+                    <Typography sx={{ fontSize: '13.5px', fontWeight: 600 }}>Sign Out</Typography>
                   </MenuItem>
                 </Menu>
               </>
             ) : (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
                 <Button
                   variant="outlined"
                   size="small"
@@ -613,15 +642,15 @@ const DashboardLayout = () => {
                     textTransform: 'none',
                     fontWeight: 700,
                     fontSize: '13px',
-                    borderColor: '#0088ff',
-                    color: '#0088ff',
-                    borderRadius: '8px',
-                    px: 1.75,
-                    py: 0.5,
-                    '&:hover': { borderColor: '#0070d2', bgcolor: 'rgba(0, 136, 255, 0.05)' }
+                    borderColor: 'rgba(2, 132, 199, 0.4)',
+                    color: '#0284c7',
+                    borderRadius: '10px',
+                    px: 2,
+                    py: 0.6,
+                    '&:hover': { borderColor: '#0284c7', bgcolor: 'rgba(2, 132, 199, 0.06)' }
                   }}
                 >
-                  Login
+                  Sign In
                 </Button>
                 <Button
                   variant="contained"
@@ -631,13 +660,13 @@ const DashboardLayout = () => {
                     textTransform: 'none',
                     fontWeight: 700,
                     fontSize: '13px',
-                    bgcolor: '#0088ff',
+                    bgcolor: '#0284c7',
                     color: '#ffffff',
-                    borderRadius: '8px',
-                    px: 1.75,
-                    py: 0.5,
-                    boxShadow: '0 2px 8px rgba(0, 136, 255, 0.25)',
-                    '&:hover': { bgcolor: '#0070d2' }
+                    borderRadius: '10px',
+                    px: 2,
+                    py: 0.6,
+                    boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)',
+                    '&:hover': { bgcolor: '#0369a1' }
                   }}
                 >
                   Create Account
@@ -659,11 +688,11 @@ const DashboardLayout = () => {
           open={mobileOpen}
           onClose={handleDrawerToggle}
           ModalProps={{
-            keepMounted: true, // Better open performance on mobile.
+            keepMounted: true,
           }}
           sx={{
             display: { xs: 'block', md: 'none' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth, borderRight: '1px solid #e2e8f0' },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth, borderRight: '1px solid rgba(226, 232, 240, 0.85)' },
           }}
         >
           {drawerContent}
@@ -674,7 +703,7 @@ const DashboardLayout = () => {
           variant="permanent"
           sx={{
             display: { xs: 'none', md: 'block' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth, borderRight: '1px solid #e2e8f0' },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth, borderRight: '1px solid rgba(226, 232, 240, 0.85)' },
           }}
           open
         >

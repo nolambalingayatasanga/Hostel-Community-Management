@@ -205,7 +205,7 @@ export default function Enquiry() {
                 bgcolor: '#FFFFFF',
                 borderRadius: '20px',
                 border: '1px solid #EAECF0',
-                boxShadow: '0 4px 20px -2px rgba(16, 24, 40, 0.05)',
+                boxShadow: 'none',
                 p: { xs: 2.5, sm: 3 },
                 display: 'flex',
                 flexDirection: 'column'
@@ -286,7 +286,8 @@ export default function Enquiry() {
                       fontSize: '0.85rem',
                       bgcolor: activeTab === 'form' ? '#FFFFFF' : 'transparent',
                       color: activeTab === 'form' ? '#0088FF' : '#64748B',
-                      boxShadow: activeTab === 'form' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                      boxShadow: 'none',
+                      border: activeTab === 'form' ? '1px solid #CBD5E1' : '1px solid transparent',
                       '&:hover': {
                         bgcolor: activeTab === 'form' ? '#FFFFFF' : 'rgba(0,0,0,0.04)'
                       }
@@ -306,7 +307,8 @@ export default function Enquiry() {
                       fontSize: '0.85rem',
                       bgcolor: activeTab === 'submissions' ? '#FFFFFF' : 'transparent',
                       color: activeTab === 'submissions' ? '#0088FF' : '#64748B',
-                      boxShadow: activeTab === 'submissions' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                      boxShadow: 'none',
+                      border: activeTab === 'submissions' ? '1px solid #CBD5E1' : '1px solid transparent',
                       '&:hover': {
                         bgcolor: activeTab === 'submissions' ? '#FFFFFF' : 'rgba(0,0,0,0.04)'
                       }
@@ -532,7 +534,7 @@ export default function Enquiry() {
                           }
                           sx={{
                             borderRadius: '10px',
-                            bgcolor: '#0088FF',
+                            bgcolor: '#0088ff',
                             color: '#FFFFFF',
                             fontWeight: 700,
                             fontSize: '0.92rem',
@@ -540,10 +542,11 @@ export default function Enquiry() {
                             py: 1.1,
                             px: 3.5,
                             minWidth: { xs: '100%', sm: 170 },
-                            boxShadow: '0 4px 12px rgba(0, 136, 255, 0.25)',
+                            boxShadow: 'none',
+                            transition: 'all 0.15s ease',
                             '&:hover': {
-                              bgcolor: '#0070D2',
-                              boxShadow: '0 6px 16px rgba(0, 136, 255, 0.35)'
+                              bgcolor: '#0077ee',
+                              boxShadow: 'none'
                             }
                           }}
                         >
@@ -582,7 +585,7 @@ export default function Enquiry() {
                           alignItems: 'center',
                           justifyContent: 'center',
                           mb: 2,
-                          boxShadow: '0 4px 14px rgba(0, 136, 255, 0.15)'
+                          boxShadow: 'none'
                         }}
                       >
                         <LockIcon sx={{ fontSize: 32 }} />
@@ -601,14 +604,15 @@ export default function Enquiry() {
                           startIcon={<LoginIcon sx={{ fontSize: 18 }} />}
                           sx={{
                             borderRadius: '10px',
-                            bgcolor: '#0088FF',
+                            bgcolor: '#0088ff',
                             color: '#FFFFFF',
                             fontWeight: 700,
                             px: 3.5,
                             py: 1.1,
                             textTransform: 'none',
-                            boxShadow: '0 4px 12px rgba(0, 136, 255, 0.25)',
-                            '&:hover': { bgcolor: '#0070D2' }
+                            boxShadow: 'none',
+                            transition: 'all 0.15s ease',
+                            '&:hover': { bgcolor: '#0077ee', boxShadow: 'none' }
                           }}
                         >
                           Log In
@@ -703,7 +707,7 @@ export default function Enquiry() {
                               border: '1px solid #EAECF0',
                               p: 2.5,
                               bgcolor: '#FFFFFF',
-                              boxShadow: '0 2px 8px rgba(16, 24, 40, 0.04)'
+                              boxShadow: 'none'
                             }}
                           >
                             <Stack
@@ -818,7 +822,7 @@ export default function Enquiry() {
                   bgcolor: '#FFFFFF',
                   borderRadius: '20px',
                   border: '1px solid #EAECF0',
-                  boxShadow: '0 4px 20px -2px rgba(16, 24, 40, 0.05)',
+                  boxShadow: 'none',
                   p: { xs: 2.5, sm: 3 }
                 }}
               >
@@ -950,7 +954,7 @@ export default function Enquiry() {
                     border: '1px solid #BAE6FD',
                     background: 'linear-gradient(180deg, #F0F9FF 0%, #FFFFFF 100%)',
                     p: 2.5,
-                    boxShadow: '0 4px 16px -2px rgba(0, 136, 255, 0.08)'
+                    boxShadow: 'none'
                   }}
                 >
                   <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.25 }}>

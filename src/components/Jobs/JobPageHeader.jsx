@@ -30,6 +30,7 @@ export default function JobPageHeader({
           variant="h5"
           sx={{
             fontWeight: 800,
+            fontFamily: '"Outfit", sans-serif',
             color: '#0F172A',
             display: 'flex',
             alignItems: 'center',
@@ -65,12 +66,14 @@ export default function JobPageHeader({
               textTransform: 'none',
               fontWeight: 700,
               fontSize: { xs: '12.5px', sm: '13.5px' },
-              borderColor: '#CBD5E1',
-              color: '#334155',
+              borderColor: '#0088ff',
+              color: '#0088ff',
               bgcolor: '#FFFFFF',
+              boxShadow: 'none',
               flex: { xs: 1, sm: 'none' },
               whiteSpace: 'nowrap',
-              '&:hover': { bgcolor: '#F8FAFC', borderColor: '#94A3B8' }
+              transition: 'all 0.15s ease',
+              '&:hover': { bgcolor: 'rgba(0, 136, 255, 0.05)', borderColor: '#0070d6', boxShadow: 'none' }
             }}
           >
             {organization ? organization.name : 'Setup Organization'}
@@ -88,11 +91,16 @@ export default function JobPageHeader({
               textTransform: 'none',
               fontWeight: 700,
               fontSize: { xs: '12.5px', sm: '13.5px' },
-              bgcolor: '#0088ff',
-              boxShadow: '0 2px 8px rgba(0, 136, 255, 0.25)',
+              backgroundColor: '#0088ff',
+              color: '#FFFFFF',
+              boxShadow: 'none',
               whiteSpace: 'nowrap',
               flex: { xs: 1, sm: 'none' },
-              '&:hover': { bgcolor: '#0077ee', boxShadow: 'none' }
+              transition: 'all 0.15s ease',
+              '&:hover': {
+                backgroundColor: '#0077ee',
+                boxShadow: 'none'
+              }
             }}
           >
             Post Job Opening

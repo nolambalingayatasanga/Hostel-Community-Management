@@ -423,7 +423,7 @@ export default function LoginCard({ onSwitchMode }) {
                 }
               }}
               sx={{
-                color: '#2563EB',
+                color: '#0088ff',
                 fontWeight: 600,
                 fontSize: { xs: '13px', sm: '13.5px' },
                 textDecoration: 'none',
@@ -448,17 +448,18 @@ export default function LoginCard({ onSwitchMode }) {
               fontWeight: 700,
               fontSize: { xs: '15px', sm: '15.5px' },
               textTransform: 'none',
-              bgcolor: '#0088ff',
+              backgroundColor: '#0088ff',
               boxShadow: 'none',
               letterSpacing: '0.2px',
+              transition: 'all 0.15s ease',
               '&:hover': {
-                bgcolor: '#0077e6',
+                backgroundColor: '#0077ee',
                 boxShadow: 'none'
               },
               '&.Mui-disabled': { bgcolor: '#93C5FD' }
             }}
           >
-            {loading ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : 'Login In'}
+            {loading ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : 'Log In'}
           </Button>
         </form>
 
@@ -504,13 +505,16 @@ export default function LoginCard({ onSwitchMode }) {
             fontWeight: 700,
             fontSize: { xs: '14px', sm: '14.5px' },
             textTransform: 'none',
-            color: '#1877F2',
-            borderColor: '#93C5FD',
+            color: '#0088ff',
+            borderColor: '#0088ff',
             bgcolor: '#FFFFFF',
+            boxShadow: 'none',
             mb: 0,
+            transition: 'all 0.15s ease',
             '&:hover': {
-              borderColor: '#1877F2',
-              bgcolor: '#EFF6FF'
+              borderColor: '#0070d6',
+              bgcolor: 'rgba(0, 136, 255, 0.05)',
+              boxShadow: 'none'
             }
           }}
         >

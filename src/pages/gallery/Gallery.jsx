@@ -1139,11 +1139,11 @@ const Gallery = () => {
                   px: { xs: 1.5, md: 2 },
                   textTransform: 'none',
                   color: '#64748B',
-                  transition: 'all 0.2s',
+                  transition: 'all 0.15s ease',
                   '&.Mui-selected': {
                     bgcolor: '#FFFFFF',
                     color: '#0088ff',
-                    boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
+                    boxShadow: 'none'
                   }
                 }}
               />
@@ -1161,7 +1161,7 @@ const Gallery = () => {
                           height: '18px',
                           fontSize: '10px',
                           fontWeight: 700,
-                          bgcolor: activeTab === 'folders' ? 'rgba(0, 136, 255, 0.1)' : '#E2E8F0',
+                          bgcolor: activeTab === 'folders' ? 'rgba(0, 136, 255, 0.12)' : '#E2E8F0',
                           color: activeTab === 'folders' ? '#0088ff' : '#64748B'
                         }}
                       />
@@ -1179,11 +1179,11 @@ const Gallery = () => {
                   px: { xs: 1.5, md: 2 },
                   textTransform: 'none',
                   color: '#64748B',
-                  transition: 'all 0.2s',
+                  transition: 'all 0.15s ease',
                   '&.Mui-selected': {
                     bgcolor: '#FFFFFF',
                     color: '#0088ff',
-                    boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
+                    boxShadow: 'none'
                   }
                 }}
               />
@@ -1226,20 +1226,21 @@ const Gallery = () => {
                     sx={{
                       width: { xs: '100%', md: 'auto' },
                       gridColumn: { xs: numButtons === 3 ? '1 / -1' : 'auto', md: 'auto' },
-                      background: '#0088ff',
+                      backgroundColor: '#0088ff',
                       color: '#fff',
-                      borderRadius: '9px',
-                      px: { xs: 1.5, md: 2 },
-                      py: 0.5,
-                      height: 34,
-                      fontSize: '12.5px',
-                      fontWeight: 600,
+                      borderRadius: '10px',
+                      px: { xs: 1.5, md: 2.2 },
+                      py: 0.6,
+                      height: 36,
+                      fontSize: '13px',
+                      fontWeight: 700,
                       textTransform: 'none',
                       boxShadow: 'none',
                       whiteSpace: 'nowrap',
                       justifyContent: 'center',
+                      transition: 'all 0.15s ease',
                       '&:hover': {
-                        background: '#0077ee',
+                        backgroundColor: '#0077ee',
                         boxShadow: 'none'
                       }
                     }}
@@ -1256,20 +1257,21 @@ const Gallery = () => {
                     sx={{
                       width: { xs: '100%', md: 'auto' },
                       gridColumn: { xs: numButtons === 3 ? '1 / -1' : 'auto', md: 'auto' },
-                      background: '#0088ff',
+                      backgroundColor: '#0088ff',
                       color: '#fff',
-                      borderRadius: '9px',
-                      px: { xs: 1.5, md: 2 },
-                      py: 0.5,
-                      height: 34,
-                      fontSize: '12.5px',
-                      fontWeight: 600,
+                      borderRadius: '10px',
+                      px: { xs: 1.5, md: 2.2 },
+                      py: 0.6,
+                      height: 36,
+                      fontSize: '13px',
+                      fontWeight: 700,
                       textTransform: 'none',
                       boxShadow: 'none',
                       whiteSpace: 'nowrap',
                       justifyContent: 'center',
+                      transition: 'all 0.15s ease',
                       '&:hover': {
-                        background: '#0077ee',
+                        backgroundColor: '#0077ee',
                         boxShadow: 'none'
                       }
                     }}
@@ -1288,20 +1290,23 @@ const Gallery = () => {
                     onClick={() => handleOpenCreateFolderDialog(currentFolder ? currentFolder._id : null)}
                     sx={{
                       width: { xs: '100%', md: 'auto' },
-                      borderRadius: '9px',
+                      borderRadius: '10px',
                       borderColor: '#0088ff',
                       color: '#0088ff',
-                      fontWeight: 600,
+                      fontWeight: 700,
                       textTransform: 'none',
                       px: { xs: 1.5, md: 2 },
-                      py: 0.5,
-                      height: 34,
-                      fontSize: '12px',
+                      py: 0.6,
+                      height: 36,
+                      fontSize: '13px',
                       whiteSpace: 'nowrap',
                       justifyContent: 'center',
+                      boxShadow: 'none',
+                      transition: 'all 0.15s ease',
                       '&:hover': {
-                        borderColor: '#0077ee',
-                        backgroundColor: 'rgba(0, 136, 255, 0.04)'
+                        borderColor: '#0070d6',
+                        backgroundColor: 'rgba(0, 136, 255, 0.05)',
+                        boxShadow: 'none'
                       }
                     }}
                   >

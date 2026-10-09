@@ -1062,7 +1062,7 @@ const Profile = ({
                         borderTop: { xs: '1px solid #E2E8F0', md: 'none' },
                         p: { xs: '12px 16px', md: 0 },
                         mt: { xs: 0, md: 1 },
-                        boxShadow: { xs: '0 -4px 16px rgba(0, 0, 0, 0.06)', md: 'none' },
+                        boxShadow: 'none',
                         display: 'flex',
                         justifyContent: { xs: 'stretch', md: 'flex-end' }
                       }}
@@ -1141,7 +1141,7 @@ const Profile = ({
                   borderRadius: '12px',
                   mt: 1,
                   p: 0.5,
-                  boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+                  boxShadow: 'none',
                   border: '1px solid #E2E8F0',
                   minWidth: 190
                 }

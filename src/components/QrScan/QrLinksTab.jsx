@@ -45,7 +45,7 @@ export default function QrLinksTab({
             sx={{
               borderRadius: '18px',
               border: '1px solid #E2E8F0',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
+              boxShadow: 'none',
               bgcolor: '#FFFFFF',
               p: { xs: 2, sm: 3 },
               height: '100%',
@@ -61,8 +61,8 @@ export default function QrLinksTab({
                     width: 40,
                     height: 40,
                     borderRadius: '12px',
-                    bgcolor: '#EFF8FF',
-                    color: '#0284C7',
+                    bgcolor: 'rgba(0, 136, 255, 0.08)',
+                    color: '#0088ff',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center'
@@ -83,7 +83,7 @@ export default function QrLinksTab({
                     borderRadius: '16px',
                     bgcolor: '#FFFFFF',
                     border: '1px solid #E2E8F0',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+                    boxShadow: 'none',
                     display: 'inline-flex'
                   }}
                 >
@@ -98,21 +98,21 @@ export default function QrLinksTab({
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: 1,
-                      bgcolor: '#EFF8FF',
+                      bgcolor: 'rgba(0, 136, 255, 0.08)',
                       px: 2,
                       py: 0.75,
                       borderRadius: '20px',
-                      border: '1px solid #BAE6FD'
+                      border: '1px solid rgba(0, 136, 255, 0.2)'
                     }}
                   >
-                    <Typography sx={{ color: '#0284C7', fontWeight: 700, fontSize: '0.85rem', fontFamily: 'monospace' }}>
+                    <Typography sx={{ color: '#0088ff', fontWeight: 700, fontSize: '0.85rem', fontFamily: 'monospace' }}>
                       Code: {data.code}
                     </Typography>
                     <Tooltip title="Copy Code">
                       <IconButton
                         size="small"
                         onClick={() => onCopyText(data.code, 'code', 'Code')}
-                        sx={{ color: '#0284C7', p: 0.25 }}
+                        sx={{ color: '#0088ff', p: 0.25 }}
                       >
                         {copiedCode ? <CheckIcon sx={{ fontSize: 15 }} /> : <CopyIcon sx={{ fontSize: 15 }} />}
                       </IconButton>
@@ -130,7 +130,7 @@ export default function QrLinksTab({
                 startIcon={downloading ? <CircularProgress size={16} /> : <DownloadIcon />}
                 onClick={() => onDownloadQr('png')}
                 disabled={downloading}
-                sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 700, borderColor: '#CBD5E1', color: '#334155' }}
+                sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 700, borderColor: '#CBD5E1', color: '#334155', boxShadow: 'none' }}
               >
                 Download PNG
               </Button>
@@ -140,7 +140,7 @@ export default function QrLinksTab({
                 startIcon={<DownloadIcon />}
                 onClick={() => onDownloadQr('svg')}
                 disabled={downloading}
-                sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 700, borderColor: '#CBD5E1', color: '#334155' }}
+                sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 700, borderColor: '#CBD5E1', color: '#334155', boxShadow: 'none' }}
               >
                 Download SVG
               </Button>
@@ -154,7 +154,7 @@ export default function QrLinksTab({
             sx={{
               borderRadius: '18px',
               border: '1px solid #E2E8F0',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
+              boxShadow: 'none',
               bgcolor: '#FFFFFF',
               p: { xs: 2, sm: 3 },
               height: '100%',
@@ -238,7 +238,8 @@ export default function QrLinksTab({
                     borderColor: '#86EFAC',
                     bgcolor: '#FFFFFF',
                     py: 1,
-                    '&:hover': { bgcolor: '#F0FDF4', borderColor: '#4ADE80' }
+                    boxShadow: 'none',
+                    '&:hover': { bgcolor: '#F0FDF4', borderColor: '#4ADE80', boxShadow: 'none' }
                   }}
                 >
                   Test Direct Click
@@ -254,8 +255,8 @@ export default function QrLinksTab({
                     fontWeight: 700,
                     bgcolor: '#16A34A',
                     py: 1,
-                    boxShadow: '0 2px 8px rgba(22, 163, 74, 0.25)',
-                    '&:hover': { bgcolor: '#15803D' }
+                    boxShadow: 'none',
+                    '&:hover': { bgcolor: '#15803D', boxShadow: 'none' }
                   }}
                 >
                   {copiedDirect ? 'Copied' : 'Copy Link'}
@@ -280,7 +281,7 @@ export default function QrLinksTab({
 
         {/* Bottom Card: Login Access Link + UPDATE LINK OPTION */}
         <Grid size={{ xs: 12 }}>
-          <Card sx={{ borderRadius: '18px', border: '1px solid #E2E8F0', boxShadow: '0 2px 10px rgba(0,0,0,0.02)', bgcolor: '#FFFFFF', p: { xs: 2, sm: 2.5 } }}>
+          <Card sx={{ borderRadius: '18px', border: '1px solid #E2E8F0', boxShadow: 'none', bgcolor: '#FFFFFF', p: { xs: 2, sm: 2.5 } }}>
             <Stack
               direction={{ xs: 'column', sm: 'row' }}
               sx={{
@@ -295,8 +296,8 @@ export default function QrLinksTab({
                     width: 44,
                     height: 44,
                     borderRadius: '12px',
-                    bgcolor: '#EFF8FF',
-                    color: '#0284C7',
+                    bgcolor: 'rgba(0, 136, 255, 0.08)',
+                    color: '#0088ff',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -340,7 +341,7 @@ export default function QrLinksTab({
                   size="small"
                   endIcon={<OpenInNewIcon sx={{ fontSize: 16 }} />}
                   onClick={() => window.open(data?.redirectUrl || 'https://www.kambi-connect.in/login', '_blank', 'noopener,noreferrer')}
-                  sx={{ textTransform: 'none', fontWeight: 700, borderRadius: '10px', borderColor: '#CBD5E1', color: '#0284C7' }}
+                  sx={{ textTransform: 'none', fontWeight: 700, borderRadius: '10px', borderColor: '#0088ff', color: '#0088ff', boxShadow: 'none' }}
                 >
                   Open Link
                 </Button>
@@ -353,8 +354,10 @@ export default function QrLinksTab({
                     textTransform: 'none',
                     fontWeight: 700,
                     borderRadius: '10px',
-                    bgcolor: '#0284C7',
-                    '&:hover': { bgcolor: '#0369A1' }
+                    bgcolor: '#0088ff',
+                    color: '#FFFFFF',
+                    boxShadow: 'none',
+                    '&:hover': { bgcolor: '#0077ee', boxShadow: 'none' }
                   }}
                 >
                   Update Link
